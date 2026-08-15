@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../api/superAdmin.api';
 import { PageHeader, Button, Card } from '../../components/ui/index';
+import { schoolLogoUrl } from '../../utils/branding';
 
 const SCHOOL_BOARDS = ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge (IGCSE)', 'NIOS', 'Other'];
 
@@ -40,6 +41,7 @@ export default function SchoolForm() {
   const [form,    setForm]    = useState(initial);
   const [logo,    setLogo]    = useState(null);
   const [preview, setPreview] = useState('');
+  const [removeLogo, setRemoveLogo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors,  setErrors]  = useState({});
 
@@ -61,7 +63,7 @@ export default function SchoolForm() {
             website:  s.website || '',
             isActive: s.isActive !== false,
           });
-          if (s.logo) setPreview(s.logo);
+          if (s.logo) setPreview(schoolLogoUrl(s) || '');
         })
         .catch(() => toast.error('Failed to load school'));
     }
@@ -80,6 +82,7 @@ export default function SchoolForm() {
     if (!file.type.startsWith('image/')) { toast.error('File must be an image'); return; }
     if (file.size > 2 * 1024 * 1024) { toast.error('Logo must be under 2 MB'); return; }
     setLogo(file);
+    setRemoveLogo(false);          // picking a file overrides a pending removal
     setPreview(URL.createObjectURL(file));
   };
 
@@ -96,6 +99,7 @@ export default function SchoolForm() {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
       if (logo) fd.append('logo', logo);
+      else if (removeLogo) fd.append('removeLogo', 'true');   // clears it server-side
       if (isEdit) await api.updateSchool(id, fd);
       else        await api.createSchool(fd);
       toast.success(isEdit ? 'School updated' : 'School created');
@@ -149,12 +153,17 @@ export default function SchoolForm() {
                 <label htmlFor="logo-input" className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
                   {preview ? '🔄 Change Logo' : '📷 Upload Logo'}
                 </label>
-                {preview && !logo && (
+                {preview && (
                   <button type="button" className="btn btn-secondary btn-sm"
                     style={{ marginLeft: 8 }}
-                    onClick={() => { setPreview(''); setLogo(null); }}>
+                    onClick={() => { setPreview(''); setLogo(null); setRemoveLogo(isEdit); }}>
                     ✕ Remove
                   </button>
+                )}
+                {removeLogo && (
+                  <p style={{ color: 'var(--danger)', fontSize: '.78rem', marginTop: 6, marginBottom: 0 }}>
+                    Logo will be removed when you save.
+                  </p>
                 )}
                 <p className="text-muted text-sm" style={{ marginTop: 4, marginBottom: 0 }}>PNG, JPG or SVG · max 2 MB</p>
               </div>

@@ -25,6 +25,7 @@ export default function SchoolSettings() {
   const [name,    setName]    = useState('');
   const [logo,    setLogo]    = useState('');
   const [preview, setPreview] = useState(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [errors,  setErrors]  = useState({});
@@ -65,7 +66,16 @@ export default function SchoolSettings() {
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setRemoveLogo(false);          // picking a file overrides a pending removal
     setPreview(URL.createObjectURL(file));
+  };
+
+  // Marks the logo for deletion; applied when the form is saved, like every
+  // other field on this page.
+  const handleLogoRemove = () => {
+    setPreview(null);
+    setRemoveLogo(true);
+    if (logoRef.current) logoRef.current.value = '';
   };
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
@@ -143,10 +153,12 @@ export default function SchoolSettings() {
       fd.append('website', form.website);
       fd.append('leaveSettings', JSON.stringify(form.leaveSettings));
       if (logoRef.current?.files?.[0]) fd.append('logo', logoRef.current.files[0]);
+      else if (removeLogo) fd.append('removeLogo', 'true');
       const res = await updateSchoolSettings(fd);
       const d   = res.data?.data ?? res.data;
       setLogo(d.logo || '');
       setPreview(null);
+      setRemoveLogo(false);
       if (logoRef.current) logoRef.current.value = '';
       reload();   // refresh user.school so the sidebar logo/name update immediately
       toast.success('Settings saved');
@@ -164,7 +176,7 @@ export default function SchoolSettings() {
   );
 
   const { saturdayWorking, saturdayMode, saturdayHalfDay } = form.leaveSettings;
-  const logoSrc = preview || schoolLogoUrl({ logo });
+  const logoSrc = preview || (removeLogo ? null : schoolLogoUrl({ logo }));
 
   return (
     <div className="page">
@@ -189,6 +201,21 @@ export default function SchoolSettings() {
                 <div>
                   <input ref={logoRef} type="file" accept="image/*" className="form-control" style={{ maxWidth: 300 }} onChange={handleLogoChange} />
                   <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>JPG, PNG, SVG — max 5 MB</div>
+                  {(logo || preview) && !removeLogo && (
+                    <button type="button" className="btn btn-danger btn-sm" style={{ marginTop: 8 }}
+                      onClick={handleLogoRemove}>
+                      Remove logo
+                    </button>
+                  )}
+                  {removeLogo && (
+                    <div style={{ marginTop: 8, fontSize: '.78rem', color: 'var(--danger)' }}>
+                      Logo will be removed when you save.{' '}
+                      <button type="button" onClick={() => setRemoveLogo(false)}
+                        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}>
+                        Undo
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
