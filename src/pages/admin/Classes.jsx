@@ -14,14 +14,16 @@ export default function Classes() {
   const [assignConfirm, setAssignConfirm] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [form, setForm]     = useState({ name: '', level: '' });
+  const [formErr, setFormErr] = useState('');
 
   const { data: years } = useFetch(api.getAcademicYears);
 
-  // Auto-select the active academic year once years load
+  // Auto-select the active academic year once years load (fall back to the
+  // newest one — classes are always scoped to a single year, never "all")
   useEffect(() => {
     if (!years?.length) return;
     const active = years.find(y => y.status === 'active');
-    if (active) setSelectedYear(active._id);
+    setSelectedYear(active?._id || years[0]._id);
   }, [years]);
 
   const { data: classes, loading, refetch } = useFetch(
@@ -29,11 +31,16 @@ export default function Classes() {
     [selectedYear],
   );
 
+  const openCreate = () => { setForm({ name: '', level: '' }); setFormErr(''); setModal(true); };
+
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error('Class name is required');
-    if (form.level !== '' && (Number.isNaN(Number(form.level)) || Number(form.level) < 0))
-      return toast.error('Class number must be a non-negative number');
+    setFormErr('');
+    if (!form.name.trim()) { setFormErr('Class name is required'); return; }
+    if (form.level !== '' && (Number.isNaN(Number(form.level)) || Number(form.level) < 0)) {
+      setFormErr('Class number must be a non-negative number');
+      return;
+    }
     setSaving(true);
     try {
       const payload = { name: form.name, level: form.level };
@@ -44,14 +51,19 @@ export default function Classes() {
       setModal(false);
       setForm({ name: '', level: '' });
       refetch();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) {
+      // Duplicate name / grade comes back from the server — keep the modal open
+      // and show it on the form instead of only flashing a toast.
+      setFormErr(err.message);
+      toast.error(err.message);
+    }
     finally { setSaving(false); }
   };
 
   const handleAutoAssign = async () => {
     setAssigning(true);
     try {
-      const res = await api.autoAssignStudents(selectedYear && selectedYear !== 'all' ? selectedYear : undefined);
+      const res = await api.autoAssignStudents(selectedYear || undefined);
       const { assigned, skipped = 0, sections } = res.data;
       toast.success(`${assigned} student${assigned !== 1 ? 's' : ''} assigned to ${sections} section${sections !== 1 ? 's' : ''}${skipped ? `, ${skipped} already enrolled (skipped)` : ''}`);
       setAssignConfirm(false);
@@ -75,7 +87,7 @@ export default function Classes() {
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="secondary" onClick={() => setAssignConfirm(true)}>Assign Students to Class</Button>
-            <Button onClick={() => setModal(true)}>+ Add Class</Button>
+            <Button onClick={openCreate}>+ Add Class</Button>
           </div>
         } />
 
@@ -86,7 +98,6 @@ export default function Classes() {
             <label style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>Academic Year:</label>
             <select className="form-control" style={{ maxWidth: 220 }}
               value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
-              <option value="all">All Years</option>
               {(years || []).map(y => (
                 <option key={y._id} value={y._id}>
                   {y.yearName}{y.status === 'active' ? ' (Active)' : ''}
@@ -98,7 +109,7 @@ export default function Classes() {
       </div>
 
       {!classes?.length
-        ? <Empty icon="🏛️" title="No classes yet" action={<Button onClick={() => setModal(true)}>Create First Class</Button>} />
+        ? <Empty icon="🏛️" title="No classes yet" action={<Button onClick={openCreate}>Create First Class</Button>} />
         : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 16 }}>
             {classes.map(cls => (
@@ -123,21 +134,27 @@ export default function Classes() {
         )
       }
 
-      <Modal open={modal} onClose={() => setModal(false)} title="Add Class"
+      <Modal open={modal} onClose={() => { setModal(false); setFormErr(''); }} title="Add Class"
         footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => { setModal(false); setFormErr(''); }}>Cancel</Button>
           <Button form="class-form" type="submit" loading={saving}>Create</Button>
         </>}>
         <form id="class-form" onSubmit={handleCreate}>
+          {formErr && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c',
+              borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '.85rem', marginBottom: 14 }}>
+              {formErr}
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label required">Class Name</label>
-            <input className="form-control" value={form.name} required
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Class 10" />
+            <input className={`form-control${formErr ? ' error' : ''}`} value={form.name} required
+              onChange={e => { setFormErr(''); setForm(f => ({ ...f, name: e.target.value })); }} placeholder="Class 10" />
           </div>
           <div className="form-group">
             <label className="form-label">Grade / Level</label>
             <input type="number" className="form-control" value={form.level}
-              onChange={e => setForm(f => ({ ...f, level: e.target.value }))} placeholder="10" />
+              onChange={e => { setFormErr(''); setForm(f => ({ ...f, level: e.target.value })); }} placeholder="10" />
           </div>
           {years?.length > 0 && (
             <div className="form-group">

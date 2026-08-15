@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { getAllNotifications, markAllRead, markOneRead } from '../../api/notifications.api';
-import { PageHeader, Button, Spinner, Modal } from '../../components/ui/index';
+import { getAllNotifications, markOneRead } from '../../api/notifications.api';
+import { PageHeader, Spinner, Modal } from '../../components/ui/index';
 
 export default function Notifications() {
   const [receipts,  setReceipts]  = useState([]);
@@ -24,14 +24,6 @@ export default function Notifications() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleMarkAll = async () => {
-    try {
-      await markAllRead();
-      toast.success('All marked as read');
-      load();
-    } catch (err) { toast.error(err.message); }
-  };
-
   const handleClickReceipt = async (r) => {
     const n = r.notification || r;
     setDetail({ receipt: r, notification: n });
@@ -46,9 +38,9 @@ export default function Notifications() {
 
   return (
     <div className="page">
-      <PageHeader title="Notifications" subtitle="All notifications sent to you"
-        action={unread > 0 ? <Button variant="secondary" onClick={handleMarkAll}>Mark all read</Button> : null}
-      />
+      {/* Opening a notification marks it read — no bulk "mark as read" action here */}
+      <PageHeader title="Notifications"
+        subtitle={unread > 0 ? `${unread} unread` : 'All notifications sent to you'} />
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>

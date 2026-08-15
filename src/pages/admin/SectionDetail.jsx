@@ -39,14 +39,18 @@ export default function SectionDetail() {
   const { id } = useParams();
   const { data: section, loading: loadSec, refetch: refetchSec } = useFetch(() => api.getSectionDetail(id), [id]);
   const { data: sst,     loading: loadSST, refetch: refetchSST } = useFetch(() => api.getSectionSubjectTeachers(id), [id]);
-  const { data: teacherList } = useFetch(() => api.getTeachers({ limit: 200 }));
   const { data: subjects }    = useFetch(api.getSubjects);
+  // Teacher list with class-teacher availability for this section's academic year
+  const { data: teacherOpts, refetch: refetchOpts } = useFetch(() => api.getSectionTeacherOptions(id), [id]);
+  const { data: chatGroup, refetch: refetchGroup }  = useFetch(() => api.getSectionChatGroup(id), [id]);
 
   // Teacher assignment modal (shared for class teacher + vice teacher)
   const [teacherModal, setTeacherModal]   = useState(false);
   const [teacherRole, setTeacherRole]     = useState('class'); // 'class' | 'vice'
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [savingTeacher, setSavingTeacher] = useState(false);
+  const [teacherErr, setTeacherErr]       = useState('');
+  const [syncingGroup, setSyncingGroup]   = useState(false);
 
   // Subject assignment modal
   const [subjectModal, setSubjectModal]   = useState(false);
@@ -55,6 +59,7 @@ export default function SectionDetail() {
 
   const openTeacherModal = (role) => {
     setTeacherRole(role);
+    setTeacherErr('');
     setSelectedTeacher(
       role === 'class' ? (section?.classTeacher?._id || '') : (section?.substituteTeacher?._id || '')
     );
@@ -63,17 +68,30 @@ export default function SectionDetail() {
 
   const handleAssignTeacher = async (e) => {
     e.preventDefault();
+    setTeacherErr('');
     setSavingTeacher(true);
     try {
       const payload = teacherRole === 'class'
         ? { teacherId:     selectedTeacher }
         : { viceTeacherId: selectedTeacher };
       await api.updateSectionTeacher(id, payload);
-      toast.success(teacherRole === 'class' ? 'Class teacher assigned' : 'Vice teacher assigned');
+      toast.success(teacherRole === 'class' ? 'Class teacher assigned' : 'Vice class teacher assigned');
       setTeacherModal(false);
       refetchSec();
-    } catch (err) { toast.error(err.message); }
+      refetchOpts();
+      refetchGroup();
+    } catch (err) { setTeacherErr(err.message); toast.error(err.message); }
     finally { setSavingTeacher(false); }
+  };
+
+  const handleSyncGroup = async () => {
+    setSyncingGroup(true);
+    try {
+      await api.syncSectionChatGroup(id);
+      toast.success(chatGroup?._id ? 'Group chat updated' : 'Group chat created');
+      refetchGroup();
+    } catch (err) { toast.error(err.message); }
+    finally { setSyncingGroup(false); }
   };
 
   const handleAssignSubject = async (e) => {
@@ -85,6 +103,7 @@ export default function SectionDetail() {
       setSubjectModal(false);
       setSubjectForm({ subject: '', teacher: '' });
       refetchSST();
+      refetchGroup();
     } catch (err) { toast.error(err.message); }
     finally { setSavingSubject(false); }
   };
@@ -109,6 +128,7 @@ export default function SectionDetail() {
       toast.success('Teacher unassigned');
       setUnassignConfirm(null);
       refetchSST();
+      refetchGroup();
     } catch (err) { toast.error(err.message); }
     finally { setUnassigning(false); }
   };
@@ -169,7 +189,21 @@ export default function SectionDetail() {
     return TYPE_ORDER.filter(t => typeMap[t]).map(t => ({ type: t, rows: typeMap[t] }));
   })();
 
-  const teachers = teacherList?.data || teacherList || [];
+  const teachers = teacherOpts?.teachers || [];
+  // useFetch falls back to the whole envelope when data is null — a real group
+  // always carries an _id.
+  const group = chatGroup?._id ? chatGroup : null;
+
+  // Rules enforced by the API, mirrored here so the picker never offers an
+  // invalid choice: the two roles must differ, and a teacher may lead only one
+  // class (being vice class teacher of several sections stays allowed).
+  const counterpartId = teacherRole === 'class'
+    ? section?.substituteTeacher?._id
+    : section?.classTeacher?._id;
+  const teacherChoices = teachers
+    .filter(t => String(t._id) !== String(counterpartId || ''))
+    .map(t => ({ ...t, blocked: teacherRole === 'class' && !!t.classTeacherOf }));
+
   const selectedSubject = (subjects || []).find(s => s._id === subjectForm.subject);
   const alreadyAssigned = new Set(
     (sst || []).filter(r => r.subject?._id === subjectForm.subject).map(r => r.teacher?._id).filter(Boolean)
@@ -207,6 +241,40 @@ export default function SectionDetail() {
             onAssign={() => openTeacherModal('vice')}
             badgeVariant="warning"
           />
+        </div>
+      </div>
+
+      {/* ── Section teacher group chat ────────────────────────────────────── */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0 }}>Teacher Group Chat</h3>
+          <Button variant="secondary" onClick={handleSyncGroup} loading={syncingGroup}>
+            {group ? 'Sync members' : 'Create group'}
+          </Button>
+        </div>
+        <div className="card-body">
+          {group ? (
+            <>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>💬 {group.name}</div>
+              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                Class teacher, vice class teacher and every subject teacher of this section.
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {(group.members || []).map(m => (
+                  <span key={m._id} style={{
+                    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4,
+                    padding: '2px 8px', fontSize: '.78rem',
+                  }}>
+                    {m.name}{m.memberRole === 'admin' ? ' (owner)' : ''}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p style={{ color: 'var(--text-muted)', fontSize: '.88rem', margin: 0 }}>
+              No group yet. It is created automatically when teachers are assigned — use “Create group” to do it now.
+            </p>
+          )}
         </div>
       </div>
 
@@ -307,15 +375,28 @@ export default function SectionDetail() {
           <Button form="teacher-assign-form" type="submit" loading={savingTeacher}>Save</Button>
         </>}>
         <form id="teacher-assign-form" onSubmit={handleAssignTeacher}>
+          {teacherErr && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c',
+              borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '.85rem', marginBottom: 14 }}>
+              {teacherErr}
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Select Teacher</label>
-            <select className="form-control" value={selectedTeacher}
-              onChange={e => setSelectedTeacher(e.target.value)}>
+            <select className={`form-control${teacherErr ? ' error' : ''}`} value={selectedTeacher}
+              onChange={e => { setTeacherErr(''); setSelectedTeacher(e.target.value); }}>
               <option value="">— None / Remove —</option>
-              {teachers.map(t => (
-                <option key={t._id} value={t._id}>{t.name}</option>
+              {teacherChoices.map(t => (
+                <option key={t._id} value={t._id} disabled={t.blocked}>
+                  {t.name}{t.classTeacherOf ? ` — class teacher of ${t.classTeacherOf}` : ''}
+                </option>
               ))}
             </select>
+            <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: 6 }}>
+              {teacherRole === 'class'
+                ? 'A teacher can be class teacher of only one class. Teachers already leading a class are greyed out.'
+                : 'A vice class teacher may also be a class teacher elsewhere, and may be vice class teacher of several sections — only this section’s class teacher is excluded.'}
+            </p>
           </div>
         </form>
       </Modal>

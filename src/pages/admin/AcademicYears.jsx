@@ -12,16 +12,35 @@ export default function AcademicYears() {
   const [saving, setSaving]   = useState(false);
   const [delLoad, setDL]      = useState(false);
   const [form, setForm]       = useState({ yearName: '', startDate: '', endDate: '' });
+  const [formErr, setFormErr] = useState('');
 
-  const openCreate = () => { setForm({ yearName: '', startDate: '', endDate: '' }); setEditYr(null); setModal(true); };
-  const openEdit   = (r)  => { setForm({ yearName: r.yearName, startDate: r.startDate?.slice(0,10) || '', endDate: r.endDate?.slice(0,10) || '' }); setEditYr(r); setModal(true); };
+  const openCreate = () => { setForm({ yearName: '', startDate: '', endDate: '' }); setEditYr(null); setFormErr(''); setModal(true); };
+  const openEdit   = (r)  => { setForm({ yearName: r.yearName, startDate: r.startDate?.slice(0,10) || '', endDate: r.endDate?.slice(0,10) || '' }); setEditYr(r); setFormErr(''); setModal(true); };
+  const closeModal = () => { setModal(false); setFormErr(''); };
+
+  // Two years of the same school may not cover the same dates — check locally
+  // for instant feedback; the API enforces the same rule.
+  const overlaps = () => {
+    if (!form.startDate || !form.endDate) return null;
+    const s = new Date(form.startDate), e = new Date(form.endDate);
+    return (years || []).find(y =>
+      y._id !== editYr?._id &&
+      new Date(y.startDate) <= e && new Date(y.endDate) >= s
+    );
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.yearName.trim()) return toast.error('Year name is required');
-    if (!form.startDate) return toast.error('Start date is required');
-    if (!form.endDate) return toast.error('End date is required');
-    if (new Date(form.endDate) <= new Date(form.startDate)) return toast.error('End date must be after start date');
+    setFormErr('');
+    if (!form.yearName.trim()) { setFormErr('Year name is required'); return; }
+    if (!form.startDate) { setFormErr('Start date is required'); return; }
+    if (!form.endDate) { setFormErr('End date is required'); return; }
+    if (new Date(form.endDate) <= new Date(form.startDate)) { setFormErr('End date must be after start date'); return; }
+    const clash = overlaps();
+    if (clash) {
+      setFormErr(`These dates overlap "${clash.yearName}" (${new Date(clash.startDate).toLocaleDateString()} – ${new Date(clash.endDate).toLocaleDateString()}). Academic years cannot overlap.`);
+      return;
+    }
     setSaving(true);
     try {
       if (editYr) {
@@ -31,9 +50,9 @@ export default function AcademicYears() {
         await api.createAcademicYear(form);
         toast.success('Year created');
       }
-      setModal(false);
+      closeModal();
       refetch();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) { setFormErr(err.message); toast.error(err.message); }
     finally { setSaving(false); }
   };
 
@@ -77,27 +96,33 @@ export default function AcademicYears() {
         </div>
       </div>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editYr ? 'Edit Academic Year' : 'Add Academic Year'}
+      <Modal open={modal} onClose={closeModal} title={editYr ? 'Edit Academic Year' : 'Add Academic Year'}
         footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button form="year-form" type="submit" loading={saving}>{editYr ? 'Update' : 'Create'}</Button>
         </>}>
         <form id="year-form" onSubmit={handleSave}>
+          {formErr && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c',
+              borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '.85rem', marginBottom: 14 }}>
+              {formErr}
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label required">Year Name</label>
             <input className="form-control" required value={form.yearName}
-              onChange={e => setForm(f => ({ ...f, yearName: e.target.value }))} placeholder="2024-25" />
+              onChange={e => { setFormErr(''); setForm(f => ({ ...f, yearName: e.target.value })); }} placeholder="2024-25" />
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Start Date</label>
-              <input type="date" className="form-control" value={form.startDate}
-                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+              <input type="date" className={`form-control${formErr ? ' error' : ''}`} value={form.startDate}
+                onChange={e => { setFormErr(''); setForm(f => ({ ...f, startDate: e.target.value })); }} />
             </div>
             <div className="form-group">
               <label className="form-label">End Date</label>
-              <input type="date" className="form-control" value={form.endDate}
-                onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+              <input type="date" className={`form-control${formErr ? ' error' : ''}`} value={form.endDate}
+                onChange={e => { setFormErr(''); setForm(f => ({ ...f, endDate: e.target.value })); }} />
             </div>
           </div>
         </form>

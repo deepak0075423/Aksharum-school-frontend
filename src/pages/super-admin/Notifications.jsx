@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getInbox, getSent, markAllRead, markOneRead, clearAll } from '../../api/notifications.api';
+import { getInbox, getSent, markOneRead, clearAll } from '../../api/notifications.api';
 import * as saApi from '../../api/superAdmin.api';
 import { PageHeader, Button, Badge, Modal, Spinner } from '../../components/ui/index';
 
@@ -83,9 +83,11 @@ export default function SANotifications() {
   const loadSchools = async () => {
     if (schools.length) return;
     try {
-      const res = await saApi.getSchools();
-      setSchools(res?.data || res || []);
-    } catch {}
+      // superAdmin.controller nests its list: { data: { data: [...], total } }
+      const res  = await saApi.getSchools({ limit: 500 });
+      const list = res?.data?.data || res?.data || res;
+      setSchools(Array.isArray(list) ? list : []);
+    } catch { setSchools([]); }
   };
 
   const openSend = () => {
@@ -94,10 +96,6 @@ export default function SANotifications() {
     setSendOpen(true);
   };
 
-  const handleMarkAll  = async () => {
-    try { await markAllRead(); toast.success('All marked as read'); refetchInbox(); }
-    catch (err) { toast.error(err.message); }
-  };
   const handleClearAll = async () => {
     try { await clearAll(); toast.success('Inbox cleared'); refetchInbox(); }
     catch (err) { toast.error(err.message); }
@@ -161,9 +159,9 @@ export default function SANotifications() {
       {/* Inbox */}
       {tab === 'inbox' && (
         <>
+          {/* Notifications are marked read on open — only the clear action remains */}
           {receipts.length > 0 && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <Button variant="secondary" onClick={handleMarkAll}>Mark all read</Button>
               <Button variant="secondary" onClick={handleClearAll}>Clear inbox</Button>
             </div>
           )}
@@ -277,16 +275,20 @@ export default function SANotifications() {
           {form.targetType === 'specific_school' && (
             <div className="form-group">
               <label className="form-label required">Select School(s)</label>
-              <select className="form-control" multiple size={Math.min(schools.length || 4, 6)}
-                value={form.targetSchools}
-                onChange={e => {
-                  const selected = Array.from(e.target.selectedOptions, o => o.value);
-                  setForm(f => ({ ...f, targetSchools: selected }));
-                }}>
-                {schools.map(s => (
-                  <option key={s._id} value={s._id}>{s.name}</option>
-                ))}
-              </select>
+              {schools.length === 0 ? (
+                <p className="text-muted text-sm">Loading schools…</p>
+              ) : (
+                <select className="form-control" multiple size={Math.min(schools.length, 6)}
+                  value={form.targetSchools}
+                  onChange={e => {
+                    const selected = Array.from(e.target.selectedOptions, o => o.value);
+                    setForm(f => ({ ...f, targetSchools: selected }));
+                  }}>
+                  {schools.map(s => (
+                    <option key={s._id} value={s._id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
               <p className="text-muted text-sm" style={{ marginTop: 4 }}>Hold Ctrl / Cmd to select multiple schools.</p>
             </div>
           )}

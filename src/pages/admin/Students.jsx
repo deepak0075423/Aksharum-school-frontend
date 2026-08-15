@@ -64,16 +64,24 @@ const Steps = ({ step, labels = ['Basic Info', 'Profile Details', 'Parent / Guar
 
 // ── Reusable parent panel (used in both add + edit step 3) ────────────────────
 const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, looking }) => {
+  const [results, setResults] = React.useState([]);
+
+  // The same parent account can be linked to any number of students, so the
+  // search lists every match and the admin picks one — including parents who
+  // already have children enrolled.
   const handleQuery = (val) => {
     setForm(f => ({ ...f, parentQuery: val, parentId: '', parentName: '' }));
+    setResults([]);
     clearTimeout(lookupTimer.current);
     if (!val.trim()) return;
     lookupTimer.current = setTimeout(async () => {
       setLooking(true);
       try {
-        const res = await api.parentLookup(val.trim());
-        if (res?.data) {
-          setForm(f => ({ ...f, parentId: res.data._id, parentName: res.data.name }));
+        const res  = await api.parentLookup(val.trim());
+        const list = Array.isArray(res?.data) ? res.data : (res?.data ? [res.data] : []);
+        setResults(list);
+        if (list.length === 1) {
+          setForm(f => ({ ...f, parentId: list[0]._id, parentName: list[0].name }));
           setErrs(e => ({ ...e, parentQuery: undefined }));
         }
       } catch {}
@@ -81,12 +89,17 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
     }, 500);
   };
 
+  const pickParent = (p) => {
+    setForm(f => ({ ...f, parentId: p._id, parentName: p.name }));
+    setErrs(e => ({ ...e, parentQuery: undefined }));
+  };
+
   return (
     <>
       <div style={{ display: 'flex', gap: 0, marginBottom: 18, borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)' }}>
         {[['search', '🔍  Link Existing Parent'], ['create', '➕  Create New Parent']].map(([mode, label]) => (
           <button key={mode} type="button"
-            onClick={() => { setForm(f => ({ ...f, parentMode: mode, parentQuery: '', parentId: '', parentName: '' })); setErrs({}); }}
+            onClick={() => { setResults([]); setForm(f => ({ ...f, parentMode: mode, parentQuery: '', parentId: '', parentName: '' })); setErrs({}); }}
             style={{
               flex: 1, padding: '10px 0', border: 'none', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600,
               background: form.parentMode === mode ? 'var(--primary)' : 'var(--bg)',
@@ -119,13 +132,41 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
               <div>
                 <div style={{ fontWeight: 600, color: '#065f46', fontSize: '.9rem' }}>✅ Parent linked</div>
                 <div style={{ color: '#047857', fontSize: '.82rem', marginTop: 2 }}>{form.parentName}</div>
+                {(() => {
+                  const kids = results.find(p => p._id === form.parentId)?.children || [];
+                  return kids.length ? (
+                    <div style={{ color: '#047857', fontSize: '.75rem', marginTop: 2 }}>
+                      Also linked to {kids.join(', ')}
+                    </div>
+                  ) : null;
+                })()}
               </div>
-              <button type="button" onClick={() => setForm(f => ({ ...f, parentId: '', parentName: '', parentQuery: '' }))}
+              <button type="button" onClick={() => { setResults([]); setForm(f => ({ ...f, parentId: '', parentName: '', parentQuery: '' })); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontSize: '.9rem' }}>✕</button>
+            </div>
+          ) : results.length > 0 ? (
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              {results.map(p => (
+                <div key={p._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '.88rem' }}>{p.name}</div>
+                    <div style={{ fontSize: '.76rem', color: 'var(--text-muted)' }}>{p.email}{p.phone ? ` · ${p.phone}` : ''}</div>
+                    {p.children?.length > 0 && (
+                      <div style={{ fontSize: '.74rem', color: 'var(--primary)' }}>
+                        {p.children.length} child{p.children.length !== 1 ? 'ren' : ''}: {p.children.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => pickParent(p)}>Link</button>
+                </div>
+              ))}
             </div>
           ) : (
             <div style={{ padding: '12px 16px', background: 'var(--bg)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', fontSize: '.82rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              Search above to find and link an existing parent account
+              {form.parentQuery.trim() && !looking
+                ? 'No parent matched that search.'
+                : 'Search above to find and link an existing parent account — one parent can be linked to several students.'}
               <br />
               <button type="button" onClick={() => setForm(f => ({ ...f, parentMode: 'create' }))}
                 style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
@@ -160,6 +201,7 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
           </Row>
           <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
             A one-time password will be emailed to the parent. They must set a new password on first login.
+            If this email already belongs to a parent, the student is linked to that existing account.
           </p>
         </>
       )}

@@ -170,7 +170,9 @@ export default function Sidebar({ onLinkClick, collapsed }) {
           alt={user?.school?.name || 'Aksharum'}
           style={schoolLogoUrl(user?.school) ? { background: '#fff', borderRadius: 6, padding: 2, objectFit: 'contain' } : undefined}
         />
-        {!collapsed && <span>{user?.school?.name || 'Aksharum'}</span>}
+        {!collapsed && (
+          <span title={user?.school?.name || 'Aksharum'}>{user?.school?.name || 'Aksharum'}</span>
+        )}
         {/* Mobile-only close button for the off-canvas drawer */}
         <button className="sidebar__close" onClick={onLinkClick} aria-label="Close menu">✕</button>
       </div>

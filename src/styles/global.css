@@ -120,6 +120,18 @@ input, select, textarea {
   overflow:    hidden;
 }
 
+/* Long school names must truncate instead of pushing the logo/close button
+   out of the rail (min-width:0 lets the flex item shrink below its text width) */
+.sidebar__logo span {
+  flex:          1;
+  min-width:     0;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  white-space:   nowrap;
+  font-size:     clamp(0.85rem, 1.05vw, 1.1rem);
+  line-height:   1.25;
+}
+
 /* Drawer close button — only shown on phones where the sidebar is off-canvas */
 .sidebar__close {
   display:         none;
@@ -405,6 +417,15 @@ input, select, textarea {
 .btn-success   { background: var(--success); color: #fff; }
 .btn-danger    { background: var(--danger); color: #fff; }
 .btn-warning   { background: var(--warning); color: #fff; }
+
+/* Buttons rendered as links (<Link className="btn …">) picked up the global
+   `a:hover` colour, which is more specific than `.btn-primary` and turned the
+   label near-black on hover. Pin the label colour per variant for every state. */
+.btn-primary:hover,   .btn-primary:focus,   .btn-primary:active,
+.btn-success:hover,   .btn-success:focus,   .btn-success:active,
+.btn-danger:hover,    .btn-danger:focus,    .btn-danger:active,
+.btn-warning:hover,   .btn-warning:focus,   .btn-warning:active   { color: #fff; }
+.btn-secondary:hover, .btn-secondary:focus, .btn-secondary:active { color: var(--text); }
 .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
 .btn-lg { padding: 12px 24px; font-size: 1rem; }
 .btn-icon { padding: 8px; border-radius: var(--radius); }

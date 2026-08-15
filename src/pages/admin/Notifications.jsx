@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getInbox, getSent, markAllRead, markOneRead } from '../../api/notifications.api';
+import { getInbox, getSent, markOneRead } from '../../api/notifications.api';
 import { sendNotification, getClassesWithSections } from '../../api/admin.api';
 import { PageHeader, Button, Badge, Modal, Spinner } from '../../components/ui/index';
 
@@ -110,10 +110,6 @@ export default function Notifications() {
     setSendOpen(true);
   };
 
-  const handleMarkAll = async () => {
-    try { await markAllRead(); toast.success('All marked as read'); refetchInbox(); }
-    catch (err) { toast.error(err.message); }
-  };
   const handleClickReceipt = async (r) => {
     const n = r.notification || r;
     setDetailNotif({ receipt: r, notification: n });
@@ -177,11 +173,7 @@ export default function Notifications() {
       {/* Inbox */}
       {tab === 'inbox' && (
         <>
-          {receipts.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <Button variant="secondary" onClick={handleMarkAll}>Mark all read</Button>
-            </div>
-          )}
+          {/* Notifications are marked read on open — no bulk action needed */}
           {inboxLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
           ) : receipts.length === 0 ? (

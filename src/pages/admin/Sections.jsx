@@ -11,14 +11,27 @@ export default function Sections() {
   const [modal, setModal]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm]     = useState({ name: '', capacity: 40 });
+  const [formErr, setFormErr] = useState('');
+
+  const openCreate = () => { setForm({ name: '', capacity: 40 }); setFormErr(''); setModal(true); };
+  const closeModal = () => { setModal(false); setFormErr(''); };
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error('Section name is required');
-    if (!form.capacity || Number(form.capacity) < 1) return toast.error('Capacity must be a positive number');
+    setFormErr('');
+    if (!form.name.trim()) { setFormErr('Section name is required'); return; }
+    if (!form.capacity || Number(form.capacity) < 1) { setFormErr('Capacity must be a positive number'); return; }
+
+    // Catch the duplicate locally too, so the message shows the moment the
+    // name is typed rather than only after a round trip.
+    const exists = (data?.sections || []).some(
+      s => s.sectionName?.trim().toUpperCase() === form.name.trim().toUpperCase()
+    );
+    if (exists) { setFormErr(`Section "${form.name.trim().toUpperCase()}" already exists in this class.`); return; }
+
     setSaving(true);
-    try { await api.createSection(id, form); toast.success('Section created'); setModal(false); refetch(); }
-    catch (err) { toast.error(err.message); }
+    try { await api.createSection(id, form); toast.success('Section created'); closeModal(); refetch(); }
+    catch (err) { setFormErr(err.message); toast.error(err.message); }
     finally { setSaving(false); }
   };
 
@@ -37,10 +50,10 @@ export default function Sections() {
 
       <PageHeader title={`${cls?.className || 'Class'} — Sections`}
         subtitle={`${sections.length} section${sections.length !== 1 ? 's' : ''}`}
-        action={<Button onClick={() => setModal(true)}>+ Add Section</Button>} />
+        action={<Button onClick={openCreate}>+ Add Section</Button>} />
 
       {!sections.length
-        ? <Empty icon="🏛️" title="No sections yet" action={<Button onClick={() => setModal(true)}>Create Section</Button>} />
+        ? <Empty icon="🏛️" title="No sections yet" action={<Button onClick={openCreate}>Create Section</Button>} />
         : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
             {sections.map(sec => (
@@ -62,16 +75,19 @@ export default function Sections() {
         )
       }
 
-      <Modal open={modal} onClose={() => setModal(false)} title="Add Section"
+      <Modal open={modal} onClose={closeModal} title="Add Section"
         footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button form="section-form" type="submit" loading={saving}>Create</Button>
         </>}>
         <form id="section-form" onSubmit={handleCreate}>
           <div className="form-group">
             <label className="form-label required">Section Name</label>
-            <input className="form-control" required value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="A" />
+            <input className={`form-control${formErr ? ' error' : ''}`} required value={form.name}
+              onChange={e => { setFormErr(''); setForm(f => ({ ...f, name: e.target.value })); }} placeholder="A" />
+            {formErr && (
+              <div style={{ color: 'var(--danger)', fontSize: '.8rem', marginTop: 6 }}>{formErr}</div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">Capacity</label>
