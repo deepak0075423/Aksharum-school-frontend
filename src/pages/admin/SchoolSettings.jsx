@@ -4,8 +4,7 @@ import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSet
 import { PageHeader, Button, Spinner } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
 import { isEmail, isPhone, isURL } from '../../utils/validators';
-
-const UPLOADS_BASE = '/uploads/images';
+import { schoolLogoUrl } from '../../utils/branding';
 
 const EMPTY_SMTP = {
   enabled: false, host: '', port: 587, secure: false,
@@ -165,7 +164,7 @@ export default function SchoolSettings() {
   );
 
   const { saturdayWorking, saturdayMode, saturdayHalfDay } = form.leaveSettings;
-  const logoSrc = preview || (logo ? `${UPLOADS_BASE}/${logo}` : null);
+  const logoSrc = preview || schoolLogoUrl({ logo });
 
   return (
     <div className="page">

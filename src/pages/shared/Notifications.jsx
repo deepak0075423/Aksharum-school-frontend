@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { getAllNotifications, markOneRead } from '../../api/notifications.api';
 import { PageHeader, Spinner, Modal } from '../../components/ui/index';
+import { connectSocket, getSocket } from '../../socket';
 
 export default function Notifications() {
   const [receipts,  setReceipts]  = useState([]);
@@ -23,6 +24,17 @@ export default function Notifications() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Live updates over the WebSocket gateway — a notification sent while this
+  // page is open appears at the top without a refresh.
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const sock  = getSocket() || (token ? connectSocket(token) : null);
+    if (!sock) return;
+    const onNew = () => load();
+    sock.on('notification:new', onNew);
+    return () => { sock.off('notification:new', onNew); };
+  }, [load]);
 
   const handleClickReceipt = async (r) => {
     const n = r.notification || r;

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getMe } from '../api/auth.api';
+import { applySchoolFavicon } from '../utils/branding';
 
 const AuthContext = createContext(null);
 
@@ -22,6 +23,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => { loadUser(); }, [loadUser]);
+
+  // Browser tab follows the signed-in user's school branding (and resets on
+  // sign-out). Re-runs when the admin uploads a new logo, since reload()
+  // refreshes user.school.
+  useEffect(() => { applySchoolFavicon(user?.school); }, [user?.school?.logo, user?.school?._id]);
 
   const signIn = (token, refreshToken, userData) => {
     localStorage.setItem('token', token);

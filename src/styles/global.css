@@ -120,16 +120,21 @@ input, select, textarea {
   overflow:    hidden;
 }
 
-/* Long school names must truncate instead of pushing the logo/close button
-   out of the rail (min-width:0 lets the flex item shrink below its text width) */
+/* Long school names wrap onto a second line instead of pushing the logo/close
+   button out of the rail (min-width:0 lets the flex item shrink below its text
+   width); anything past two lines is ellipsised — the full name is in title. */
 .sidebar__logo span {
-  flex:          1;
-  min-width:     0;
-  overflow:      hidden;
-  text-overflow: ellipsis;
-  white-space:   nowrap;
-  font-size:     clamp(0.85rem, 1.05vw, 1.1rem);
-  line-height:   1.25;
+  flex:        1;
+  min-width:   0;
+  font-size:   clamp(0.8rem, 0.95vw, 1.05rem);
+  line-height: 1.2;
+  white-space: normal;
+  overflow:    hidden;
+  display:            -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp:         2;
+  -webkit-box-orient: vertical;
+  overflow-wrap:      anywhere;
 }
 
 /* Drawer close button — only shown on phones where the sidebar is off-canvas */
