@@ -17,6 +17,38 @@ export function schoolLogoUrl(school) {
   return `${API_BASE}${path}`;
 }
 
+// ── Remembered branding ───────────────────────────────────────────────────────
+// The sign-in screens render before any user is loaded, so the last school this
+// browser signed in to is cached and reused there. It holds nothing private —
+// just the school name and its (publicly served) logo path.
+const BRANDING_KEY = 'schoolBranding';
+
+export function rememberSchoolBranding(school) {
+  try {
+    if (school?.name || school?.logo) {
+      localStorage.setItem(BRANDING_KEY, JSON.stringify({
+        _id:  school._id || null,
+        name: school.name || '',
+        logo: school.logo || '',
+      }));
+    }
+  } catch { /* storage full or blocked — branding just falls back */ }
+}
+
+export function getRememberedBranding() {
+  try {
+    const raw = localStorage.getItem(BRANDING_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Icon for browser push notifications — the school's logo when it has one. */
+export function notificationIconUrl(school) {
+  return schoolLogoUrl(school) || schoolLogoUrl(getRememberedBranding()) || '/favicon.ico';
+}
+
 const DEFAULT_ICONS = [
   { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
   { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
@@ -45,7 +77,10 @@ function addIcon({ rel, href, type, sizes }) {
  * included — sees their school's branding.
  */
 export function applySchoolFavicon(school) {
-  const url = schoolLogoUrl(school);
+  // Before sign-in there is no user — fall back to the last school used here so
+  // the tab is already branded on the login screen.
+  const branding = school || getRememberedBranding();
+  const url      = schoolLogoUrl(branding);
   clearIcons();
   if (url) {
     addIcon({ rel: 'icon', href: url });
@@ -53,4 +88,6 @@ export function applySchoolFavicon(school) {
   } else {
     DEFAULT_ICONS.forEach(addIcon);
   }
+  // The tab name belongs to the same badge as the icon
+  document.title = branding?.name || 'Aksharum';
 }

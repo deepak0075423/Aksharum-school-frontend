@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { login } from '../../api/auth.api';
 import { isEmail } from '../../utils/validators';
 import { useAuth } from '../../contexts/AuthContext';
-import logoMark from '../../assets/logo-icon.svg';
+import AuthBrand from '../../components/layout/AuthBrand';
 
 const roleHome = {
   super_admin:  '/super-admin/dashboard',
@@ -45,11 +45,7 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-logo">
-          <img src={logoMark} alt="Aksharum" />
-          <h1>Aksharum</h1>
-          <p>Sign in to your account</p>
-        </div>
+        <AuthBrand subtitle="Sign in to your account" />
 
         <form onSubmit={onSubmit}>
           <div className="form-group">

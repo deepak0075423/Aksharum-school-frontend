@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { forgotPassword } from '../../api/auth.api';
 import { isEmail } from '../../utils/validators';
+import AuthBrand from '../../components/layout/AuthBrand';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export default function ForgotPassword() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <AuthBrand compact />
         <div className="auth-logo">
           <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🔑</div>
           <h1>Forgot Password</h1>

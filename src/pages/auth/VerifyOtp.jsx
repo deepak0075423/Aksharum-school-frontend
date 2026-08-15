@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { verifyOtp } from '../../api/auth.api';
+import AuthBrand from '../../components/layout/AuthBrand';
 
 export default function VerifyOtp() {
   const navigate  = useNavigate();
@@ -28,6 +29,7 @@ export default function VerifyOtp() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <AuthBrand compact />
         <div className="auth-logo">
           <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>📲</div>
           <h1>Enter OTP</h1>

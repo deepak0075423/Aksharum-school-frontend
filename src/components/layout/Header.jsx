@@ -6,6 +6,7 @@ import { getInbox, markAllRead, markOneRead, clearAll } from '../../api/notifica
 import { connectSocket, disconnectSocket } from '../../socket';
 import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
+import { notificationIconUrl } from '../../utils/branding';
 
 function playNotifSound() {
   try {
@@ -24,13 +25,14 @@ function playNotifSound() {
   } catch {}
 }
 
-function requestBrowserPush(title, body) {
+function requestBrowserPush(title, body, school) {
   if (!('Notification' in window)) return;
+  const icon = notificationIconUrl(school);   // the school's own logo when it has one
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '/favicon.ico' });
+    new Notification(title, { body, icon });
   } else if (Notification.permission === 'default') {
     Notification.requestPermission().then(p => {
-      if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
+      if (p === 'granted') new Notification(title, { body, icon });
     });
   }
 }
@@ -75,7 +77,7 @@ export default function Header({ onMenuClick, onCollapseClick }) {
     // Real-time action notifications pushed via the WebSocket Gateway
     sock.on('notification:new', (n) => {
       playNotifSound();
-      requestBrowserPush(n?.title || 'New Notification', n?.body || '');
+      requestBrowserPush(n?.title || 'New Notification', n?.body || '', user?.school);
       toast(t => (
         <div style={{ cursor: 'pointer' }} onClick={() => toast.dismiss(t.id)}>
           <strong style={{ display: 'block', fontSize: '.88rem' }}>{n?.title}</strong>

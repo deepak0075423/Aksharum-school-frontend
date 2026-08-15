@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { resetPassword } from '../../api/auth.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { passwordError } from '../../utils/validators';
+import AuthBrand from '../../components/layout/AuthBrand';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ export default function ResetPassword() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <AuthBrand compact />
         <div className="auth-logo">
           <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🔐</div>
           <h1>Set Your Password</h1>

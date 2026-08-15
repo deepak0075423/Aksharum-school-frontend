@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { getChats } from '../api/chat.api';
 import { connectSocket, getSocket } from '../socket';
+import { notificationIconUrl } from '../utils/branding';
 
 const ChatNotifyContext = createContext({ unreadTotal: 0, refresh: () => {} });
 export const useChatNotify = () => useContext(ChatNotifyContext);
@@ -30,6 +31,8 @@ export function ChatNotifyProvider({ children }) {
   const debounceRef = useRef(null);
   const locationRef = useRef(location.pathname);
   locationRef.current = location.pathname;
+  const userRef     = useRef(user);   // read inside stable callbacks
+  userRef.current   = user;
 
   // Ask for notification permission once (after login)
   useEffect(() => {
@@ -45,7 +48,7 @@ export function ChatNotifyProvider({ children }) {
     const onChat = locationRef.current.startsWith('/chat');
     if (onChat && !document.hidden) return;
     try {
-      const n = new Notification(title, { body, icon: '/favicon.ico', tag: 'school-chat' });
+      const n = new Notification(title, { body, icon: notificationIconUrl(userRef.current?.school), tag: 'school-chat' });
       n.onclick = () => { window.focus(); window.location.href = '/chat'; n.close(); };
     } catch { /* ignore */ }
   }, []);

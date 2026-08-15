@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { newPassword } from '../../api/auth.api';
 import { passwordError } from '../../utils/validators';
+import AuthBrand from '../../components/layout/AuthBrand';
 
 export default function NewPassword() {
   const navigate  = useNavigate();
@@ -31,6 +32,7 @@ export default function NewPassword() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <AuthBrand compact />
         <div className="auth-logo">
           <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🔒</div>
           <h1>New Password</h1>

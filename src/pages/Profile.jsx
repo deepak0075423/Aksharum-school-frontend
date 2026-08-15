@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/axios';
 import { Button, Spinner } from '../components/ui/index';
 import { isPhone } from '../utils/validators';
+import { schoolLogoUrl } from '../utils/branding';
 
 const PROFILE_ICONS = [
   { key: '🧑‍💼', label: 'Professional' },
@@ -136,7 +137,13 @@ export default function Profile() {
                   borderRadius: 20, fontSize: '.78rem', fontWeight: 600, textTransform: 'capitalize',
                 }}>{roleLabel}</span>
                 {user.school?.name && (
-                  <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>🏫 {user.school.name}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: 'var(--text-muted)' }}>
+                    {schoolLogoUrl(user.school)
+                      ? <img src={schoolLogoUrl(user.school)} alt=""
+                          style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'contain', background: '#fff' }} />
+                      : '🏫'}
+                    {user.school.name}
+                  </span>
                 )}
               </div>
             </div>
