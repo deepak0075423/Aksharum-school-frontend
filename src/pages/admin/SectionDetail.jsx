@@ -385,15 +385,6 @@ export default function SectionDetail() {
         <div className="card-body" style={{ padding: 0 }}>
           <Table
             columns={[
-              { key: 'name', label: 'Student', render: r => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div className="avatar avatar-sm" style={{ background: 'var(--success)' }}>{r.name?.[0]}</div>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{r.name}</div>
-                    <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.email}</div>
-                  </div>
-                </div>
-              )},
               { key: 'rollNumber', label: 'Roll No', render: r => (
                 <button
                   onClick={() => setRollEdit({ _id: r._id, name: r.name, value: r.rollNumber || '' })}
@@ -405,6 +396,15 @@ export default function SectionDetail() {
                   }}>
                   {r.rollNumber || 'Set'}
                 </button>
+              )},
+              { key: 'name', label: 'Student', render: r => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="avatar avatar-sm" style={{ background: 'var(--success)' }}>{r.name?.[0]}</div>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{r.name}</div>
+                    <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.email}</div>
+                  </div>
+                </div>
               )},
               { key: 'gender',     label: 'Gender',  render: r => r.gender     || '—' },
               { key: 'admNo',      label: 'Adm. No', render: r => r.admissionNumber || '—' },
