@@ -51,6 +51,10 @@ const ASchoolSettings  = lazy(() => import('./pages/admin/SchoolSettings'));
 // ── Shared ────────────────────────────────────────────────────────────────────
 const SharedNotifications = lazy(() => import('./pages/shared/Notifications'));
 
+// ── Student Analytics (admin + teacher, same pages, scope resolved server-side)
+const StudentAnalytics       = lazy(() => import('./pages/analytics/StudentAnalytics'));
+const StudentAnalyticsDetail = lazy(() => import('./pages/analytics/StudentDetail'));
+
 // ── Teacher ───────────────────────────────────────────────────────────────────
 const TDashboard    = lazy(() => import('./pages/teacher/Dashboard'));
 const TMySection    = lazy(() => import('./pages/teacher/MySection'));
@@ -261,6 +265,8 @@ export default function App() {
             <Route path="documents"       element={<ADocuments />} />
             <Route path="holidays"        element={<AHolidays />} />
             <Route path="attendance"      element={<AAttendance />} />
+            <Route path="student-analytics"             element={<StudentAnalytics />} />
+            <Route path="student-analytics/:studentId"  element={<StudentAnalyticsDetail />} />
             <Route path="reports"          element={<AReports />} />
             <Route path="school-settings" element={<ASchoolSettings />} />
             {/* Fees */}
@@ -348,6 +354,8 @@ export default function App() {
             <Route path="dashboard"    element={<TDashboard />} />
             <Route path="my-section"   element={<TMySection />} />
             <Route path="attendance"   element={<TAttendance />} />
+            <Route path="student-analytics"            element={<StudentAnalytics />} />
+            <Route path="student-analytics/:studentId" element={<StudentAnalyticsDetail />} />
             <Route path="timetable"    element={<TTimetable />} />
             <Route path="exams/*"      element={<TExams />} />
             <Route path="results/*"    element={<TResults />} />
