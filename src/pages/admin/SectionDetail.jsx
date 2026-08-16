@@ -52,6 +52,12 @@ export default function SectionDetail() {
   const [teacherErr, setTeacherErr]       = useState('');
   const [syncingGroup, setSyncingGroup]   = useState(false);
 
+  // Roll numbers
+  const [assigningRolls, setAssigningRolls] = useState(false);
+  const [assignConfirm, setAssignConfirm]   = useState(false);
+  const [rollEdit, setRollEdit]             = useState(null);   // { _id, name, value }
+  const [savingRoll, setSavingRoll]         = useState(false);
+
   // Subject assignment modal
   const [subjectModal, setSubjectModal]   = useState(false);
   const [savingSubject, setSavingSubject] = useState(false);
@@ -92,6 +98,29 @@ export default function SectionDetail() {
       refetchGroup();
     } catch (err) { toast.error(err.message); }
     finally { setSyncingGroup(false); }
+  };
+
+  const handleAssignRollNumbers = async () => {
+    setAssigningRolls(true);
+    try {
+      const res = await api.assignSectionRollNumbers(id);
+      toast.success(`Roll numbers assigned to ${res?.data?.assigned ?? 0} students`);
+      setAssignConfirm(false);
+      refetchSec();
+    } catch (err) { toast.error(err.message); }
+    finally { setAssigningRolls(false); }
+  };
+
+  const handleSaveRoll = async (e) => {
+    e.preventDefault();
+    setSavingRoll(true);
+    try {
+      await api.updateStudentRollNumber(id, rollEdit._id, rollEdit.value.trim());
+      toast.success(`Roll number updated for ${rollEdit.name}`);
+      setRollEdit(null);
+      refetchSec();   // the student's own record is updated server-side too
+    } catch (err) { toast.error(err.message); }
+    finally { setSavingRoll(false); }
   };
 
   const handleAssignSubject = async (e) => {
@@ -210,6 +239,7 @@ export default function SectionDetail() {
   );
   const subjectTeachers = (selectedSubject?.teachers || []).filter(t => !alreadyAssigned.has(t._id));
   const enrolled = section?.enrolledStudents || [];
+  const rollsAssigned = !!section?.rollNumbersAssignedAt;
 
   if (loadSec) return <div className="loading-page"><Spinner /></div>;
 
@@ -339,7 +369,18 @@ export default function SectionDetail() {
               ({enrolled.length})
             </span>
           </h3>
-          <Button onClick={() => { setStudentModal(true); setStudentSearch(''); setStudentResults([]); }}>+ Assign Student</Button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {rollsAssigned ? (
+              <span style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
+                ✓ Roll numbers assigned {new Date(section.rollNumbersAssignedAt).toLocaleDateString()} — edit individually below
+              </span>
+            ) : (
+              <Button variant="secondary" onClick={() => setAssignConfirm(true)} disabled={!enrolled.length}>
+                Assign Roll Numbers
+              </Button>
+            )}
+            <Button onClick={() => { setStudentModal(true); setStudentSearch(''); setStudentResults([]); }}>+ Assign Student</Button>
+          </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           <Table
@@ -353,7 +394,18 @@ export default function SectionDetail() {
                   </div>
                 </div>
               )},
-              { key: 'rollNumber', label: 'Roll No', render: r => r.rollNumber || '—' },
+              { key: 'rollNumber', label: 'Roll No', render: r => (
+                <button
+                  onClick={() => setRollEdit({ _id: r._id, name: r.name, value: r.rollNumber || '' })}
+                  title="Click to edit roll number"
+                  style={{
+                    background: 'none', border: '1px dashed var(--border)', borderRadius: 4,
+                    padding: '2px 10px', cursor: 'pointer', fontWeight: r.rollNumber ? 600 : 400,
+                    color: r.rollNumber ? 'var(--text)' : 'var(--text-muted)', minWidth: 46,
+                  }}>
+                  {r.rollNumber || 'Set'}
+                </button>
+              )},
               { key: 'gender',     label: 'Gender',  render: r => r.gender     || '—' },
               { key: 'admNo',      label: 'Adm. No', render: r => r.admissionNumber || '—' },
               { key: 'actions',    label: '',        render: r => (
@@ -486,6 +538,35 @@ export default function SectionDetail() {
             })}
           </div>
         )}
+      </Modal>
+
+      {/* ── Assign Roll Numbers Confirm ──────────────────────────────────── */}
+      <Confirm
+        open={assignConfirm}
+        onClose={() => setAssignConfirm(false)}
+        onConfirm={handleAssignRollNumbers}
+        loading={assigningRolls}
+        title="Assign Roll Numbers"
+        message={`Roll numbers 1–${enrolled.length} will be given to the ${enrolled.length} enrolled student${enrolled.length !== 1 ? 's' : ''} in alphabetical name order. This can only be done once — afterwards you can still edit individual roll numbers.`}
+      />
+
+      {/* ── Edit single roll number ──────────────────────────────────────── */}
+      <Modal open={!!rollEdit} onClose={() => setRollEdit(null)} title="Update Roll Number"
+        footer={<>
+          <Button variant="secondary" onClick={() => setRollEdit(null)}>Cancel</Button>
+          <Button form="roll-form" type="submit" loading={savingRoll}>Save</Button>
+        </>}>
+        <form id="roll-form" onSubmit={handleSaveRoll}>
+          <div className="form-group">
+            <label className="form-label">Roll number for <strong>{rollEdit?.name}</strong></label>
+            <input className="form-control" autoFocus value={rollEdit?.value || ''}
+              onChange={e => setRollEdit(r => ({ ...r, value: e.target.value }))}
+              placeholder="e.g. 12" />
+            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+              Must be unique within this section. Leave blank to clear it. The change also updates the student's record.
+            </p>
+          </div>
+        </form>
       </Modal>
 
       {/* ── Remove Student Confirm ───────────────────────────────────────── */}

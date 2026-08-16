@@ -437,7 +437,7 @@ export default function Students() {
 
   const validateStep2 = (f) => {
     const e = {};
-    if (!String(f.rollNumber || '').trim()) e.rollNumber = 'Roll number is required';
+    // Roll number is optional here — sections assign them in bulk later
     if (!f.dob)                             e.dob        = 'Date of birth is required';
     else if (Number.isNaN(new Date(f.dob).getTime())) e.dob = 'Invalid date of birth';
     if (!f.gender)                          e.gender     = 'Gender is required';
@@ -808,8 +808,9 @@ export default function Students() {
           <div>
             <Row>
               <div className="form-group">
-                <label className="form-label required">Roll Number</label>
-                <input className={`form-control${errs.rollNumber ? ' error' : ''}`} placeholder="A-01" value={form.rollNumber} onChange={set('rollNumber')} autoFocus />
+                <label className="form-label">Roll Number</label>
+                <input className={`form-control${errs.rollNumber ? ' error' : ''}`}
+                  placeholder="Assigned from the section later" value={form.rollNumber} onChange={set('rollNumber')} autoFocus />
                 <Err msg={errs.rollNumber} />
               </div>
               <div className="form-group">
@@ -946,8 +947,9 @@ export default function Students() {
               <div>
                 <Row>
                   <div className="form-group">
-                    <label className="form-label required">Roll Number</label>
+                    <label className="form-label">Roll Number</label>
                     <input className="form-control" autoFocus value={editForm.rollNumber}
+                      placeholder="Assigned from the section later"
                       onChange={e => setEditForm(p => ({ ...p, rollNumber: e.target.value }))} />
                   </div>
                   <div className="form-group">

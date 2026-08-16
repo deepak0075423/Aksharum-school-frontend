@@ -68,6 +68,9 @@ export const removeStudentFromSection   = (sectionId, studentId) => api.delete(`
 export const assignSectionSubjectTeacher  = (id, data)                 => api.post(`/admin/sections/${id}/subjects/assign`, data);
 export const removeSectionSubjectTeacher  = (id, subjectId, teacherId) => api.delete(`/admin/sections/${id}/subjects/${subjectId}/teachers/${teacherId}`);
 export const getSectionTeacherOptions     = (id) => api.get(`/admin/sections/${id}/teacher-options`);
+export const assignSectionRollNumbers     = (id) => api.post(`/admin/sections/${id}/assign-roll-numbers`);
+export const updateStudentRollNumber      = (sectionId, studentId, rollNumber) =>
+  api.put(`/admin/sections/${sectionId}/students/${studentId}/roll-number`, { rollNumber });
 export const getSectionChatGroup          = (id) => api.get(`/admin/sections/${id}/chat-group`);
 export const syncSectionChatGroup         = (id) => api.post(`/admin/sections/${id}/chat-group`);
 
