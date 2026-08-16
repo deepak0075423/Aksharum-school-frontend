@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { PageHeader, Button, Modal, Spinner, Empty } from '../../components/ui/index';
+import { PageHeader, Button, Modal, Spinner, Empty, Confirm } from '../../components/ui/index';
 
 export default function Sections() {
   const { id }              = useParams();
@@ -12,6 +12,35 @@ export default function Sections() {
   const [saving, setSaving] = useState(false);
   const [form, setForm]     = useState({ name: '', capacity: 40 });
   const [formErr, setFormErr] = useState('');
+
+  // Section shuffle — one redistribution per class per academic year, then locked
+  const [shuffleConfirm, setShuffleConfirm] = useState(false);
+  const [shuffling, setShuffling]           = useState(false);
+  const [lockConfirm, setLockConfirm]       = useState(false);
+  const [locking, setLocking]               = useState(false);
+
+  const handleShuffle = async () => {
+    setShuffling(true);
+    try {
+      const res = await api.shuffleSections(id);
+      const spread = (res?.data?.sections || []).map(s => `${s.sectionName}: ${s.count}`).join(' · ');
+      toast.success(`${res?.data?.students ?? 0} students shuffled — ${spread}`);
+      setShuffleConfirm(false);
+      refetch();
+    } catch (err) { toast.error(err.message); }
+    finally { setShuffling(false); }
+  };
+
+  const handleLock = async () => {
+    setLocking(true);
+    try {
+      await api.lockSectionShuffle(id);
+      toast.success('Sections locked for this academic year');
+      setLockConfirm(false);
+      refetch();
+    } catch (err) { toast.error(err.message); }
+    finally { setLocking(false); }
+  };
 
   const openCreate = () => { setForm({ name: '', capacity: 40 }); setFormErr(''); setModal(true); };
   const closeModal = () => { setModal(false); setFormErr(''); };
@@ -37,8 +66,11 @@ export default function Sections() {
 
   if (loading) return <div className="loading-page"><Spinner /></div>;
 
-  const cls      = data?.class;
-  const sections = data?.sections || [];
+  const cls       = data?.class;
+  const sections  = data?.sections || [];
+  const shuffle   = cls?.sectionShuffle || {};
+  const isLocked  = !!shuffle.lockedAt;
+  const canShuffle = sections.length >= 2 && !isLocked;
 
   return (
     <div className="page">
@@ -50,7 +82,30 @@ export default function Sections() {
 
       <PageHeader title={`${cls?.className || 'Class'} — Sections`}
         subtitle={`${sections.length} section${sections.length !== 1 ? 's' : ''}`}
-        action={<Button onClick={openCreate}>+ Add Section</Button>} />
+        action={
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {canShuffle && (
+              <Button variant="secondary" onClick={() => setShuffleConfirm(true)}>🔀 Shuffle Sections</Button>
+            )}
+            {!isLocked && shuffle.shuffledAt && (
+              <Button variant="secondary" onClick={() => setLockConfirm(true)}>🔒 Lock Sections</Button>
+            )}
+            <Button onClick={openCreate}>+ Add Section</Button>
+          </div>
+        } />
+
+      {(isLocked || shuffle.shuffledAt) && (
+        <div style={{
+          marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius)', fontSize: '.83rem',
+          background: isLocked ? '#f0fdf4' : 'var(--bg)',
+          border: `1px solid ${isLocked ? 'var(--success)' : 'var(--border)'}`,
+          color: isLocked ? '#065f46' : 'var(--text-muted)',
+        }}>
+          {isLocked
+            ? `🔒 Sections locked on ${new Date(shuffle.lockedAt).toLocaleDateString()} — this class cannot be reshuffled for this academic year. Individual students can still be moved from a section page.`
+            : `🔀 Last shuffled ${new Date(shuffle.shuffledAt).toLocaleString()}. Reshuffle as often as you need, then lock to freeze it for the year.`}
+        </div>
+      )}
 
       {!sections.length
         ? <Empty icon="🏛️" title="No sections yet" action={<Button onClick={openCreate}>Create Section</Button>} />
@@ -74,6 +129,14 @@ export default function Sections() {
           </div>
         )
       }
+
+      <Confirm open={shuffleConfirm} onClose={() => setShuffleConfirm(false)} onConfirm={handleShuffle}
+        loading={shuffling} title="Shuffle Sections"
+        message={`Every student of ${cls?.className || 'this class'} — including any admitted but not placed yet — will be redistributed at random across its ${sections.length} sections, within each section's capacity. Existing roll numbers are cleared so you can reassign them afterwards. This can be repeated until you lock the sections.`} />
+
+      <Confirm open={lockConfirm} onClose={() => setLockConfirm(false)} onConfirm={handleLock}
+        loading={locking} title="Lock Sections"
+        message={`Lock the section allocation for ${cls?.className || 'this class'} for this academic year. Shuffling will no longer be possible — you can still move individual students by hand. This cannot be undone.`} />
 
       <Modal open={modal} onClose={closeModal} title="Add Section"
         footer={<>

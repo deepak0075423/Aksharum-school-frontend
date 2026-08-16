@@ -57,6 +57,8 @@ export const updateClass    = (id, data) => api.put(`/admin/classes/${id}`, data
 export const deleteClass          = (id) => api.delete(`/admin/classes/${id}`);
 export const autoAssignStudents   = (academicYear) => api.post('/admin/classes/auto-assign', academicYear ? { academicYear } : {});
 export const createSection        = (classId, data) => api.post(`/admin/classes/${classId}/sections`, data);
+export const shuffleSections      = (classId) => api.post(`/admin/classes/${classId}/shuffle-sections`);
+export const lockSectionShuffle   = (classId) => api.post(`/admin/classes/${classId}/lock-sections`);
 
 // Sections
 export const getSectionDetail = (id) => api.get(`/admin/sections/${id}`);
