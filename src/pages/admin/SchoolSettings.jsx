@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings, testSmtpSettings, previewAdmissionNumber } from '../../api/admin.api';
+import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings, testSmtpSettings, previewAdmissionNumber, previewEmployeeId } from '../../api/admin.api';
 import { PageHeader, Button, Spinner } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
 import { isEmail, isPhone, isURL } from '../../utils/validators';
@@ -14,6 +14,7 @@ const EMPTY_SMTP = {
 const EMPTY = {
   code: '', email: '', phone: '', website: '',
   admissionNumberFormat: '{INITIALS}{YYYY}{####}',
+  employeeIdFormat: '{INITIALS}{####}',
   leaveSettings: {
     saturdayWorking: true,
     saturdayMode: 'all',
@@ -29,6 +30,8 @@ export default function SchoolSettings() {
   const [removeLogo, setRemoveLogo] = useState(false);
   const [admPreview, setAdmPreview] = useState(null);   // { samples[], next } | { error }
   const admTimer = useRef(null);
+  const [empPreview, setEmpPreview] = useState(null);
+  const empTimer = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [errors,  setErrors]  = useState({});
@@ -52,6 +55,7 @@ export default function SchoolSettings() {
         setLogo(d.logo || '');
         setForm({
           admissionNumberFormat: d.admissionNumberFormat || '{INITIALS}{YYYY}{####}',
+          employeeIdFormat: d.employeeIdFormat || '{INITIALS}{####}',
           code:    d.code    || '',
           email:   d.email   || '',
           phone:   d.phone   || '',
@@ -97,6 +101,20 @@ export default function SchoolSettings() {
   };
 
   useEffect(() => { previewAdmission(form.admissionNumberFormat); }, [form.admissionNumberFormat]);
+
+  // Same live preview for the (separate) employee ID format
+  const previewEmployee = (format) => {
+    clearTimeout(empTimer.current);
+    if (!format?.trim()) { setEmpPreview(null); return; }
+    empTimer.current = setTimeout(async () => {
+      try {
+        const res = await previewEmployeeId(format.trim());
+        setEmpPreview(res?.data || res);
+      } catch (err) { setEmpPreview({ error: err.message }); }
+    }, 400);
+  };
+
+  useEffect(() => { previewEmployee(form.employeeIdFormat); }, [form.employeeIdFormat]);
   const setLS = (key, val) => setForm(f => ({
     ...f,
     leaveSettings: { ...f.leaveSettings, [key]: val },
@@ -170,6 +188,7 @@ export default function SchoolSettings() {
       fd.append('phone',   form.phone);
       fd.append('website', form.website);
       fd.append('admissionNumberFormat', form.admissionNumberFormat || '');
+      fd.append('employeeIdFormat', form.employeeIdFormat || '');
       fd.append('leaveSettings', JSON.stringify(form.leaveSettings));
       if (logoRef.current?.files?.[0]) fd.append('logo', logoRef.current.files[0]);
       else if (removeLogo) fd.append('removeLogo', 'true');
@@ -351,6 +370,88 @@ export default function SchoolSettings() {
                 {admPreview.next && (
                   <span style={{ color: 'var(--text-muted)' }}>
                     {' '}· next issued number: <strong style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{admPreview.next}</strong>
+                  </span>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* ── Employee / Teacher ID ── */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header"><strong>Employee / Teacher ID Format</strong></div>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', margin: 0 }}>
+              Used when a teacher is added without an ID. Kept separate from the admission-number
+              format, and numbering continues from the highest ID already issued.
+            </p>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Format</label>
+              <input className="form-control" value={form.employeeIdFormat}
+                onChange={e => set('employeeIdFormat', e.target.value)}
+                placeholder="{INITIALS}{####}" style={{ fontFamily: 'monospace' }} />
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+              {['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{MM}', '{DD}', '{####}'].map(tok => (
+                <button key={tok} type="button"
+                  onClick={() => set('employeeIdFormat', (form.employeeIdFormat || '') + tok)}
+                  style={{
+                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 8px', cursor: 'pointer',
+                    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)',
+                  }}>
+                  {tok}
+                </button>
+              ))}
+              <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+              {[['/', '/'], ['-', '-'], [' ', 'space']].map(([sep, label]) => (
+                <button key={label} type="button"
+                  onClick={() => set('employeeIdFormat', (form.employeeIdFormat || '') + sep)}
+                  title={`Add "${sep}" separator`}
+                  style={{
+                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer',
+                    background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 4, color: 'var(--text-muted)',
+                  }}>
+                  {label}
+                </button>
+              ))}
+              {form.employeeIdFormat && (
+                <button type="button" onClick={() => set('employeeIdFormat', '')}
+                  style={{
+                    fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer', marginLeft: 'auto',
+                    background: 'none', border: 'none', color: 'var(--danger)',
+                  }}>
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
+              <code>{'{INITIALS}'}</code> first letter of each word in the school name ·{' '}
+              <code>{'{CODE}'}</code> school code ·{' '}
+              <code>{'{YYYY}'}</code> academic year start (4-digit) ·{' '}
+              <code>{'{YY}'}</code> 2-digit year ·{' '}
+              <code>{'{MM}'}</code> month of joining ·{' '}
+              <code>{'{DD}'}</code> date of joining ·{' '}
+              <code>{'{####}'}</code> running number, one digit per <code>#</code>
+              <br />
+              <code>/</code>, <code>-</code>, spaces and any other characters you type are kept as-is.
+              The running number continues per pattern, so <code>{'{YYYY}'}</code> restarts the count
+              each academic year and <code>{'{DD}'}</code> restarts it each day.
+              <br />
+              <code>{'{CLASS}'}</code> and <code>{'{CLASSNO}'}</code> are not available here — they
+              apply to admission numbers only, since a teacher isn't tied to a class.
+            </div>
+
+            {empPreview?.error ? (
+              <div style={{ color: 'var(--danger)', fontSize: '.82rem' }}>{empPreview.error}</div>
+            ) : empPreview ? (
+              <div style={{ fontSize: '.85rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Preview: </span>
+                <strong style={{ fontFamily: 'monospace' }}>{empPreview.samples?.join(', ')}</strong>
+                {empPreview.next && (
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {' '}· next issued ID: <strong style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{empPreview.next}</strong>
                   </span>
                 )}
               </div>

@@ -32,6 +32,7 @@ export const deleteStudent = (id) => api.delete(`/admin/students/${id}`);
 export const parentLookup  = (q)      => api.get('/admin/students/parent-lookup', { params: { q } });
 export const pincodeLookup = (pin)    => api.get(`/admin/pincode/${pin}`);
 export const previewAdmissionNumber = (format) => api.get('/admin/admission-number/preview', { params: format ? { format } : {} });
+export const previewEmployeeId      = (format) => api.get('/admin/employee-id/preview', { params: format ? { format } : {} });
 export const updateStudent  = (id, data) => api.put(`/admin/students/${id}`, data);
 export const toggleStudent  = (id)       => api.patch(`/admin/users/${id}/toggle`);
 export const bulkImportStudents        = (fd) => api.post('/admin/students/bulk', fd);

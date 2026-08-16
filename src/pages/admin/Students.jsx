@@ -4,7 +4,8 @@ import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { updateStudent, toggleStudent, checkEmail, getClassesWithSections } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
-import { STATES_AND_UTS, isPincode } from '../../utils/indiaStates';
+import AddressFields from '../../components/ui/AddressFields';
+import { isPincode } from '../../utils/indiaStates';
 
 const EMPTY_NEW_PARENT = {
   accountFor: 'Father',
@@ -73,99 +74,6 @@ const Steps = ({ step, labels = ['Basic Info', 'Profile Details', 'Parent / Guar
 );
 
 
-// ── Address block with PIN-code autofill (used in add + edit step 2) ──────────
-const AddressFields = ({ form, setForm, errs, setErrs }) => {
-  const [pinLoading, setPinLoading] = React.useState(false);
-  const [pinNote, setPinNote]       = React.useState('');
-  const [areas, setAreas]           = React.useState([]);
-  const timer = React.useRef(null);
-
-  const lookup = async (pin) => {
-    setPinLoading(true);
-    setPinNote('');
-    try {
-      const res = await api.pincodeLookup(pin);
-      const d   = res?.data || res;
-      setForm(f => ({
-        ...f,
-        country: d.country || 'India',
-        state:   d.state   || f.state,
-        // Don't clobber a city the admin already typed unless we have a better one
-        city:    d.city    || f.city,
-      }));
-      setAreas(d.areas || []);
-      setErrs(e => ({ ...e, pincode: undefined, state: undefined, city: undefined }));
-      setPinNote(d.source === 'india-post'
-        ? `Matched ${d.district || d.state}`
-        : 'Offline match — please check the city');
-    } catch (err) {
-      setAreas([]);
-      setPinNote(err?.message || 'Could not look up that PIN code — enter the details manually');
-    } finally { setPinLoading(false); }
-  };
-
-  const onPincode = (val) => {
-    const pin = val.replace(/\D/g, '').slice(0, 6);
-    setForm(f => ({ ...f, pincode: pin }));
-    setErrs(e => ({ ...e, pincode: undefined }));
-    clearTimeout(timer.current);
-    setAreas([]);
-    if (isPincode(pin)) timer.current = setTimeout(() => lookup(pin), 350);
-    else setPinNote('');
-  };
-
-  return (
-    <>
-      <div className="form-group">
-        <label className="form-label required">Address</label>
-        <input className={`form-control${errs.address ? ' error' : ''}`} placeholder="House / street / locality"
-          value={form.address} onChange={e => { setErrs(x => ({ ...x, address: undefined })); setForm(f => ({ ...f, address: e.target.value })); }} />
-        <Err msg={errs.address} />
-      </div>
-      <Row>
-        <div className="form-group">
-          <label className="form-label required">PIN Code</label>
-          <div style={{ position: 'relative' }}>
-            <input className={`form-control${errs.pincode ? ' error' : ''}`} inputMode="numeric" placeholder="411001"
-              value={form.pincode} onChange={e => onPincode(e.target.value)} />
-            {pinLoading && (
-              <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>
-                <Spinner size="sm" />
-              </span>
-            )}
-          </div>
-          <Err msg={errs.pincode} />
-          {!errs.pincode && pinNote && (
-            <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 3, display: 'block' }}>{pinNote}</span>
-          )}
-        </div>
-        <div className="form-group">
-          <label className="form-label required">City / District</label>
-          <input className={`form-control${errs.city ? ' error' : ''}`} placeholder="Pune" list="pin-areas"
-            value={form.city} onChange={e => { setErrs(x => ({ ...x, city: undefined })); setForm(f => ({ ...f, city: e.target.value })); }} />
-          {areas.length > 0 && (
-            <datalist id="pin-areas">{areas.map(a => <option key={a} value={a} />)}</datalist>
-          )}
-          <Err msg={errs.city} />
-        </div>
-        <div className="form-group">
-          <label className="form-label required">State / UT</label>
-          <select className={`form-control${errs.state ? ' error' : ''}`} value={form.state}
-            onChange={e => { setErrs(x => ({ ...x, state: undefined })); setForm(f => ({ ...f, state: e.target.value })); }}>
-            <option value="">Select state</option>
-            {STATES_AND_UTS.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
-          <Err msg={errs.state} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Country</label>
-          <input className="form-control" value={form.country || 'India'} readOnly
-            style={{ background: 'var(--bg)', cursor: 'not-allowed' }} />
-        </div>
-      </Row>
-    </>
-  );
-};
 
 // ── Reusable parent panel (used in both add + edit step 3) ────────────────────
 const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, looking }) => {

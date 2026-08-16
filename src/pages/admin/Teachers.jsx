@@ -4,16 +4,7 @@ import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { updateTeacher, toggleTeacher } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
-
-const EMPTY = { name: '', email: '', phone: '', designation: '' };
-
-function validateCreate(f) {
-  if (!f.name.trim())  return 'Full name is required';
-  if (!f.email.trim()) return 'Email is required';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return 'Invalid email address';
-  if (f.phone && !/^[+\d\s\-]{7,15}$/.test(f.phone)) return 'Invalid phone number';
-  return null;
-}
+import TeacherForm from './TeacherForm';
 
 export default function Teachers() {
   const [page, setPage]         = useState(1);
@@ -21,9 +12,6 @@ export default function Teachers() {
   const [del, setDel]           = useState(null);
   const [delLoading, setDL]     = useState(false);
   const [modal, setModal]       = useState(false);
-  const [saving, setSaving]     = useState(false);
-  const [form, setForm]         = useState(EMPTY);
-  const [fieldErr, setFieldErr] = useState({});
 
   // Bulk import
   const [bulkModal, setBulkModal]   = useState(false);
@@ -101,24 +89,6 @@ export default function Teachers() {
     finally { setBulkLoad(false); }
   };
 
-  const f = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    const err = validateCreate(form);
-    if (err) { toast.error(err); return; }
-    setSaving(true);
-    try {
-      await api.createTeacher(form);
-      toast.success('Teacher created');
-      setModal(false);
-      setForm(EMPTY);
-      setFieldErr({});
-      refetch();
-    } catch (err) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
   const handleDelete = async () => {
     setDL(true);
     try { await api.deleteTeacher(del._id); toast.success('Teacher deleted'); setDel(null); refetch(); }
@@ -190,7 +160,7 @@ export default function Teachers() {
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="secondary" onClick={() => setDesigModal(true)}>⚙️ Designations</Button>
             <Button variant="secondary" onClick={() => { setBulkResult(null); setBulkFile(null); setBulkModal(true); }}>Bulk Import</Button>
-            <Button onClick={() => { setForm(EMPTY); setFieldErr({}); setModal(true); }}>+ Add Teacher</Button>
+            <Button onClick={() => setModal(true)}>+ Add Teacher</Button>
           </div>
         } />
 
@@ -262,43 +232,9 @@ export default function Teachers() {
         )}
       </Modal>
 
-      {/* ── Create Modal ──────────────────────────────────────────────────────── */}
-      <Modal open={modal} onClose={() => setModal(false)} title="Add Teacher"
-        footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="teacher-form" type="submit" loading={saving}>Create Teacher</Button>
-        </>}>
-        <form id="teacher-form" onSubmit={handleCreate} noValidate>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label required">Full Name</label>
-              <input className="form-control" required placeholder="Ravi Kumar"
-                value={form.name} onChange={f('name')} />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">Email Address</label>
-              <input type="email" className="form-control" required placeholder="teacher@school.com"
-                value={form.email} onChange={f('email')} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Phone Number</label>
-              <input type="tel" className="form-control" placeholder="+91 98765 43210"
-                pattern="[+\d\s\-]{7,15}"
-                value={form.phone} onChange={f('phone')} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Designation</label>
-              <select className="form-control" value={form.designation} onChange={f('designation')}>
-                <option value="">— Select —</option>
-                {designations.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-          </div>
-          <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
-            A one-time password will be emailed to the teacher. They must set a new password on first login.
-          </p>
-        </form>
-      </Modal>
+      {/* ── Create wizard (7 steps) ──────────────────────────────────────────── */}
+      <TeacherForm open={modal} onClose={() => setModal(false)}
+        onCreated={refetch} designations={designations} />
 
       {/* ── Edit Modal ────────────────────────────────────────────────────────── */}
       <Modal open={!!editUser} onClose={() => setEditUser(null)} title="Edit Teacher"
