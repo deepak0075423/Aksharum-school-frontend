@@ -34,6 +34,8 @@ export const pincodeLookup = (pin)    => api.get(`/admin/pincode/${pin}`);
 export const updateStudent  = (id, data) => api.put(`/admin/students/${id}`, data);
 export const toggleStudent  = (id)       => api.patch(`/admin/users/${id}/toggle`);
 export const bulkImportStudents        = (fd) => api.post('/admin/students/bulk', fd);
+export const bulkImportTeachers        = (fd) => api.post('/admin/teachers/bulk', fd);
+export const downloadTeacherTemplate   = ()   => api.get('/admin/teachers/template', { responseType: 'arraybuffer' });
 export const downloadStudentTemplate   = ()   => api.get('/admin/students/template', { responseType: 'arraybuffer' });
 
 export const getAdmins = (params) => api.get('/admin/admins', { params });
@@ -51,6 +53,7 @@ export const setActiveYear       = (id) => api.patch(`/admin/academic-years/${id
 export const getClasses     = (params) => api.get('/admin/classes', { params });
 export const createClass    = (data) => api.post('/admin/classes', data);
 export const getClassDetail = (id) => api.get(`/admin/classes/${id}`);
+export const updateClass    = (id, data) => api.put(`/admin/classes/${id}`, data);
 export const deleteClass          = (id) => api.delete(`/admin/classes/${id}`);
 export const autoAssignStudents   = (academicYear) => api.post('/admin/classes/auto-assign', academicYear ? { academicYear } : {});
 export const createSection        = (classId, data) => api.post(`/admin/classes/${classId}/sections`, data);

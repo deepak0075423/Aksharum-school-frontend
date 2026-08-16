@@ -25,6 +25,13 @@ export default function Teachers() {
   const [form, setForm]         = useState(EMPTY);
   const [fieldErr, setFieldErr] = useState({});
 
+  // Bulk import
+  const [bulkModal, setBulkModal]   = useState(false);
+  const [bulkFile, setBulkFile]     = useState(null);
+  const [bulkLoading, setBulkLoad]  = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);   // { created, errors[] }
+  const bulkFileRef = React.useRef(null);
+
   const [editUser, setEditUser]   = useState(null);
   const [editForm, setEditForm]   = useState({ name: '', phone: '', designation: '', password: '' });
   const [editSaving, setEditSave] = useState(false);
@@ -64,6 +71,34 @@ export default function Teachers() {
   const removeDesignation = async (name) => {
     if (designations.length <= 1) return toast.error('Keep at least one designation');
     await saveDesignations(designations.filter(d => d !== name));
+  };
+
+  const closeBulk = () => { setBulkModal(false); setBulkFile(null); setBulkResult(null); if (bulkFileRef.current) bulkFileRef.current.value = ''; };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const buffer = await api.downloadTeacherTemplate();
+      const url = URL.createObjectURL(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      const a = document.createElement('a'); a.href = url; a.download = 'teacher-template.xlsx'; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error('Failed to download template'); }
+  };
+
+  const handleBulkImport = async (e) => {
+    e.preventDefault();
+    if (!bulkFile) return toast.error('Please select an Excel file');
+    setBulkLoad(true);
+    try {
+      const fd = new FormData();
+      fd.append('excelFile', bulkFile);
+      const res = await api.bulkImportTeachers(fd);
+      const created = res?.created ?? 0;
+      const errors  = res?.errors  ?? [];
+      setBulkResult({ created, errors });
+      if (created) { toast.success(`${created} teacher${created !== 1 ? 's' : ''} imported`); refetch(); }
+      else toast.error('No teachers were imported');
+    } catch (err) { toast.error(err.message); }
+    finally { setBulkLoad(false); }
   };
 
   const f = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
@@ -154,6 +189,7 @@ export default function Teachers() {
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="secondary" onClick={() => setDesigModal(true)}>⚙️ Designations</Button>
+            <Button variant="secondary" onClick={() => { setBulkResult(null); setBulkFile(null); setBulkModal(true); }}>Bulk Import</Button>
             <Button onClick={() => { setForm(EMPTY); setFieldErr({}); setModal(true); }}>+ Add Teacher</Button>
           </div>
         } />
@@ -169,6 +205,62 @@ export default function Teachers() {
         </div>
         {data && <div className="card-footer"><Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} /></div>}
       </div>
+
+      {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
+      <Modal open={bulkModal} onClose={closeBulk} title="Bulk Import Teachers" maxWidth={520}
+        footer={bulkResult ? (
+          <Button onClick={closeBulk}>Close</Button>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={closeBulk}>Cancel</Button>
+            <Button form="teacher-bulk-form" type="submit" loading={bulkLoading}>Import</Button>
+          </>
+        )}>
+        {bulkResult ? (
+          <div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid var(--success)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkResult.created}</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Teachers Created</div>
+              </div>
+              <div style={{ flex: 1, background: bulkResult.errors.length ? '#fef2f2' : 'var(--bg)', border: `1px solid ${bulkResult.errors.length ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkResult.errors.length ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkResult.errors.length}</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Errors</div>
+              </div>
+            </div>
+            {bulkResult.errors.length > 0 && (
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                {bulkResult.errors.map((e, i) => (
+                  <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
+                    <span style={{ fontWeight: 600 }}>Row {e.row}{e.name ? ` — ${e.name}` : ''}: </span>
+                    <span style={{ color: 'var(--danger)' }}>{e.reason}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <form id="teacher-bulk-form" onSubmit={handleBulkImport}>
+            <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginTop: 0 }}>
+              Upload an Excel file (.xlsx). Each teacher is emailed a one-time password and must set their own on first login.
+            </p>
+            <div style={{ marginBottom: 14 }}>
+              <Button type="button" variant="secondary" onClick={handleDownloadTemplate} style={{ width: '100%' }}>
+                Download Template (.xlsx)
+              </Button>
+            </div>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+              <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
+              Full Name*, Email Address*, Phone Number, Designation
+            </div>
+            <div className="form-group">
+              <label className="form-label required">Excel File</label>
+              <input ref={bulkFileRef} type="file" className="form-control" accept=".xlsx,.xls"
+                onChange={e => setBulkFile(e.target.files?.[0] || null)} />
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* ── Create Modal ──────────────────────────────────────────────────────── */}
       <Modal open={modal} onClose={() => setModal(false)} title="Add Teacher"

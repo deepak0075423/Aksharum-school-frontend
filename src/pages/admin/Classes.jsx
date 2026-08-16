@@ -13,8 +13,9 @@ export default function Classes() {
   const [delLoad, setDL]          = useState(false);
   const [assignConfirm, setAssignConfirm] = useState(false);
   const [assigning, setAssigning] = useState(false);
-  const [form, setForm]     = useState({ name: '', level: '' });
+  const [form, setForm]     = useState({ name: '' });
   const [formErr, setFormErr] = useState('');
+  const [editCls, setEditCls] = useState(null);   // class being renamed
 
   const { data: years } = useFetch(api.getAcademicYears);
 
@@ -31,29 +32,32 @@ export default function Classes() {
     [selectedYear],
   );
 
-  const openCreate = () => { setForm({ name: '', level: '' }); setFormErr(''); setModal(true); };
+  const openCreate = () => { setEditCls(null); setForm({ name: '' }); setFormErr(''); setModal(true); };
+  const openEdit   = (cls) => { setEditCls(cls); setForm({ name: cls.className }); setFormErr(''); setModal(true); };
 
-  const handleCreate = async (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     setFormErr('');
     if (!form.name.trim()) { setFormErr('Class name is required'); return; }
-    if (form.level !== '' && (Number.isNaN(Number(form.level)) || Number(form.level) < 0)) {
-      setFormErr('Class number must be a non-negative number');
-      return;
-    }
     setSaving(true);
     try {
-      const payload = { name: form.name, level: form.level };
-      const yearId = form.academicYear || selectedYear;
-      if (yearId) payload.academicYear = yearId;
-      await api.createClass(payload);
-      toast.success('Class created');
+      if (editCls) {
+        await api.updateClass(editCls._id, { name: form.name.trim() });
+        toast.success('Class updated');
+      } else {
+        const payload = { name: form.name.trim() };
+        const yearId = form.academicYear || selectedYear;
+        if (yearId) payload.academicYear = yearId;
+        await api.createClass(payload);
+        toast.success('Class created');
+      }
       setModal(false);
-      setForm({ name: '', level: '' });
+      setEditCls(null);
+      setForm({ name: '' });
       refetch();
     } catch (err) {
-      // Duplicate name / grade comes back from the server — keep the modal open
-      // and show it on the form instead of only flashing a toast.
+      // Duplicate name comes back from the server — keep the modal open and show
+      // it on the form instead of only flashing a toast.
       setFormErr(err.message);
       toast.error(err.message);
     }
@@ -117,14 +121,12 @@ export default function Classes() {
                 <div className="card-body" style={{ textAlign: 'center', padding: '24px 16px' }}>
                   <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏛️</div>
                   <h3 style={{ marginBottom: 4 }}>{cls.className}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 4 }}>
-                    Grade {cls.classNumber}
-                  </p>
                   <p style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginBottom: 16 }}>
                     {cls.sectionCount ?? 0} section{cls.sectionCount !== 1 ? 's' : ''} · {cls.studentCount ?? 0} students
                   </p>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
                     <Link to={`/admin/classes/${cls._id}`} className="btn btn-primary btn-sm">View Sections</Link>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(cls)}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => setDel(cls)}>Delete</button>
                   </div>
                 </div>
@@ -134,12 +136,13 @@ export default function Classes() {
         )
       }
 
-      <Modal open={modal} onClose={() => { setModal(false); setFormErr(''); }} title="Add Class"
+      <Modal open={modal} onClose={() => { setModal(false); setEditCls(null); setFormErr(''); }}
+        title={editCls ? 'Edit Class' : 'Add Class'}
         footer={<>
-          <Button variant="secondary" onClick={() => { setModal(false); setFormErr(''); }}>Cancel</Button>
-          <Button form="class-form" type="submit" loading={saving}>Create</Button>
+          <Button variant="secondary" onClick={() => { setModal(false); setEditCls(null); setFormErr(''); }}>Cancel</Button>
+          <Button form="class-form" type="submit" loading={saving}>{editCls ? 'Save Changes' : 'Create'}</Button>
         </>}>
-        <form id="class-form" onSubmit={handleCreate}>
+        <form id="class-form" onSubmit={handleSave}>
           {formErr && (
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c',
               borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '.85rem', marginBottom: 14 }}>
@@ -151,12 +154,7 @@ export default function Classes() {
             <input className={`form-control${formErr ? ' error' : ''}`} value={form.name} required
               onChange={e => { setFormErr(''); setForm(f => ({ ...f, name: e.target.value })); }} placeholder="Class 10" />
           </div>
-          <div className="form-group">
-            <label className="form-label">Grade / Level</label>
-            <input type="number" className="form-control" value={form.level}
-              onChange={e => { setFormErr(''); setForm(f => ({ ...f, level: e.target.value })); }} placeholder="10" />
-          </div>
-          {years?.length > 0 && (
+          {!editCls && years?.length > 0 && (
             <div className="form-group">
               <label className="form-label">Academic Year</label>
               <select className="form-control" value={form.academicYear || selectedYear}
