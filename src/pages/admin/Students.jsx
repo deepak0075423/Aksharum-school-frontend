@@ -4,22 +4,32 @@ import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { updateStudent, toggleStudent, checkEmail, getClassesWithSections } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
+import { STATES_AND_UTS, isPincode } from '../../utils/indiaStates';
+
+const EMPTY_NEW_PARENT = {
+  accountFor: 'Father',
+  father:   { name: '', email: '', phone: '', occupation: '' },
+  mother:   { name: '', email: '', phone: '', occupation: '' },
+  guardian: { name: '', email: '', phone: '', occupation: '' },
+};
 
 const EMPTY = {
   name: '', email: '', phone: '',
-  rollNumber: '', admissionNumber: '', dob: '', gender: '', bloodGroup: '', category: '', address: '',
+  rollNumber: '', admissionNumber: '', dob: '', gender: '', bloodGroup: '', category: '',
+  address: '', city: '', state: '', pincode: '', country: 'India',
   classId: '', currentSection: '',
   parentId: '', parentName: '', parentQuery: '',
-  newParent: { name: '', email: '', phone: '' },
+  newParent: EMPTY_NEW_PARENT,
   parentMode: 'search',
 };
 
 const EMPTY_EDIT = {
   name: '', phone: '', password: '',
-  rollNumber: '', admissionNumber: '', dob: '', gender: '', bloodGroup: '', category: '', address: '',
+  rollNumber: '', admissionNumber: '', dob: '', gender: '', bloodGroup: '', category: '',
+  address: '', city: '', state: '', pincode: '', country: 'India',
   classId: '', currentSection: '',
   parentId: '', parentName: '', parentQuery: '',
-  newParent: { name: '', email: '', phone: '' },
+  newParent: EMPTY_NEW_PARENT,
   parentMode: 'search',
 };
 
@@ -62,6 +72,101 @@ const Steps = ({ step, labels = ['Basic Info', 'Profile Details', 'Parent / Guar
   </div>
 );
 
+
+// ── Address block with PIN-code autofill (used in add + edit step 2) ──────────
+const AddressFields = ({ form, setForm, errs, setErrs }) => {
+  const [pinLoading, setPinLoading] = React.useState(false);
+  const [pinNote, setPinNote]       = React.useState('');
+  const [areas, setAreas]           = React.useState([]);
+  const timer = React.useRef(null);
+
+  const lookup = async (pin) => {
+    setPinLoading(true);
+    setPinNote('');
+    try {
+      const res = await api.pincodeLookup(pin);
+      const d   = res?.data || res;
+      setForm(f => ({
+        ...f,
+        country: d.country || 'India',
+        state:   d.state   || f.state,
+        // Don't clobber a city the admin already typed unless we have a better one
+        city:    d.city    || f.city,
+      }));
+      setAreas(d.areas || []);
+      setErrs(e => ({ ...e, pincode: undefined, state: undefined, city: undefined }));
+      setPinNote(d.source === 'india-post'
+        ? `Matched ${d.district || d.state}`
+        : 'Offline match — please check the city');
+    } catch (err) {
+      setAreas([]);
+      setPinNote(err?.message || 'Could not look up that PIN code — enter the details manually');
+    } finally { setPinLoading(false); }
+  };
+
+  const onPincode = (val) => {
+    const pin = val.replace(/\D/g, '').slice(0, 6);
+    setForm(f => ({ ...f, pincode: pin }));
+    setErrs(e => ({ ...e, pincode: undefined }));
+    clearTimeout(timer.current);
+    setAreas([]);
+    if (isPincode(pin)) timer.current = setTimeout(() => lookup(pin), 350);
+    else setPinNote('');
+  };
+
+  return (
+    <>
+      <div className="form-group">
+        <label className="form-label required">Address</label>
+        <input className={`form-control${errs.address ? ' error' : ''}`} placeholder="House / street / locality"
+          value={form.address} onChange={e => { setErrs(x => ({ ...x, address: undefined })); setForm(f => ({ ...f, address: e.target.value })); }} />
+        <Err msg={errs.address} />
+      </div>
+      <Row>
+        <div className="form-group">
+          <label className="form-label required">PIN Code</label>
+          <div style={{ position: 'relative' }}>
+            <input className={`form-control${errs.pincode ? ' error' : ''}`} inputMode="numeric" placeholder="411001"
+              value={form.pincode} onChange={e => onPincode(e.target.value)} />
+            {pinLoading && (
+              <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>
+                <Spinner size="sm" />
+              </span>
+            )}
+          </div>
+          <Err msg={errs.pincode} />
+          {!errs.pincode && pinNote && (
+            <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 3, display: 'block' }}>{pinNote}</span>
+          )}
+        </div>
+        <div className="form-group">
+          <label className="form-label required">City / District</label>
+          <input className={`form-control${errs.city ? ' error' : ''}`} placeholder="Pune" list="pin-areas"
+            value={form.city} onChange={e => { setErrs(x => ({ ...x, city: undefined })); setForm(f => ({ ...f, city: e.target.value })); }} />
+          {areas.length > 0 && (
+            <datalist id="pin-areas">{areas.map(a => <option key={a} value={a} />)}</datalist>
+          )}
+          <Err msg={errs.city} />
+        </div>
+        <div className="form-group">
+          <label className="form-label required">State / UT</label>
+          <select className={`form-control${errs.state ? ' error' : ''}`} value={form.state}
+            onChange={e => { setErrs(x => ({ ...x, state: undefined })); setForm(f => ({ ...f, state: e.target.value })); }}>
+            <option value="">Select state</option>
+            {STATES_AND_UTS.map(st => <option key={st} value={st}>{st}</option>)}
+          </select>
+          <Err msg={errs.state} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Country</label>
+          <input className="form-control" value={form.country || 'India'} readOnly
+            style={{ background: 'var(--bg)', cursor: 'not-allowed' }} />
+        </div>
+      </Row>
+    </>
+  );
+};
+
 // ── Reusable parent panel (used in both add + edit step 3) ────────────────────
 const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, looking }) => {
   const [results, setResults] = React.useState([]);
@@ -79,11 +184,9 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
       try {
         const res  = await api.parentLookup(val.trim());
         const list = Array.isArray(res?.data) ? res.data : (res?.data ? [res.data] : []);
+        // Never link implicitly — the admin picks a result explicitly, so a
+        // half-typed search can't attach the wrong parent to a student.
         setResults(list);
-        if (list.length === 1) {
-          setForm(f => ({ ...f, parentId: list[0]._id, parentName: list[0].name }));
-          setErrs(e => ({ ...e, parentQuery: undefined }));
-        }
       } catch {}
       finally { setLooking(false); }
     }, 500);
@@ -93,6 +196,14 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
     setForm(f => ({ ...f, parentId: p._id, parentName: p.name }));
     setErrs(e => ({ ...e, parentQuery: undefined }));
   };
+
+  // Both parents are captured; `accountFor` decides who actually gets a login.
+  const np = form.newParent;
+  const setNP    = (patch) => setForm(f => ({ ...f, newParent: { ...f.newParent, ...patch } }));
+  const setBlock = (role, key, val) => setForm(f => ({
+    ...f,
+    newParent: { ...f.newParent, [role]: { ...f.newParent[role], [key]: val } },
+  }));
 
   return (
     <>
@@ -179,29 +290,78 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
 
       {form.parentMode === 'create' && (
         <>
-          <Row>
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label required">Parent Full Name</label>
-              <input className={`form-control${errs.parentName ? ' error' : ''}`} placeholder="Parent's name" autoFocus
-                value={form.newParent.name} onChange={e => setForm(f => ({ ...f, newParent: { ...f.newParent, name: e.target.value } }))} />
-              <Err msg={errs.parentName} />
+          <div className="form-group">
+            <label className="form-label required">Create the login account for</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {['Father', 'Mother', 'Guardian'].map(who => (
+                <button key={who} type="button"
+                  onClick={() => setNP({ accountFor: who })}
+                  style={{
+                    padding: '7px 16px', borderRadius: 'var(--radius)', cursor: 'pointer',
+                    fontSize: '.82rem', fontWeight: 600,
+                    border: `1px solid ${np.accountFor === who ? 'var(--primary)' : 'var(--border)'}`,
+                    background: np.accountFor === who ? 'var(--primary)' : 'var(--bg-card)',
+                    color:      np.accountFor === who ? '#fff' : 'var(--text)',
+                  }}>
+                  {who}
+                </button>
+              ))}
             </div>
-            <div className="form-group">
-              <label className="form-label required">Parent Email</label>
-              <input type="email" className={`form-control${errs.parentEmail ? ' error' : ''}`} placeholder="parent@email.com"
-                value={form.newParent.email} onChange={e => setForm(f => ({ ...f, newParent: { ...f.newParent, email: e.target.value } }))} />
-              <Err msg={errs.parentEmail} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Parent Phone</label>
-              <input type="tel" className={`form-control${errs.parentPhone ? ' error' : ''}`} placeholder="+91 98765 43210"
-                value={form.newParent.phone} onChange={e => setForm(f => ({ ...f, newParent: { ...f.newParent, phone: e.target.value } }))} />
-              <Err msg={errs.parentPhone} />
-            </div>
-          </Row>
+            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+              Only this person gets a login. The others are saved as contact details on the student's record.
+            </p>
+            <Err msg={errs.accountFor} />
+          </div>
+
+          {['father', 'mother', 'guardian'].map(role => {
+            const label   = role[0].toUpperCase() + role.slice(1);
+            const isOwner = np.accountFor.toLowerCase() === role;
+            // Guardian block only matters when the guardian holds the account
+            if (role === 'guardian' && !isOwner) return null;
+            return (
+              <div key={role} style={{
+                border: `1px solid ${isOwner ? 'var(--primary)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 14,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <strong style={{ fontSize: '.85rem' }}>{label}'s Details</strong>
+                  {isOwner && (
+                    <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#fff', background: 'var(--primary)',
+                      borderRadius: 99, padding: '2px 8px' }}>LOGIN ACCOUNT</span>
+                  )}
+                </div>
+                <Row>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className={`form-label${isOwner ? ' required' : ''}`}>{label}'s Name</label>
+                    <input className={`form-control${errs[`${role}Name`] ? ' error' : ''}`} placeholder={`${label}'s full name`}
+                      value={np[role].name} onChange={e => setBlock(role, 'name', e.target.value)} />
+                    <Err msg={errs[`${role}Name`]} />
+                  </div>
+                  <div className="form-group">
+                    <label className={`form-label${isOwner ? ' required' : ''}`}>Email</label>
+                    <input type="email" className={`form-control${errs[`${role}Email`] ? ' error' : ''}`} placeholder="name@email.com"
+                      value={np[role].email} onChange={e => setBlock(role, 'email', e.target.value)} />
+                    <Err msg={errs[`${role}Email`]} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Phone</label>
+                    <input type="tel" className={`form-control${errs[`${role}Phone`] ? ' error' : ''}`} placeholder="+91 98765 43210"
+                      value={np[role].phone} onChange={e => setBlock(role, 'phone', e.target.value)} />
+                    <Err msg={errs[`${role}Phone`]} />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="form-label">Occupation</label>
+                    <input className="form-control" placeholder="e.g. Engineer"
+                      value={np[role].occupation} onChange={e => setBlock(role, 'occupation', e.target.value)} />
+                  </div>
+                </Row>
+              </div>
+            );
+          })}
+
           <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-            A one-time password will be emailed to the parent. They must set a new password on first login.
-            If this email already belongs to a parent, the student is linked to that existing account.
+            A one-time password will be emailed to the {np.accountFor.toLowerCase()}. They must set a new password on first login.
+            If that email already belongs to a parent, the student is linked to that existing account.
           </p>
         </>
       )}
@@ -277,19 +437,43 @@ export default function Students() {
   const validateStep2 = (f) => {
     const e = {};
     if (!String(f.rollNumber || '').trim()) e.rollNumber = 'Roll number is required';
-    if (f.dob && Number.isNaN(new Date(f.dob).getTime())) e.dob = 'Invalid date of birth';
+    if (!f.dob)                             e.dob        = 'Date of birth is required';
+    else if (Number.isNaN(new Date(f.dob).getTime())) e.dob = 'Invalid date of birth';
+    if (!f.gender)                          e.gender     = 'Gender is required';
+    if (!f.bloodGroup)                      e.bloodGroup = 'Blood group is required';
+    if (!f.category)                        e.category   = 'Category is required';
+    if (!String(f.address || '').trim())    e.address    = 'Address is required';
+    if (!String(f.pincode || '').trim())    e.pincode    = 'PIN code is required';
+    else if (!isPincode(f.pincode))         e.pincode    = 'PIN code must be 6 digits';
+    if (!String(f.city || '').trim())       e.city       = 'City is required';
+    if (!String(f.state || '').trim())      e.state      = 'State is required';
     return e;
   };
 
   const validateParent = (f, errsObj) => {
     if (f.parentMode === 'search' && !f.parentId) {
-      errsObj.parentQuery = 'Please link a parent or switch to create a new one';
+      errsObj.parentQuery = 'Click "Link" on a search result to attach a parent, or switch to create a new one';
     }
     if (f.parentMode === 'create') {
-      if (!f.newParent.name.trim())  errsObj.parentName  = 'Parent name is required';
-      if (!f.newParent.email.trim()) errsObj.parentEmail = 'Parent email is required';
-      else if (!EMAIL_RE.test(f.newParent.email)) errsObj.parentEmail = 'Invalid email';
-      if (f.newParent.phone && !PHONE_RE.test(f.newParent.phone)) errsObj.parentPhone = 'Invalid phone';
+      const np    = f.newParent;
+      const owner = (np.accountFor || 'Father').toLowerCase();
+      // The account holder needs name + email; the other parent's name is asked
+      // for too, so both parents are on record.
+      ['father', 'mother', 'guardian'].forEach(role => {
+        const b = np[role] || {};
+        if (role === 'guardian' && owner !== 'guardian') return;
+        const label = role[0].toUpperCase() + role.slice(1);
+        if (role === owner) {
+          if (!b.name?.trim())  errsObj[`${role}Name`]  = `${label}'s name is required`;
+          if (!b.email?.trim()) errsObj[`${role}Email`] = `${label}'s email is required`;
+          else if (!EMAIL_RE.test(b.email)) errsObj[`${role}Email`] = 'Invalid email';
+        } else if (owner !== 'guardian' && !b.name?.trim()) {
+          errsObj[`${role}Name`] = `${label}'s name is required`;
+        } else if (b.email && !EMAIL_RE.test(b.email)) {
+          errsObj[`${role}Email`] = 'Invalid email';
+        }
+        if (b.phone && !PHONE_RE.test(b.phone)) errsObj[`${role}Phone`] = 'Invalid phone';
+      });
     }
   };
 
@@ -336,7 +520,9 @@ export default function Students() {
         profile: {
           rollNumber: form.rollNumber, admissionNumber: form.admissionNumber,
           dob: form.dob, gender: form.gender, bloodGroup: form.bloodGroup,
-          category: form.category, address: form.address,
+          category: form.category,
+          address: form.address, city: form.city, state: form.state,
+          pincode: form.pincode, country: form.country || 'India',
           currentSection: form.currentSection || undefined,
         },
         parentId:  form.parentMode === 'search' ? form.parentId  : undefined,
@@ -448,6 +634,10 @@ export default function Students() {
         bloodGroup:      profile?.bloodGroup      || '',
         category:        profile?.category        || '',
         address:         profile?.address         || '',
+        city:            profile?.city            || '',
+        state:           profile?.state           || '',
+        pincode:         profile?.pincode         || '',
+        country:         profile?.country         || 'India',
         classId:         profile?.currentSection?.class?._id || '',
         currentSection:  profile?.currentSection?._id        || '',
         parentId:        profile?.parent?._id  || '',
@@ -491,6 +681,10 @@ export default function Students() {
         bloodGroup:      editForm.bloodGroup,
         category:        editForm.category,
         address:         editForm.address,
+        city:            editForm.city,
+        state:           editForm.state,
+        pincode:         editForm.pincode,
+        country:         editForm.country || 'India',
         currentSection:  editForm.currentSection || null,
         parentId:        editForm.parentMode === 'search' ? (editForm.parentId || null) : undefined,
         newParent:       editForm.parentMode === 'create' ? editForm.newParent : undefined,
@@ -623,29 +817,32 @@ export default function Students() {
                 <input className="form-control" placeholder="ADM-2024-001" value={form.admissionNumber} onChange={set('admissionNumber')} />
               </div>
               <div className="form-group">
-                <label className="form-label">Date of Birth</label>
-                <input type="date" className="form-control" max={new Date().toISOString().slice(0,10)}
+                <label className="form-label required">Date of Birth</label>
+                <input type="date" className={`form-control${errs.dob ? ' error' : ''}`} max={new Date().toISOString().slice(0,10)}
                   value={form.dob} onChange={set('dob')} />
+                <Err msg={errs.dob} />
               </div>
               <div className="form-group">
-                <label className="form-label">Gender</label>
-                <select className="form-control" value={form.gender} onChange={set('gender')}>
+                <label className="form-label required">Gender</label>
+                <select className={`form-control${errs.gender ? ' error' : ''}`} value={form.gender} onChange={set('gender')}>
                   <option value="">Select</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
                 </select>
+                <Err msg={errs.gender} />
               </div>
               <div className="form-group">
-                <label className="form-label">Blood Group</label>
-                <select className="form-control" value={form.bloodGroup} onChange={set('bloodGroup')}>
+                <label className="form-label required">Blood Group</label>
+                <select className={`form-control${errs.bloodGroup ? ' error' : ''}`} value={form.bloodGroup} onChange={set('bloodGroup')}>
                   <option value="">Select</option>
                   {['A+','A−','B+','B−','AB+','AB−','O+','O−'].map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
+                <Err msg={errs.bloodGroup} />
               </div>
               <div className="form-group">
-                <label className="form-label">Category</label>
-                <select className="form-control" value={form.category} onChange={set('category')}>
+                <label className="form-label required">Category</label>
+                <select className={`form-control${errs.category ? ' error' : ''}`} value={form.category} onChange={set('category')}>
                   <option value="">Select</option>
                   <option value="General">General</option>
                   <option value="OBC">OBC</option>
@@ -653,6 +850,7 @@ export default function Students() {
                   <option value="ST">ST</option>
                   <option value="EWS">EWS</option>
                 </select>
+                <Err msg={errs.category} />
               </div>
             </Row>
             <Row>
@@ -674,10 +872,7 @@ export default function Students() {
                 </select>
               </div>
             </Row>
-            <div className="form-group">
-              <label className="form-label">Address</label>
-              <input className="form-control" placeholder="Street, City, State" value={form.address} onChange={set('address')} />
-            </div>
+            <AddressFields form={form} setForm={setForm} errs={errs} setErrs={setErrs} />
           </div>
         )}
 
@@ -817,11 +1012,7 @@ export default function Students() {
                     </select>
                   </div>
                 </Row>
-                <div className="form-group">
-                  <label className="form-label">Address</label>
-                  <input className="form-control" placeholder="Street, City, State" value={editForm.address}
-                    onChange={e => setEditForm(p => ({ ...p, address: e.target.value }))} />
-                </div>
+                <AddressFields form={editForm} setForm={setEditForm} errs={editErrs} setErrs={setEditErrs} />
               </div>
             )}
 
