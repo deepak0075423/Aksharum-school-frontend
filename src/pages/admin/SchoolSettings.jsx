@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings, testSmtpSettings } from '../../api/admin.api';
+import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings, testSmtpSettings, previewAdmissionNumber } from '../../api/admin.api';
 import { PageHeader, Button, Spinner } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
 import { isEmail, isPhone, isURL } from '../../utils/validators';
@@ -13,6 +13,7 @@ const EMPTY_SMTP = {
 
 const EMPTY = {
   code: '', email: '', phone: '', website: '',
+  admissionNumberFormat: '{INITIALS}{YYYY}{####}',
   leaveSettings: {
     saturdayWorking: true,
     saturdayMode: 'all',
@@ -26,6 +27,8 @@ export default function SchoolSettings() {
   const [logo,    setLogo]    = useState('');
   const [preview, setPreview] = useState(null);
   const [removeLogo, setRemoveLogo] = useState(false);
+  const [admPreview, setAdmPreview] = useState(null);   // { samples[], next } | { error }
+  const admTimer = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [errors,  setErrors]  = useState({});
@@ -48,6 +51,7 @@ export default function SchoolSettings() {
         setName(d.name || '');
         setLogo(d.logo || '');
         setForm({
+          admissionNumberFormat: d.admissionNumberFormat || '{INITIALS}{YYYY}{####}',
           code:    d.code    || '',
           email:   d.email   || '',
           phone:   d.phone   || '',
@@ -79,6 +83,20 @@ export default function SchoolSettings() {
   };
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  // Ask the server what the next number would look like for this format
+  const previewAdmission = (format) => {
+    clearTimeout(admTimer.current);
+    if (!format?.trim()) { setAdmPreview(null); return; }
+    admTimer.current = setTimeout(async () => {
+      try {
+        const res = await previewAdmissionNumber(format.trim());
+        setAdmPreview(res?.data || res);
+      } catch (err) { setAdmPreview({ error: err.message }); }
+    }, 400);
+  };
+
+  useEffect(() => { previewAdmission(form.admissionNumberFormat); }, [form.admissionNumberFormat]);
   const setLS = (key, val) => setForm(f => ({
     ...f,
     leaveSettings: { ...f.leaveSettings, [key]: val },
@@ -151,6 +169,7 @@ export default function SchoolSettings() {
       fd.append('email',   form.email);
       fd.append('phone',   form.phone);
       fd.append('website', form.website);
+      fd.append('admissionNumberFormat', form.admissionNumberFormat || '');
       fd.append('leaveSettings', JSON.stringify(form.leaveSettings));
       if (logoRef.current?.files?.[0]) fd.append('logo', logoRef.current.files[0]);
       else if (removeLogo) fd.append('removeLogo', 'true');
@@ -252,6 +271,58 @@ export default function SchoolSettings() {
               {fieldError('website')}
             </div>
 
+          </div>
+        </div>
+
+        {/* ── Admission Number ── */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header"><strong>Admission Number Format</strong></div>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', margin: 0 }}>
+              Used when a student is added without an admission number. Numbers continue from the
+              highest one already issued for the current year.
+            </p>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Format</label>
+              <input className="form-control" value={form.admissionNumberFormat}
+                onChange={e => set('admissionNumberFormat', e.target.value)}
+                placeholder="{INITIALS}{YYYY}{####}" style={{ fontFamily: 'monospace' }} />
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{####}'].map(tok => (
+                <button key={tok} type="button"
+                  onClick={() => set('admissionNumberFormat', (form.admissionNumberFormat || '') + tok)}
+                  style={{
+                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 8px', cursor: 'pointer',
+                    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)',
+                  }}>
+                  {tok}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
+              <code>{'{INITIALS}'}</code> first letter of each word in the school name ·{' '}
+              <code>{'{CODE}'}</code> school code ·{' '}
+              <code>{'{YYYY}'}</code> academic year start (4-digit) ·{' '}
+              <code>{'{YY}'}</code> 2-digit year ·{' '}
+              <code>{'{####}'}</code> running number, one digit per <code>#</code>
+            </div>
+
+            {admPreview?.error ? (
+              <div style={{ color: 'var(--danger)', fontSize: '.82rem' }}>{admPreview.error}</div>
+            ) : admPreview ? (
+              <div style={{ fontSize: '.85rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Preview: </span>
+                <strong style={{ fontFamily: 'monospace' }}>{admPreview.samples?.join(', ')}</strong>
+                {admPreview.next && (
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {' '}· next issued number: <strong style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{admPreview.next}</strong>
+                  </span>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 

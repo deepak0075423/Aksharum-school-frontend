@@ -818,7 +818,8 @@ export default function Students() {
               </div>
               <div className="form-group">
                 <label className="form-label">Admission Number</label>
-                <input className="form-control" placeholder="ADM-2024-001" value={form.admissionNumber} onChange={set('admissionNumber')} />
+                <input className="form-control" placeholder="Auto-generated if left blank"
+                  value={form.admissionNumber} onChange={set('admissionNumber')} />
               </div>
               <div className="form-group">
                 <label className="form-label required">Date of Birth</label>
