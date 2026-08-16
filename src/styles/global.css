@@ -539,6 +539,7 @@ select.form-control {
   z-index:         1000;
   padding:         24px 16px;
   overflow-y:      auto;
+  overscroll-behavior: contain;
   backdrop-filter: blur(2px);
 }
 .modal {
@@ -550,7 +551,11 @@ select.form-control {
   display:        flex;
   flex-direction: column;
   margin:         auto;
+  /* Must stay within the overlay's content box (viewport minus its 24px padding),
+     otherwise margin:auto splits the overflow and the top half can't be scrolled to.
+     dvh tracks mobile browser chrome; vh is the fallback for older engines. */
   max-height:     calc(100vh - 48px);
+  max-height:     calc(100dvh - 48px);
 }
 .modal-header {
   padding:         20px 24px;
@@ -578,6 +583,41 @@ select.form-control {
   bottom:          0;
   background:      var(--bg-card);
   border-radius:   0 0 var(--radius-xl) var(--radius-xl);
+}
+
+/* ── Stepper ───────────────────────────────────────────────────────────────── */
+/* Sized so a 7-step flow stays on one line inside a 620px modal. If a font
+   renders wider than expected it scrolls sideways rather than wrapping. */
+.stepper {
+  display:         flex;
+  align-items:     center;
+  gap:             2px;
+  margin-bottom:   20px;
+  flex-wrap:       nowrap;
+  overflow-x:      auto;
+  scrollbar-width: none;
+}
+.stepper::-webkit-scrollbar { display: none; }
+
+.stepper__step { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.stepper__dot {
+  width:  20px;
+  height: 20px;
+  border-radius:   50%;
+  font-size:       .66rem;
+  font-weight:     700;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+.stepper__label { font-size: .68rem; white-space: nowrap; }
+.stepper__bar   { width: 8px; height: 2px; border-radius: 2px; flex-shrink: 0; }
+
+/* Too narrow for seven labels — keep the numbers and name only the current step */
+@media (max-width: 560px) {
+  .stepper__label:not(.stepper__label--active) { display: none; }
+  .stepper__bar { width: 14px; }
 }
 
 /* ── Pagination ────────────────────────────────────────────────────────────── */

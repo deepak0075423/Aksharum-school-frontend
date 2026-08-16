@@ -37,8 +37,10 @@ export const EMPTY_TEACHER = {
   joiningDate: '', employeeId: '', designation: '',
 };
 
+// Kept short so all seven fit on one line — the step headings inside each pane
+// carry the full wording.
 const STEPS = [
-  'Personal', 'Contact', 'Government ID', 'Education', 'Experience', 'Bank', 'School',
+  'Personal', 'Contact', 'Govt ID', 'Education', 'Experience', 'Bank', 'School',
 ];
 
 const Err = ({ msg }) => msg
@@ -51,26 +53,23 @@ const Row = ({ children }) => (
 
 function Stepper({ step }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
+    <div className="stepper">
       {STEPS.map((label, i) => {
         const n = i + 1, done = step > n, active = step === n;
         return (
           <React.Fragment key={label}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: '50%', fontSize: '.7rem', fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            <div className="stepper__step">
+              <div className="stepper__dot" style={{
                 background: done ? 'var(--success)' : active ? 'var(--primary)' : 'var(--border)',
                 color: (done || active) ? '#fff' : 'var(--text-muted)',
               }}>{done ? '✓' : n}</div>
-              <span style={{
-                fontSize: '.72rem', whiteSpace: 'nowrap',
+              <span className={`stepper__label${active ? ' stepper__label--active' : ''}`} style={{
                 fontWeight: active ? 600 : 400,
                 color: active ? 'var(--text)' : 'var(--text-muted)',
               }}>{label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div style={{ width: 10, height: 2, background: step > n ? 'var(--success)' : 'var(--border)', borderRadius: 2 }} />
+              <div className="stepper__bar" style={{ background: step > n ? 'var(--success)' : 'var(--border)' }} />
             )}
           </React.Fragment>
         );

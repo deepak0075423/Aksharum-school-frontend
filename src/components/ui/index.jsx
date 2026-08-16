@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // ── Spinner ────────────────────────────────────────────────────────────────────
 export const Spinner = ({ size = '' }) => (
@@ -68,8 +69,22 @@ export const Badge = ({ children, variant = 'primary' }) => (
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }) => {
+  // Hold the background still while a modal is up, so closing it doesn't leave
+  // the page scrolled somewhere the user never went.
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   if (!open) return null;
-  return (
+
+  // Portalled to <body> on purpose. Rendered in place it sits inside .app-main,
+  // which is a scroll container starting below the header — the fixed overlay
+  // then measures against that box instead of the viewport and the top of tall
+  // modals ends up above the reachable area.
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth }}>
         <div className="modal-header">
@@ -79,7 +94,8 @@ export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
