@@ -289,8 +289,8 @@ export default function SchoolSettings() {
                 placeholder="{INITIALS}{YYYY}{####}" style={{ fontFamily: 'monospace' }} />
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{####}'].map(tok => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+              {['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{MM}', '{DD}', '{CLASS}', '{CLASSNO}', '{####}'].map(tok => (
                 <button key={tok} type="button"
                   onClick={() => set('admissionNumberFormat', (form.admissionNumberFormat || '') + tok)}
                   style={{
@@ -300,6 +300,27 @@ export default function SchoolSettings() {
                   {tok}
                 </button>
               ))}
+              <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+              {[['/', '/'], ['-', '-'], [' ', 'space']].map(([sep, label]) => (
+                <button key={label} type="button"
+                  onClick={() => set('admissionNumberFormat', (form.admissionNumberFormat || '') + sep)}
+                  title={`Add "${sep}" separator`}
+                  style={{
+                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer',
+                    background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 4, color: 'var(--text-muted)',
+                  }}>
+                  {label}
+                </button>
+              ))}
+              {form.admissionNumberFormat && (
+                <button type="button" onClick={() => set('admissionNumberFormat', '')}
+                  style={{
+                    fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer', marginLeft: 'auto',
+                    background: 'none', border: 'none', color: 'var(--danger)',
+                  }}>
+                  Clear
+                </button>
+              )}
             </div>
 
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
@@ -307,7 +328,15 @@ export default function SchoolSettings() {
               <code>{'{CODE}'}</code> school code ·{' '}
               <code>{'{YYYY}'}</code> academic year start (4-digit) ·{' '}
               <code>{'{YY}'}</code> 2-digit year ·{' '}
+              <code>{'{MM}'}</code> month of admission ·{' '}
+              <code>{'{DD}'}</code> date of admission ·{' '}
+              <code>{'{CLASS}'}</code> class name without spaces (Class 5 → CLASS5) ·{' '}
+              <code>{'{CLASSNO}'}</code> class number (Class 5 → 5) ·{' '}
               <code>{'{####}'}</code> running number, one digit per <code>#</code>
+              <br />
+              <code>/</code>, <code>-</code>, spaces and any other characters you type are kept as-is.
+              The running number continues per pattern, so <code>{'{CLASS}'}</code> numbers each class
+              separately and <code>{'{DD}'}</code> restarts the count each day.
             </div>
 
             {admPreview?.error ? (
@@ -316,6 +345,9 @@ export default function SchoolSettings() {
               <div style={{ fontSize: '.85rem' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Preview: </span>
                 <strong style={{ fontFamily: 'monospace' }}>{admPreview.samples?.join(', ')}</strong>
+                {admPreview.sampleClass && (
+                  <span style={{ color: 'var(--text-muted)' }}> (using {admPreview.sampleClass})</span>
+                )}
                 {admPreview.next && (
                   <span style={{ color: 'var(--text-muted)' }}>
                     {' '}· next issued number: <strong style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{admPreview.next}</strong>
