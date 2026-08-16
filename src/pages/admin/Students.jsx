@@ -448,6 +448,7 @@ export default function Students() {
     else if (!isPincode(f.pincode))         e.pincode    = 'PIN code must be 6 digits';
     if (!String(f.city || '').trim())       e.city       = 'City is required';
     if (!String(f.state || '').trim())      e.state      = 'State is required';
+    if (!f.classId)                         e.classId    = 'Class is required';
     return e;
   };
 
@@ -523,6 +524,7 @@ export default function Students() {
           category: form.category,
           address: form.address, city: form.city, state: form.state,
           pincode: form.pincode, country: form.country || 'India',
+          currentClass:   form.classId,
           currentSection: form.currentSection || undefined,
         },
         parentId:  form.parentMode === 'search' ? form.parentId  : undefined,
@@ -638,7 +640,7 @@ export default function Students() {
         state:           profile?.state           || '',
         pincode:         profile?.pincode         || '',
         country:         profile?.country         || 'India',
-        classId:         profile?.currentSection?.class?._id || '',
+        classId:         profile?.currentSection?.class?._id || profile?.currentClass || '',
         currentSection:  profile?.currentSection?._id        || '',
         parentId:        profile?.parent?._id  || '',
         parentName:      profile?.parent?.name || '',
@@ -685,6 +687,7 @@ export default function Students() {
         state:           editForm.state,
         pincode:         editForm.pincode,
         country:         editForm.country || 'India',
+        currentClass:    editForm.classId || null,
         currentSection:  editForm.currentSection || null,
         parentId:        editForm.parentMode === 'search' ? (editForm.parentId || null) : undefined,
         newParent:       editForm.parentMode === 'create' ? editForm.newParent : undefined,
@@ -856,17 +859,18 @@ export default function Students() {
             </Row>
             <Row>
               <div className="form-group">
-                <label className="form-label">Class</label>
-                <select className="form-control" value={form.classId}
-                  onChange={e => setForm(f => ({ ...f, classId: e.target.value, currentSection: '' }))}>
+                <label className="form-label required">Class</label>
+                <select className={`form-control${errs.classId ? ' error' : ''}`} value={form.classId}
+                  onChange={e => { setErrs(x => ({ ...x, classId: undefined })); setForm(f => ({ ...f, classId: e.target.value, currentSection: '' })); }}>
                   <option value="">Select Class</option>
                   {classesData.map(c => <option key={c._id} value={c._id}>{c.className}</option>)}
                 </select>
+                <Err msg={errs.classId} />
               </div>
               <div className="form-group">
                 <label className="form-label">Section</label>
                 <select className="form-control" value={form.currentSection} onChange={set('currentSection')} disabled={!form.classId}>
-                  <option value="">Select Section</option>
+                  <option value="">Assign later</option>
                   {(classesData.find(c => c._id === form.classId)?.sections || []).map(s =>
                     <option key={s._id} value={s._id}>{s.sectionName}</option>
                   )}
@@ -995,9 +999,9 @@ export default function Students() {
                 </Row>
                 <Row>
                   <div className="form-group">
-                    <label className="form-label">Class</label>
-                    <select className="form-control" value={editForm.classId}
-                      onChange={e => setEditForm(f => ({ ...f, classId: e.target.value, currentSection: '' }))}>
+                    <label className="form-label required">Class</label>
+                    <select className={`form-control${editErrs.classId ? ' error' : ''}`} value={editForm.classId}
+                      onChange={e => { setEditErrs(x => ({ ...x, classId: undefined })); setEditForm(f => ({ ...f, classId: e.target.value, currentSection: '' })); }}>
                       <option value="">Select Class</option>
                       {classesData.map(c => <option key={c._id} value={c._id}>{c.className}</option>)}
                     </select>
@@ -1007,7 +1011,7 @@ export default function Students() {
                     <select className="form-control" value={editForm.currentSection}
                       onChange={e => setEditForm(f => ({ ...f, currentSection: e.target.value }))}
                       disabled={!editForm.classId}>
-                      <option value="">Select Section</option>
+                      <option value="">Assign later</option>
                       {(classesData.find(c => c._id === editForm.classId)?.sections || []).map(s =>
                         <option key={s._id} value={s._id}>{s.sectionName}</option>
                       )}

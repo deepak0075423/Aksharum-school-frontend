@@ -4,13 +4,7 @@ import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Table, Button, Modal, Confirm, Spinner, Badge } from '../../components/ui/index';
 
-const TYPE_OPTIONS = [
-  { value: 'public',          label: 'Public Holiday' },
-  { value: 'school_specific', label: 'School Specific' },
-  { value: 'optional',        label: 'Optional Holiday' },
-  { value: 'exam_break',      label: 'Exam Break' },
-];
-
+// Types are managed per school; these only style/label the legacy slugs
 const TYPE_VARIANT = {
   public:          'success',
   school_specific: 'info',
@@ -25,14 +19,9 @@ const TYPE_LABEL = {
   exam_break:      'Exam Break',
 };
 
-const DEPT_OPTIONS = [
-  { value: 'teaching_staff', label: 'Teaching Staff' },
-  { value: 'admin_staff',    label: 'Admin Staff' },
-];
-
 const EMPTY_FORM = {
-  name: '', startDate: '', endDate: '', type: 'public', description: '',
-  applicability: { scope: 'all', classes: [], departments: [] },
+  name: '', startDate: '', endDate: '', type: '', description: '',
+  applicability: { scope: 'all', classes: [] },
 };
 
 function fmtDate(d) {
@@ -92,7 +81,11 @@ export default function Holidays() {
   const [importModal, setImportModal] = useState(false);
   const fileRef = useRef();
 
-  const openCreate = () => { setForm(EMPTY_FORM); setEditItem(null); setModal('create'); };
+  const openCreate = () => {
+    setForm({ ...EMPTY_FORM, type: holidayTypes[0] || '' });
+    setEditItem(null);
+    setModal('create');
+  };
 
   const openEdit = (h) => {
     setForm({
@@ -102,13 +95,41 @@ export default function Holidays() {
       type:        h.type,
       description: h.description || '',
       applicability: {
-        scope:       h.applicability?.scope       || 'all',
-        classes:     (h.applicability?.classes    || []).map(c => c._id?.toString() || c.toString()),
-        departments: h.applicability?.departments || [],
+        // legacy department-scoped holidays open as school-wide
+        scope:   h.applicability?.scope === 'specific_classes' ? 'specific_classes' : 'all',
+        classes: (h.applicability?.classes || []).map(c => c._id?.toString() || c.toString()),
       },
     });
     setEditItem(h);
     setModal('edit');
+  };
+
+  // Holiday types are school-managed, like teacher designations
+  const { data: typeData, refetch: refetchTypes } = useFetch(api.getHolidayTypes);
+  const holidayTypes = Array.isArray(typeData) ? typeData : [];
+  const [typeModal, setTypeModal]   = useState(false);
+  const [newType, setNewType]       = useState('');
+  const [typeSaving, setTypeSaving] = useState(false);
+
+  const saveTypes = async (list) => {
+    setTypeSaving(true);
+    try { await api.updateHolidayTypes(list); refetchTypes(); }
+    catch (err) { toast.error(err.message); }
+    finally { setTypeSaving(false); }
+  };
+
+  const addType = async (e) => {
+    e.preventDefault();
+    const name = newType.trim();
+    if (!name) return;
+    if (holidayTypes.some(t => t.toLowerCase() === name.toLowerCase())) return toast.error('Already exists');
+    await saveTypes([...holidayTypes, name]);
+    setNewType('');
+  };
+
+  const removeType = async (name) => {
+    if (holidayTypes.length <= 1) return toast.error('Keep at least one holiday type');
+    await saveTypes(holidayTypes.filter(t => t !== name));
   };
 
   const setApply = (patch) =>
@@ -118,12 +139,11 @@ export default function Holidays() {
     e.preventDefault();
     if (!form.name.trim())    return toast.error('Holiday name is required');
     if (!form.startDate)      return toast.error('Start date is required');
+    if (!form.type)           return toast.error('Holiday type is required');
     if (!form.endDate)        return toast.error('End date is required');
     if (form.endDate < form.startDate) return toast.error('End date must be on or after start date');
     if (form.applicability.scope === 'specific_classes' && !form.applicability.classes.length)
       return toast.error('Select at least one class');
-    if (form.applicability.scope === 'specific_departments' && !form.applicability.departments.length)
-      return toast.error('Select at least one department');
 
     setSaving(true);
     try {
@@ -204,12 +224,7 @@ export default function Holidays() {
           const cnt = r.applicability?.classes?.length || 0;
           return <Badge variant="warning">{cnt} Class{cnt !== 1 ? 'es' : ''}</Badge>;
         }
-        if (scope === 'specific_departments') {
-          const labels = (r.applicability?.departments || [])
-            .map(d => d === 'teaching_staff' ? 'Teachers' : 'Admins');
-          return <Badge variant="warning">{labels.join(', ') || '—'}</Badge>;
-        }
-        return null;
+        return <Badge variant="info">All</Badge>;
       }
     },
     { key: 'description',   label: 'Description',   render: r => <span className="text-muted text-sm">{r.description || '—'}</span> },
@@ -232,6 +247,7 @@ export default function Holidays() {
         }
         action={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {tab === 'manage' && <Button variant="secondary" onClick={() => setTypeModal(true)}>⚙️ Holiday Types</Button>}
             {tab === 'manage' && <Button variant="secondary" onClick={() => setImportModal(true)}>⬆ Import</Button>}
             <Button variant="secondary" onClick={handleExport}>⬇ Export</Button>
             {tab === 'manage' && <Button onClick={openCreate}>+ Add Holiday</Button>}
@@ -343,16 +359,16 @@ export default function Holidays() {
             <label className="form-label required">Type</label>
             <select className="form-control" value={form.type}
               onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              <option value="">— Select —</option>
+              {holidayTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Applicability</label>
             <select className="form-control" value={form.applicability.scope}
-              onChange={e => setApply({ scope: e.target.value, classes: [], departments: [] })}>
+              onChange={e => setApply({ scope: e.target.value, classes: [] })}>
               <option value="all">All (Teachers, Students &amp; Parents)</option>
               <option value="specific_classes">Specific Classes</option>
-              <option value="specific_departments">Specific Departments</option>
             </select>
           </div>
           {form.applicability.scope === 'specific_classes' && (
@@ -378,25 +394,6 @@ export default function Holidays() {
               )}
             </div>
           )}
-          {form.applicability.scope === 'specific_departments' && (
-            <div className="form-group">
-              <label className="form-label">Select Departments</label>
-              <div style={{ display: 'flex', gap: 24, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6 }}>
-                {DEPT_OPTIONS.map(d => (
-                  <label key={d.value} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '.88rem' }}>
-                    <input type="checkbox"
-                      checked={form.applicability.departments.includes(d.value)}
-                      onChange={e => {
-                        const depts = form.applicability.departments;
-                        setApply({ departments: e.target.checked ? [...depts, d.value] : depts.filter(v => v !== d.value) });
-                      }}
-                    />
-                    {d.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
           <div className="form-group">
             <label className="form-label">Description</label>
             <textarea className="form-control" rows={2}
@@ -405,6 +402,26 @@ export default function Holidays() {
               placeholder="Optional notes about this holiday" />
           </div>
         </form>
+      </Modal>
+
+      {/* ── Manage Holiday Types ─────────────────────────────────────────── */}
+      <Modal open={typeModal} onClose={() => setTypeModal(false)} title="Manage Holiday Types">
+        <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+          These options appear in the Type dropdown when adding or editing a holiday.
+        </p>
+        <form onSubmit={addType} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input className="form-control" placeholder="e.g. Regional Festival"
+            value={newType} onChange={e => setNewType(e.target.value)} />
+          <Button type="submit" loading={typeSaving}>Add</Button>
+        </form>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+          {holidayTypes.map(t => (
+            <div key={t} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
+              <span style={{ fontSize: '.9rem' }}>{t}</span>
+              <button className="btn btn-danger btn-sm" disabled={typeSaving} onClick={() => removeType(t)}>✕</button>
+            </div>
+          ))}
+        </div>
       </Modal>
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}

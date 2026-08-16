@@ -125,6 +125,8 @@ export const createDocumentCategory   = (data)   => api.post('/admin/document-ca
 export const deleteDocumentCategory   = (id)     => api.delete(`/admin/document-categories/${id}`);
 
 // Holidays
+export const getHolidayTypes        = ()         => api.get('/admin/holiday-types');
+export const updateHolidayTypes     = (holidayTypes) => api.put('/admin/holiday-types', { holidayTypes });
 export const getHolidays            = ()         => api.get('/admin/holidays');
 export const getMyHolidays          = ()         => api.get('/admin/holidays/mine');
 export const createHoliday          = (data)     => api.post('/admin/holidays', data);
