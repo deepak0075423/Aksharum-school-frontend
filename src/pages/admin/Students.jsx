@@ -308,7 +308,8 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
               ))}
             </div>
             <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-              Only this person gets a login. The others are saved as contact details on the student's record.
+              All three are recorded on the student. Only the person selected here gets a login account —
+              that is the only one who needs an email address.
             </p>
             <Err msg={errs.accountFor} />
           </div>
@@ -316,8 +317,6 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
           {['father', 'mother', 'guardian'].map(role => {
             const label   = role[0].toUpperCase() + role.slice(1);
             const isOwner = np.accountFor.toLowerCase() === role;
-            // Guardian block only matters when the guardian holds the account
-            if (role === 'guardian' && !isOwner) return null;
             return (
               <div key={role} style={{
                 border: `1px solid ${isOwner ? 'var(--primary)' : 'var(--border)'}`,
@@ -332,27 +331,29 @@ const ParentPanel = ({ form, setForm, errs, setErrs, lookupTimer, setLooking, lo
                 </div>
                 <Row>
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className={`form-label${isOwner ? ' required' : ''}`}>{label}'s Name</label>
+                    <label className="form-label required">{label}'s Name</label>
                     <input className={`form-control${errs[`${role}Name`] ? ' error' : ''}`} placeholder={`${label}'s full name`}
                       value={np[role].name} onChange={e => setBlock(role, 'name', e.target.value)} />
                     <Err msg={errs[`${role}Name`]} />
                   </div>
                   <div className="form-group">
                     <label className={`form-label${isOwner ? ' required' : ''}`}>Email</label>
-                    <input type="email" className={`form-control${errs[`${role}Email`] ? ' error' : ''}`} placeholder="name@email.com"
+                    <input type="email" className={`form-control${errs[`${role}Email`] ? ' error' : ''}`}
+                      placeholder={isOwner ? 'name@email.com' : 'Optional'}
                       value={np[role].email} onChange={e => setBlock(role, 'email', e.target.value)} />
                     <Err msg={errs[`${role}Email`]} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Phone</label>
+                    <label className="form-label required">Phone</label>
                     <input type="tel" className={`form-control${errs[`${role}Phone`] ? ' error' : ''}`} placeholder="+91 98765 43210"
                       value={np[role].phone} onChange={e => setBlock(role, 'phone', e.target.value)} />
                     <Err msg={errs[`${role}Phone`]} />
                   </div>
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="form-label">Occupation</label>
-                    <input className="form-control" placeholder="e.g. Engineer"
+                    <label className="form-label required">Occupation</label>
+                    <input className={`form-control${errs[`${role}Occupation`] ? ' error' : ''}`} placeholder="e.g. Engineer"
                       value={np[role].occupation} onChange={e => setBlock(role, 'occupation', e.target.value)} />
+                    <Err msg={errs[`${role}Occupation`]} />
                   </div>
                 </Row>
               </div>
@@ -457,22 +458,21 @@ export default function Students() {
     if (f.parentMode === 'create') {
       const np    = f.newParent;
       const owner = (np.accountFor || 'Father').toLowerCase();
-      // The account holder needs name + email; the other parent's name is asked
-      // for too, so both parents are on record.
+      // Father, mother and guardian are all recorded; only the person the
+      // account belongs to needs an email, because that is the login.
       ['father', 'mother', 'guardian'].forEach(role => {
-        const b = np[role] || {};
-        if (role === 'guardian' && owner !== 'guardian') return;
+        const b     = np[role] || {};
         const label = role[0].toUpperCase() + role.slice(1);
+        if (!b.name?.trim())       errsObj[`${role}Name`]       = `${label}'s name is required`;
+        if (!b.phone?.trim())      errsObj[`${role}Phone`]      = `${label}'s phone is required`;
+        else if (!PHONE_RE.test(b.phone)) errsObj[`${role}Phone`] = 'Invalid phone';
+        if (!b.occupation?.trim()) errsObj[`${role}Occupation`] = `${label}'s occupation is required`;
         if (role === owner) {
-          if (!b.name?.trim())  errsObj[`${role}Name`]  = `${label}'s name is required`;
-          if (!b.email?.trim()) errsObj[`${role}Email`] = `${label}'s email is required`;
+          if (!b.email?.trim()) errsObj[`${role}Email`] = `${label}'s email is required for the login account`;
           else if (!EMAIL_RE.test(b.email)) errsObj[`${role}Email`] = 'Invalid email';
-        } else if (owner !== 'guardian' && !b.name?.trim()) {
-          errsObj[`${role}Name`] = `${label}'s name is required`;
         } else if (b.email && !EMAIL_RE.test(b.email)) {
           errsObj[`${role}Email`] = 'Invalid email';
         }
-        if (b.phone && !PHONE_RE.test(b.phone)) errsObj[`${role}Phone`] = 'Invalid phone';
       });
     }
   };
