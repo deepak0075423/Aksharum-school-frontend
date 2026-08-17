@@ -39,6 +39,25 @@ export const getMyLeaves     = (params) => api.get('/teacher/leave', { params })
 export const getLeaveBalance = ()       => api.get('/teacher/leave/balance');
 export const applyLeave      = (data)   => api.post('/teacher/leave/apply', data);
 export const cancelLeave     = (id)     => api.delete(`/teacher/leave/${id}`);
+
+// The rules behind each leave type, and whether I qualify for it
+export const getLeaveTypePolicies = ()          => api.get('/teacher/leave/policies');
+// Designation-based approvers (e.g. Principal) work their queue here
+export const getLeaveApprovals    = (params)    => api.get('/teacher/leave/approvals', { params });
+export const approveLeaveRequest  = (id, data)  => api.post(`/teacher/leave/approvals/${id}/approve`, data);
+export const rejectLeaveRequest   = (id, data)  => api.post(`/teacher/leave/approvals/${id}/reject`, data);
+
+// Comp Off
+export const getMyCompOff       = (params)   => api.get('/teacher/leave/compoff', { params });
+export const previewCompOffDate = (params)   => api.get('/teacher/leave/compoff/preview', { params });
+export const getMyCompOffLedger = ()         => api.get('/teacher/leave/compoff/ledger');
+export const applyCompOff       = (data)     => api.post('/teacher/leave/compoff', data);
+export const submitCompOffDraft = (id, data) => api.post(`/teacher/leave/compoff/${id}/apply`, data);
+export const cancelCompOff      = (id)       => api.delete(`/teacher/leave/compoff/${id}`);
+// Designation-based approvers (e.g. Principal) get their queue here
+export const getCompOffApprovals = (params)   => api.get('/teacher/leave/compoff/approvals', { params });
+export const approveCompOff      = (id, data) => api.post(`/teacher/leave/compoff/${id}/approve`, data);
+export const rejectCompOff       = (id, data) => api.post(`/teacher/leave/compoff/${id}/reject`, data);
 export const getDocumentCategories = () => api.get('/teacher/document-categories');
 export const getDocuments          = (params) => api.get('/teacher/documents', { params });
 export const uploadDocument      = (data)   => api.post('/teacher/documents', data);

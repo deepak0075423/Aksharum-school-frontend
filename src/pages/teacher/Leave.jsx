@@ -3,6 +3,9 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getMyLeaves, getLeaveBalance, applyLeave, cancelLeave, getHolidays, getModules } from '../../api/teacher.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner } from '../../components/ui/index';
+import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
+import TeacherLeaveApprovals from './LeaveApprovals';
+import { getMyCompOff, getLeaveTypePolicies, getLeaveApprovals } from '../../api/teacher.api';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -58,6 +61,27 @@ function estimateDays(fromDate, toDate, leaveMode, leaveSettings = {}, holidaySe
 
 export default function TeacherLeave() {
   const [tab, setTab] = useState('my-leaves');
+
+  // Approvers are picked by designation (the Principal pattern), so a teacher
+  // may or may not have an approvals queue — ask the server once for each.
+  const [isCompOffApprover, setIsCompOffApprover] = useState(false);
+  const [isLeaveApprover,   setIsLeaveApprover]   = useState(false);
+  useEffect(() => {
+    getMyCompOff()
+      .then(res => setIsCompOffApprover(!!(res?.data ?? res)?.isApprover))
+      .catch(() => setIsCompOffApprover(false));
+    getLeaveApprovals()
+      .then(res => setIsLeaveApprover(!!(res?.data ?? res)?.isApprover))
+      .catch(() => setIsLeaveApprover(false));
+  }, []);
+
+  // Per-leave-type rules: which types this employee qualifies for and why not
+  const { data: policyData } = useFetch(getLeaveTypePolicies);
+  const policyList = policyData || [];
+  const policyMap  = useMemo(
+    () => Object.fromEntries(policyList.map(p => [String(p.leaveType?._id), p])),
+    [policyList],
+  );
 
   // ── My Leaves ─────────────────────────────────────────────────────────────────
   const [filterStatus, setFilterStatus] = useState('');
@@ -125,6 +149,7 @@ export default function TeacherLeave() {
 
   const selLT      = leaveTypes.find(t => String(t._id) === form.leaveTypeId);
   const selBal     = balanceMap[form.leaveTypeId] ?? null;
+  const selPolicy  = policyMap[form.leaveTypeId] ?? null;
   const remaining  = selBal ? (selBal.remaining ?? Math.max(0, (selBal.totalAllocated || 0) + (selBal.carriedForward || 0) - (selBal.used || 0) - (selBal.pending || 0))) : null;
   const estDays    = estimateDays(form.fromDate, form.toDate, form.leaveMode, leaveSettings, holidaySet);
   const noWorkDays = form.leaveMode !== 'half_day' && form.fromDate && form.toDate && form.fromDate <= form.toDate && estDays === 0;
@@ -226,15 +251,26 @@ export default function TeacherLeave() {
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="page">
-      <PageHeader title="My Leave" subtitle="Leave applications and balance"
-        action={<Button onClick={openModal}>+ Apply Leave</Button>}
+      <PageHeader title="My Leave" subtitle="Leave applications, balance and Comp Off"
+        action={(tab.startsWith('compoff') || tab === 'approvals') ? null : <Button onClick={openModal}>+ Apply Leave</Button>}
       />
 
       <div className="tabs">
-        {[['my-leaves','My Applications'],['balance','Leave Balance']].map(([key, label]) => (
+        {[['my-leaves','My Applications'],['balance','Leave Balance'],['compoff','Comp Off'],
+          ...(isLeaveApprover   ? [['approvals','Leave Approvals']] : []),
+          ...(isCompOffApprover ? [['compoff-approvals','Comp Off Approvals']] : [])].map(([key, label]) => (
           <button key={key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
+
+      {/* ── Comp Off ── */}
+      {tab === 'compoff' && <TeacherCompOff />}
+
+      {/* ── Leave approvals — only for designation-based approvers ── */}
+      {tab === 'approvals' && <TeacherLeaveApprovals />}
+
+      {/* ── Comp Off approvals — only for designation-based approvers ── */}
+      {tab === 'compoff-approvals' && <TeacherCompOffApprovals />}
 
       {/* ── My Applications ── */}
       {tab === 'my-leaves' && (
@@ -333,9 +369,15 @@ export default function TeacherLeave() {
                   const rem = bal
                     ? (bal.remaining ?? Math.max(0, (bal.totalAllocated || 0) + (bal.carriedForward || 0) - (bal.used || 0) - (bal.pending || 0)))
                     : (t.annualAllocation || 0);
+                  // The type's own policy decides eligibility, and may also let
+                  // this employee apply beyond their remaining balance.
+                  const pol = policyMap[t._id?.toString()];
+                  const noBalance = rem <= 0 && !pol?.allowNegativeBalance;
+                  const blocked = pol ? !pol.eligible : false;
                   return (
-                    <option key={t._id} value={t._id} disabled={rem <= 0}>
-                      {t.name} ({t.code}) — {rem} day(s) remaining{rem <= 0 ? ' · No balance' : ''}
+                    <option key={t._id} value={t._id} disabled={blocked || noBalance}>
+                      {t.name} ({t.code}) — {rem} day(s) remaining
+                      {blocked ? ` · ${pol.ineligibleReason}` : noBalance ? ' · No balance' : ''}
                     </option>
                   );
                 })}
@@ -350,6 +392,34 @@ export default function TeacherLeave() {
                 <span>Used: <strong>{selBal.used}</strong></span>
                 <span>Pending: <strong>{selBal.pending}</strong></span>
                 <span style={{ color: remaining > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>Remaining: {remaining}</span>
+              </div>
+            )}
+
+            {/* The rules this type will actually be judged by — shown before
+                submitting, so a rejection is never a surprise. */}
+            {selPolicy && (
+              <div style={{ marginTop: 10, background: 'var(--bg-muted)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', lineHeight: 1.7 }}>
+                <strong style={{ fontSize: '.8rem' }}>Policy for {selPolicy.leaveType?.name}</strong>
+                <div style={{ color: 'var(--text-muted)' }}>
+                  {[
+                    selPolicy.maxConsecutiveDays > 0    && `Max ${selPolicy.maxConsecutiveDays} consecutive day(s)`,
+                    selPolicy.minDaysPerApplication > 0 && `At least ${selPolicy.minDaysPerApplication} day(s) per application`,
+                    selPolicy.advanceNoticeDays > 0     && `${selPolicy.advanceNoticeDays} day(s) advance notice`,
+                    selPolicy.allowBackdated
+                      ? `Back-dating allowed${selPolicy.backdatedWithinDays > 0 ? ` within ${selPolicy.backdatedWithinDays} day(s)` : ''}`
+                      : 'No back-dated applications',
+                    !selPolicy.halfDayAllowed && 'No half days',
+                    selPolicy.sandwichRule    && 'Sandwich rule: holidays inside the leave are charged',
+                    selPolicy.requiresDocument && (selPolicy.documentRequiredAfterDays > 0
+                      ? `Document required beyond ${selPolicy.documentRequiredAfterDays} day(s)`
+                      : 'Supporting document required'),
+                    selPolicy.maxApplicationsPerMonth > 0 && `Max ${selPolicy.maxApplicationsPerMonth} application(s)/month`,
+                    selPolicy.maxDaysPerMonth > 0         && `Max ${selPolicy.maxDaysPerMonth} day(s)/month`,
+                    !selPolicy.allowCombineWithOtherLeaves && 'Cannot be combined with other leave types',
+                    selPolicy.allowNegativeBalance && `Overdraft allowed${selPolicy.maxNegativeDays > 0 ? ` up to ${selPolicy.maxNegativeDays} day(s)` : ''}`,
+                    (selPolicy.approval?.twoLevel) && 'Needs two approvals',
+                  ].filter(Boolean).join(' · ') || 'No special restrictions'}
+                </div>
               </div>
             )}
           </div>

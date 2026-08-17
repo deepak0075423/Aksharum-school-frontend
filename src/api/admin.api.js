@@ -111,6 +111,30 @@ export const exportLeaveRequests    = (params)   => api.get('/admin/leave/reques
 export const exportLeaveAllocations = (params)   => api.get('/admin/leave/allocations/export', { params, responseType: 'arraybuffer' });
 export const getLeaveReports        = (params)   => api.get('/admin/leave/reports', { params });
 export const exportLeaveReports     = (params)   => api.get('/admin/leave/reports/export', { params, responseType: 'arraybuffer' });
+export const reverseApprovedLeave   = (id, data) => api.post(`/admin/leave/requests/${id}/reverse`, data);
+
+// Per-leave-type policies — every leave type carries its own rule set
+export const getLeavePolicies   = ()             => api.get('/admin/leave/policies');
+export const getLeavePolicy     = (leaveTypeId)  => api.get(`/admin/leave/policies/${leaveTypeId}`);
+export const updateLeavePolicy  = (leaveTypeId, data) => api.put(`/admin/leave/policies/${leaveTypeId}`, data);
+
+// Comp Off — part of the leave module, gated by the same module flag
+export const getCompOffRequests   = (params)   => api.get('/admin/leave/compoff', { params });
+export const applyCompOffFor      = (data)     => api.post('/admin/leave/compoff', data);
+export const approveCompOff       = (id, data) => api.post(`/admin/leave/compoff/${id}/approve`, data);
+export const rejectCompOff        = (id, data) => api.post(`/admin/leave/compoff/${id}/reject`, data);
+export const cancelCompOff        = (id, data) => api.post(`/admin/leave/compoff/${id}/cancel`, data);
+export const getCompOffPolicy     = ()         => api.get('/admin/leave/compoff/policy');
+export const updateCompOffPolicy  = (data)     => api.put('/admin/leave/compoff/policy', data);
+export const getCompOffLedger     = (params)   => api.get('/admin/leave/compoff/ledger', { params });
+export const getCompOffBalances   = (params)   => api.get('/admin/leave/compoff/balances', { params });
+export const getCompOffReports    = (params)   => api.get('/admin/leave/compoff/reports', { params });
+export const exportCompOff        = (params)   => api.get('/admin/leave/compoff/export', { params, responseType: 'arraybuffer' });
+export const previewCompOffDate   = (params)   => api.get('/admin/leave/compoff/preview', { params });
+export const getCompOffEmployees  = ()         => api.get('/admin/leave/compoff/employees');
+export const adjustCompOff        = (data)     => api.post('/admin/leave/compoff/adjust', data);
+export const runCompOffExpiry     = ()         => api.post('/admin/leave/compoff/expire/run');
+export const generateCompOffDrafts = (data)    => api.post('/admin/leave/compoff/generate', data);
 
 // Timetable
 export const getSectionTimetable         = (sectionId, yearId) => api.get(`/admin/sections/${sectionId}/timetable`, { params: yearId ? { yearId } : {} });

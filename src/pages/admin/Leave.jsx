@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner, Pagination } from '../../components/ui/index';
+import { AdminCompOff, AdminCompOffPolicy } from './CompOff';
+import AdminLeavePolicies from './LeavePolicies';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -11,12 +13,9 @@ const STATUS_VARIANT = {
   cancelled: 'muted', modification_requested: 'info',
 };
 
+// Identity and entitlement only — every rule lives in the type's LeavePolicy
 const EMPTY_TYPE = {
-  name: '', code: '', annualAllocation: 12,
-  monthlyAccrual: { enabled: false, daysPerMonth: 0 },
-  carryForward: { enabled: false, maxDays: 0 },
-  encashable: false, maxEncashableDays: 0,
-  maxConsecutiveDays: 0, requiresDocument: false, documentRequiredAfterDays: 0, isActive: true,
+  name: '', code: '', category: 'general', annualAllocation: 12, isActive: true,
 };
 
 const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', reason: '' };
@@ -85,7 +84,11 @@ export default function AdminLeave() {
       if (type === 'approve')   await api.approveLeave(request._id, { adminComment: comment });
       else if (type === 'reject')  await api.rejectLeave(request._id, { adminComment: comment });
       else if (type === 'modify')  await api.requestLeaveModification(request._id, { adminComment: comment });
-      toast.success(type === 'approve' ? 'Leave approved' : type === 'reject' ? 'Leave rejected' : 'Modification requested');
+      else if (type === 'reverse') await api.reverseApprovedLeave(request._id, { adminComment: comment });
+      toast.success(type === 'approve' ? 'Leave approved'
+        : type === 'reject'  ? 'Leave rejected'
+        : type === 'reverse' ? `Leave reversed — ${request.totalDays} day(s) restored`
+        : 'Modification requested');
       setActionModal(null); setComment('');
       refetchReq();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -126,13 +129,22 @@ export default function AdminLeave() {
     { key: 'status',   label: 'Status',   render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status?.replace('_', ' ')}</Badge> },
     { key: 'reason',   label: 'Reason',   render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
     { key: 'doc',      label: 'Doc',      render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
-    { key: 'actions',  label: '',         render: r => r.status === 'pending' || r.status === 'modification_requested' ? (
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button className="btn btn-success btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'approve', request: r }); }}>Approve</button>
-        <button className="btn btn-danger btn-sm"  onClick={() => { setComment(''); setActionModal({ type: 'reject',  request: r }); }}>Reject</button>
-        {r.status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'modify', request: r }); }}>Modify</button>}
-      </div>
-    ) : null },
+    { key: 'actions',  label: '',         render: r => {
+      if (r.status === 'pending' || r.status === 'modification_requested') return (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="btn btn-success btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'approve', request: r }); }}>Approve</button>
+          <button className="btn btn-danger btn-sm"  onClick={() => { setComment(''); setActionModal({ type: 'reject',  request: r }); }}>Reject</button>
+          {r.status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'modify', request: r }); }}>Modify</button>}
+        </div>
+      );
+      // Undoing an approval is the only way to hand the days back — and the
+      // Comp Off screen refuses to withdraw a credit until the leave that spent
+      // it has been reversed here.
+      if (r.status === 'approved') return (
+        <button className="btn btn-secondary btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'reverse', request: r }); }}>Reverse</button>
+      );
+      return null;
+    }},
   ];
 
   // ── Leave Types ───────────────────────────────────────────────────────────────
@@ -156,15 +168,9 @@ export default function AdminLeave() {
   const openCreateType = () => { setTypeForm(EMPTY_TYPE); setEditType(null); setTypeModal(true); };
   const openEditType   = (t) => {
     setTypeForm({
-      name: t.name, code: t.code, annualAllocation: t.annualAllocation,
-      monthlyAccrual:            t.monthlyAccrual           || { enabled: false, daysPerMonth: 0 },
-      carryForward:              t.carryForward             || { enabled: false, maxDays: 0 },
-      encashable:                !!t.encashable,
-      maxEncashableDays:         t.maxEncashableDays        || 0,
-      maxConsecutiveDays:        t.maxConsecutiveDays       || 0,
-      requiresDocument:          !!t.requiresDocument,
-      documentRequiredAfterDays: t.documentRequiredAfterDays || 0,
-      isActive:                  t.isActive !== false,
+      name: t.name, code: t.code, category: t.category || 'general',
+      annualAllocation: t.annualAllocation,
+      isActive: t.isActive !== false,
     });
     setEditType(t); setTypeModal(true);
   };
@@ -194,11 +200,14 @@ export default function AdminLeave() {
   };
 
   const typeColumns = [
-    { key: 'name',  label: 'Leave Type', render: t => <strong>{t.name}</strong> },
+    { key: 'name',  label: 'Leave Type', render: t => (
+      <div>
+        <strong>{t.name}</strong>
+        {t.category === 'compoff' && <Badge variant="info">Comp Off</Badge>}
+      </div>
+    )},
     { key: 'code',  label: 'Code',       render: t => <code style={{ background: 'var(--bg-muted)', padding: '2px 6px', borderRadius: 4 }}>{t.code}</code> },
-    { key: 'alloc', label: 'Annual',     render: t => `${t.annualAllocation} days` },
-    { key: 'cf',    label: 'Carry Fwd',  render: t => t.carryForward?.enabled ? `Yes (max ${t.carryForward.maxDays})` : 'No' },
-    { key: 'doc',   label: 'Doc Req.',   render: t => t.requiresDocument ? '✓' : '—' },
+    { key: 'alloc', label: 'Annual',     render: t => t.category === 'compoff' ? 'earned on approval' : `${t.annualAllocation} days` },
     { key: 'status',label: 'Status',     render: t => <Badge variant={t.isActive ? 'success' : 'muted'}>{t.isActive ? 'Active' : 'Inactive'}</Badge> },
     { key: 'actions', label: '', render: t => (
       <div style={{ display: 'flex', gap: 4 }}>
@@ -367,10 +376,17 @@ export default function AdminLeave() {
       />
 
       <div className="tabs">
-        {[['requests','Requests'],['types','Leave Types'],['allocations','Allocations'],['balance','Balance Summary'],['reports','Reports']].map(([key, label]) => (
+        {[['requests','Requests'],['types','Leave Types'],['policies','Policies'],['allocations','Allocations'],
+          ['balance','Balance Summary'],['compoff','Comp Off'],['reports','Reports']].map(([key, label]) => (
           <button key={key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
+
+      {/* ── Comp Off (requests · balances · ledger · reports) ── */}
+      {tab === 'compoff'  && <AdminCompOff />}
+
+      {/* ── Policies — one configurable rule set per leave type ── */}
+      {tab === 'policies' && <AdminLeavePolicies />}
 
       {/* ── Requests ── */}
       {tab === 'requests' && (
@@ -606,9 +622,12 @@ export default function AdminLeave() {
         );
       })()}
 
-      {/* ── Action Modal (Approve / Reject / Modify) ── */}
+      {/* ── Action Modal (Approve / Reject / Modify / Reverse) ── */}
       <Modal open={!!actionModal} onClose={() => { setActionModal(null); setComment(''); }}
-        title={actionModal?.type === 'approve' ? 'Approve Leave' : actionModal?.type === 'reject' ? 'Reject Leave' : 'Request Modification'}
+        title={actionModal?.type === 'approve' ? 'Approve Leave'
+             : actionModal?.type === 'reject'  ? 'Reject Leave'
+             : actionModal?.type === 'reverse' ? 'Reverse Approved Leave'
+             : 'Request Modification'}
         footer={<>
           <Button variant="secondary" onClick={() => { setActionModal(null); setComment(''); }}>Cancel</Button>
           <Button variant={actionModal?.type === 'approve' ? 'primary' : 'danger'} onClick={handleAction} loading={actLoad}>Confirm</Button>
@@ -619,6 +638,12 @@ export default function AdminLeave() {
               <strong>{actionModal.request.teacher?.name}</strong> — {actionModal.request.leaveType?.name}<br />
               <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>{fmtDate(actionModal.request.fromDate)} – {fmtDate(actionModal.request.toDate)} ({actionModal.request.totalDays} day(s))</span>
             </p>
+            {actionModal.type === 'reverse' && (
+              <div className="alert alert-warning" style={{ marginBottom: 12, fontSize: '.82rem' }}>
+                This undoes the approval and returns {actionModal.request.totalDays} day(s) to the teacher's balance.
+                {actionModal.request.leaveType?.category === 'compoff' && ' The Comp Off days go back into the lots they were spent from.'}
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label">Comment (optional)</label>
               <textarea className="form-control" rows={3} value={comment}
@@ -705,70 +730,34 @@ export default function AdminLeave() {
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
-              <label className="form-label">Annual Allocation (days)</label>
-              <input type="number" className="form-control" min={0} value={typeForm.annualAllocation}
-                onChange={e => setTypeForm(f => ({ ...f, annualAllocation: +e.target.value }))} />
+              <label className="form-label">Category</label>
+              <select className="form-control" value={typeForm.category || 'general'}
+                onChange={e => setTypeForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="general">General leave</option>
+                <option value="compoff">Comp Off (compensatory)</option>
+              </select>
+              <div className="form-hint">
+                {typeForm.category === 'compoff'
+                  ? 'Balance is credited only when a Comp Off request is approved — it cannot be allocated or accrued.'
+                  : 'Standard leave — allocated annually or accrued monthly.'}
+              </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Max Consecutive Days</label>
-              <input type="number" className="form-control" min={0} value={typeForm.maxConsecutiveDays}
-                onChange={e => setTypeForm(f => ({ ...f, maxConsecutiveDays: +e.target.value }))} placeholder="0 = unlimited" />
+              <label className="form-label">Annual Allocation (days)</label>
+              <input type="number" className="form-control" min={0} value={typeForm.annualAllocation}
+                disabled={typeForm.category === 'compoff'}
+                onChange={e => setTypeForm(f => ({ ...f, annualAllocation: +e.target.value }))} />
+              {typeForm.category === 'compoff' && <div className="form-hint">Not applicable — Comp Off days are earned</div>}
             </div>
           </div>
-          <div className="form-row form-row-2">
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={typeForm.carryForward?.enabled || false}
-                  onChange={e => setTypeForm(f => ({ ...f, carryForward: { ...f.carryForward, enabled: e.target.checked } }))} />
-                Carry Forward
-              </label>
-              {typeForm.carryForward?.enabled && (
-                <input type="number" className="form-control" min={0} value={typeForm.carryForward?.maxDays || 0}
-                  placeholder="Max days to carry"
-                  onChange={e => setTypeForm(f => ({ ...f, carryForward: { ...f.carryForward, maxDays: +e.target.value } }))} />
-              )}
-            </div>
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={typeForm.requiresDocument || false}
-                  onChange={e => setTypeForm(f => ({ ...f, requiresDocument: e.target.checked }))} />
-                Requires Document
-              </label>
-              {typeForm.requiresDocument && (
-                <input type="number" className="form-control" min={0} value={typeForm.documentRequiredAfterDays || 0}
-                  placeholder="Required after N days (0 = always)"
-                  onChange={e => setTypeForm(f => ({ ...f, documentRequiredAfterDays: +e.target.value }))} />
-              )}
-            </div>
+          {/* Every rule for this type — accrual, carry forward, encashment,
+              day limits, documents, approvals — lives in Leave → Policies, so
+              there is one place to look and nothing silently overrides. */}
+          <div className="alert alert-info" style={{ fontSize: '.82rem' }}>
+            Monthly accrual, carry forward, encashment, day limits, document rules and the
+            approval workflow are configured per leave type under the <strong>Policies</strong> tab.
           </div>
-          <div className="form-row form-row-2">
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={typeForm.monthlyAccrual?.enabled || false}
-                  onChange={e => setTypeForm(f => ({ ...f, monthlyAccrual: { ...f.monthlyAccrual, enabled: e.target.checked } }))} />
-                Monthly Accrual
-              </label>
-              {typeForm.monthlyAccrual?.enabled && (
-                <input type="number" className="form-control" min={0} step="0.5"
-                  value={typeForm.monthlyAccrual?.daysPerMonth || 0}
-                  placeholder="Days per month (e.g. 1)"
-                  onChange={e => setTypeForm(f => ({ ...f, monthlyAccrual: { ...f.monthlyAccrual, daysPerMonth: +e.target.value } }))} />
-              )}
-            </div>
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={typeForm.encashable || false}
-                  onChange={e => setTypeForm(f => ({ ...f, encashable: e.target.checked }))} />
-                Encashable
-              </label>
-              {typeForm.encashable && (
-                <input type="number" className="form-control" min={0}
-                  value={typeForm.maxEncashableDays || 0}
-                  placeholder="Max encashable days (0 = no limit)"
-                  onChange={e => setTypeForm(f => ({ ...f, maxEncashableDays: +e.target.value }))} />
-              )}
-            </div>
-          </div>
+
           <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={typeForm.isActive !== false}
