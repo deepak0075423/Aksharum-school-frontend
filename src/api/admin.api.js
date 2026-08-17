@@ -28,6 +28,11 @@ export const getClassesWithSections = (all) => api.get('/admin/classes-with-sect
 export const getStudents = (params) => api.get('/admin/students', { params });
 export const getStudent  = (id) => api.get(`/admin/students/${id}`);
 export const createStudent = (data) => api.post('/admin/students', data);
+// The full admission intake posts multipart (certificates + ID scans). Up to 20
+// uploads can ride along, so it gets a longer timeout than the 30s default.
+const UPLOAD_TIMEOUT = { timeout: 120000 };
+export const createStudentForm = (fd)     => api.post('/admin/students', fd, UPLOAD_TIMEOUT);
+export const updateStudentForm = (id, fd) => api.put(`/admin/students/${id}`, fd, UPLOAD_TIMEOUT);
 export const deleteStudent = (id) => api.delete(`/admin/students/${id}`);
 export const parentLookup  = (q)      => api.get('/admin/students/parent-lookup', { params: { q } });
 export const pincodeLookup = (pin)    => api.get(`/admin/pincode/${pin}`);

@@ -123,9 +123,10 @@ export default function AddressFields({
           <Err msg={errs[kState]} />
         </div>
         <div className="form-group">
-          <label className="form-label">Country</label>
-          <input className="form-control" value={form[kCountry] || 'India'} readOnly
-            style={{ background: 'var(--bg)', cursor: 'not-allowed' }} />
+          <label className={lbl}>Country</label>
+          <input className={`form-control${errs[kCountry] ? ' error' : ''}`} placeholder="India"
+            disabled={disabled} value={form[kCountry] ?? 'India'} onChange={onField(kCountry)} />
+          <Err msg={errs[kCountry]} />
         </div>
       </Row>
     </>
