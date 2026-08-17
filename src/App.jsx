@@ -9,6 +9,7 @@ import ModuleNav, {
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
   FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS, FEEDBACK_PRINCIPAL_TABS,
+  TIMETABLE_ADMIN_TABS,
 } from './components/layout/ModuleNav';
 
 // ── Auth Pages ────────────────────────────────────────────────────────────────
@@ -38,6 +39,14 @@ const ASectionDetail= lazy(() => import('./pages/admin/SectionDetail'));
 const ASubjects     = lazy(() => import('./pages/admin/Subjects'));
 const AAcademicYears= lazy(() => import('./pages/admin/AcademicYears'));
 const ATimetable    = lazy(() => import('./pages/admin/Timetable'));
+// ── Timetable generation ──────────────────────────────────────────────────────
+const TTGenerate      = lazy(() => import('./pages/timetable/admin/Generate'));
+const TTVersions      = lazy(() => import('./pages/timetable/admin/Versions'));
+const TTVersionDetail = lazy(() => import('./pages/timetable/admin/VersionDetail'));
+const TTRequirements  = lazy(() => import('./pages/timetable/admin/Requirements'));
+const TTAvailability  = lazy(() => import('./pages/timetable/admin/Availability'));
+const TTRooms         = lazy(() => import('./pages/timetable/admin/Rooms'));
+const TTConfiguration = lazy(() => import('./pages/timetable/admin/Configuration'));
 const ANotifications= lazy(() => import('./pages/admin/Notifications'));
 const AResults      = lazy(() => import('./pages/admin/Results'));
 const ALeave        = lazy(() => import('./pages/admin/Leave'));
@@ -278,7 +287,18 @@ export default function App() {
             <Route path="classes/:id"     element={<ASections />} />
             <Route path="sections/:id"    element={<ASectionDetail />} />
             <Route path="subjects"        element={<ASubjects />} />
-            <Route path="timetable"       element={<ATimetable />} />
+            {/* Timetable — the index route is the existing section editor, so
+                /admin/timetable behaves exactly as it did before this module. */}
+            <Route path="timetable" element={<ModuleNav tabs={TIMETABLE_ADMIN_TABS} />}>
+              <Route index                    element={<ATimetable />} />
+              <Route path="generate"          element={<TTGenerate />} />
+              <Route path="versions"          element={<TTVersions />} />
+              <Route path="versions/:id"      element={<TTVersionDetail />} />
+              <Route path="requirements"      element={<TTRequirements />} />
+              <Route path="availability"      element={<TTAvailability />} />
+              <Route path="rooms"             element={<TTRooms />} />
+              <Route path="configuration"     element={<TTConfiguration />} />
+            </Route>
             <Route path="notifications"   element={<ANotifications />} />
             <Route path="exams"           element={<AExams />} />
             <Route path="results/*"       element={<AResults />} />

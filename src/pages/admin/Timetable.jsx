@@ -685,7 +685,7 @@ export default function AdminTimetable() {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-secondary btn-sm" onClick={() => setCellData({})}>Clear</button>
-                  <button className="btn btn-secondary btn-sm" onClick={openGenerate}>⚡ Generate</button>
+                  <button className="btn btn-secondary btn-sm" onClick={openGenerate} title="Rough scratch fill for this one section. For a conflict-free school-wide timetable use the Generate tab.">⚡ Quick Fill</button>
                   <button className="btn btn-primary btn-sm" disabled={saving} onClick={handleSave}>
                     {saving ? 'Saving…' : 'Save Timetable'}
                   </button>
@@ -975,12 +975,17 @@ function GenerateModal({ subjects, loading, ppw, setPpw, days, genDays, setGenDa
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong>⚡ Auto-Generate Timetable</strong>
+          <strong>⚡ Quick Fill (this section only)</strong>
           <button className="btn btn-secondary btn-sm" onClick={onClose}>✕</button>
         </div>
 
         {loading ? <div style={{ padding: 48, textAlign: 'center' }}><Spinner /></div> : (
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '.8rem', color: 'var(--text-muted)' }}>
+              This fills empty slots for this section only and does <strong>not</strong> check teacher,
+              room or workload clashes. For a validated, conflict-free timetable use{' '}
+              <a href="/admin/timetable/generate" style={{ color: 'var(--primary)' }}>Generate</a>.
+            </div>
             {!subjects.length && (
               <div style={{ padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, color: 'var(--text-muted)', textAlign: 'center', fontSize: '.88rem' }}>
                 No subjects assigned to this section yet.
@@ -1039,7 +1044,7 @@ function GenerateModal({ subjects, loading, ppw, setPpw, days, genDays, setGenDa
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button className="btn btn-primary" disabled={generating || !subjects.length || totalPeriods === 0} onClick={onGenerate}>
-                {generating ? 'Generating…' : '⚡ Generate'}
+                {generating ? 'Filling…' : '⚡ Quick Fill'}
               </button>
             </div>
           </div>
