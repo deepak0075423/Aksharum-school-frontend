@@ -8,6 +8,7 @@ import ModuleNav, {
   INVENTORY_ADMIN_TABS, INVENTORY_TEACHER_TABS,
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
+  FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS, FEEDBACK_PRINCIPAL_TABS,
 } from './components/layout/ModuleNav';
 
 // ── Auth Pages ────────────────────────────────────────────────────────────────
@@ -168,6 +169,26 @@ const VidTchAdd       = lazy(() => import('./pages/teacher/videos/AddVideo'));
 const VidTchAssign    = lazy(() => import('./pages/teacher/videos/Assignments'));
 const VidStuDash      = lazy(() => import('./pages/student/videos/Dashboard'));
 const VidStuPlayer    = lazy(() => import('./pages/student/videos/Player'));
+
+// ── Teacher Feedback ──────────────────────────────────────────────────────────
+const FbAdmDashboard   = lazy(() => import('./pages/feedback/admin/Dashboard'));
+const FbAdmCampaigns   = lazy(() => import('./pages/feedback/admin/Campaigns'));
+const FbAdmCampaign    = lazy(() => import('./pages/feedback/admin/CampaignDetail'));
+const FbAdmQuestions   = lazy(() => import('./pages/feedback/admin/QuestionBank'));
+const FbAdmCategories  = lazy(() => import('./pages/feedback/admin/Categories'));
+const FbAdmTeachers    = lazy(() => import('./pages/feedback/admin/TeacherFeedback'));
+const FbAdmTeacher     = lazy(() => import('./pages/feedback/admin/TeacherDetail'));
+const FbAdmDepartments = lazy(() => import('./pages/feedback/admin/Departments'));
+const FbAdmTrends      = lazy(() => import('./pages/feedback/admin/Trends'));
+const FbAdmReports     = lazy(() => import('./pages/feedback/admin/Reports'));
+const FbAdmTemplates   = lazy(() => import('./pages/feedback/admin/Templates'));
+const FbAdmSettings    = lazy(() => import('./pages/feedback/admin/Settings'));
+const FbTchDashboard   = lazy(() => import('./pages/feedback/teacher/Dashboard'));
+const FbTchBreakdown   = lazy(() => import('./pages/feedback/teacher/Breakdown'));
+const FbTchTrends      = lazy(() => import('./pages/feedback/teacher/Trends'));
+const FbStuList        = lazy(() => import('./pages/feedback/student/MyFeedback'));
+const FbStuForm        = lazy(() => import('./pages/feedback/student/FeedbackForm'));
+const FbStuDetail      = lazy(() => import('./pages/feedback/student/SubmissionDetail'));
 
 // ── Chat ─────────────────────────────────────────────────────────────────────
 const Chat = lazy(() => import('./pages/Chat'));
@@ -345,6 +366,22 @@ export default function App() {
               <Route path="approvals" element={<VidAdmApprovals />} />
               <Route path="settings"  element={<VidAdmSettings />} />
             </Route>
+            {/* Teacher Feedback */}
+            <Route path="feedback" element={<ModuleNav tabs={FEEDBACK_ADMIN_TABS} />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard"     element={<FbAdmDashboard />} />
+              <Route path="campaigns"     element={<FbAdmCampaigns />} />
+              <Route path="campaigns/:id" element={<FbAdmCampaign />} />
+              <Route path="questions"     element={<FbAdmQuestions />} />
+              <Route path="categories"    element={<FbAdmCategories />} />
+              <Route path="teachers"      element={<FbAdmTeachers />} />
+              <Route path="teachers/:id"  element={<FbAdmTeacher />} />
+              <Route path="departments"   element={<FbAdmDepartments />} />
+              <Route path="trends"        element={<FbAdmTrends />} />
+              <Route path="reports"       element={<FbAdmReports />} />
+              <Route path="templates"     element={<FbAdmTemplates />} />
+              <Route path="settings"      element={<FbAdmSettings />} />
+            </Route>
           </Route>
 
           {/* Teacher */}
@@ -393,6 +430,25 @@ export default function App() {
               <Route path="add"         element={<VidTchAdd />} />
               <Route path="assignments" element={<VidTchAssign />} />
             </Route>
+            {/* My own feedback results */}
+            <Route path="feedback" element={<ModuleNav tabs={FEEDBACK_TEACHER_TABS} />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<FbTchDashboard />} />
+              <Route path="breakdown" element={<FbTchBreakdown />} />
+              <Route path="trends"    element={<FbTchTrends />} />
+            </Route>
+            {/* School-wide feedback review — Principal / Vice Principal designation.
+                The backend re-checks the designation on every request, so these
+                routes are safe even if the nav item is reached directly. */}
+            <Route path="feedback-review" element={<ModuleNav tabs={FEEDBACK_PRINCIPAL_TABS} />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard"    element={<FbAdmDashboard />} />
+              <Route path="teachers"     element={<FbAdmTeachers />} />
+              <Route path="teachers/:id" element={<FbAdmTeacher />} />
+              <Route path="departments"  element={<FbAdmDepartments />} />
+              <Route path="trends"       element={<FbAdmTrends />} />
+              <Route path="reports"      element={<FbAdmReports />} />
+            </Route>
             <Route path="holidays"         element={<THolidays />} />
             <Route path="notifications"    element={<SharedNotifications />} />
           </Route>
@@ -413,6 +469,9 @@ export default function App() {
             <Route path="transport"        element={<TrStudent />} />
             <Route path="videos"           element={<VidStuDash />} />
             <Route path="videos/:id"       element={<VidStuPlayer />} />
+            <Route path="feedback"           element={<FbStuList />} />
+            <Route path="feedback/:id"       element={<FbStuForm />} />
+            <Route path="feedback/:id/view"  element={<FbStuDetail />} />
             <Route element={<ModuleNav tabs={LIBRARY_STUDENT_TABS('/student')} />}>
               <Route path="library"          element={<SLibrary />} />
               <Route path="library/search"   element={<SLibSearch />} />

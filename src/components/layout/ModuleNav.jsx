@@ -130,3 +130,34 @@ export const VIDEO_TEACHER_TABS = [
   { to: '/teacher/videos/add',         label: '➕ Add Video' },
   { to: '/teacher/videos/assignments', label: '📌 My Assignments' },
 ];
+
+// ── Teacher Feedback ─────────────────────────────────────────────────────────
+export const FEEDBACK_ADMIN_TABS = [
+  { to: '/admin/feedback/dashboard', label: '🏠 Dashboard' },
+  { to: '/admin/feedback/campaigns', label: '📣 Campaigns' },
+  { to: '/admin/feedback/questions', label: '❓ Question Bank' },
+  { to: '/admin/feedback/categories', label: '🗂 Categories' },
+  { to: '/admin/feedback/teachers',  label: '👨‍🏫 Teacher Feedback' },
+  { to: '/admin/feedback/departments', label: '🏢 Departments' },
+  { to: '/admin/feedback/trends',    label: '📈 Trends' },
+  { to: '/admin/feedback/reports',   label: '📄 Reports' },
+  { to: '/admin/feedback/templates', label: '🧩 Templates' },
+  { to: '/admin/feedback/settings',  label: '⚙️ Settings' },
+];
+
+export const FEEDBACK_TEACHER_TABS = [
+  { to: '/teacher/feedback/dashboard', label: '⭐ My Feedback' },
+  { to: '/teacher/feedback/breakdown', label: '🔍 Where it came from' },
+  { to: '/teacher/feedback/trends',    label: '📈 Trends' },
+];
+
+// Principal view — same analytics pages as the admin, read-only, mounted under
+// the teacher tree because a principal signs in as a teacher (designation-based
+// RBAC, exactly like Manage Library for a Librarian).
+export const FEEDBACK_PRINCIPAL_TABS = [
+  { to: '/teacher/feedback-review/dashboard',   label: '🏠 Dashboard' },
+  { to: '/teacher/feedback-review/teachers',    label: '👨‍🏫 Teacher Performance' },
+  { to: '/teacher/feedback-review/departments', label: '🏢 Department Performance' },
+  { to: '/teacher/feedback-review/trends',      label: '📈 Trends' },
+  { to: '/teacher/feedback-review/reports',     label: '📄 Reports' },
+];

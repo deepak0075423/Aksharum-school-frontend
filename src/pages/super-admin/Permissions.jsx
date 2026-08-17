@@ -15,6 +15,7 @@ const MODULES = [
   { key: 'inventory',    label: 'Inventory',      icon: '📦' },
   { key: 'transport',    label: 'Transport',      icon: '🚌' },
   { key: 'videoLibrary', label: 'Video Learning', icon: '🎬' },
+  { key: 'feedback',     label: 'Teacher Feedback', icon: '⭐' },
   { key: 'leave',        label: 'Leave',          icon: '🏖️' },
   { key: 'document',     label: 'Documents',      icon: '📁' },
   { key: 'holiday',      label: 'Holidays',       icon: '🎉' },
