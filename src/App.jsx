@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ModulesProvider } from './contexts/ModulesContext';
 import AppLayout from './components/layout/AppLayout';
@@ -11,7 +11,7 @@ import ModuleNav, {
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
   FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS, FEEDBACK_PRINCIPAL_TABS,
-  TIMETABLE_ADMIN_TABS,
+  TIMETABLE_ADMIN_TABS, DIRECTORY_TABS,
 } from './components/layout/ModuleNav';
 
 // ── Auth Pages ────────────────────────────────────────────────────────────────
@@ -28,7 +28,6 @@ const SASchools        = lazy(() => import('./pages/super-admin/Schools'));
 const SASchoolForm     = lazy(() => import('./pages/super-admin/SchoolForm'));
 const SAUsers          = lazy(() => import('./pages/super-admin/Users'));
 const SAPermissions    = lazy(() => import('./pages/super-admin/Permissions'));
-const SADesignations   = lazy(() => import('./pages/super-admin/Designations'));
 const SANotifications  = lazy(() => import('./pages/super-admin/Notifications'));
 const SAVideoLibrary   = lazy(() => import('./pages/super-admin/videos/Library'));
 
@@ -68,6 +67,41 @@ const SharedNotifications = lazy(() => import('./pages/shared/Notifications'));
 // ── Student Analytics (admin + teacher, same pages, scope resolved server-side)
 const StudentAnalytics       = lazy(() => import('./pages/analytics/StudentAnalytics'));
 const StudentAnalyticsDetail = lazy(() => import('./pages/analytics/StudentDetail'));
+
+// ── Employee Directory (admin + teacher, same pages; the API returns only the
+//    fields the caller's designation level is entitled to)
+const EdDashboard    = lazy(() => import('./pages/directory/Dashboard'));
+const EdEmployees    = lazy(() => import('./pages/directory/Employees'));
+const EdProfile      = lazy(() => import('./pages/directory/EmployeeProfile'));
+const EdDepartments  = lazy(() => import('./pages/directory/Departments'));
+const EdDesignations = lazy(() => import('./pages/directory/Designations'));
+const EdOrgStructure = lazy(() => import('./pages/directory/OrgStructure'));
+const EdVerification = lazy(() => import('./pages/directory/Verification'));
+const EdReports      = lazy(() => import('./pages/directory/Reports'));
+
+// One route subtree, mounted under /admin and /teacher. `isAdmin` only decides
+// which tabs are drawn — every endpoint behind them is guarded server-side.
+const directoryRoutes = (base, isAdmin) => (
+  // A teacher has exactly one directory screen, so there is no tab bar to draw —
+  // a single-item ModuleNav would render a stray rule across the page and no
+  // navigation. Administrators get the real tab bar.
+  <Route
+    path="employee-directory"
+    element={isAdmin ? <ModuleNav tabs={DIRECTORY_TABS(base)} /> : <Outlet />}
+  >
+    <Route index element={<Navigate to={isAdmin ? 'dashboard' : 'employees'} replace />} />
+    <Route path="employees"      element={<EdEmployees />} />
+    <Route path="employees/:id"  element={<EdProfile />} />
+    {/* Administrative views. Their endpoints are admin-only, so registering
+        the routes for a normal user would only produce a 403 page. */}
+    {isAdmin && <Route path="dashboard"     element={<EdDashboard />} />}
+    {isAdmin && <Route path="departments"   element={<EdDepartments />} />}
+    {isAdmin && <Route path="designations"  element={<EdDesignations />} />}
+    {isAdmin && <Route path="org-structure" element={<EdOrgStructure />} />}
+    {isAdmin && <Route path="verification"  element={<EdVerification />} />}
+    {isAdmin && <Route path="reports"       element={<EdReports />} />}
+  </Route>
+);
 
 // ── Teacher ───────────────────────────────────────────────────────────────────
 const TDashboard    = lazy(() => import('./pages/teacher/Dashboard'));
@@ -275,7 +309,6 @@ export default function App() {
             <Route path="schools/:id/edit" element={<SASchoolForm />} />
             <Route path="users"         element={<SAUsers />} />
             <Route path="permissions"   element={<SAPermissions />} />
-            <Route path="designations"  element={<SADesignations />} />
             <Route path="videos"        element={<SAVideoLibrary />} />
             <Route path="notifications" element={<SANotifications />} />
           </Route>
@@ -319,6 +352,7 @@ export default function App() {
             <Route path="attendance"      element={<AAttendance />} />
             <Route path="student-analytics"             element={<StudentAnalytics />} />
             <Route path="student-analytics/:studentId"  element={<StudentAnalyticsDetail />} />
+            {directoryRoutes('/admin/employee-directory', true)}
             <Route path="reports"          element={<AReports />} />
             <Route path="school-settings" element={<ASchoolSettings />} />
             {/* Fees */}
@@ -424,6 +458,7 @@ export default function App() {
             <Route path="attendance"   element={<TAttendance />} />
             <Route path="student-analytics"            element={<StudentAnalytics />} />
             <Route path="student-analytics/:studentId" element={<StudentAnalyticsDetail />} />
+            {directoryRoutes('/teacher/employee-directory', false)}
             <Route path="timetable"    element={<TTimetable />} />
             <Route path="exams/*"      element={<TExams />} />
             <Route path="results/*"    element={<TResults />} />

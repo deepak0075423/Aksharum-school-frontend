@@ -995,3 +995,161 @@ select.form-control {
   100% { transform: scale(1); opacity: 1; }
 }
 .emoji-pop { animation: emojiPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); transform-origin: center; }
+
+@media (max-width: 900px) {
+  .dashboard-layout { grid-template-columns: 1fr; }
+}
+
+/* Generic main + side-panel split that collapses to one column on small screens */
+.split-main-side {
+  display:               grid;
+  grid-template-columns: minmax(0,1fr) 320px;
+  gap:                   20px;
+  align-items:           start;
+}
+.split-1-2 {
+  display:               grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,2fr);
+  gap:                   20px;
+  align-items:           start;
+}
+@media (max-width: 900px) {
+  .split-main-side,
+  .split-1-2 { grid-template-columns: 1fr; }
+}
+
+/* ── Chat: single-emoji message pop-in ─────────────────────────────────────── */
+@keyframes emojiPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.emoji-pop { animation: emojiPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); transform-origin: center; }
+
+/* ─── Employee Directory ──────────────────────────────────────────────────────
+   Prefixed `ed-` so nothing here can reach another screen. Built from the same
+   tokens as the rest of the app — no new palette, no new framework.          */
+
+/* Segmented control. The list/card switch is a CHOICE, not navigation, so it
+   must not borrow .tabs — that paints a rule across the header and reads as a
+   second tab bar next to the module nav. */
+.ed-seg {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
+  gap: 3px;
+}
+.ed-seg button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 38px; height: 32px;
+  border: none; background: transparent; border-radius: 6px;
+  color: var(--text-muted); cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.ed-seg button:hover { color: var(--primary); }
+.ed-seg button.on { background: var(--primary); color: #fff; }
+.ed-seg button svg { display: block; }
+
+/* Toolbar — the search and department stay on one line together; the
+   secondary controls sit on their own row so neither can push the other out. */
+.ed-toolbar { display: flex; flex-direction: column; gap: 12px; }
+.ed-toolbar__main { display: flex; gap: 12px; align-items: center; }
+.ed-toolbar__rest { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ed-search  { position: relative; flex: 1 1 auto; min-width: 0; }
+.ed-search input { padding-left: 40px; height: 44px; border-radius: var(--radius-lg); }
+.ed-search svg {
+  position: absolute; left: 14px; top: 50%;
+  transform: translateY(-50%); opacity: .45; pointer-events: none;
+}
+select.ed-major { height: 44px; border-radius: var(--radius-lg); flex: 0 0 220px; width: 220px; }
+
+/* The band between the toolbar and the results. */
+.ed-resultbar {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin: 22px 0 14px;
+}
+.ed-resultbar h2 { font-size: 1.15rem; font-weight: 700; }
+.ed-resultbar p  { font-size: .85rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Table cells */
+.ed-emp { display: flex; align-items: center; gap: 11px; }
+.ed-nm  { font-weight: 600; font-size: .9rem; color: var(--text); line-height: 1.25; }
+.ed-id  { font-size: .72rem; color: var(--text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 2px; }
+.ed-sub { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+.ed-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+.ed-none { color: #94a3b8; font-weight: 400; }
+.ed-row { cursor: pointer; }
+.ed-row:hover td { background: var(--bg); }
+.ed-chev { color: var(--border); font-size: 1.1rem; }
+
+/* ── Card grid ─────────────────────────────────────────────────────────────
+   Identity line, then a two-column grid of iconed facts. Cards are a fixed
+   shape so a row of them reads as one block rather than a ragged edge. */
+.ed-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+.ed-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  display: flex; flex-direction: column; gap: 14px;
+  text-decoration: none; color: inherit;
+  transition: box-shadow var(--transition), border-color var(--transition), transform var(--transition);
+}
+.ed-card:hover { box-shadow: var(--shadow-md); border-color: var(--primary); transform: translateY(-2px); }
+.ed-card__head { display: flex; gap: 13px; align-items: center; }
+.ed-card__name { font-size: .97rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+.ed-card__name span { color: var(--text-muted); font-weight: 600; }
+.ed-card__role { font-size: .82rem; color: var(--text-muted); margin-top: 3px; }
+.ed-card__facts {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px;
+  border-top: 1px solid var(--border); padding-top: 13px;
+}
+.ed-fact {
+  display: flex; align-items: center; gap: 7px;
+  font-size: .78rem; color: var(--text-muted); min-width: 0;
+}
+.ed-fact svg { flex-shrink: 0; opacity: .6; }
+.ed-fact span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-fact--wide { grid-column: 1 / -1; }
+
+/* ── Profile ───────────────────────────────────────────────────────────────
+   Two columns: the record on the left, the reporting chain on the right. */
+.ed-panel {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px;
+}
+.ed-hero { display: flex; gap: 18px; align-items: center; margin-bottom: 6px; }
+.ed-hero__name { font-size: 1.4rem; font-weight: 700; line-height: 1.2; }
+.ed-hero__role { font-size: .92rem; color: var(--text-muted); margin-top: 4px; }
+.ed-hero__id   { font-size: .84rem; color: var(--text-muted); margin-top: 3px; }
+
+.ed-block { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border); }
+.ed-block:first-of-type { border-top: none; margin-top: 12px; }
+.ed-block__title {
+  display: flex; align-items: center; gap: 9px;
+  font-size: .98rem; font-weight: 700; color: var(--text); margin-bottom: 14px;
+}
+.ed-block__title svg { color: var(--primary); }
+/* A FIXED column count, not auto-fit: auto-fit gave each block as many columns
+   as its own item count allowed, so "Email" in one block and "Date of Joining"
+   in the next started at different x positions. A shared grid lines every
+   field up down the page. */
+.ed-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 22px; }
+.ed-facts > .ed-field--span2 { grid-column: span 2; }
+.ed-field { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.ed-field svg { color: var(--primary); opacity: .75; margin-top: 3px; flex-shrink: 0; }
+.ed-field__k { font-size: .76rem; color: var(--text-muted); }
+.ed-field__v { font-size: .92rem; color: var(--text); margin-top: 2px; word-break: break-word; }
+
+@media (max-width: 1240px) { .ed-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 940px)  { .ed-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .ed-facts { grid-template-columns: 1fr; }
+  .ed-facts > .ed-field--span2 { grid-column: auto; }
+  .ed-cards { grid-template-columns: 1fr; }
+  .ed-card__facts { grid-template-columns: 1fr; }
+  .ed-toolbar__main { flex-direction: column; align-items: stretch; }
+  select.ed-major { flex: 1 1 auto; width: 100%; }
+}

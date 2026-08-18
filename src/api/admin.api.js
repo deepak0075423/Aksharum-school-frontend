@@ -31,6 +31,10 @@ export const exportDesignationTeachers = (id) =>
   api.get(`/admin/designations/${id}/teachers/export`, { responseType: 'arraybuffer' });
 export const getTeacher  = (id) => api.get(`/admin/teachers/${id}`);
 export const createTeacher = (data) => api.post('/admin/teachers', data);
+// The full record, edited with the same wizard. Multipart: uploads are optional
+// on an edit, and anything already on file is kept.
+export const updateTeacherFull = (id, data) => api.put(`/admin/teachers/${id}`, data);
+export const getTeacherDetail  = (id) => api.get(`/admin/teachers/${id}`);
 export const deleteTeacher = (id) => api.delete(`/admin/teachers/${id}`);
 export const updateTeacher  = (id, data) => api.put(`/admin/users/${id}`, data);
 export const toggleTeacher  = (id)       => api.patch(`/admin/users/${id}/toggle`);
@@ -76,6 +80,9 @@ export const updateClass    = (id, data) => api.put(`/admin/classes/${id}`, data
 export const deleteClass          = (id) => api.delete(`/admin/classes/${id}`);
 export const autoAssignStudents   = (academicYear) => api.post('/admin/classes/auto-assign', academicYear ? { academicYear } : {});
 export const createSection        = (classId, data) => api.post(`/admin/classes/${classId}/sections`, data);
+// What the shuffle would do, before anything moves: how many students, how many
+// seats across the sections, and the reason when it cannot be done.
+export const shufflePreview       = (classId) => api.get(`/admin/classes/${classId}/shuffle-preview`);
 export const shuffleSections      = (classId) => api.post(`/admin/classes/${classId}/shuffle-sections`);
 export const lockSectionShuffle   = (classId) => api.post(`/admin/classes/${classId}/lock-sections`);
 

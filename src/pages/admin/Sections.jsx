@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { PageHeader, Button, Modal, Spinner, Empty, Confirm } from '../../components/ui/index';
+import { PageHeader, Button, Modal, Spinner, Empty, Confirm, Alert } from '../../components/ui/index';
 
 export default function Sections() {
   const { id }              = useParams();
@@ -19,13 +19,32 @@ export default function Sections() {
   const [lockConfirm, setLockConfirm]       = useState(false);
   const [locking, setLocking]               = useState(false);
 
+  // Opening the dialog asks the server to count the students and the seats
+  // first. If they do not fit, there is no Shuffle button to press.
+  const [preview, setPreview]   = useState(null);
+  const [previewing, setPrevw]  = useState(false);
+
+  const askShuffle = async () => {
+    setShuffleConfirm(true);
+    setPreview(null);
+    setPrevw(true);
+    try {
+      setPreview(await api.shufflePreview(id));
+    } catch (err) {
+      toast.error(err.message || 'Could not check this class');
+      setShuffleConfirm(false);
+    } finally { setPrevw(false); }
+  };
+
+  const closeShuffle = () => { setShuffleConfirm(false); setPreview(null); };
+
   const handleShuffle = async () => {
     setShuffling(true);
     try {
       const res = await api.shuffleSections(id);
       const spread = (res?.data?.sections || []).map(s => `${s.sectionName}: ${s.count}`).join(' · ');
       toast.success(`${res?.data?.students ?? 0} students shuffled — ${spread}`);
-      setShuffleConfirm(false);
+      closeShuffle();
       refetch();
     } catch (err) { toast.error(err.message); }
     finally { setShuffling(false); }
@@ -85,7 +104,7 @@ export default function Sections() {
         action={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {canShuffle && (
-              <Button variant="secondary" onClick={() => setShuffleConfirm(true)}>🔀 Shuffle Sections</Button>
+              <Button variant="secondary" onClick={askShuffle}>🔀 Shuffle Sections</Button>
             )}
             {!isLocked && shuffle.shuffledAt && (
               <Button variant="secondary" onClick={() => setLockConfirm(true)}>🔒 Lock Sections</Button>
@@ -130,9 +149,61 @@ export default function Sections() {
         )
       }
 
-      <Confirm open={shuffleConfirm} onClose={() => setShuffleConfirm(false)} onConfirm={handleShuffle}
-        loading={shuffling} title="Shuffle Sections"
-        message={`Every student of ${cls?.className || 'this class'} — including any admitted but not placed yet — will be redistributed at random across its ${sections.length} sections, within each section's capacity. Existing roll numbers are cleared so you can reassign them afterwards. This can be repeated until you lock the sections.`} />
+      {/* Shuffle. The counts come from the server, and when the students do not
+          fit in the seats the dialog says so instead of offering the action. */}
+      <Modal
+        open={shuffleConfirm}
+        onClose={closeShuffle}
+        title={preview && !preview.canShuffle ? 'Unable to shuffle' : 'Shuffle sections'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeShuffle}>
+              {preview && !preview.canShuffle ? 'Close' : 'Cancel'}
+            </Button>
+            {preview?.canShuffle && (
+              <Button loading={shuffling} onClick={handleShuffle}>Shuffle now</Button>
+            )}
+          </>
+        }
+      >
+        {previewing && <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}><Spinner /></div>}
+
+        {!previewing && preview && (
+          <>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+              <span className="badge badge-info">{preview.students} students to place</span>
+              <span className={`badge ${preview.students > preview.capacity ? 'badge-danger' : 'badge-success'}`}>
+                {preview.capacity} seats across {preview.sectionCount} sections
+              </span>
+            </div>
+
+            <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14 }}>
+              <table className="table" style={{ margin: 0 }}>
+                <thead><tr><th>Section</th><th>Currently</th><th>Capacity</th></tr></thead>
+                <tbody>
+                  {(preview.sections || []).map(s => (
+                    <tr key={s._id}>
+                      <td style={{ fontWeight: 600 }}>{s.sectionName}</td>
+                      <td>{s.currentCount}</td>
+                      <td>{s.maxStudents || <span className="text-muted">not set</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {preview.canShuffle ? (
+              <p className="text-muted text-sm">
+                All {preview.students} students of {preview.className} — including any admitted but not placed yet —
+                will be redistributed at random within each section&apos;s capacity. Existing roll numbers are cleared
+                so you can reassign them afterwards. This can be repeated until you lock the sections.
+              </p>
+            ) : (
+              <Alert variant="danger">{preview.reason}</Alert>
+            )}
+          </>
+        )}
+      </Modal>
 
       <Confirm open={lockConfirm} onClose={() => setLockConfirm(false)} onConfirm={handleLock}
         loading={locking} title="Lock Sections"

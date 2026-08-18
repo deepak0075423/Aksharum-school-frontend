@@ -3,12 +3,14 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { useAuth } from '../../contexts/AuthContext';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
+import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import { isEmail } from '../../utils/validators';
 
 export default function Admins() {
   const { user: me } = useAuth();
   const [page, setPage]     = useState(1);
+  // Rows per page is the admin's choice; changing it starts again at page 1.
+  const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
   const [del, setDel]       = useState(null);
   const [delLoad, setDL]    = useState(false);
@@ -17,8 +19,8 @@ export default function Admins() {
   const [form, setForm]     = useState({ name: '', email: '' });
 
   const { data, loading, refetch } = useFetch(
-    () => api.getAdmins({ page, search, limit: 20 }),
-    [page, search],
+    () => api.getAdmins({ page, search, limit }),
+    [page, search, limit],
   );
 
   const handleCreate = async (e) => {
@@ -72,7 +74,14 @@ export default function Admins() {
           {loading ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
             : <Table columns={columns} data={data?.data} emptyIcon="👤" emptyTitle="No admins found" />}
         </div>
-        {data && <div className="card-footer"><Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} /></div>}
+        {data && (data.total > 5 || data.pages > 1) && (
+          <div className="card-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <PageSize value={limit} total={data.total} onChange={(n) => { setLimit(n); setPage(1); }} />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} />
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal open={modal} onClose={() => setModal(false)} title="Add Admin"

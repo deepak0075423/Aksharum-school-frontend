@@ -170,6 +170,34 @@ export const Pagination = ({ page, pages, total, onPage }) => {
   );
 };
 
+/**
+ * Rows-per-page control.
+ *
+ * Only worth showing once there is more than one page's worth of the smallest
+ * option to choose between — below that every choice shows the same list, so
+ * the control would be noise. Pair it with <Pagination/> in a card footer.
+ */
+export const PAGE_SIZES = [5, 10, 15, 20, 25];
+
+export const PageSize = ({ value, onChange, total, options = PAGE_SIZES, minTotal = 5 }) => {
+  if (!total || total <= minTotal) return null;
+  return (
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '.82rem', color: 'var(--text-muted)' }}>
+      Show
+      <select
+        className="form-control"
+        style={{ width: 'auto', padding: '5px 28px 5px 10px', fontSize: '.82rem' }}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label="Rows per page"
+      >
+        {options.map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+      per page
+    </label>
+  );
+};
+
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 export const StatCard = ({ icon, label, value, color = 'blue', change }) => (
   <div className="stat-card">

@@ -3,11 +3,13 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { toggleStudent } from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
+import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import StudentForm from './StudentForm';
 
 export default function Students() {
   const [page, setPage]     = useState(1);
+  // Rows per page is the admin's choice; changing it starts again at page 1.
+  const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
   const [del, setDel]       = useState(null);
   const [delLoad, setDL]    = useState(false);
@@ -25,8 +27,8 @@ export default function Students() {
   const bulkFileRef = useRef(null);
 
   const { data, loading, refetch } = useFetch(
-    () => api.getStudents({ page, search, limit: 20 }),
-    [page, search],
+    () => api.getStudents({ page, search, limit }),
+    [page, search, limit],
   );
 
   const openCreate = () => { setEditing(null); setFormOpen(true); };
@@ -164,7 +166,14 @@ export default function Students() {
             ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
             : <Table columns={columns} data={data?.data} emptyIcon="👨‍🎓" emptyTitle="No students found" />}
         </div>
-        {data && <div className="card-footer"><Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} /></div>}
+        {data && (data.total > 5 || data.pages > 1) && (
+          <div className="card-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <PageSize value={limit} total={data.total} onChange={(n) => { setLimit(n); setPage(1); }} />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} />
+            </div>
+          </div>
+        )}
       </div>
 
       <StudentForm

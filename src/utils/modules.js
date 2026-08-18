@@ -26,6 +26,7 @@ export const MODULES = [
   { key: 'document',     label: 'Documents',        icon: '📁', adminBase: '/admin/documents',   adminHome: '/admin/documents' },
   { key: 'holiday',      label: 'Holidays',         icon: '🎉', adminBase: '/admin/holidays',    adminHome: '/admin/holidays' },
   { key: 'notification', label: 'Notifications',    icon: '🔔', adminBase: '/admin/notifications', adminHome: '/admin/notifications' },
+  { key: 'employeeDirectory', label: 'Employee Directory', icon: '🗂️', adminBase: '/admin/employee-directory', adminHome: '/admin/employee-directory/dashboard' },
   { key: 'chat',         label: 'Chat',             icon: '💬' },   // no administrative surface
 ];
 

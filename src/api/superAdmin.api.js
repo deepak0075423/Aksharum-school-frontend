@@ -9,6 +9,26 @@ export const getSchool     = (id)       => api.get(`/super-admin/schools/${id}`)
 export const createSchool  = (data)     => api.post('/super-admin/schools', data);
 export const updateSchool  = (id, data) => api.put(`/super-admin/schools/${id}`, data);
 export const deleteSchool  = (id)       => api.delete(`/super-admin/schools/${id}`);
+// What the delete dialog needs before it will offer the button: a school that
+// still has accounts cannot be deleted, and the blocking accounts are listed.
+export const checkSchoolDeletable = (id) => api.get(`/super-admin/schools/${id}/delete-check`);
+
+export async function downloadSchoolUsers(id, schoolName = 'school') {
+  const base = api.defaults.baseURL;
+  const res = await fetch(`${base}/super-admin/schools/${id}/users/export`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  });
+  if (!res.ok) throw new Error('Could not download the user list');
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `${String(schoolName).replace(/[^\w]+/g, '-').toLowerCase()}-users.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // Users
 export const getUsers      = (params)   => api.get('/super-admin/users', { params });
@@ -28,15 +48,6 @@ export const generateLoginLink = (id)  => api.post(`/super-admin/users/${id}/log
 export const getPermissions   = ()       => api.get('/super-admin/permissions');
 export const updatePermissions = (data)  => api.put('/super-admin/permissions', data);
 
-// Designation permissions, per school — the same matrix a school admin edits
-export const getDesignationMatrix   = (schoolId)               => api.get(`/super-admin/schools/${schoolId}/designations`);
-export const saveDesignationMatrix  = (schoolId, designations) => api.put(`/super-admin/schools/${schoolId}/designations`, { designations });
-export const createDesignation      = (schoolId, data)         => api.post(`/super-admin/schools/${schoolId}/designations/new`, data);
-export const updateDesignation      = (schoolId, id, data)     => api.put(`/super-admin/schools/${schoolId}/designations/${id}`, data);
-export const deleteDesignation      = (schoolId, id)           => api.delete(`/super-admin/schools/${schoolId}/designations/${id}`);
-export const getDesignationTeachers = (schoolId, id)           => api.get(`/super-admin/schools/${schoolId}/designations/${id}/teachers`);
-export const exportDesignationTeachers = (schoolId, id) =>
-  api.get(`/super-admin/schools/${schoolId}/designations/${id}/teachers/export`, { responseType: 'arraybuffer' });
 
 // Logs
 export const getLogs = (params) => api.get('/super-admin/logs', { params });

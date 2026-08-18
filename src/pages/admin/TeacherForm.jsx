@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../api/admin.api';
 import { Button, Modal } from '../../components/ui/index';
@@ -34,7 +34,7 @@ export const EMPTY_TEACHER = {
   // 6. Bank
   bankAccountHolder: '', bankAccountNumber: '', bankIfsc: '', bankBranch: '',
   // 7. School internal
-  joiningDate: '', employeeId: '', designation: '',
+  joiningDate: '', employeeId: '', designation: '', department: '',
 };
 
 // Kept short so all seven fit on one line — the step headings inside each pane
@@ -106,7 +106,11 @@ function FileField({ label, required, value, onChange, error, hint }) {
  * Seven-step teacher intake. Posts multipart because of the ID scans and
  * experience paperwork; the server re-validates everything.
  */
-export default function TeacherForm({ open, onClose, onCreated, designations = [] }) {
+// `teacher` switches the wizard into edit mode: it prefills from the existing
+// record and PUTs a partial update, so an admin correcting a phone number is
+// never asked to re-upload paperwork that is already on file.
+export default function TeacherForm({ open, onClose, onCreated, designations = [], teacher = null }) {
+  const editing = !!teacher?._id;
   const [step, setStep]     = useState(1);
   const [form, setForm]     = useState(EMPTY_TEACHER);
   const [files, setFiles]   = useState({});
@@ -119,9 +123,72 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
   const reset = () => { setStep(1); setForm(EMPTY_TEACHER); setFiles({}); setErrs({}); };
   const close = () => { reset(); onClose(); };
 
+  // Prefill from the existing record when the wizard opens in edit mode. The
+  // uploads stay empty on purpose — a blank file input means "keep what is on
+  // file", which is exactly what the server does with it.
+  const [onFile, setOnFile] = useState({});
+  // The address this teacher already holds, so the duplicate-email check can
+  // tell "unchanged" from "someone else's".
+  const [originalEmail, setOriginalEmail] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    if (!editing) { setForm(EMPTY_TEACHER); setFiles({}); setOnFile({}); setOriginalEmail(''); setStep(1); return; }
+    let alive = true;
+    api.getTeacherDetail(teacher._id)
+      .then((res) => {
+        if (!alive) return;
+        const d = res?.data ?? res;
+        const u = d?.user || {};
+        const p = d?.profile || {};
+        const iso = (v) => (v ? new Date(v).toISOString().slice(0, 10) : '');
+        // Values the intake form offers as a fixed list arrive as free text on
+        // an existing record; anything off-list is routed to its "Other" box.
+        const pick = (value, list) => (value && list.includes(value) ? value : (value ? 'Other' : ''));
+        const qual = pick(p.qualification, QUALIFICATIONS);
+        const degree = pick(p.teachingDegree, TEACHING_DEGREES);
+        setOriginalEmail(u.email || '');
+        setForm({
+          ...EMPTY_TEACHER,
+          name: u.name || '', email: u.email || '', phone: u.phone || '',
+          dob: iso(p.dob), gender: p.gender || '', bloodGroup: p.bloodGroup || '',
+          fatherOrHusbandName: p.fatherOrHusbandName || '',
+          emergencyContactName: p.emergencyContactName || '',
+          emergencyContactPhone: p.emergencyContactPhone || '',
+          alternatePhone: p.alternatePhone || '',
+          currentAddress: p.currentAddress || '', currentCity: p.currentCity || '',
+          currentState: p.currentState || '', currentPincode: p.currentPincode || '',
+          currentCountry: p.currentCountry || 'India',
+          permanentAddress: p.permanentAddress || '', permanentCity: p.permanentCity || '',
+          permanentState: p.permanentState || '', permanentPincode: p.permanentPincode || '',
+          permanentCountry: p.permanentCountry || 'India',
+          aadhaarNumber: p.aadhaarNumber || '', panNumber: p.panNumber || '', uanNumber: p.uanNumber || '',
+          qualification: qual, qualificationOther: qual === 'Other' ? p.qualification : '',
+          teachingDegree: degree, teachingDegreeOther: degree === 'Other' ? p.teachingDegree : '',
+          employmentType: p.employmentType || '', totalExperience: p.totalExperience || '',
+          previousSchool: p.previousSchool || '', lastDesignation: p.lastDesignation || '',
+          bankAccountHolder: p.bankAccountHolder || '', bankAccountNumber: p.bankAccountNumber || '',
+          bankIfsc: p.bankIfsc || '', bankBranch: p.bankBranch || '',
+          joiningDate: iso(p.joiningDate), employeeId: p.employeeId || '', designation: p.designation || '',
+          department: p.department || '',
+        });
+        setOnFile({
+          aadhaarFront: p.aadhaarFrontFile, aadhaarBack: p.aadhaarBackFile, panCard: p.panCardFile,
+          experienceCertificate: p.experienceCertificateFile,
+          resignationLetter: p.resignationLetterFile, joiningLetter: p.joiningLetterFile,
+        });
+        setFiles({});
+        setStep(1);
+      })
+      .catch((err) => toast.error(err.message || 'Could not load this teacher'));
+    return () => { alive = false; };
+  }, [open, editing, teacher?._id]);
+
   const validateStep = (n) => {
     const e = {};
     const need = (key, msg) => { if (!String(form[key] ?? '').trim()) e[key] = msg; };
+    // A file already on the record counts as supplied, so an edit never forces
+    // the admin to re-upload paperwork just to fix a typo.
+    const hasFile = (key) => !!files[key] || !!onFile[key];
     // Mirrors the student address rules — street, PIN, city and state all required
     const needAddress = (prefix, label) => {
       need(`${prefix}Address`, `${label} address is required`);
@@ -157,9 +224,9 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         e.aadhaarNumber = 'Aadhaar number must be 12 digits';
       need('panNumber', 'PAN number is required');
       if (form.panNumber && !PAN_RE.test(form.panNumber.trim())) e.panNumber = 'Invalid PAN (e.g. ABCDE1234F)';
-      if (!files.aadhaarFront) e.aadhaarFront = 'Aadhaar front image is required';
-      if (!files.aadhaarBack)  e.aadhaarBack  = 'Aadhaar back image is required';
-      if (!files.panCard)      e.panCard      = 'PAN card upload is required';
+      if (!hasFile('aadhaarFront')) e.aadhaarFront = 'Aadhaar front image is required';
+      if (!hasFile('aadhaarBack'))  e.aadhaarBack  = 'Aadhaar back image is required';
+      if (!hasFile('panCard'))      e.panCard      = 'PAN card upload is required';
     }
     if (n === 4) {
       need('qualification', 'Highest qualification is required');
@@ -174,7 +241,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         need('totalExperience', 'Total years of experience is required');
         need('previousSchool', 'Name of previous school is required');
         need('lastDesignation', 'Last job designation is required');
-        if (!files.resignationLetter) e.resignationLetter = 'Resignation letter is required';
+        if (!hasFile('resignationLetter')) e.resignationLetter = 'Resignation letter is required';
       }
     }
     if (n === 6) {
@@ -195,10 +262,15 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
     setErrs(e);
     if (Object.keys(e).length) return toast.error(Object.values(e)[0]);
 
-    // Catch a duplicate email before the admin fills in six more steps
-    if (step === 2) {
+    // Catch a duplicate email before the admin fills in six more steps.
+    // On an edit the teacher's OWN address is of course already registered, so
+    // only a changed address is worth checking — that still catches an admin
+    // typing a colleague's address by mistake.
+    const typedEmail = form.email.trim();
+    const emailChanged = typedEmail.toLowerCase() !== String(originalEmail || '').toLowerCase();
+    if (step === 2 && (!editing || emailChanged)) {
       try {
-        const res = await api.checkEmail(form.email.trim());
+        const res = await api.checkEmail(typedEmail);
         if (res?.exists) {
           setErrs({ email: 'This email is already registered' });
           return toast.error('This email is already registered');
@@ -219,8 +291,13 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
       Object.entries(form).forEach(([k, v]) => fd.append(k, v === true ? 'true' : v ?? ''));
       Object.entries(files).forEach(([k, file]) => { if (file) fd.append(k, file); });
 
-      const res = await api.createTeacher(fd);
-      toast.success(`Teacher created — Employee ID ${res?.data?.employeeId || ''}`.trim());
+      if (editing) {
+        await api.updateTeacherFull(teacher._id, fd);
+        toast.success('Teacher updated');
+      } else {
+        const res = await api.createTeacher(fd);
+        toast.success(`Teacher created — Employee ID ${res?.data?.employeeId || ''}`.trim());
+      }
       reset();
       onCreated?.();
       onClose();
@@ -229,7 +306,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
   };
 
   return (
-    <Modal open={open} onClose={close} title="Add Teacher" maxWidth={620}
+    <Modal open={open} onClose={close} title={editing ? `Edit ${teacher.name || 'Teacher'}` : 'Add Teacher'} maxWidth={620}
       footer={
         <>
           {step > 1 && <Button variant="secondary" onClick={() => { setErrs({}); setStep(s => s - 1); }}>← Back</Button>}
@@ -368,9 +445,9 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
             <Err msg={errs.aadhaarNumber} />
           </div>
           <Row>
-            <FileField label="Aadhaar — Front" required value={files.aadhaarFront}
+            <FileField label="Aadhaar — Front" required hint={onFile.aadhaarFront ? "On file — choose a file to replace" : undefined} value={files.aadhaarFront}
               onChange={setFile('aadhaarFront')} error={errs.aadhaarFront} />
-            <FileField label="Aadhaar — Back" required value={files.aadhaarBack}
+            <FileField label="Aadhaar — Back" required hint={onFile.aadhaarBack ? "On file — choose a file to replace" : undefined} value={files.aadhaarBack}
               onChange={setFile('aadhaarBack')} error={errs.aadhaarBack} />
           </Row>
           <Row>
@@ -381,7 +458,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
                 onChange={e => { setErrs(x => ({ ...x, panNumber: undefined })); setForm(f => ({ ...f, panNumber: e.target.value.toUpperCase() })); }} />
               <Err msg={errs.panNumber} />
             </div>
-            <FileField label="PAN Card Upload" required value={files.panCard}
+            <FileField label="PAN Card Upload" required hint={onFile.panCard ? "On file — choose a file to replace" : undefined} value={files.panCard}
               onChange={setFile('panCard')} error={errs.panCard} />
           </Row>
           <div className="form-group">
@@ -477,8 +554,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
                   value={form.previousSchool} onChange={set('previousSchool')} />
                 <Err msg={errs.previousSchool} />
               </div>
-              <FileField label="Resignation Letter (last company)" required
-                value={files.resignationLetter} onChange={setFile('resignationLetter')} error={errs.resignationLetter} />
+              <FileField label="Resignation Letter (last company)" required hint={onFile.resignationLetter ? "On file — choose a file to replace" : undefined} value={files.resignationLetter} onChange={setFile('resignationLetter')} error={errs.resignationLetter} />
               <Row>
                 <FileField label="Experience Certificate" hint="Optional"
                   value={files.experienceCertificate} onChange={setFile('experienceCertificate')} />
@@ -541,6 +617,14 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
               </select>
             </div>
           </Row>
+          <div className="form-group">
+            <label className="form-label">Department</label>
+            <input className="form-control" placeholder="e.g. Mathematics"
+              value={form.department} onChange={set('department')} />
+            <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
+              Groups this employee in the Employee Directory.
+            </span>
+          </div>
           <div className="form-group">
             <label className="form-label">Employee ID / Teacher ID</label>
             <input className="form-control" placeholder="Auto-generated if left blank"

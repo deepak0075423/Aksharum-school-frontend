@@ -42,6 +42,19 @@ api.interceptors.response.use(
       }
     }
 
+    // The school this session belongs to was switched off. Every subsequent
+    // request would fail the same way, so end the session here rather than let
+    // the user click through a wall of errors while still "signed in".
+    if (status === 403 && err.response?.data?.code === 'SCHOOL_INACTIVE') {
+      const onLogin = window.location.pathname === '/login';
+      if (!onLogin) {
+        localStorage.clear();
+        sessionStorage.setItem('authNotice', message);
+        window.location.href = '/login';
+      }
+      return Promise.reject({ message, status, data: err.response?.data });
+    }
+
     // A module can be out of reach for three reasons, all decided server-side:
     // the school does not have it, or the designation grants no access / only
     // normal access. See school-backend/middleware/moduleAccess.js.

@@ -173,3 +173,17 @@ export const TIMETABLE_ADMIN_TABS = [
   { to: '/admin/timetable/rooms',        label: '🚪 Rooms' },
   { to: '/admin/timetable/configuration', label: '⚙️ Configuration' },
 ];
+
+// Employee Directory — the administrative tab bar. Built from a base path so it
+// serves both /admin/employee-directory and a module-admin teacher's route.
+// A normal teacher has one screen and no tab bar at all (see App.jsx), because
+// the workforce roll-ups are administrative and their endpoints refuse that tier.
+export const DIRECTORY_TABS = (base) => ([
+  { to: `${base}/dashboard`,     label: '🏠 Dashboard' },
+  { to: `${base}/employees`,     label: '👥 All Employees' },
+  { to: `${base}/departments`,   label: '🏢 Departments' },
+  { to: `${base}/designations`,  label: '🎫 Designations' },
+  { to: `${base}/org-structure`, label: '🏗 Organization' },
+  { to: `${base}/verification`,  label: '🔎 Verification' },
+  { to: `${base}/reports`,       label: '📈 Reports' },
+]);

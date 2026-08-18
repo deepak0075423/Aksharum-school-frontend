@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getInbox, getSent, markOneRead } from '../../api/notifications.api';
+import { getAllNotifications, getSent, markOneRead } from '../../api/notifications.api';
 import { sendNotification, getClassesWithSections } from '../../api/admin.api';
 import { PageHeader, Button, Badge, Modal, Spinner } from '../../components/ui/index';
 
@@ -82,7 +82,10 @@ function SentList({ data, loading }) {
 export default function Notifications() {
   const [tab, setTab] = useState('inbox');
 
-  const { data: inboxData, loading: inboxLoading, refetch: refetchInbox } = useFetch(getInbox);
+  // The full history, not the bell's queue. Clearing the bell marks receipts
+  // `isCleared` so they leave the dropdown — this page is the record of what was
+  // received, so it reads the endpoint that ignores that flag.
+  const { data: inboxData, loading: inboxLoading, refetch: refetchInbox } = useFetch(getAllNotifications);
   const { data: sentData,  loading: sentLoading,  refetch: refetchSent  } = useFetch(getSent);
 
   const [sendOpen,    setSendOpen]    = useState(false);

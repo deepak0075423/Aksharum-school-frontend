@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { updateTeacher, toggleTeacher } from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
+import { toggleTeacher } from '../../api/admin.api';
+import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import TeacherForm from './TeacherForm';
 
 export default function Teachers() {
   const [page, setPage]         = useState(1);
+  // Rows per page is the admin's choice; changing it starts again at page 1.
+  const [limit, setLimit] = useState(20);
   const [search, setSearch]     = useState('');
   const [del, setDel]           = useState(null);
   const [delLoading, setDL]     = useState(false);
@@ -22,13 +24,10 @@ export default function Teachers() {
   const bulkFileRef = React.useRef(null);
 
   const [editUser, setEditUser]   = useState(null);
-  const [editForm, setEditForm]   = useState({ name: '', phone: '', designation: '', password: '' });
-  const [editSaving, setEditSave] = useState(false);
-  const [editErr, setEditErr]     = useState({});
 
   const { data, loading, refetch } = useFetch(
-    () => api.getTeachers({ page, search, limit: 20 }),
-    [page, search],
+    () => api.getTeachers({ page, search, limit }),
+    [page, search, limit],
   );
 
   // Designation dropdown options. The list itself, and the module access each
@@ -71,28 +70,7 @@ export default function Teachers() {
     finally { setDL(false); }
   };
 
-  const handleEdit = (r) => {
-    setEditUser(r);
-    setEditForm({ name: r.name || '', phone: r.phone || '', designation: r.designation || '', password: '' });
-    setEditErr({});
-  };
-
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    if (!editForm.name.trim()) { toast.error('Name is required'); return; }
-    if (editForm.phone && !/^[+\d\s\-]{7,15}$/.test(editForm.phone)) { toast.error('Invalid phone number'); return; }
-    if (editForm.password && editForm.password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
-    setEditSave(true);
-    try {
-      const payload = { name: editForm.name, phone: editForm.phone, designation: editForm.designation };
-      if (editForm.password) payload.password = editForm.password;
-      await updateTeacher(editUser._id, payload);
-      toast.success('Teacher updated');
-      setEditUser(null);
-      refetch();
-    } catch (err) { toast.error(err.message); }
-    finally { setEditSave(false); }
-  };
+  const handleEdit = (r) => setEditUser(r);
 
   const handleToggle = async (r) => {
     toast.loading(r.isActive ? 'Deactivating…' : 'Activating…', { id: 'toggle' });
@@ -148,7 +126,14 @@ export default function Teachers() {
           {loading ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
             : <Table columns={columns} data={data?.data} emptyIcon="👨‍🏫" emptyTitle="No teachers found" />}
         </div>
-        {data && <div className="card-footer"><Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} /></div>}
+        {data && (data.total > 5 || data.pages > 1) && (
+          <div className="card-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <PageSize value={limit} total={data.total} onChange={(n) => { setLimit(n); setPage(1); }} />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
@@ -208,46 +193,13 @@ export default function Teachers() {
       </Modal>
 
       {/* ── Create wizard (7 steps) ──────────────────────────────────────────── */}
+      {/* One seven-step wizard for both admission and editing, so an edit
+          offers every field the record was created with. */}
       <TeacherForm open={modal} onClose={() => setModal(false)}
         onCreated={refetch} designations={designations} />
 
-      {/* ── Edit Modal ────────────────────────────────────────────────────────── */}
-      <Modal open={!!editUser} onClose={() => setEditUser(null)} title="Edit Teacher"
-        footer={<>
-          <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
-          <Button form="teacher-edit-form" type="submit" loading={editSaving}>Save Changes</Button>
-        </>}>
-        <form id="teacher-edit-form" onSubmit={handleUpdate} noValidate>
-          <div className="form-group">
-            <label className="form-label required">Full Name</label>
-            <input className="form-control" required value={editForm.name}
-              onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-            <div className="form-group">
-              <label className="form-label">Phone</label>
-              <input type="tel" className="form-control" pattern="[+\d\s\-]{7,15}"
-                value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Designation</label>
-              <select className="form-control" value={editForm.designation}
-                onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))}>
-                <option value="">— Select —</option>
-                {editForm.designation && !designations.includes(editForm.designation) && (
-                  <option value={editForm.designation}>{editForm.designation}</option>
-                )}
-                {designations.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label">New Password</label>
-              <input type="password" className="form-control" minLength={6} placeholder="Leave blank to keep current"
-                value={editForm.password} onChange={e => setEditForm(p => ({ ...p, password: e.target.value }))} />
-            </div>
-          </div>
-        </form>
-      </Modal>
+      <TeacherForm open={!!editUser} teacher={editUser} onClose={() => setEditUser(null)}
+        onCreated={refetch} designations={designations} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
         loading={delLoading} title="Delete Teacher" message={`Delete "${del?.name}"? This cannot be undone.`} />

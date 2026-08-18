@@ -20,6 +20,7 @@ const MODULES = [
   { key: 'document',     label: 'Documents',      icon: '📁' },
   { key: 'holiday',      label: 'Holidays',       icon: '🎉' },
   { key: 'notification', label: 'Notifications',  icon: '🔔' },
+  { key: 'employeeDirectory', label: 'Employee Directory', icon: '🗂️' },
   { key: 'chat',         label: 'Chat',           icon: '💬' },
 ];
 

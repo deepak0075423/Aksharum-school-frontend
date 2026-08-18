@@ -15,6 +15,13 @@ const roleHome = {
 };
 
 export default function Login() {
+  // A session ended by its school being deactivated leaves the reason behind so
+  // the login screen can explain it, rather than showing a bare form.
+  React.useEffect(() => {
+    const notice = sessionStorage.getItem('authNotice');
+    if (notice) { toast.error(notice, { duration: 6000 }); sessionStorage.removeItem('authNotice'); }
+  }, []);
+
   const { signIn }   = useAuth();
   const navigate     = useNavigate();
   const [form, setForm]     = useState({ email: '', password: '' });
