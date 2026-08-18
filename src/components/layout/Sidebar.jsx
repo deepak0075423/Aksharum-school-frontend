@@ -1,11 +1,8 @@
-import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useModules } from '../../contexts/ModulesContext';
 import { useChatNotify } from '../../contexts/ChatNotifyContext';
-import { getModules as getAdminModules }   from '../../api/admin.api';
-import { getModules as getTeacherModules } from '../../api/teacher.api';
-import { getModules as getStudentModules } from '../../api/student.api';
-import { getModules as getParentModules }  from '../../api/parent.api';
+import { ADMIN_CAPABLE_MODULES } from '../../utils/modules';
 import logoIcon from '../../assets/logo-icon.svg';
 import { schoolLogoUrl } from '../../utils/branding';
 
@@ -19,6 +16,7 @@ const SUPER_ADMIN_NAV = [
   { to: '/super-admin/users',       icon: '👥', label: 'Users' },
   { to: '/super-admin/videos',      icon: '🎬', label: 'Video Library' },
   { to: '/super-admin/permissions', icon: '🔑', label: 'Permissions' },
+  { to: '/super-admin/designations', icon: '🎫', label: 'Designation Access' },
   { section: 'System' },
   { to: '/super-admin/notifications', icon: '🔔', label: 'Notifications' },
   { to: '/profile',                   icon: '👤', label: 'Profile' },
@@ -31,6 +29,7 @@ const ADMIN_NAV = [
   { to: '/admin/teachers',          icon: '👨‍🏫', label: 'Teachers' },
   { to: '/admin/students',          icon: '👨‍🎓', label: 'Students' },
   { to: '/admin/admins',            icon: '👤', label: 'Admins' },
+  { to: '/admin/designations',      icon: '🎫', label: 'Designations' },
   { section: 'Academics' },
   { to: '/admin/academic-years',    icon: '📅', label: 'Academic Years' },
   { to: '/admin/classes',           icon: '🏛️', label: 'Classes' },
@@ -138,35 +137,40 @@ const NAV_MAP = {
   parent:       PARENT_NAV,
 };
 
-const MODULE_FETCHER = {
-  school_admin: getAdminModules,
-  teacher:      getTeacherModules,
-  student:      getStudentModules,
-  parent:       getParentModules,
-};
+// Modules a teacher administers through their own /teacher route tree rather than
+// the shared /admin one — they already have a dedicated entry above.
+const TEACHER_OWN_ADMIN = new Set(['library', 'feedback']);
 
 export default function Sidebar({ onLinkClick, collapsed }) {
   const { user } = useAuth();
   const { unreadTotal } = useChatNotify();
-  const [modules, setModules]       = useState(null);
-  const [modulesReady, setModulesReady] = useState(false);
-
-  useEffect(() => {
-    const fetcher = MODULE_FETCHER[user?.role];
-    if (!fetcher) { setModulesReady(true); return; }
-    fetcher()
-      .then(res => setModules(res.data ?? res))
-      .catch(() => {})
-      .finally(() => setModulesReady(true));
-  }, [user?.role]);
+  const { modules, ready: modulesReady } = useModules();
 
   const rawNav = NAV_MAP[user?.role] || [];
-  // While loading show everything; once ready filter by enabled flags
+  // While loading show everything; once ready filter by effective access (the
+  // per-module boolean already folds in the designation permission).
   const nav = (modulesReady && modules)
     ? rawNav.filter(item =>
         (!item.module   || modules[item.module]) &&
         (!item.requires || modules[item.requires]))
     : rawNav.filter(item => !item.requires);
+
+  // A teacher whose designation grants administrative access to a module gets
+  // that module's admin screens, mounted under /admin and gated by
+  // AdminAreaGuard. Built from the permission map, so it appears and disappears
+  // with the designation and with the school-level module flag.
+  const manageNav = (user?.role === 'teacher' && modulesReady && modules?.moduleAdmin)
+    ? ADMIN_CAPABLE_MODULES
+        .filter(m => modules.moduleAdmin[m.key] && !TEACHER_OWN_ADMIN.has(m.key))
+        .map(m => ({ to: m.adminHome, icon: m.icon, label: `Manage ${m.label}` }))
+    : [];
+  // Inserted just before the Account section so it reads as part of the modules.
+  let navWithManage = nav;
+  if (manageNav.length) {
+    const at = nav.findIndex(item => item.section === 'Account');
+    const cut = at === -1 ? nav.length : at;
+    navWithManage = [...nav.slice(0, cut), { section: 'Module Admin' }, ...manageNav, ...nav.slice(cut)];
+  }
 
   return (
     <nav className="sidebar">
@@ -184,7 +188,7 @@ export default function Sidebar({ onLinkClick, collapsed }) {
       </div>
 
       <div className="sidebar__nav">
-        {nav.map((item, i) => {
+        {navWithManage.map((item, i) => {
           if (item.section) {
             return collapsed ? null : (
               <div key={i} className="sidebar__section-title">{item.section}</div>

@@ -17,6 +17,18 @@ export const testSmtpSettings   = (to)   => api.post('/admin/smtp-settings/test'
 export const getTeachers = (params) => api.get('/admin/teachers', { params });
 export const getDesignations    = () => api.get('/admin/designations');
 export const updateDesignations = (designations) => api.put('/admin/designations', { designations });
+
+// Designation module permissions. getDesignationMatrix returns
+// { designations[], modules[], enabledModules[], levels[] } — see
+// controllers/designation.controller.js.
+export const getDesignationMatrix    = ()             => api.get('/admin/designations/matrix');
+export const saveDesignationMatrix   = (designations) => api.put('/admin/designations/matrix', { designations });
+export const createDesignation       = (data)         => api.post('/admin/designations', data);
+export const updateDesignation       = (id, data)     => api.put(`/admin/designations/${id}`, data);
+export const deleteDesignation       = (id)           => api.delete(`/admin/designations/${id}`);
+export const getDesignationTeachers  = (id)           => api.get(`/admin/designations/${id}/teachers`);
+export const exportDesignationTeachers = (id) =>
+  api.get(`/admin/designations/${id}/teachers/export`, { responseType: 'arraybuffer' });
 export const getTeacher  = (id) => api.get(`/admin/teachers/${id}`);
 export const createTeacher = (data) => api.post('/admin/teachers', data);
 export const deleteTeacher = (id) => api.delete(`/admin/teachers/${id}`);

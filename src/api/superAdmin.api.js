@@ -24,9 +24,19 @@ export const downloadTeacherTemplate = () => api.get('/super-admin/users/templat
 export const downloadStudentTemplate = () => api.get('/super-admin/users/template/students', { responseType: 'arraybuffer' });
 export const generateLoginLink = (id)  => api.post(`/super-admin/users/${id}/login-link`);
 
-// Permissions
+// Permissions — school-level module enablement
 export const getPermissions   = ()       => api.get('/super-admin/permissions');
 export const updatePermissions = (data)  => api.put('/super-admin/permissions', data);
+
+// Designation permissions, per school — the same matrix a school admin edits
+export const getDesignationMatrix   = (schoolId)               => api.get(`/super-admin/schools/${schoolId}/designations`);
+export const saveDesignationMatrix  = (schoolId, designations) => api.put(`/super-admin/schools/${schoolId}/designations`, { designations });
+export const createDesignation      = (schoolId, data)         => api.post(`/super-admin/schools/${schoolId}/designations/new`, data);
+export const updateDesignation      = (schoolId, id, data)     => api.put(`/super-admin/schools/${schoolId}/designations/${id}`, data);
+export const deleteDesignation      = (schoolId, id)           => api.delete(`/super-admin/schools/${schoolId}/designations/${id}`);
+export const getDesignationTeachers = (schoolId, id)           => api.get(`/super-admin/schools/${schoolId}/designations/${id}/teachers`);
+export const exportDesignationTeachers = (schoolId, id) =>
+  api.get(`/super-admin/schools/${schoolId}/designations/${id}/teachers/export`, { responseType: 'arraybuffer' });
 
 // Logs
 export const getLogs = (params) => api.get('/super-admin/logs', { params });

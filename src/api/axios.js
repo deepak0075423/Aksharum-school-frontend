@@ -42,8 +42,14 @@ api.interceptors.response.use(
       }
     }
 
-    if (status === 403 && err.response?.data?.code === 'MODULE_DISABLED') {
-      toast.error('This module is not enabled for your school');
+    // A module can be out of reach for three reasons, all decided server-side:
+    // the school does not have it, or the designation grants no access / only
+    // normal access. See school-backend/middleware/moduleAccess.js.
+    if (status === 403) {
+      const code = err.response?.data?.code;
+      if (code === 'MODULE_DISABLED') toast.error('This module is not enabled for your school');
+      else if (code === 'MODULE_ACCESS_DENIED') toast.error('Your designation does not have access to this module');
+      else if (code === 'MODULE_ADMIN_REQUIRED') toast.error('Administrative access to this module is required');
     }
 
     return Promise.reject({ message, status, data: err.response?.data });

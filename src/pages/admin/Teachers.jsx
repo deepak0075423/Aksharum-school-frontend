@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -30,36 +31,10 @@ export default function Teachers() {
     [page, search],
   );
 
-  // Designation dropdown options (admin-managed)
-  const { data: desigData, refetch: refetchDesigs } = useFetch(api.getDesignations);
+  // Designation dropdown options. The list itself, and the module access each
+  // designation grants, are managed on /admin/designations.
+  const { data: desigData } = useFetch(api.getDesignations);
   const designations = Array.isArray(desigData) ? desigData : [];
-  const [desigModal, setDesigModal] = useState(false);
-  const [newDesig, setNewDesig]     = useState('');
-  const [desigSaving, setDesigSaving] = useState(false);
-
-  const saveDesignations = async (list) => {
-    setDesigSaving(true);
-    try {
-      await api.updateDesignations(list);
-      refetchDesigs();
-    } catch (err) { toast.error(err.message); }
-    finally { setDesigSaving(false); }
-  };
-
-  const addDesignation = async (e) => {
-    e.preventDefault();
-    const name = newDesig.trim();
-    if (!name) return;
-    if (designations.some(d => d.toLowerCase() === name.toLowerCase()))
-      return toast.error('Already exists');
-    await saveDesignations([...designations, name]);
-    setNewDesig('');
-  };
-
-  const removeDesignation = async (name) => {
-    if (designations.length <= 1) return toast.error('Keep at least one designation');
-    await saveDesignations(designations.filter(d => d !== name));
-  };
 
   const closeBulk = () => { setBulkModal(false); setBulkFile(null); setBulkResult(null); if (bulkFileRef.current) bulkFileRef.current.value = ''; };
 
@@ -158,7 +133,7 @@ export default function Teachers() {
       <PageHeader title="Teachers" subtitle={`${data?.total ?? 0} teachers`}
         action={
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" onClick={() => setDesigModal(true)}>⚙️ Designations</Button>
+            <Link to="/admin/designations" className="btn btn-secondary">🎫 Designations</Link>
             <Button variant="secondary" onClick={() => { setBulkResult(null); setBulkFile(null); setBulkModal(true); }}>Bulk Import</Button>
             <Button onClick={() => setModal(true)}>+ Add Teacher</Button>
           </div>
@@ -272,28 +247,6 @@ export default function Teachers() {
             </div>
           </div>
         </form>
-      </Modal>
-
-      {/* ── Manage Designations Modal ─────────────────────────────────────────── */}
-      <Modal open={desigModal} onClose={() => setDesigModal(false)} title="Manage Designations">
-        <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-          These options appear in the Designation dropdown when creating or editing a teacher.
-          A teacher with the <strong>Librarian</strong> designation can manage the library module.
-        </p>
-        <form onSubmit={addDesignation} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <input className="form-control" placeholder="e.g. Head of Science"
-            value={newDesig} onChange={e => setNewDesig(e.target.value)} />
-          <Button type="submit" loading={desigSaving}>Add</Button>
-        </form>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
-          {designations.map(d => (
-            <div key={d} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-              <span style={{ fontSize: '.9rem' }}>{d}{d === 'Librarian' && <span style={{ marginLeft: 8, fontSize: '.72rem', color: 'var(--text-muted)' }}>📖 library access</span>}</span>
-              <button className="btn btn-danger btn-sm" disabled={desigSaving}
-                onClick={() => removeDesignation(d)}>✕</button>
-            </div>
-          ))}
-        </div>
       </Modal>
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}

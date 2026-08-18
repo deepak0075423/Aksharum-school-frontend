@@ -1,7 +1,9 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ModulesProvider } from './contexts/ModulesContext';
 import AppLayout from './components/layout/AppLayout';
+import AdminAreaGuard from './components/AdminAreaGuard';
 import ModuleNav, {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
   LIBRARY_STUDENT_TABS, PAYROLL_TEACHER_TABS, LIBRARY_MANAGE_TABS,
@@ -26,12 +28,14 @@ const SASchools        = lazy(() => import('./pages/super-admin/Schools'));
 const SASchoolForm     = lazy(() => import('./pages/super-admin/SchoolForm'));
 const SAUsers          = lazy(() => import('./pages/super-admin/Users'));
 const SAPermissions    = lazy(() => import('./pages/super-admin/Permissions'));
+const SADesignations   = lazy(() => import('./pages/super-admin/Designations'));
 const SANotifications  = lazy(() => import('./pages/super-admin/Notifications'));
 const SAVideoLibrary   = lazy(() => import('./pages/super-admin/videos/Library'));
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 const ADashboard    = lazy(() => import('./pages/admin/Dashboard'));
 const ATeachers     = lazy(() => import('./pages/admin/Teachers'));
+const ADesignations = lazy(() => import('./pages/admin/Designations'));
 const AStudents     = lazy(() => import('./pages/admin/Students'));
 const AClasses      = lazy(() => import('./pages/admin/Classes'));
 const ASections     = lazy(() => import('./pages/admin/Sections'));
@@ -249,6 +253,7 @@ const HomeRedirect = () => {
 export default function App() {
   return (
     <AuthProvider>
+      <ModulesProvider>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public — redirect to dashboard if already logged in */}
@@ -270,16 +275,22 @@ export default function App() {
             <Route path="schools/:id/edit" element={<SASchoolForm />} />
             <Route path="users"         element={<SAUsers />} />
             <Route path="permissions"   element={<SAPermissions />} />
+            <Route path="designations"  element={<SADesignations />} />
             <Route path="videos"        element={<SAVideoLibrary />} />
             <Route path="notifications" element={<SANotifications />} />
           </Route>
 
-          {/* Admin */}
+          {/* Admin — school admins everywhere, plus teachers whose designation
+              grants ADMIN access to the specific module area they are entering
+              (AdminAreaGuard decides, matching the server-side guard). */}
           <Route path="/admin" element={
-            <Protected roles={['school_admin']}><AppLayout /></Protected>
+            <Protected roles={['school_admin', 'teacher']}>
+              <AdminAreaGuard><AppLayout /></AdminAreaGuard>
+            </Protected>
           }>
             <Route path="dashboard"       element={<ADashboard />} />
             <Route path="teachers"        element={<ATeachers />} />
+            <Route path="designations"    element={<ADesignations />} />
             <Route path="students"        element={<AStudents />} />
             <Route path="admins"          element={<AAdmins />} />
             <Route path="academic-years"  element={<AAcademicYears />} />
@@ -543,6 +554,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </ModulesProvider>
     </AuthProvider>
   );
 }
