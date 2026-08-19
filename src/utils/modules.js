@@ -20,6 +20,7 @@ export const MODULES = [
   { key: 'library',      label: 'Library',          icon: '📖', adminBase: '/admin/library',     adminHome: '/admin/library/dashboard' },
   { key: 'inventory',    label: 'Inventory',        icon: '📦', adminBase: '/admin/inventory',   adminHome: '/admin/inventory/dashboard' },
   { key: 'transport',    label: 'Transport',        icon: '🚌', adminBase: '/admin/transport',   adminHome: '/admin/transport/dashboard' },
+  { key: 'hostel',       label: 'Hostel',           icon: '🏨', adminBase: '/admin/hostel',      adminHome: '/admin/hostel/dashboard' },
   { key: 'videoLibrary', label: 'Video Learning',   icon: '🎬', adminBase: '/admin/videos',      adminHome: '/admin/videos/browse' },
   { key: 'feedback',     label: 'Teacher Feedback', icon: '⭐', adminBase: '/admin/feedback',    adminHome: '/admin/feedback/dashboard' },
   { key: 'leave',        label: 'Leave',            icon: '🏖️', adminBase: '/admin/leave',       adminHome: '/admin/leave' },

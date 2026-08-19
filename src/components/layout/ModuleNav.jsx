@@ -111,6 +111,34 @@ export const TRANSPORT_ADMIN_TABS = [
   { to: '/admin/transport/audit',       label: '🧾 Activity Log' },
 ];
 
+export const HOSTEL_ADMIN_TABS = [
+  { to: '/admin/hostel/dashboard',   label: '🏠 Dashboard' },
+  { to: '/admin/hostel/hostels',     label: '🏨 Hostels' },
+  { to: '/admin/hostel/structure',   label: '🏗 Buildings & Floors' },
+  { to: '/admin/hostel/rooms',       label: '🚪 Rooms & Beds' },
+  { to: '/admin/hostel/occupancy',   label: '🗺 Occupancy Map' },
+  { to: '/admin/hostel/admissions',  label: '📝 Admissions' },
+  { to: '/admin/hostel/allocations', label: '🛏 Allocations' },
+  { to: '/admin/hostel/attendance',  label: '✅ Attendance' },
+  { to: '/admin/hostel/leave',       label: '🏖 Leave' },
+  { to: '/admin/hostel/outpass',     label: '🎫 Outpass' },
+  { to: '/admin/hostel/visitors',    label: '👋 Visitors' },
+  { to: '/admin/hostel/movement',    label: '🚦 Security' },
+  { to: '/admin/hostel/staff',       label: '🧑‍✈️ Warden & Staff' },
+  { to: '/admin/hostel/mess',        label: '🍽 Mess' },
+  { to: '/admin/hostel/fees',        label: '💳 Fees' },
+  { to: '/admin/hostel/complaints',  label: '📣 Complaints' },
+  { to: '/admin/hostel/maintenance', label: '🔧 Maintenance' },
+  { to: '/admin/hostel/assets',      label: '📦 Assets' },
+  { to: '/admin/hostel/incidents',   label: '⚠️ Incidents & Medical' },
+  { to: '/admin/hostel/discipline',  label: '⚖️ Discipline' },
+  { to: '/admin/hostel/documents',   label: '📁 Documents' },
+  { to: '/admin/hostel/communication', label: '📢 Announcements' },
+  { to: '/admin/hostel/reports',     label: '📈 Reports' },
+  { to: '/admin/hostel/settings',    label: '⚙️ Settings' },
+  { to: '/admin/hostel/audit',       label: '🧾 Activity Log' },
+];
+
 export const TRANSPORT_PARENT_TABS = [
   { to: '/parent/transport/track',      label: '🛰️ Track Bus' },
   { to: '/parent/transport/details',    label: '🚌 My Transport' },

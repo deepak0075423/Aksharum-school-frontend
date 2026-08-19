@@ -8,7 +8,7 @@ import ModuleNav, {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
   LIBRARY_STUDENT_TABS, PAYROLL_TEACHER_TABS, LIBRARY_MANAGE_TABS,
   INVENTORY_ADMIN_TABS, INVENTORY_TEACHER_TABS,
-  TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
+  TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS, HOSTEL_ADMIN_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
   FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS, FEEDBACK_PRINCIPAL_TABS,
   TIMETABLE_ADMIN_TABS, DIRECTORY_TABS,
@@ -206,6 +206,35 @@ const TrParentAttendance = lazy(() => import('./pages/transport/parent/Attendanc
 const TrParentFees       = lazy(() => import('./pages/transport/parent/Fees'));
 const TrParentRequests   = lazy(() => import('./pages/transport/parent/Requests'));
 const TrStudent          = lazy(() => import('./pages/transport/student/Transport'));
+
+// ── Hostel ────────────────────────────────────────────────────────────────────
+const HsDashboard    = lazy(() => import('./pages/hostel/admin/Dashboard'));
+const HsHostels      = lazy(() => import('./pages/hostel/admin/Hostels'));
+const HsStructure    = lazy(() => import('./pages/hostel/admin/Structure'));
+const HsRooms        = lazy(() => import('./pages/hostel/admin/Rooms'));
+const HsOccupancy    = lazy(() => import('./pages/hostel/admin/Occupancy'));
+const HsAdmissions   = lazy(() => import('./pages/hostel/admin/Admissions'));
+const HsAllocations  = lazy(() => import('./pages/hostel/admin/Allocations'));
+const HsAttendance   = lazy(() => import('./pages/hostel/admin/Attendance'));
+const HsLeave        = lazy(() => import('./pages/hostel/admin/Leave'));
+const HsOutpass      = lazy(() => import('./pages/hostel/admin/Outpass'));
+const HsVisitors     = lazy(() => import('./pages/hostel/admin/Visitors'));
+const HsMovement     = lazy(() => import('./pages/hostel/admin/Movement'));
+const HsStaff        = lazy(() => import('./pages/hostel/admin/Staff'));
+const HsMess         = lazy(() => import('./pages/hostel/admin/Mess'));
+const HsFees         = lazy(() => import('./pages/hostel/admin/Fees'));
+const HsComplaints   = lazy(() => import('./pages/hostel/admin/Complaints'));
+const HsMaintenance  = lazy(() => import('./pages/hostel/admin/Maintenance'));
+const HsAssets       = lazy(() => import('./pages/hostel/admin/Assets'));
+const HsIncidents    = lazy(() => import('./pages/hostel/admin/Incidents'));
+const HsDiscipline   = lazy(() => import('./pages/hostel/admin/Discipline'));
+const HsDocuments    = lazy(() => import('./pages/hostel/admin/Documents'));
+const HsCommunication= lazy(() => import('./pages/hostel/admin/Communication'));
+const HsReports      = lazy(() => import('./pages/hostel/admin/Reports'));
+const HsSettings     = lazy(() => import('./pages/hostel/admin/Settings'));
+const HsAudit        = lazy(() => import('./pages/hostel/admin/Audit'));
+const HsStudent      = lazy(() => import('./pages/hostel/student/Hostel'));
+const HsParent       = lazy(() => import('./pages/hostel/parent/Hostel'));
 
 // ── Video Learning ────────────────────────────────────────────────────────────
 const VidAdmBrowse    = lazy(() => import('./pages/admin/videos/Browse'));
@@ -424,6 +453,35 @@ export default function App() {
               <Route path="settings"    element={<TrSettings />} />
               <Route path="audit"       element={<TrAudit />} />
             </Route>
+            {/* Hostel */}
+            <Route path="hostel" element={<ModuleNav tabs={HOSTEL_ADMIN_TABS} />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard"     element={<HsDashboard />} />
+              <Route path="hostels"       element={<HsHostels />} />
+              <Route path="structure"     element={<HsStructure />} />
+              <Route path="rooms"         element={<HsRooms />} />
+              <Route path="occupancy"     element={<HsOccupancy />} />
+              <Route path="admissions"    element={<HsAdmissions />} />
+              <Route path="allocations"   element={<HsAllocations />} />
+              <Route path="attendance"    element={<HsAttendance />} />
+              <Route path="leave"         element={<HsLeave />} />
+              <Route path="outpass"       element={<HsOutpass />} />
+              <Route path="visitors"      element={<HsVisitors />} />
+              <Route path="movement"      element={<HsMovement />} />
+              <Route path="staff"         element={<HsStaff />} />
+              <Route path="mess"          element={<HsMess />} />
+              <Route path="fees"          element={<HsFees />} />
+              <Route path="complaints"    element={<HsComplaints />} />
+              <Route path="maintenance"   element={<HsMaintenance />} />
+              <Route path="assets"        element={<HsAssets />} />
+              <Route path="incidents"     element={<HsIncidents />} />
+              <Route path="discipline"    element={<HsDiscipline />} />
+              <Route path="documents"     element={<HsDocuments />} />
+              <Route path="communication" element={<HsCommunication />} />
+              <Route path="reports"       element={<HsReports />} />
+              <Route path="settings"      element={<HsSettings />} />
+              <Route path="audit"         element={<HsAudit />} />
+            </Route>
             {/* Video Learning */}
             <Route path="videos" element={<ModuleNav tabs={VIDEO_ADMIN_TABS} />}>
               <Route index element={<Navigate to="browse" replace />} />
@@ -533,6 +591,7 @@ export default function App() {
             <Route path="holidays"         element={<SHolidays />} />
             <Route path="fees/*"           element={<SFees />} />
             <Route path="transport"        element={<TrStudent />} />
+            <Route path="hostel"           element={<HsStudent />} />
             <Route path="videos"           element={<VidStuDash />} />
             <Route path="videos/:id"       element={<VidStuPlayer />} />
             <Route path="feedback"           element={<FbStuList />} />
@@ -568,6 +627,7 @@ export default function App() {
               <Route path="fees"       element={<TrParentFees />} />
               <Route path="requests"   element={<TrParentRequests />} />
             </Route>
+            <Route path="hostel"           element={<HsParent />} />
             <Route path="notifications"    element={<SharedNotifications />} />
           </Route>
 
