@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings, testSmtpSettings, previewAdmissionNumber, previewEmployeeId } from '../../api/admin.api';
+import PaymentGatewayCard from '../../components/settings/PaymentGatewayCard';
+import ReceiptDesignCard from '../../components/settings/ReceiptDesignCard';
+import { useModules } from '../../contexts/ModulesContext';
 import { PageHeader, Button, Spinner } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
 import { isEmail, isPhone, isURL } from '../../utils/validators';
@@ -23,6 +26,10 @@ const EMPTY = {
 };
 
 export default function SchoolSettings() {
+  // Which modules this school runs — the gateway and receipt cards only offer
+  // the ones it actually has. `ready` matters: isEnabled fails open while the
+  // module list is loading, so asking it too early says yes to everything.
+  const { isEnabled, ready: modulesReady } = useModules();
   const [form,    setForm]    = useState(EMPTY);
   const [name,    setName]    = useState('');
   const [logo,    setLogo]    = useState('');
@@ -616,6 +623,19 @@ export default function SchoolSettings() {
             💡 Save settings first, then use "Send Test Email" — a test message is sent to your account email ({user?.email}).
           </div>
         </div>
+      </div>
+
+      {/* ── Payment gateway & receipts ──
+          Both live here rather than inside a module: fees and library fines
+          charge through the same merchant account, and a school configures it
+          once. Each card hides itself when no module needs it. */}
+      <div style={{ maxWidth: 680 }}>
+        <PaymentGatewayCard />
+      </div>
+      <div style={{ maxWidth: 1100 }}>
+        {modulesReady && (
+          <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library') }} />
+        )}
       </div>
     </div>
   );

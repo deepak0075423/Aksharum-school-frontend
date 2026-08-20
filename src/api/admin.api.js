@@ -13,6 +13,29 @@ export const getSmtpSettings    = ()     => api.get('/admin/smtp-settings');
 export const updateSmtpSettings = (data) => api.put('/admin/smtp-settings', data);
 export const testSmtpSettings   = (to)   => api.post('/admin/smtp-settings/test', { to });
 
+// Payment gateway — school-level, shared by every module that takes money
+export const getPaymentGateway    = ()     => api.get('/admin/payment-gateway');
+export const updatePaymentGateway = (data) => api.put('/admin/payment-gateway', data);
+
+// Receipt designs, per module and payment mode
+export const getReceiptTemplates   = (module) => api.get('/admin/receipt-templates', { params: { module } });
+export const updateReceiptTemplate = (data)   => api.put('/admin/receipt-templates', data);
+/**
+ * Fetches the rendered preview as HTML. Deliberately not a URL for an <iframe
+ * src>: the endpoint is bearer-authenticated and an iframe sends no token, so
+ * the frame would load a 401 page. The caller puts this in `srcDoc` instead.
+ */
+export const fetchReceiptPreview = async (params) => {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+  ).toString();
+  const res = await fetch(`${api.defaults.baseURL}/admin/receipt-templates/preview?${qs}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  });
+  if (!res.ok) throw new Error('Could not build the preview');
+  return res.text();
+};
+
 // Users
 export const getTeachers = (params) => api.get('/admin/teachers', { params });
 export const getDesignations    = () => api.get('/admin/designations');

@@ -17,8 +17,8 @@ export const getClassList        = ()           => api.get('/library/classes');
 // Physical copies of a catalogue title — a book with no copies cannot be issued
 export const addCopies           = (bookId, data)         => api.post(`/library/books/${bookId}/copies`, data);
 export const updateCopy          = (bookId, copyId, data) => api.put(`/library/books/${bookId}/copies/${copyId}`, data);
-export const setCopyStatus       = (bookId, copyId, status, chargeLastBorrower = false) =>
-  api.patch(`/library/books/${bookId}/copies/${copyId}/status`, { status, chargeLastBorrower });
+export const setCopyStatus       = (bookId, copyId, status, chargeLastBorrower = false, fineAmount) =>
+  api.patch(`/library/books/${bookId}/copies/${copyId}/status`, { status, chargeLastBorrower, fineAmount });
 export const deleteCopy          = (bookId, copyId)       => api.delete(`/library/books/${bookId}/copies/${copyId}`);
 // Counter helpers — member typeahead and the barcode scanner
 export const searchMembers       = (q, role)    => api.get('/library/members', { params: { q, role } });
@@ -39,6 +39,7 @@ export const markReservationReady= (id)         => api.post(`/library/reservatio
 export const cancelReservation   = (id, reason) => api.delete(`/library/reservations/${id}`, { data: { reason } });
 export const getFines            = (params)     => api.get('/library/fines', { params });
 export const collectFine         = (id)         => api.post(`/library/fines/${id}/collect`);
+// `amount` omitted waives the whole outstanding balance; a number waives part.
 export const waiveFine           = (id, data)   => api.post(`/library/fines/${id}/waive`, data);
 export const getPolicy           = ()           => api.get('/library/policy');
 export const updatePolicy        = (data)       => api.put('/library/policy', data);
@@ -93,6 +94,15 @@ export const studentReserve      = (bookId)     => api.post(`/library/student/bo
 export const cancelMyReservation = (id)         => api.delete(`/library/student/reservations/${id}`);
 export const getMyBooks          = ()           => api.get('/library/student/my-books');
 export const getMyFines          = ()           => api.get('/library/student/my-fines');
+
+// ── Paying a fine, and the receipt that follows ───────────────────────────────
+// Shared by students, teachers and parents; the server decides whose fines the
+// caller may act on, so the client never sends a "who am I" claim it invented.
+export const getFineSummary      = (userId)     => api.get('/library/my-fines/summary', { params: { userId } });
+export const createFineOrder     = (data)       => api.post('/library/my-fines/order', data);
+export const confirmFinePayment  = (data)       => api.post('/library/my-fines/confirm', data);
+export const listMyReceipts      = (userId)     => api.get('/library/my-fines/receipts', { params: { userId } });
+export const fineReceiptPath     = (receiptNumber) => `/library/receipts/${encodeURIComponent(receiptNumber)}`;
 export const renewMyBook         = (id)         => api.post(`/library/student/issuances/${id}/renew`);
 
 // ── Teacher browse (same dashboard/search as student) ─────────────────────────

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
+import { loadRazorpay } from '../../utils/razorpay';
 import { Table, Badge, Button, Modal, StatCard, Spinner } from '../ui/index';
 
 const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -12,17 +13,6 @@ const PAY_STATUS = {
 };
 const PAYMENT_STATUS = { pending: 'warning', completed: 'success', failed: 'danger', refunded: 'muted' };
 
-// Loads the Razorpay checkout script once
-function loadRazorpay() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const s = document.createElement('script');
-    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
 
 /**
  * Shared fee-book UI for the student and parent screens.

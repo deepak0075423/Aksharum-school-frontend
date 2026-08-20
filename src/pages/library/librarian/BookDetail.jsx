@@ -81,11 +81,15 @@ export default function LibraryBookDetail() {
   // Writing a copy off during a stock check is the moment losses are found, so
   // the librarian is asked whether the last borrower should be charged.
   const [writeOff, setWriteOff] = useState(null);
+  const [writeOffPrice, setWriteOffPrice] = useState('');
 
   const confirmWriteOff = async (charge) => {
+    if (charge && writeOffPrice !== '' && Number(writeOffPrice) < 0)
+      return toast.error('Enter a charge of zero or more');
     setBusyId(writeOff.copy._id);
     try {
-      const res = await setCopyStatus(id, writeOff.copy._id, writeOff.status, charge);
+      const res = await setCopyStatus(id, writeOff.copy._id, writeOff.status, charge,
+        charge && writeOffPrice !== '' ? Number(writeOffPrice) : undefined);
       toast.success(res?.fine ? `Marked ${writeOff.status} — ₹${res.fine.amount} charged` : `Marked ${writeOff.status}`);
       setWriteOff(null); refetch();
     } catch (err) { toast.error(err?.message || 'Could not change the status'); }
@@ -106,7 +110,7 @@ export default function LibraryBookDetail() {
   const handleStatus = async (copy, status) => {
     if (status === copy.status) return;
     // Lost and damaged take the copy out of the collection and may cost someone.
-    if (status === 'lost' || status === 'damaged') return setWriteOff({ copy, status });
+    if (status === 'lost' || status === 'damaged') { setWriteOffPrice(''); return setWriteOff({ copy, status }); }
     setBusyId(copy._id);
     try { await setCopyStatus(id, copy._id, status); toast.success(`Marked ${status}`); refetch(); }
     catch (err) { toast.error(err?.message || 'Could not change status'); }
@@ -291,9 +295,16 @@ export default function LibraryBookDetail() {
         </>}>
         <p style={{ color: 'var(--text-muted)' }}>
           This takes the copy out of the collection. If it went missing on someone's watch you can
-          charge the person who last had it, at the rate set in the library policy — otherwise
-          record it with no charge.
+          charge the person who last had it — otherwise record it with no charge.
         </p>
+        <div className="form-group" style={{ maxWidth: 220 }}>
+          <label className="form-label">Charge (₹)</label>
+          <input type="number" className="form-control" min={0} step="0.01" value={writeOffPrice}
+            placeholder="Policy rate" onChange={e => setWriteOffPrice(e.target.value)} />
+          <div className="form-hint">
+            Leave blank to use the rate in the library policy, or enter what the book actually cost.
+          </div>
+        </div>
       </Modal>
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete} loading={delLoad}

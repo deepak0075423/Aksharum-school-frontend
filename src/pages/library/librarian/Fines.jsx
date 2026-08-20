@@ -17,6 +17,7 @@ export default function LibraryFines() {
   const [roleFilter,   setRoleFilter]   = useState('');
   const [classFilter,  setClassFilter]  = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
+  const [modeFilter,   setModeFilter]   = useState('');   // how it was paid
   const [memberFilter, setMemberFilter] = useState('');   // one member's fines
   const [from, setFrom] = useState('');
   const [to,   setTo]   = useState('');
@@ -28,6 +29,7 @@ export default function LibraryFines() {
     role:      roleFilter    || undefined,
     classId:   classFilter   || undefined,
     sectionId: sectionFilter || undefined,
+    paymentMode: modeFilter  || undefined,
     userId:    memberFilter  || undefined,
     from:      from || undefined,
     to:        to   || undefined,
@@ -35,7 +37,7 @@ export default function LibraryFines() {
 
   const { data, meta, loading, refetch } = useFetch(
     () => getFines({ ...filters, page, limit: 20 }),
-    [statusFilter, typeFilter, roleFilter, classFilter, sectionFilter, memberFilter, from, to, page],
+    [statusFilter, typeFilter, roleFilter, classFilter, sectionFilter, modeFilter, memberFilter, from, to, page],
   );
   const fines   = Array.isArray(data) ? data : [];
   // Totals describe the whole filtered set, not the page on screen.
@@ -48,10 +50,10 @@ export default function LibraryFines() {
   const sections = classes.find(c => c._id === classFilter)?.sections || [];
 
   const filtersOn = statusFilter || typeFilter || roleFilter || classFilter
-    || sectionFilter || memberFilter || from || to;
+    || sectionFilter || modeFilter || memberFilter || from || to;
   const resetFilters = () => {
     setStatusFilter(''); setTypeFilter(''); setRoleFilter(''); setClassFilter('');
-    setSectionFilter(''); setMemberFilter(''); setFrom(''); setTo(''); setPage(1);
+    setSectionFilter(''); setModeFilter(''); setMemberFilter(''); setFrom(''); setTo(''); setPage(1);
   };
 
   const exportFines = () =>
@@ -61,7 +63,18 @@ export default function LibraryFines() {
 
   const [waiveModal,  setWaiveModal]  = useState(null);
   const [waiveReason, setWaiveReason] = useState('');
+  const [waiveWhole,  setWaiveWhole]  = useState(true);
+  const [waiveAmount, setWaiveAmount] = useState('');
   const [waiveLoad,   setWaiveLoad]   = useState(false);
+
+  // What is still owed after any earlier waiver or part payment — the figure a
+  // waiver is measured against, not the amount originally charged.
+  const owedOn = (f) => Math.max(0, (f?.amount || 0) - (f?.waivedAmount || 0) - (f?.paidAmount || 0));
+
+  const openWaive = (f) => {
+    setWaiveReason(''); setWaiveWhole(true); setWaiveAmount(String(owedOn(f)));
+    setWaiveModal(f);
+  };
 
   const handleCollect = async (id) => {
     try { await collectFine(id); toast.success('Payment recorded'); refetch(); }
@@ -70,10 +83,20 @@ export default function LibraryFines() {
 
   const handleWaive = async () => {
     if (!waiveReason.trim()) return toast.error('A reason is required to waive a fine');
+    const owed = owedOn(waiveModal);
+    let amount;
+    if (!waiveWhole) {
+      amount = Number(waiveAmount);
+      if (!Number.isFinite(amount) || amount <= 0) return toast.error('Enter a waiver amount greater than zero');
+      if (amount > owed) return toast.error(`Only ${money(owed)} is outstanding on this fine`);
+    }
     setWaiveLoad(true);
     try {
-      await waiveFine(waiveModal._id, { reason: waiveReason.trim() });
-      toast.success('Fine waived — the member has been notified');
+      const res = await waiveFine(waiveModal._id, { reason: waiveReason.trim(), amount });
+      const left = res?.data?.outstanding ?? 0;
+      toast.success(left > 0
+        ? `Waived — ${money(left)} still to pay`
+        : 'Fine waived in full — the member has been notified');
       setWaiveModal(null); setWaiveReason(''); refetch();
     } catch (err) { toast.error(err?.message || 'Could not waive the fine'); }
     finally { setWaiveLoad(false); }
@@ -87,7 +110,36 @@ export default function LibraryFines() {
     { key: 'due',     label: 'Was Due',  render: r => fmtDate(r.issuance?.dueDate) },
     { key: 'type',    label: 'Reason',   render: r => TYPE_LABEL[r.fineType] || r.fineType || '—' },
     { key: 'days',    label: 'Days Late',render: r => r.daysOverdue || '—' },
-    { key: 'amount',  label: 'Amount',   render: r => <strong>₹{(r.amount||0).toLocaleString()}</strong> },
+    { key: 'amount',  label: 'Charged',  render: r => <strong>{money(r.amount)}</strong> },
+    { key: 'settled', label: 'Waived / Paid', render: r => (
+      (r.waivedAmount || r.paidAmount)
+        ? <span className="text-sm">
+            {r.waivedAmount ? <span style={{ color:'var(--text-muted)' }}>{money(r.waivedAmount)} waived</span> : null}
+            {r.waivedAmount && r.paidAmount ? ' · ' : null}
+            {r.paidAmount ? <span style={{ color:'var(--success)' }}>{money(r.paidAmount)} paid</span> : null}
+          </span>
+        : '—'
+    )},
+    { key: 'mode',    label: 'Paid by', render: r => {
+      // paymentMode defaults to 'cash' on every row, so an unpaid fine would
+      // otherwise claim it was settled in cash.
+      if (!(r.paidAmount > 0)) return <span className="text-muted">—</span>;
+      return (
+        <div>
+          <Badge variant={r.paymentMode === 'online' ? 'info' : 'muted'}>
+            {r.paymentMode === 'online' ? 'Online' : 'Cash'}
+          </Badge>
+          {r.receiptNumber && (
+            <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginTop: 2 }}>{r.receiptNumber}</div>
+          )}
+        </div>
+      );
+    }},
+    { key: 'owed',    label: 'Outstanding', render: r => (
+      owedOn(r) > 0
+        ? <strong style={{ color:'var(--danger)' }}>{money(owedOn(r))}</strong>
+        : <span className="text-muted">—</span>
+    )},
     { key: 'status',  label: 'Status',   render: r => (
       <div>
         <Badge variant={statusColor[r.status]||'muted'}>{r.status}</Badge>
@@ -99,7 +151,7 @@ export default function LibraryFines() {
     { key: 'actions', label: '', render: r => r.status === 'pending' && (
       <div style={{ display:'flex', gap:4 }}>
         <Button size="sm" onClick={() => handleCollect(r._id)}>Collect</Button>
-        <button className="btn btn-secondary btn-sm" onClick={() => { setWaiveReason(''); setWaiveModal(r); }}>Waive</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => openWaive(r)}>Waive</button>
       </div>
     )},
   ];
@@ -134,6 +186,13 @@ export default function LibraryFines() {
             <option value="late_return">Late return</option>
             <option value="lost">Lost book</option>
             <option value="damaged">Damaged book</option>
+          </select>
+
+          <select className="form-control" style={{ width:150 }} value={modeFilter}
+            onChange={e => { setModeFilter(e.target.value); setPage(1); }}>
+            <option value="">Paid any way</option>
+            <option value="online">Paid online</option>
+            <option value="cash">Paid in cash</option>
           </select>
 
           <select className="form-control" style={{ width:140 }} value={roleFilter}
@@ -188,8 +247,36 @@ export default function LibraryFines() {
         footer={<><Button variant="secondary" onClick={() => setWaiveModal(null)}>Cancel</Button>
           <Button onClick={handleWaive} loading={waiveLoad}>Waive</Button></>}>
         <p style={{ marginBottom:12, color:'var(--text-muted)' }}>
-          Waive ₹{(waiveModal?.amount||0).toLocaleString()} fine for <strong>{waiveModal?.user?.name}</strong>?
+          <strong>{waiveModal?.user?.name}</strong> owes {money(owedOn(waiveModal))}
+          {waiveModal && owedOn(waiveModal) !== waiveModal.amount
+            ? <> of a {money(waiveModal.amount)} charge</> : null}.
         </p>
+
+        <div className="form-group">
+          <label className="form-label">How much to write off</label>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <label style={{ display:'flex', gap:8, alignItems:'center', cursor:'pointer' }}>
+              <input type="radio" checked={waiveWhole} onChange={() => setWaiveWhole(true)} />
+              <span>All of it — {money(owedOn(waiveModal))}</span>
+            </label>
+            <label style={{ display:'flex', gap:8, alignItems:'center', cursor:'pointer' }}>
+              <input type="radio" checked={!waiveWhole} onChange={() => setWaiveWhole(false)} />
+              <span>Part of it</span>
+            </label>
+          </div>
+        </div>
+
+        {!waiveWhole && (
+          <div className="form-group" style={{ maxWidth:220 }}>
+            <label className="form-label required">Amount to waive (₹)</label>
+            <input type="number" className="form-control" min={0} max={owedOn(waiveModal)} step="0.01"
+              value={waiveAmount} onChange={e => setWaiveAmount(e.target.value)} />
+            <div className="form-hint">
+              {money(Math.max(0, owedOn(waiveModal) - (Number(waiveAmount) || 0)))} will remain payable.
+            </div>
+          </div>
+        )}
+
         <div className="form-group"><label className="form-label required">Reason</label>
           <textarea className="form-control" rows={2} value={waiveReason}
             onChange={e => setWaiveReason(e.target.value)} placeholder="Why is this being written off?" /></div>

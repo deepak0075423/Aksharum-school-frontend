@@ -203,12 +203,21 @@ export default function LibraryCirculation() {
   // How the book came back. 'good' puts the copy straight back on the shelf;
   // the other two keep it off and charge the borrower for it.
   const [returnCondition, setReturnCondition] = useState({});
+  // An optional replacement price. The policy multiple is only ever a stand-in
+  // for a cost nobody recorded — if the librarian knows it, they can say so.
+  const [returnPrice, setReturnPrice] = useState({});
 
   const handleReturn = async (issuanceId) => {
     const condition = returnCondition[issuanceId] || 'good';
+    const priced = returnPrice[issuanceId];
+    if (condition !== 'good' && priced !== undefined && priced !== '' && Number(priced) < 0)
+      return toast.error('Enter a charge of zero or more');
     setReturning(true);
     try {
-      const res = await returnBook({ issuanceId, condition });
+      const res = await returnBook({
+        issuanceId, condition,
+        ...(condition !== 'good' && priced !== undefined && priced !== '' ? { fineAmount: Number(priced) } : {}),
+      });
       const fine = res?.data?.fine;
       toast.success(fine ? `Recorded — ₹${fine.amount} fine raised` : 'Book returned');
       setReturnList(prev => prev.filter(i => i._id !== issuanceId));
@@ -464,6 +473,18 @@ export default function LibraryCirculation() {
                       <option value="damaged">Damaged</option>
                       <option value="lost">Lost</option>
                     </select>
+                    {(returnCondition[i._id] === 'damaged' || returnCondition[i._id] === 'lost') && (
+                      <>
+                        <input type="number" className="form-control" min={0} step="0.01"
+                          style={{ width:120, padding:'4px 8px', fontSize:'0.8rem', marginTop:4 }}
+                          placeholder="Charge ₹"
+                          value={returnPrice[i._id] ?? ''}
+                          onChange={e => setReturnPrice(p => ({ ...p, [i._id]: e.target.value }))} />
+                        <div style={{ fontSize:'.68rem', color:'var(--text-muted)', marginTop:2, maxWidth:120 }}>
+                          Blank uses the policy rate. Late fine is added on top.
+                        </div>
+                      </>
+                    )}
                   </td>
                   <td><Button size="sm" onClick={() => handleReturn(i._id)} loading={returning}>Return</Button></td>
                 </tr>
