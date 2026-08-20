@@ -16,6 +16,11 @@
 
   --bg:             #f8fafc;
   --bg-card:        #ffffff;
+  /* Alias for --bg-card. Several components already reached for --surface,
+     which was never defined — an undefined custom property resolves to nothing,
+     so those panels rendered transparent and whatever sat behind them showed
+     through. Defining it here fixes them all rather than renaming each use. */
+  --surface:        #ffffff;
   --bg-sidebar:     #1e1b4b;
   --bg-sidebar-hover: #312e81;
 

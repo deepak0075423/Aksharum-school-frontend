@@ -1,13 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
-import { getMyBooks } from '../../../api/library.api';
-import { PageHeader, Table, Badge, Spinner } from '../../../components/ui/index';
+import { getMyBooks, getTeacherMyBooks, renewMyBook, renewTeacherBook } from '../../../api/library.api';
+import { PageHeader, Table, Badge, Spinner, Button } from '../../../components/ui/index';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 
 export default function LibraryMyBooks() {
-  const { data, loading } = useFetch(getMyBooks);
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+  const { data, loading, refetch } = useFetch(isTeacher ? getTeacherMyBooks : getMyBooks, [isTeacher]);
   const books = Array.isArray(data) ? data : [];
+  const [renewing, setRenewing] = useState(null);
+
+  // Extending a loan with nobody queued behind it never needed a trip to the
+  // desk — the rules are the same either way, the server just had no route for
+  // the member to ask.
+  const renew = async (id) => {
+    setRenewing(id);
+    try {
+      const res = await (isTeacher ? renewTeacherBook(id) : renewMyBook(id));
+      toast.success(res?.message || 'Renewed');
+      refetch();
+    } catch (err) { toast.error(err?.message || 'Could not renew'); }
+    finally { setRenewing(null); }
+  };
 
   const now = new Date();
   const statusColor = (r) => {
@@ -32,6 +50,13 @@ export default function LibraryMyBooks() {
     }},
     { key: 'status',   label: 'Status',   render: r => <Badge variant={statusColor(r)}>{statusLabel(r)}</Badge> },
     { key: 'renewals', label: 'Renewals', render: r => r.renewalCount ?? 0 },
+    { key: 'actions',  label: '', render: r => (
+      r.status === 'returned' || r.status === 'lost' ? null : (
+        <Button size="sm" variant="secondary" loading={renewing === r._id} onClick={() => renew(r._id)}>
+          Renew
+        </Button>
+      )
+    )},
   ];
 
   return (

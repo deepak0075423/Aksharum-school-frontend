@@ -162,6 +162,8 @@ const PayMyPayslips = lazy(() => import('./pages/payroll/teacher/Payslips'));
 // ── Library ───────────────────────────────────────────────────────────────────
 const LibDashboard  = lazy(() => import('./pages/library/librarian/Dashboard'));
 const LibBooks      = lazy(() => import('./pages/library/librarian/Books'));
+const LibBookDetail = lazy(() => import('./pages/library/librarian/BookDetail'));
+const LibReports    = lazy(() => import('./pages/library/librarian/Reports'));
 const LibCirculation= lazy(() => import('./pages/library/librarian/Circulation'));
 const LibReservations=lazy(() => import('./pages/library/librarian/Reservations'));
 const LibFines      = lazy(() => import('./pages/library/librarian/Fines'));
@@ -411,9 +413,11 @@ export default function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<LibDashboard />} />
               <Route path="books"       element={<LibBooks />} />
+              <Route path="books/:id"   element={<LibBookDetail />} />
               <Route path="circulation" element={<LibCirculation />} />
               <Route path="reservations"element={<LibReservations />} />
               <Route path="fines"       element={<LibFines />} />
+              <Route path="reports"     element={<LibReports />} />
               <Route path="policy"      element={<LibPolicy />} />
             </Route>
             {/* Inventory */}
@@ -539,9 +543,11 @@ export default function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<LibDashboard />} />
               <Route path="books"       element={<LibBooks />} />
+              <Route path="books/:id"   element={<LibBookDetail />} />
               <Route path="circulation" element={<LibCirculation />} />
               <Route path="reservations"element={<LibReservations />} />
               <Route path="fines"       element={<LibFines />} />
+              <Route path="reports"     element={<LibReports />} />
               <Route path="policy"      element={<LibPolicy />} />
             </Route>
             <Route path="inventory" element={<ModuleNav tabs={INVENTORY_TEACHER_TABS} />}>

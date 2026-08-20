@@ -55,6 +55,7 @@ export const LIBRARY_MANAGE_TABS = (base) => ([
   { to: `${base}/circulation`,  label: '🔄 Circulation' },
   { to: `${base}/reservations`, label: '🔖 Reservations' },
   { to: `${base}/fines`,        label: '💸 Fines' },
+  { to: `${base}/reports`,      label: '📈 Reports' },
   { to: `${base}/policy`,       label: '⚙️ Policy' },
 ]);
 

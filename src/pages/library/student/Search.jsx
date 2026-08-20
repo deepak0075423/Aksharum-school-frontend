@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
-import { studentSearch, studentReserve, cancelMyReservation } from '../../../api/library.api';
+import { studentSearch, studentReserve, cancelMyReservation, teacherSearch, teacherReserve, cancelTeacherReserv }
+  from '../../../api/library.api';
 import { PageHeader, Table, Badge, Button, Spinner, Pagination } from '../../../components/ui/index';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -13,20 +14,33 @@ export default function LibrarySearch() {
   const [category, setCategory] = useState('');
   const [page,     setPage]     = useState(1);
 
-  const { data, loading } = useFetch(
-    () => studentSearch({ q: query || undefined, category: category || undefined, page, limit: 20 }),
-    [query, category, page],
+  // Every call on this page goes through the endpoint the caller's role is
+  // allowed to use; the two sets serve the same catalogue and the same queue.
+  const search  = isTeacher ? teacherSearch : studentSearch;
+  const unqueue = isTeacher ? cancelTeacherReserv : cancelMyReservation;
+
+  const { data, meta, loading, refetch } = useFetch(
+    () => search({ q: query || undefined, category: category || undefined, page, limit: 20 }),
+    [query, category, page, isTeacher],
   );
   const books = Array.isArray(data) ? data : [];
 
+  // A teacher hitting the student route is refused by the guard — the two roles
+  // reach the same queue through their own endpoints.
   const handleReserve = async (bookId) => {
-    try { await studentReserve(bookId); toast.success('Book reserved!'); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    try {
+      const res = await (isTeacher ? teacherReserve(bookId) : studentReserve(bookId));
+      const pos = res?.data?.queuePosition;
+      toast.success(res?.data?.status === 'ready'
+        ? 'Ready to collect — pick it up from the library'
+        : `Reserved — you are number ${pos ?? '?'} in the queue`);
+      refetch();
+    } catch (err) { toast.error(err?.message || 'Could not reserve the book'); }
   };
 
   const handleCancel = async (reservationId) => {
-    try { await cancelMyReservation(reservationId); toast.success('Reservation cancelled'); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    try { await unqueue(reservationId); toast.success('Reservation cancelled'); refetch(); }
+    catch (err) { toast.error(err?.message || 'Could not cancel the reservation'); }
   };
 
   const columns = [
@@ -65,7 +79,7 @@ export default function LibrarySearch() {
           {loading ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>
             : <Table columns={columns} data={books} emptyIcon="🔍" emptyTitle={query || category ? 'No books found' : 'Start searching…'} />}
         </div>
-        {data?.pages > 1 && <div className="card-footer"><Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} /></div>}
+        {meta?.pages > 1 && <div className="card-footer"><Pagination page={page} pages={meta.pages} total={meta.total} onPage={setPage} /></div>}
       </div>
     </div>
   );
