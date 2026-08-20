@@ -197,7 +197,6 @@ export const TIMETABLE_ADMIN_TABS = [
   { to: '/admin/timetable',              label: '📋 Section Editor', end: true },
   { to: '/admin/timetable/generate',     label: '⚡ Generate' },
   { to: '/admin/timetable/versions',     label: '🗂 Versions' },
-  { to: '/admin/timetable/requirements', label: '📚 Requirements' },
   { to: '/admin/timetable/availability', label: '🧑‍🏫 Teacher Availability' },
   { to: '/admin/timetable/rooms',        label: '🚪 Rooms' },
   { to: '/admin/timetable/configuration', label: '⚙️ Configuration' },

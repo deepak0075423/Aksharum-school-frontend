@@ -68,7 +68,7 @@ export default function TimetableVersions() {
             v{r.versionNumber} · {r.label || 'Untitled'}
           </strong>
           <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
-            {r.scopeType === 'school' ? 'Entire school' : r.scopeType === 'multiple' ? 'Multiple classes' : 'Single class'}
+            {r.scopeType === 'school' ? 'Entire school' : r.scopeType === 'multiple' ? 'All sections' : 'Single section'}
             {' · '}{r.sectionCount} section(s)
             {r.description ? ` · ${r.description}` : ''}
           </div>

@@ -37,7 +37,10 @@ export default function TimetableVersionDetail() {
   const [publishModal, setPublish] = useState(false);
   const [validation, setValidation] = useState(null);
   const [exporting, setExporting] = useState('');
+  const [regenModal, setRegen] = useState(false);
+  const [regenProgress, setRegenProgress] = useState(null);
   const releasedRef = useRef(false);
+  const pollRef = useRef(null);
 
   /* ── Load ──────────────────────────────────────────────────────────────── */
   const load = useCallback(async () => {
@@ -61,6 +64,49 @@ export default function TimetableVersionDetail() {
     if (!releasedRef.current) { releasedRef.current = true; api.releaseLock(id).catch(() => {}); }
   }, [id]);
 
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  /* ── Regenerate ────────────────────────────────────────────────────────
+     Conflicts are usually a solver outcome, not a data error: a fresh seed
+     often clears them outright. The new run becomes its own version, so the
+     one being looked at is never overwritten. */
+  const regenerate = async ({ reuseSeed, preserveManualEdits }) => {
+    setBusy(true);
+    try {
+      const res = await api.regenerate(id, {
+        reuseSeed,
+        options: { ...(data.version.options || {}), preserveManualEdits },
+      });
+      const d = res.data ?? res;
+      setRegen(false);
+      setRegenProgress({ versionId: d.versionId, versionNumber: d.versionNumber, percent: 0, steps: [] });
+
+      clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        try {
+          const p = (await api.getProgress(d.versionId)).data ?? {};
+          setRegenProgress(cur => ({ ...cur, ...p.progress, status: p.status, errorCount: p.errorCount }));
+          if (p.status === 'generating') return;
+          clearInterval(pollRef.current);
+          if (p.status === 'failed') {
+            toast.error('Regeneration failed');
+          } else if (p.errorCount > 0) {
+            toast(`Regenerated with ${p.errorCount} conflict(s)`, { icon: '⚠️' });
+          } else {
+            toast.success('Regenerated with no conflicts');
+          }
+          navigate(`/admin/timetable/versions/${d.versionId}${p.errorCount > 0 ? '?tab=conflicts' : ''}`);
+        } catch (e) {
+          clearInterval(pollRef.current);
+          setRegenProgress(null);
+          toast.error(e.message);
+        }
+      }, 800);
+    } catch (e) {
+      toast.error(e.message);
+    } finally { setBusy(false); }
+  };
+
   useEffect(() => { setParams(view === 'class' ? {} : { tab: view }, { replace: true }); }, [view]); // eslint-disable-line
 
   /* ── Derived lookups ───────────────────────────────────────────────────── */
@@ -80,17 +126,27 @@ export default function TimetableVersionDetail() {
     return m;
   }, [data]);
 
+  /* Merged subjects share one entry row. A class grid shows them as one cell,
+     but the teacher- and room-wise views need a line per subject taught. */
+  const occupants = useMemo(() => (data?.entries || []).flatMap(e => [
+    e,
+    ...(e.additionalSubjects || []).map(m => ({
+      ...e, subject: m.subject, teacher: m.teacher, room: m.room,
+      additionalSubjects: [], mergedPartner: true,
+    })),
+  ]), [data]);
+
   const teachersInUse = useMemo(() => {
     if (!data) return [];
-    const ids = [...new Set(data.entries.map(e => e.teacher).filter(Boolean))];
+    const ids = [...new Set(occupants.map(e => e.teacher).filter(Boolean))];
     return ids.map(tid => maps.teacher.get(tid)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
-  }, [data, maps]);
+  }, [data, maps, occupants]);
 
   const roomsInUse = useMemo(() => {
     if (!data) return [];
-    const ids = [...new Set(data.entries.map(e => e.room).filter(Boolean))];
+    const ids = [...new Set(occupants.map(e => e.room).filter(Boolean))];
     return ids.map(rid => maps.room.get(rid)).filter(Boolean).sort((a, b) => a.roomName.localeCompare(b.roomName));
-  }, [data, maps]);
+  }, [data, maps, occupants]);
 
   useEffect(() => { if (!teacherId && teachersInUse.length) setTeacherId(teachersInUse[0]._id); }, [teachersInUse]); // eslint-disable-line
   useEffect(() => { if (!roomId && roomsInUse.length) setRoomId(roomsInUse[0]._id); }, [roomsInUse]); // eslint-disable-line
@@ -110,6 +166,18 @@ export default function TimetableVersionDetail() {
     teacher: (tid) => maps.teacher.get(tid)?.name || '',
     room:    (rid) => maps.room.get(rid)?.roomName || '',
     section: (sid) => maps.section.get(sid)?.label || '',
+  };
+
+  /* One slot, possibly several subjects: "Maths + Computer" with both teachers. */
+  const uniqJoin = (values, sep) => [...new Set(values.filter(Boolean))].join(sep);
+  const slot = {
+    isMerged: (e) => !!(e.additionalSubjects || []).length,
+    subject: (e) => uniqJoin([e.subject, ...(e.additionalSubjects || []).map(m => m.subject)]
+      .map(nameOf.subject), ' + '),
+    teacher: (e) => uniqJoin([e.teacher, ...(e.additionalSubjects || []).map(m => m.teacher)]
+      .map(nameOf.teacher), ' · '),
+    room: (e) => uniqJoin([e.room, ...(e.additionalSubjects || []).map(m => m.room)]
+      .map(nameOf.room), ' · '),
   };
 
   /* ── Drag & drop ───────────────────────────────────────────────────────── */
@@ -281,9 +349,9 @@ export default function TimetableVersionDetail() {
                       >
                         {entry ? (
                           <PeriodCard
-                            subject={nameOf.subject(entry.subject)}
-                            teacher={nameOf.teacher(entry.teacher)}
-                            room={nameOf.room(entry.room)}
+                            subject={slot.subject(entry)}
+                            teacher={slot.teacher(entry)}
+                            room={slot.room(entry)}
                             tone={subjectColor(entry.subject)}
                             draggable={editable && !entry.isLocked}
                             manual={entry.isManual}
@@ -311,7 +379,7 @@ export default function TimetableVersionDetail() {
 
   /** Teacher and room views pivot the same entries — one renderer, two filters. */
   const renderPivotGrid = (filterFn, describe) => {
-    const rows = data.entries.filter(filterFn);
+    const rows = occupants.filter(filterFn);
     if (!rows.length) return <Empty icon="📭" title="Nothing scheduled" />;
     const periodNumbers = [...new Set(
       sections.flatMap(s => structureFor(s._id).filter(isTeaching).map(p => p.periodNumber)),
@@ -376,9 +444,9 @@ export default function TimetableVersionDetail() {
                       onDrop={() => editable && onDrop(s._id, day, pn)}>
                       {entry ? (
                         <PeriodCard
-                          subject={nameOf.subject(entry.subject)}
-                          teacher={nameOf.teacher(entry.teacher)}
-                          room={nameOf.room(entry.room)}
+                          subject={slot.subject(entry)}
+                          teacher={slot.teacher(entry)}
+                          room={slot.room(entry)}
                           tone={subjectColor(entry.subject)}
                           draggable={editable && !entry.isLocked}
                           manual={entry.isManual}
@@ -400,13 +468,37 @@ export default function TimetableVersionDetail() {
 
   const renderConflicts = () => {
     if (!conflicts.length) {
-      return <Empty icon="✅" title="No conflicts" message="Every hard constraint is satisfied. This version can be published." />;
+      return (
+        <Empty icon="✅" title="No conflicts"
+          message="Every hard constraint is satisfied. This version can be published."
+          action={editable && <Button variant="secondary" onClick={() => setRegen(true)}>🔄 Regenerate anyway</Button>} />
+      );
     }
     const groups = { ERROR: [], WARNING: [], INFO: [] };
     for (const c of conflicts) (groups[c.severity] || groups.INFO).push(c);
 
     return (
       <div style={{ display: 'grid', gap: 16 }}>
+        {/* Most conflicts are a solver outcome, not bad data — offer the retry
+            before the admin starts dragging periods around by hand. */}
+        <div style={{
+          display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+          background: 'var(--bg)', padding: '12px 14px',
+        }}>
+          <div style={{ flex: '1 1 260px' }}>
+            <div style={{ fontWeight: 700, fontSize: '.88rem' }}>Try solving these again</div>
+            <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+              Regenerating with a different starting point often clears conflicts outright.
+              It creates a new version — this one is left exactly as it is.
+            </div>
+          </div>
+          <Button onClick={() => setRegen(true)} disabled={!editable || busy}>🔄 Regenerate</Button>
+          <Button variant="secondary" onClick={() => navigate('/admin/timetable/generate')}>
+            Change subjects &amp; periods
+          </Button>
+        </div>
+
         {['ERROR', 'WARNING', 'INFO'].map(sev => groups[sev].length > 0 && (
           <div key={sev}>
             <h4 style={{ fontSize: '.85rem', margin: '0 0 8px', color: SEVERITY_META[sev].color }}>
@@ -605,7 +697,107 @@ export default function TimetableVersionDetail() {
           The previous published version is archived, not deleted — you can restore it at any time.
         </p>
       </Modal>
+
+      {/* ── Regenerate ──────────────────────────────────────────────────── */}
+      {regenModal && (
+        <RegenerateModal
+          version={version}
+          conflictCount={conflicts.filter(c => c.severity === 'ERROR').length}
+          manualCount={data.entries.filter(e => e.isManual || e.isLocked).length}
+          busy={busy}
+          onClose={() => setRegen(false)}
+          onRun={regenerate}
+        />
+      )}
+
+      {/* Progress is watched here so the admin can see the retry through. */}
+      {regenProgress && (
+        <Modal open onClose={() => {}} title={`Regenerating — version ${regenProgress.versionNumber}`} maxWidth={460} footer={null}>
+          <div style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
+            {(regenProgress.steps || []).map(st => (
+              <div key={st.key} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '.84rem' }}>
+                <span style={{ width: 18, textAlign: 'center' }}>
+                  {st.status === 'done' ? <span style={{ color: 'var(--success)' }}>✓</span>
+                    : st.status === 'active' ? <Spinner size="sm" />
+                    : <span style={{ color: 'var(--text-light)' }}>○</span>}
+                </span>
+                <span style={{ color: st.status === 'pending' ? 'var(--text-light)' : 'var(--text)' }}>{st.label}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: 'var(--bg)', borderRadius: 99, height: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+            <div style={{ width: `${regenProgress.percent || 0}%`, height: '100%', background: 'var(--primary)', transition: 'width .3s ease' }} />
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 6 }}>
+            {regenProgress.percent || 0}%
+          </div>
+          <p style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
+            This runs on the server. You can close this tab and pick the new version up from the version list.
+          </p>
+        </Modal>
+      )}
     </div>
+  );
+}
+
+/* ── Regenerate this version's scope into a new draft ──────────────────────────
+   The two choices that actually change the outcome: whether to start from a new
+   random seed (the usual way out of conflicts) and whether hand-made edits are
+   pinned in place before the solver runs. */
+function RegenerateModal({ version, conflictCount, manualCount, busy, onClose, onRun }) {
+  const [reuseSeed, setReuseSeed] = useState(false);
+  const [preserve, setPreserve] = useState(manualCount > 0);
+
+  return (
+    <Modal open onClose={onClose} title="Regenerate Timetable" maxWidth={520}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button loading={busy} onClick={() => onRun({ reuseSeed, preserveManualEdits: preserve })}>
+            🔄 Regenerate
+          </Button>
+        </>
+      }>
+      {conflictCount > 0
+        ? <Alert variant="warning">
+            This version has <strong>{conflictCount}</strong> unresolved conflict(s). A fresh attempt
+            often places them cleanly.
+          </Alert>
+        : <Alert variant="info">This version has no errors — regenerating will simply try for a better arrangement.</Alert>}
+
+      <p style={{ fontSize: '.85rem' }}>
+        The same {(version.sections || []).length} section(s) and the subject plan saved for them are solved again
+        into a <strong>new version</strong>. Version {version.versionNumber} is left untouched.
+      </p>
+
+      <div className="form-group">
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '.85rem' }}>
+          <input type="checkbox" checked={preserve} disabled={!manualCount}
+            onChange={e => setPreserve(e.target.checked)} style={{ marginTop: 3 }} />
+          <span>
+            Keep my manual edits
+            <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
+              {manualCount
+                ? `${manualCount} hand-edited or locked period(s) are pinned in place before solving.`
+                : 'No periods have been edited by hand in this version.'}
+            </div>
+          </span>
+        </label>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '.85rem' }}>
+          <input type="checkbox" checked={reuseSeed} onChange={e => setReuseSeed(e.target.checked)} style={{ marginTop: 3 }} />
+          <span>
+            Reuse the same starting point
+            <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
+              Reproduces this exact run. Leave it off to try a different arrangement — which is
+              what usually clears conflicts.
+            </div>
+          </span>
+        </label>
+      </div>
+    </Modal>
   );
 }
 
@@ -655,6 +847,14 @@ function CellEditor({ cell, data, maps, busy, onClose, onSave, onClear }) {
         </>
       }
     >
+      {!!(entry?.additionalSubjects || []).length && (
+        <Alert variant="info">
+          This period is <strong>merged</strong>. It also runs{' '}
+          {entry.additionalSubjects.map(m => maps.subject.get(m.subject)?.subjectName || 'a subject').join(' and ')}
+          {' '}at the same time, with their own teachers. Editing here changes the primary subject only —
+          change the grouping under Generate Timetable to alter the merge itself.
+        </Alert>
+      )}
       <div className="form-group">
         <label className="form-label required">Subject</label>
         <select className="form-control" value={subject} onChange={e => setSubject(e.target.value)}>

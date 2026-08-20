@@ -8,6 +8,10 @@ const base = '/admin/timetable';
 // ── Meta & configuration ──────────────────────────────────────────────────────
 export const getMeta      = (yearId) => api.get(`${base}/meta`, { params: yearId ? { yearId } : {} });
 export const getConfig    = (yearId) => api.get(`${base}/config`, { params: yearId ? { yearId } : {} });
+// Subjects, weekly capacity and saved period counts for one class + its sections.
+export const getClassPlan = (classId, sectionIds, yearId) => api.get(`${base}/class-plan`, {
+  params: { classId, ...(sectionIds?.length ? { sectionIds: sectionIds.join(',') } : {}), ...(yearId ? { yearId } : {}) },
+});
 export const saveConfig   = (data)   => api.put(`${base}/config`, data);
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────
@@ -19,12 +23,6 @@ export const deleteRoom   = (id)     => api.delete(`${base}/rooms/${id}`);
 // ── Teacher availability ──────────────────────────────────────────────────────
 export const getAvailability  = (yearId)        => api.get(`${base}/availability`, { params: yearId ? { yearId } : {} });
 export const saveAvailability = (teacherId, d)  => api.put(`${base}/availability/${teacherId}`, d);
-
-// ── Subject requirements ──────────────────────────────────────────────────────
-export const getRequirements    = (sectionId, yearId) => api.get(`${base}/requirements`, { params: { sectionId, ...(yearId ? { yearId } : {}) } });
-export const saveRequirements   = (sectionId, data)   => api.put(`${base}/requirements/${sectionId}`, data);
-export const seedRequirements   = (data)              => api.post(`${base}/requirements/seed`, data);
-export const deleteRequirement  = (id)                => api.delete(`${base}/requirements/item/${id}`);
 
 // ── Generation & versions ─────────────────────────────────────────────────────
 export const generate       = (data)      => api.post(`${base}/generate`, data);

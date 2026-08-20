@@ -46,7 +46,6 @@ const ATimetable    = lazy(() => import('./pages/admin/Timetable'));
 const TTGenerate      = lazy(() => import('./pages/timetable/admin/Generate'));
 const TTVersions      = lazy(() => import('./pages/timetable/admin/Versions'));
 const TTVersionDetail = lazy(() => import('./pages/timetable/admin/VersionDetail'));
-const TTRequirements  = lazy(() => import('./pages/timetable/admin/Requirements'));
 const TTAvailability  = lazy(() => import('./pages/timetable/admin/Availability'));
 const TTRooms         = lazy(() => import('./pages/timetable/admin/Rooms'));
 const TTConfiguration = lazy(() => import('./pages/timetable/admin/Configuration'));
@@ -369,7 +368,6 @@ export default function App() {
               <Route path="generate"          element={<TTGenerate />} />
               <Route path="versions"          element={<TTVersions />} />
               <Route path="versions/:id"      element={<TTVersionDetail />} />
-              <Route path="requirements"      element={<TTRequirements />} />
               <Route path="availability"      element={<TTAvailability />} />
               <Route path="rooms"             element={<TTRooms />} />
               <Route path="configuration"     element={<TTConfiguration />} />
