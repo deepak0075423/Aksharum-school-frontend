@@ -55,9 +55,13 @@ export default function Teachers() {
       fd.append('excelFile', bulkFile);
       const res = await api.bulkImportTeachers(fd);
       const created = res?.created ?? 0;
+      const updated = res?.updated ?? 0;
       const errors  = res?.errors  ?? [];
-      setBulkResult({ created, errors });
-      if (created) { toast.success(`${created} teacher${created !== 1 ? 's' : ''} imported`); refetch(); }
+      setBulkResult({ created, updated, errors });
+      // A sheet re-uploaded after fixing a few rows updates the teachers that
+      // already exist — counting only creations would report that as a failure.
+      const touched = created + updated;
+      if (touched) { toast.success(`${touched} teacher${touched !== 1 ? 's' : ''} imported`); refetch(); }
       else toast.error('No teachers were imported');
     } catch (err) { toast.error(err.message); }
     finally { setBulkLoad(false); }
@@ -153,6 +157,10 @@ export default function Teachers() {
                 <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkResult.created}</div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Teachers Created</div>
               </div>
+              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkResult.updated ?? 0}</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Updated</div>
+              </div>
               <div style={{ flex: 1, background: bulkResult.errors.length ? '#fef2f2' : 'var(--bg)', border: `1px solid ${bulkResult.errors.length ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkResult.errors.length ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkResult.errors.length}</div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Errors</div>
@@ -181,7 +189,13 @@ export default function Teachers() {
             </div>
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
-              Full Name*, Email Address*, Phone Number, Designation
+              The template carries every field of the Add Teacher form — personal, contact, government ID,
+              education, experience, bank and school details. Its <em>Reference</em> sheet lists the exact
+              values each column accepts, and which ones are required.
+              <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
+              Only the paperwork itself can’t be imported — Aadhaar and PAN scans, resignation letter,
+              experience certificate. Open each teacher in Edit afterwards to attach them.
+              Re-uploading a corrected sheet updates the teachers it already created.
             </div>
             <div className="form-group">
               <label className="form-label required">Excel File</label>

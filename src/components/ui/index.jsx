@@ -84,8 +84,12 @@ export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }
   // which is a scroll container starting below the header — the fixed overlay
   // then measures against that box instead of the viewport and the top of tall
   // modals ends up above the reachable area.
+  // The overlay deliberately does NOT close on click. These modals hold long
+  // forms — the seven-step teacher and student intakes, bulk import — and a
+  // stray click beside the card used to throw the whole thing away. Closing is
+  // an explicit act: the ✕, Cancel, or whatever the footer offers.
   return createPortal(
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay">
       <div className="modal" style={{ maxWidth }}>
         <div className="modal-header">
           <h3>{title}</h3>

@@ -80,7 +80,9 @@ export default function Students() {
             }));
           } else if (evt.type === 'done') {
             setBulkProgress(p => ({ ...p, done: true }));
-            const created = evt.created ?? 0;
+            // A re-uploaded sheet updates the students it already created, so
+            // both counts are "imported" as far as the admin is concerned.
+            const created = (evt.created ?? 0) + (evt.updated ?? 0);
             const failed  = evt.errors?.length ?? 0;
             if (created === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
             else if (failed > 0) toast(`Imported ${created} student(s), ${failed} row(s) failed`, { icon: '⚠️' });
@@ -291,11 +293,15 @@ export default function Students() {
               </Button>
             </div>
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Required columns:</strong>
-              Full Name · Email Address · Phone Number · Admission Number · Date of Birth (dd/mm/yyyy) · Gender · Blood Group · Category · Class · Section · Address · Parent Full Name · Parent Email · Parent Phone Number
+              <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
+              The template carries every field of the Add Student wizard — personal, address, Aadhaar,
+              previous school, enrolment and the full father / mother / guardian records. Its
+              <em> Reference</em> sheet lists the exact values each column accepts, which ones are
+              required, and this school’s own classes and sections.
               <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
-              Imported students skip the admission paperwork (emergency contact, Aadhaar, certificates, guardian details).
-              Open each one in Edit afterwards to complete their record.
+              Only the certificates themselves can’t be imported — photo, Aadhaar scans, birth
+              certificate, TC. Open each student in Edit afterwards to attach them.
+              Re-uploading a corrected sheet updates the students it already created.
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label required">Excel File</label>
