@@ -67,6 +67,7 @@ const TEACHER_NAV = [
   { to: '/teacher/my-section',      icon: '🏛️', label: 'My Section' },
   { to: '/teacher/attendance',      icon: '✅', label: 'Attendance',    module: 'attendance' },
   { to: '/teacher/timetable',       icon: '🕐', label: 'Timetable',     module: 'timetable' },
+  { to: '/teacher/substitutions',   icon: '🔁', label: 'My Substitutions', module: 'timetable' },
   { to: '/teacher/student-analytics', icon: '🧭', label: 'Student Analytics' },
   { to: '/teacher/employee-directory/employees', icon: '🗂️', label: 'Employee Directory', module: 'employeeDirectory' },
   { section: 'Academics' },

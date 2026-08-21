@@ -49,6 +49,7 @@ const TTVersionDetail = lazy(() => import('./pages/timetable/admin/VersionDetail
 const TTAvailability  = lazy(() => import('./pages/timetable/admin/Availability'));
 const TTRooms         = lazy(() => import('./pages/timetable/admin/Rooms'));
 const TTConfiguration = lazy(() => import('./pages/timetable/admin/Configuration'));
+const ASubstitutions  = lazy(() => import('./pages/admin/Substitutions'));
 const ANotifications= lazy(() => import('./pages/admin/Notifications'));
 const AResults      = lazy(() => import('./pages/admin/Results'));
 const ALeave        = lazy(() => import('./pages/admin/Leave'));
@@ -112,6 +113,7 @@ const TResults      = lazy(() => import('./pages/teacher/Results'));
 const TLeave        = lazy(() => import('./pages/teacher/Leave'));
 const TDocuments    = lazy(() => import('./pages/teacher/Documents'));
 const THolidays     = lazy(() => import('./pages/teacher/Holidays'));
+const TSubstitutions = lazy(() => import('./pages/teacher/MySubstitutions'));
 
 // ── Student ───────────────────────────────────────────────────────────────────
 const SDashboard    = lazy(() => import('./pages/student/Dashboard'));
@@ -365,6 +367,7 @@ export default function App() {
                 /admin/timetable behaves exactly as it did before this module. */}
             <Route path="timetable" element={<ModuleNav tabs={TIMETABLE_ADMIN_TABS} />}>
               <Route index                    element={<ATimetable />} />
+              <Route path="substitutions"     element={<ASubstitutions />} />
               <Route path="generate"          element={<TTGenerate />} />
               <Route path="versions"          element={<TTVersions />} />
               <Route path="versions/:id"      element={<TTVersionDetail />} />
@@ -520,6 +523,7 @@ export default function App() {
             <Route path="student-analytics/:studentId" element={<StudentAnalyticsDetail />} />
             {directoryRoutes('/teacher/employee-directory', false)}
             <Route path="timetable"    element={<TTimetable />} />
+            <Route path="substitutions" element={<TSubstitutions />} />
             <Route path="exams/*"      element={<TExams />} />
             <Route path="results/*"    element={<TResults />} />
             <Route path="leave"        element={<TLeave />} />

@@ -195,6 +195,7 @@ export const FEEDBACK_PRINCIPAL_TABS = [
 // workflow keeps working exactly as before; the generator lives alongside it.
 export const TIMETABLE_ADMIN_TABS = [
   { to: '/admin/timetable',              label: '📋 Section Editor', end: true },
+  { to: '/admin/timetable/substitutions', label: '🔁 Substitutions' },
   { to: '/admin/timetable/generate',     label: '⚡ Generate' },
   { to: '/admin/timetable/versions',     label: '🗂 Versions' },
   { to: '/admin/timetable/availability', label: '🧑‍🏫 Teacher Availability' },
