@@ -260,6 +260,19 @@ export default function AdminLeavePolicies({ onSaved }) {
                   onChange={v => set({ maxNegativeDays: v })} step={0.5} hint="0 = unlimited" />
               </div>
             )}
+
+            {/* Without this the only answer to "no balance left but the day must
+                be taken" was to refuse the application outright. */}
+            <Toggle label="Allow applying beyond the balance as loss of pay"
+              checked={form.allowLopBeyondBalance}
+              onChange={v => set({ allowLopBeyondBalance: v })}
+              hint="Days past the available balance are accepted and marked unpaid instead of the application being refused. Payroll deducts them automatically." />
+            {form.allowLopBeyondBalance && (
+              <div style={{ maxWidth: 260 }}>
+                <Num label="Max loss-of-pay days per application" value={form.maxLopDaysPerApplication}
+                  onChange={v => set({ maxLopDaysPerApplication: v })} step={0.5} hint="0 = no limit" />
+              </div>
+            )}
           </Section>
 
           <Section title="Entitlement mechanics"
@@ -309,9 +322,11 @@ export default function AdminLeavePolicies({ onSaved }) {
               </div>
             )}
 
+            {/* Encashment is reported, not paid automatically — the hint says so
+                rather than letting the screen imply a payout that never runs. */}
             <Toggle label="Encashable" checked={form.encashable}
               onChange={v => set({ encashable: v })}
-              hint="Unused days of this type can be paid out" />
+              hint="Marks unused days as eligible for payout. They are listed on the employee's exit settlement for payroll to action — nothing is paid out automatically." />
             {form.encashable && (
               <div style={{ maxWidth: 260 }}>
                 <Num label="Max encashable days" value={form.maxEncashableDays}

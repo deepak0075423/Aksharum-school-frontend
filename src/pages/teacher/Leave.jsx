@@ -15,7 +15,7 @@ const STATUS_VARIANT = {
   cancelled: 'muted', modification_requested: 'info',
 };
 
-const EMPTY_FORM = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', reason: '' };
+const EMPTY_FORM = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 
 // ── Day counting helpers ──────────────────────────────────────────────────────
 
@@ -218,6 +218,7 @@ export default function TeacherLeave() {
       fd.append('fromDate',    form.fromDate);
       fd.append('toDate',      form.toDate);
       fd.append('leaveMode',   form.leaveMode);
+      if (form.leaveMode === 'half_day') fd.append('halfDaySession', form.halfDaySession);
       fd.append('reason',      form.reason);
       if (docRef.current?.files?.[0]) fd.append('document', docRef.current.files[0]);
       await applyLeave(fd);
@@ -440,6 +441,17 @@ export default function TeacherLeave() {
               <option value="half_day">Half Day</option>
             </select>
           </div>
+          {/* Which half decides which of your periods need cover. */}
+          {form.leaveMode === 'half_day' && (
+            <div className="form-group">
+              <label className="form-label">Which half</label>
+              <select className="form-control" value={form.halfDaySession}
+                onChange={e => setField('halfDaySession', e.target.value)}>
+                <option value="first">First half (morning)</option>
+                <option value="second">Second half (afternoon)</option>
+              </select>
+            </div>
+          )}
 
           {/* Dates */}
           <div className="form-row form-row-2">

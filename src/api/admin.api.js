@@ -156,6 +156,11 @@ export const runLeaveAccrual        = ()         => api.post('/admin/leave/accru
 export const downloadAllocationTemplate = ()     => api.get('/admin/leave/allocations/template', { responseType: 'arraybuffer' });
 export const bulkAllocateLeaveExcel = (fd)       => api.post('/admin/leave/allocations/excel', fd);
 export const runCarryForward        = (data)     => api.post('/admin/leave/allocations/carry-forward', data);
+// Year-end: lapse whatever carry-forward did not move
+export const getYearClosePreview    = (params)   => api.get('/admin/leave/year-close/preview', { params });
+export const closeAcademicYear      = (data)     => api.post('/admin/leave/year-close', data);
+// Final settlement for someone leaving
+export const settleEmployeeLeave    = (data)     => api.post('/admin/leave/settle', data);
 export const exportLeaveRequests    = (params)   => api.get('/admin/leave/requests/export',    { params, responseType: 'arraybuffer' });
 export const exportLeaveAllocations = (params)   => api.get('/admin/leave/allocations/export', { params, responseType: 'arraybuffer' });
 export const getLeaveReports        = (params)   => api.get('/admin/leave/reports', { params });

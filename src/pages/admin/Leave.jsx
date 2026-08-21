@@ -19,7 +19,7 @@ const EMPTY_TYPE = {
   name: '', code: '', category: 'general', annualAllocation: 12, isActive: true,
 };
 
-const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', reason: '' };
+const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 const EMPTY_ALLOC = {
   teacherMode: 'all',        // 'all' | 'select' | 'except'
   checkedTeachers: [],       // 'select': included ids  |  'except': excluded ids
@@ -175,6 +175,7 @@ export default function AdminLeave() {
       fd.append('fromDate',    applyForm.fromDate);
       fd.append('toDate',      applyForm.toDate);
       fd.append('leaveMode',   applyForm.leaveMode);
+      if (applyForm.leaveMode === 'half_day') fd.append('halfDaySession', applyForm.halfDaySession);
       fd.append('reason',      applyForm.reason);
       if (applyDocRef.current?.files?.[0]) fd.append('document', applyDocRef.current.files[0]);
       await api.adminApplyLeave(fd);
@@ -188,7 +189,21 @@ export default function AdminLeave() {
   const reqColumns = [
     { key: 'teacher',  label: 'Teacher',  render: r => <div><div style={{ fontWeight: 600 }}>{r.teacher?.name || '—'}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.teacher?.employeeId || ''}</div></div> },
     { key: 'type',     label: 'Type',     render: r => r.leaveType?.name || '—' },
-    { key: 'dates',    label: 'Period',   render: r => <div><div>{fmtDate(r.fromDate)} – {fmtDate(r.toDate)}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.totalDays} day(s) · {r.leaveMode?.replace('_', ' ')}</div></div> },
+    { key: 'dates',    label: 'Period',   render: r => (
+      <div>
+        <div>{fmtDate(r.fromDate)} – {fmtDate(r.toDate)}</div>
+        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
+          {r.totalDays} day(s) · {r.leaveMode === 'half_day'
+            ? `half day (${r.halfDaySession === 'second' ? '2nd' : '1st'})`
+            : 'full day'}
+        </div>
+        {r.lopDays > 0 && (
+          <div style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600 }}>
+            {r.lopDays} day(s) loss of pay
+          </div>
+        )}
+      </div>
+    )},
     { key: 'status',   label: 'Status',   render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status?.replace('_', ' ')}</Badge> },
     { key: 'reason',   label: 'Reason',   render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
     { key: 'doc',      label: 'Doc',      render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
@@ -877,13 +892,27 @@ export default function AdminLeave() {
             </div>
           </div>
           {applyHint && <div className="form-hint" style={{ marginTop: -6, marginBottom: 12 }}>{applyHint}</div>}
-          <div className="form-group">
-            <label className="form-label">Leave Mode</label>
-            <select className="form-control" value={applyForm.leaveMode}
-              onChange={e => setApplyForm(f => ({ ...f, leaveMode: e.target.value }))}>
-              <option value="full_day">Full Day</option>
-              <option value="half_day">Half Day</option>
-            </select>
+          <div className="form-row form-row-2">
+            <div className="form-group">
+              <label className="form-label">Leave Mode</label>
+              <select className="form-control" value={applyForm.leaveMode}
+                onChange={e => setApplyForm(f => ({ ...f, leaveMode: e.target.value }))}>
+                <option value="full_day">Full Day</option>
+                <option value="half_day">Half Day</option>
+              </select>
+            </div>
+            {/* Which half decides which periods need cover, so the substitute
+                engine cannot arrange anything without it. */}
+            {applyForm.leaveMode === 'half_day' && (
+              <div className="form-group">
+                <label className="form-label">Which half</label>
+                <select className="form-control" value={applyForm.halfDaySession}
+                  onChange={e => setApplyForm(f => ({ ...f, halfDaySession: e.target.value }))}>
+                  <option value="first">First half (morning)</option>
+                  <option value="second">Second half (afternoon)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* What the picked dates actually cost. Weekends, school holidays and
@@ -902,6 +931,12 @@ export default function AdminLeave() {
                 <div style={{ marginTop: 4, fontSize: '.78rem' }}>
                   {describeDayCount(preview.days)}
                 </div>
+                {preview.days.lopDays > 0 && (
+                  <div style={{ marginTop: 6, fontWeight: 600 }}>
+                    {preview.days.paidDays} day(s) paid · {preview.days.lopDays} day(s) loss of pay
+                    — payroll will deduct the unpaid days.
+                  </div>
+                )}
                 {preview.sufficient === false && (
                   <div style={{ marginTop: 6, fontWeight: 600 }}>
                     Insufficient balance — {preview.days.totalDays} day(s) needed, {preview.balance?.spendable} available.
