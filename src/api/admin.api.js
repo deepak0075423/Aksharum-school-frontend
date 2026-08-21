@@ -136,15 +136,22 @@ export const getLeaveTypes          = ()         => api.get('/admin/leave/types'
 export const createLeaveType        = (data)     => api.post('/admin/leave/types', data);
 export const updateLeaveType        = (id, data) => api.put(`/admin/leave/types/${id}`, data);
 export const deleteLeaveType        = (id)       => api.delete(`/admin/leave/types/${id}`);
+// What a delete would take with it — teachers holding days of this type, plus
+// anything that blocks the delete outright. Powers the delete confirm popup.
+export const getLeaveTypeImpact     = (id)       => api.get(`/admin/leave/types/${id}/impact`);
 export const updateLeaveSettings    = (data)     => api.put('/admin/leave/settings', data);
 export const getLeaveRequests       = (params)   => api.get('/admin/leave/requests', { params });
 export const adminApplyLeave        = (data)     => api.post('/admin/leave/requests', data);
 export const getTeacherLeaveBalance = (teacherId) => api.get('/admin/leave/balance', { params: { teacherId } });
+// Balance for the picked type + what the picked dates will actually cost
+export const getLeaveApplyPreview   = (params)   => api.get('/admin/leave/apply-preview', { params });
 export const approveLeave           = (id, data) => api.post(`/admin/leave/requests/${id}/approve`, data);
 export const rejectLeave            = (id, data) => api.post(`/admin/leave/requests/${id}/reject`, data);
 export const requestLeaveModification = (id, data) => api.post(`/admin/leave/requests/${id}/modification`, data);
 export const getLeaveAllocations    = (params)   => api.get('/admin/leave/allocations', { params });
 export const allocateLeave          = (data)     => api.post('/admin/leave/allocations', data);
+// Zeroes allocated + carried-forward days, keeping used/pending history
+export const clearLeaveAllocations  = (data)     => api.post('/admin/leave/allocations/clear', data);
 export const runLeaveAccrual        = ()         => api.post('/admin/leave/accrual/run');
 export const downloadAllocationTemplate = ()     => api.get('/admin/leave/allocations/template', { responseType: 'arraybuffer' });
 export const bulkAllocateLeaveExcel = (fd)       => api.post('/admin/leave/allocations/excel', fd);

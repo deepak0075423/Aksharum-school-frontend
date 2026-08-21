@@ -6,9 +6,9 @@ import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner } from '../..
 import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
 import TeacherLeaveApprovals from './LeaveApprovals';
 import { getMyCompOff, getLeaveTypePolicies, getLeaveApprovals } from '../../api/teacher.api';
+import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const STATUS_VARIANT = {
   pending: 'warning', approved: 'success', rejected: 'danger',
@@ -153,6 +153,10 @@ export default function TeacherLeave() {
   const remaining  = selBal ? (selBal.remaining ?? Math.max(0, (selBal.totalAllocated || 0) + (selBal.carriedForward || 0) - (selBal.used || 0) - (selBal.pending || 0))) : null;
   const estDays    = estimateDays(form.fromDate, form.toDate, form.leaveMode, leaveSettings, holidaySet);
   const noWorkDays = form.leaveMode !== 'half_day' && form.fromDate && form.toDate && form.fromDate <= form.toDate && estDays === 0;
+  // The calendar's bounds come from the policy, not from a hardcoded "today" —
+  // a type that permits back-dating within N days must actually offer those days.
+  const dateBounds  = leaveDateBounds(selPolicy);
+  const dateHint    = leaveDateHint(selPolicy);
   const overBalance = remaining !== null && estDays > 0 && estDays > remaining;
   const overConsec  = selLT?.maxConsecutiveDays > 0 && estDays > selLT.maxConsecutiveDays && form.leaveMode !== 'half_day';
 
@@ -182,8 +186,12 @@ export default function TeacherLeave() {
     if (!form.toDate)               e.toDate      = 'To date is required.';
     if (form.fromDate && form.toDate && form.toDate < form.fromDate)
                                     e.toDate      = 'To date must be on or after From date.';
-    if (form.fromDate && form.fromDate < todayStr())
-                                    e.fromDate    = 'Cannot apply leave for a past date.';
+    if (form.fromDate && dateBounds.minFrom && form.fromDate < dateBounds.minFrom)
+                                    e.fromDate    = selPolicy?.allowBackdated
+                                      ? `Back-dated applications are allowed only within ${selPolicy.backdatedWithinDays} day(s).`
+                                      : selPolicy?.advanceNoticeDays > 0
+                                        ? `This leave type needs ${selPolicy.advanceNoticeDays} day(s) advance notice.`
+                                        : 'Cannot apply leave for a past date.';
     if (form.leaveMode === 'half_day' && form.fromDate && form.toDate && form.fromDate !== form.toDate)
                                     e.toDate      = 'Half-day leave must start and end on the same date.';
     if (noWorkDays)                 e.toDate      = 'The selected range has no working days (weekends / holidays only).';
@@ -417,7 +425,6 @@ export default function TeacherLeave() {
                     selPolicy.maxDaysPerMonth > 0         && `Max ${selPolicy.maxDaysPerMonth} day(s)/month`,
                     !selPolicy.allowCombineWithOtherLeaves && 'Cannot be combined with other leave types',
                     selPolicy.allowNegativeBalance && `Overdraft allowed${selPolicy.maxNegativeDays > 0 ? ` up to ${selPolicy.maxNegativeDays} day(s)` : ''}`,
-                    (selPolicy.approval?.twoLevel) && 'Needs two approvals',
                   ].filter(Boolean).join(' · ') || 'No special restrictions'}
                 </div>
               </div>
@@ -440,7 +447,7 @@ export default function TeacherLeave() {
               <label className="form-label required">From</label>
               <input
                 type="date" className={`form-control${errors.fromDate ? ' is-invalid' : ''}`}
-                required min={todayStr()} value={form.fromDate}
+                required min={dateBounds.minFrom || undefined} value={form.fromDate}
                 onChange={e => setField('fromDate', e.target.value)}
               />
               {errors.fromDate && <div style={{ color: 'var(--danger)', fontSize: '.8rem', marginTop: 4 }}>{errors.fromDate}</div>}
@@ -450,7 +457,7 @@ export default function TeacherLeave() {
               <input
                 type="date" className={`form-control${errors.toDate ? ' is-invalid' : ''}`}
                 required
-                min={form.fromDate || todayStr()}
+                min={form.fromDate || dateBounds.minFrom || undefined}
                 value={form.toDate}
                 disabled={form.leaveMode === 'half_day'}
                 onChange={e => setField('toDate', e.target.value)}
@@ -458,6 +465,7 @@ export default function TeacherLeave() {
               {errors.toDate && <div style={{ color: 'var(--danger)', fontSize: '.8rem', marginTop: 4 }}>{errors.toDate}</div>}
             </div>
           </div>
+          {dateHint && <div className="form-hint" style={{ marginTop: -8, marginBottom: 10 }}>{dateHint}</div>}
 
           {/* Day count pill */}
           {form.fromDate && form.toDate && form.fromDate <= form.toDate && (

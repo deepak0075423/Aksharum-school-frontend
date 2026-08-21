@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner, Pagination } from '../../components/ui/index';
+import { PageHeader, Table, Badge, Button, Modal, Spinner, Pagination } from '../../components/ui/index';
 import { AdminCompOff, AdminCompOffPolicy } from './CompOff';
 import AdminLeavePolicies from './LeavePolicies';
+import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -28,6 +29,8 @@ const EMPTY_ALLOC = {
   overrideDays: '',
 };
 
+const EMPTY_CLEAR = { teacherMode: 'all', checkedTeachers: [], leaveTypeId: '' };
+
 function computeProration(annualAllocation, activeAY) {
   if (!activeAY?.startDate || !activeAY?.endDate || !annualAllocation) return annualAllocation;
   const now   = new Date();
@@ -38,6 +41,34 @@ function computeProration(annualAllocation, activeAY) {
   const totalMs  = end - start;
   const remainMs = end - now;
   return Math.max(1, Math.ceil(annualAllocation * remainMs / totalMs));
+}
+
+// Explains, in one line, why the charged day count differs from the number of
+// calendar days the admin picked.
+function describeDayCount(days) {
+  if (days.sandwiched)
+    return 'Sandwich rule is on for this type — every calendar day in the range is charged, weekly offs and holidays included.';
+  const skipped = [
+    // Fractional when the school counts Saturday as a half day — so this is
+    // labelled by what it is (time not worked), not as whole days off.
+    days.weeklyOffDays > 0 && `${days.weeklyOffDays} non-working day(s) — weekly offs`,
+    days.holidayDays   > 0 && `${days.holidayDays} school holiday(s)`,
+  ].filter(Boolean);
+  return skipped.length
+    ? `Not charged: ${skipped.join(', ')}.`
+    : 'No weekly offs or holidays fall in this range.';
+}
+
+// Carry-forward almost always runs "the year that just ended" into "the year
+// now open", so that is what the pickers open on.
+function defaultCarryForward(years) {
+  if (!years?.length) return { fromYear: '', toYear: '' };
+  const activeIdx = years.findIndex(y => y.status === 'active');
+  const toIdx     = activeIdx > 0 ? activeIdx : years.length - 1;
+  return {
+    fromYear: toIdx > 0 ? years[toIdx - 1].label : '',
+    toYear:   years[toIdx].label,
+  };
 }
 
 function downloadBuffer(data, filename) {
@@ -101,6 +132,39 @@ export default function AdminLeave() {
   const [applyLoad,  setApplyLoad]  = useState(false);
   const applyDocRef = useRef();
 
+  // Live answer to "how many days does this teacher have left of this type, and
+  // what will these dates cost?" — computed server-side by the same helpers the
+  // submit uses, so the figure shown is the figure that gets charged.
+  const [preview,     setPreview]     = useState(null);
+  const [previewLoad, setPreviewLoad] = useState(false);
+
+  useEffect(() => {
+    if (!applyModal || !applyForm.teacherId || !applyForm.leaveTypeId) { setPreview(null); return; }
+    // Guard against a slow early request landing after a faster later one and
+    // painting a stale balance over the current selection.
+    let live = true;
+    setPreviewLoad(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.getLeaveApplyPreview({
+          teacherId:   applyForm.teacherId,
+          leaveTypeId: applyForm.leaveTypeId,
+          fromDate:    applyForm.fromDate || undefined,
+          toDate:      applyForm.toDate   || undefined,
+          leaveMode:   applyForm.leaveMode,
+        });
+        if (live) setPreview(res?.data ?? res);
+      } catch { if (live) setPreview(null); }
+      finally { if (live) setPreviewLoad(false); }
+    }, 250);
+    return () => { live = false; clearTimeout(timer); };
+  }, [applyModal, applyForm.teacherId, applyForm.leaveTypeId, applyForm.fromDate, applyForm.toDate, applyForm.leaveMode]);
+
+  const closeApply = () => {
+    setApplyModal(false); setApplyForm(EMPTY_APPLY); setPreview(null);
+    if (applyDocRef.current) applyDocRef.current.value = '';
+  };
+
   const handleApply = async (e) => {
     e.preventDefault();
     setApplyLoad(true);
@@ -115,8 +179,7 @@ export default function AdminLeave() {
       if (applyDocRef.current?.files?.[0]) fd.append('document', applyDocRef.current.files[0]);
       await api.adminApplyLeave(fd);
       toast.success('Leave applied');
-      setApplyModal(false); setApplyForm(EMPTY_APPLY);
-      if (applyDocRef.current) applyDocRef.current.value = '';
+      closeApply();
       refetchReq();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setApplyLoad(false); }
@@ -154,15 +217,24 @@ export default function AdminLeave() {
   const [typeLoad,  setTypeLoad]  = useState(false);
   const [delType,   setDelType]   = useState(null);
   const [delLoad,   setDelLoad]   = useState(false);
+  const [delImpact, setDelImpact] = useState(null);   // what the delete would wipe
+  const [impactLoad, setImpactLoad] = useState(false);
   const { data: typesData, refetch: refetchTypes } = useFetch(api.getLeaveTypes);
   const leaveTypes = typesData || [];
 
-  // Refetch fresh data whenever the user switches to a tab
+  // Refetch fresh data whenever the user switches to a tab.
+  //
+  // `leaveTypes` carries each type's *effective* policy — accrual, carry forward
+  // and the back-dating rules are merged into it server-side — so it goes stale
+  // the moment a policy is saved on the Policies tab. Every tab that reads a
+  // rule from it therefore refetches it, not just the Leave Types tab; without
+  // that, the Allocate and Apply forms kept showing the pre-save rules until a
+  // full page reload.
   useEffect(() => {
     if (tab === 'types')       refetchTypes();
-    if (tab === 'requests')    refetchReq();
-    if (tab === 'allocations') refetchAlloc();
-    if (tab === 'balance')     refetchAlloc();
+    if (tab === 'requests')  { refetchReq();   refetchTypes(); }
+    if (tab === 'allocations') { refetchAlloc(); refetchTypes(); }
+    if (tab === 'balance')   { refetchAlloc(); refetchTypes(); }
   }, [tab]);
 
   const openCreateType = () => { setTypeForm(EMPTY_TYPE); setEditType(null); setTypeModal(true); };
@@ -189,12 +261,28 @@ export default function AdminLeave() {
     finally { setTypeLoad(false); }
   };
 
+  // Deleting a type wipes every teacher's allocation of it, so the popup asks
+  // the server what would go first and lists it before anything is removed.
+  const openDeleteType = async (t) => {
+    setDelType(t); setDelImpact(null); setImpactLoad(true);
+    try {
+      const res = await api.getLeaveTypeImpact(t._id);
+      setDelImpact(res?.data ?? res);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+      setDelType(null);
+    } finally { setImpactLoad(false); }
+  };
+
   const handleDeleteType = async () => {
     setDelLoad(true);
     try {
-      await api.deleteLeaveType(delType._id);
-      toast.success('Leave type deleted');
-      setDelType(null); refetchTypes();
+      const res = await api.deleteLeaveType(delType._id);
+      const wiped = res?.deleted?.allocations || 0;
+      toast.success(wiped
+        ? `Leave type deleted — ${wiped} allocation(s) removed`
+        : 'Leave type deleted');
+      setDelType(null); setDelImpact(null); refetchTypes(); refetchAlloc();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setDelLoad(false); }
   };
@@ -212,7 +300,7 @@ export default function AdminLeave() {
     { key: 'actions', label: '', render: t => (
       <div style={{ display: 'flex', gap: 4 }}>
         <button className="btn btn-secondary btn-sm" onClick={() => openEditType(t)}>Edit</button>
-        <button className="btn btn-danger btn-sm"    onClick={() => setDelType(t)}>Delete</button>
+        <button className="btn btn-danger btn-sm"    onClick={() => openDeleteType(t)}>Delete</button>
       </div>
     )},
   ];
@@ -228,11 +316,14 @@ export default function AdminLeave() {
   const [importLoad,      setImportLoad]      = useState(false);
   const [allocImportModal, setAllocImportModal] = useState(false);
   const allocFileRef  = useRef();
-  const { data: allocData, refetch: refetchAlloc } = useFetch(api.getLeaveAllocations);
+  const { data: allocData, meta: allocMeta, refetch: refetchAlloc } = useFetch(api.getLeaveAllocations);
   const allocations = allocData || [];
 
-  const { data: ayData } = useFetch(api.getAcademicYears);
-  const activeAY = (ayData || []).find(ay => ay.status === 'active');
+  // Academic years ride along with the allocations payload — that endpoint is
+  // behind the leave guard, while /admin/academic-years needs full admin, so a
+  // designation-based leave admin would otherwise see empty year pickers.
+  const academicYears = allocMeta?.academicYears || [];
+  const activeAY = academicYears.find(ay => ay.status === 'active');
 
   const handleAllocate = async (e) => {
     e.preventDefault();
@@ -254,6 +345,27 @@ export default function AdminLeave() {
       setAllocModal(false); setAllocForm(EMPTY_ALLOC); refetchAlloc();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setAllocLoad(false); }
+  };
+
+  // ── Clear allocation ──────────────────────────────────────────────────────────
+  // Zeroes the allocation without erasing history: used and pending stay put,
+  // so leave already taken still reconciles.
+  const [clearModal, setClearModal] = useState(false);
+  const [clearForm,  setClearForm]  = useState(EMPTY_CLEAR);
+  const [clearLoad,  setClearLoad]  = useState(false);
+
+  const handleClearAllocations = async () => {
+    setClearLoad(true);
+    try {
+      const res = await api.clearLeaveAllocations({
+        teacherIds: clearForm.teacherMode === 'select' ? clearForm.checkedTeachers : 'all',
+        excludeIds: clearForm.teacherMode === 'except' ? clearForm.checkedTeachers : [],
+        leaveTypeId: clearForm.leaveTypeId,
+      });
+      toast.success(res?.message || 'Allocation cleared');
+      setClearModal(false); setClearForm(EMPTY_CLEAR); refetchAlloc();
+    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setClearLoad(false); }
   };
 
   const handleRunAccrual = async () => {
@@ -355,15 +467,16 @@ export default function AdminLeave() {
           <div style={{ display: 'flex', gap: 8 }}>
             {tab === 'requests' && <>
               <Button variant="secondary" onClick={handleExportRequests} loading={reqExportLoad}>Export Excel</Button>
-              <Button onClick={() => { setApplyForm(EMPTY_APPLY); setApplyModal(true); }}>+ Apply Leave</Button>
+              <Button onClick={() => { setApplyForm(EMPTY_APPLY); setPreview(null); setApplyModal(true); }}>+ Apply Leave</Button>
             </>}
             {tab === 'types'    && <Button onClick={openCreateType}>+ Add Type</Button>}
             {tab === 'allocations' && (
               <>
                 <Button variant="secondary" onClick={() => setAllocImportModal(true)}>Import Excel</Button>
-                <Button variant="secondary" onClick={() => setCfModal(true)}>Carry Forward</Button>
+                <Button variant="secondary" onClick={() => { setCfForm(defaultCarryForward(academicYears)); setCfModal(true); }}>Carry Forward</Button>
                 <Button variant="secondary" onClick={handleExportAllocations} loading={allocExportLoad}>Export Excel</Button>
                 <Button variant="secondary" onClick={handleRunAccrual} loading={accrualLoad}>Run Accrual</Button>
+                <Button variant="danger" onClick={() => { setClearForm(EMPTY_CLEAR); setClearModal(true); }}>Clear Allocation</Button>
                 <Button onClick={() => { setAllocForm(EMPTY_ALLOC); setAllocModal(true); }}>+ Allocate</Button>
               </>
             )}
@@ -386,7 +499,9 @@ export default function AdminLeave() {
       {tab === 'compoff'  && <AdminCompOff />}
 
       {/* ── Policies — one configurable rule set per leave type ── */}
-      {tab === 'policies' && <AdminLeavePolicies />}
+      {/* A saved policy changes the rules the other tabs render from, so the
+          merged type list is pulled again the moment it is written. */}
+      {tab === 'policies' && <AdminLeavePolicies onSaved={() => { refetchTypes(); refetchAlloc(); }} />}
 
       {/* ── Requests ── */}
       {tab === 'requests' && (
@@ -654,11 +769,20 @@ export default function AdminLeave() {
       </Modal>
 
       {/* ── Admin Apply Modal ── */}
-      <Modal open={applyModal} onClose={() => setApplyModal(false)} title="Apply Leave for Teacher"
+      <Modal open={applyModal} onClose={closeApply} title="Apply Leave for Teacher" maxWidth={620}
         footer={<>
-          <Button variant="secondary" onClick={() => setApplyModal(false)}>Cancel</Button>
-          <Button form="admin-apply-form" type="submit" loading={applyLoad}>Apply</Button>
+          <Button variant="secondary" onClick={closeApply}>Cancel</Button>
+          {/* Every `warning` the preview returns is a rule the POST would reject
+              outright (overlap, back-dating, eligibility), so submitting into a
+              guaranteed failure is not offered. */}
+          <Button form="admin-apply-form" type="submit" loading={applyLoad}
+            disabled={!!preview?.days?.error || preview?.sufficient === false || !!preview?.warning}>Apply</Button>
         </>}>
+        {(() => {
+        const applyLT     = leaveTypes.find(t => t._id === applyForm.leaveTypeId);
+        const applyBounds = leaveDateBounds(applyLT, { onBehalf: true });
+        const applyHint   = leaveDateHint(applyLT, { onBehalf: true });
+        return (
         <form id="admin-apply-form" onSubmit={handleApply}>
           <div className="form-group">
             <label className="form-label required">Teacher</label>
@@ -675,19 +799,84 @@ export default function AdminLeave() {
               <option value="">Select type…</option>
               {leaveTypes.filter(t => t.isActive).map(t => <option key={t._id} value={t._id}>{t.name} ({t.code})</option>)}
             </select>
+            {!applyForm.teacherId && applyForm.leaveTypeId &&
+              <div className="form-hint">Pick a teacher to see their balance for this type.</div>}
           </div>
+
+          {/* Balance for the picked teacher + type. Appears as soon as both are
+              chosen, so the admin knows what is available before picking dates. */}
+          {(previewLoad || preview) && (
+            <div style={{
+              background: 'var(--bg-muted, #f8fafc)', border: '1px solid var(--border, #e2e8f0)',
+              borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: '.85rem',
+            }}>
+              {previewLoad && !preview ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+                  <Spinner size="sm" /> Checking balance…
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                    <strong>{preview.leaveType?.name} balance</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '.78rem' }}>{preview.balance?.academicYear || '—'}</span>
+                  </div>
+                  {preview.balance?.allocated ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
+                      {[
+                        ['Allocated', (preview.balance.totalAllocated || 0) + (preview.balance.carriedForward || 0)],
+                        ['Used',      preview.balance.used],
+                        ['Pending',   preview.balance.pending],
+                        ['Available', preview.balance.remaining],
+                      ].map(([label, value], i) => (
+                        <div key={label}>
+                          <div style={{
+                            fontSize: '1.15rem', fontWeight: 700,
+                            color: i === 3 ? (value > 0 ? 'var(--success, #059669)' : 'var(--danger, #dc2626)') : 'inherit',
+                          }}>{value}</div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)' }}>
+                      No allocation for this teacher this year — <strong>0 day(s) available</strong>.
+                      {preview.leaveType?.category === 'compoff'
+                        ? ' Comp Off days are credited only when a Comp Off request is approved.'
+                        : ' Allocate this leave type first under the Allocations tab.'}
+                    </div>
+                  )}
+                  {/* Overdraft is a policy setting — say so rather than let the
+                      admin wonder why more days than "Available" go through. */}
+                  {preview.balance?.allocated && preview.balance.spendable > preview.balance.remaining && (
+                    <div style={{ marginTop: 6, fontSize: '.78rem', color: 'var(--text-muted)' }}>
+                      Policy allows applying up to {preview.balance.spendable} day(s) (negative balance permitted).
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label required">From</label>
               <input type="date" className="form-control" required value={applyForm.fromDate}
-                onChange={e => setApplyForm(f => ({ ...f, fromDate: e.target.value }))} />
+                min={applyBounds.minFrom || undefined}
+                onChange={e => {
+                  const fromDate = e.target.value;
+                  // A To date now earlier than From can only confuse — carry it
+                  // forward rather than leave an impossible range on screen.
+                  setApplyForm(f => ({ ...f, fromDate, toDate: f.toDate && f.toDate < fromDate ? fromDate : f.toDate }));
+                }} />
             </div>
             <div className="form-group">
               <label className="form-label required">To</label>
               <input type="date" className="form-control" required value={applyForm.toDate}
+                min={applyForm.fromDate || applyBounds.minFrom || undefined}
                 onChange={e => setApplyForm(f => ({ ...f, toDate: e.target.value }))} />
             </div>
           </div>
+          {applyHint && <div className="form-hint" style={{ marginTop: -6, marginBottom: 12 }}>{applyHint}</div>}
           <div className="form-group">
             <label className="form-label">Leave Mode</label>
             <select className="form-control" value={applyForm.leaveMode}
@@ -696,6 +885,36 @@ export default function AdminLeave() {
               <option value="half_day">Half Day</option>
             </select>
           </div>
+
+          {/* What the picked dates actually cost. Weekends, school holidays and
+              the type's sandwich rule all change the answer, so it comes from
+              the server rather than being guessed in the browser. */}
+          {preview?.days && (
+            <div style={{ opacity: previewLoad ? 0.5 : 1, transition: 'opacity .15s' }}>
+            {preview.days.error ? (
+              <div className="alert alert-danger" style={{ fontSize: '.85rem' }}>{preview.days.error}</div>
+            ) : (
+              <div className={`alert ${preview.sufficient === false ? 'alert-danger' : 'alert-info'}`} style={{ fontSize: '.85rem' }}>
+                <div>
+                  Applying for <strong>{preview.days.totalDays} {preview.days.leaveMode === 'half_day' ? 'day (half day)' : 'working day(s)'}</strong>
+                  {' '}out of {preview.days.calendarDays} calendar day(s).
+                </div>
+                <div style={{ marginTop: 4, fontSize: '.78rem' }}>
+                  {describeDayCount(preview.days)}
+                </div>
+                {preview.sufficient === false && (
+                  <div style={{ marginTop: 6, fontWeight: 600 }}>
+                    Insufficient balance — {preview.days.totalDays} day(s) needed, {preview.balance?.spendable} available.
+                  </div>
+                )}
+              </div>
+            )}
+            </div>
+          )}
+          {preview?.warning && !preview?.days?.error && (
+            <div className="alert alert-warning" style={{ fontSize: '.85rem' }}>{preview.warning}</div>
+          )}
+
           <div className="form-group">
             <label className="form-label required">Reason</label>
             <textarea className="form-control" rows={3} required value={applyForm.reason}
@@ -707,6 +926,7 @@ export default function AdminLeave() {
             <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>PDF, Word, or image — max 5 MB</span>
           </div>
         </form>
+        ); })()}
       </Modal>
 
       {/* ── Leave Type Modal ── */}
@@ -768,10 +988,103 @@ export default function AdminLeave() {
         </form>
       </Modal>
 
-      {/* ── Delete Type Confirm ── */}
-      <Confirm open={!!delType} onClose={() => setDelType(null)} onConfirm={handleDeleteType}
-        loading={delLoad} title="Delete Leave Type"
-        message={`Delete "${delType?.name}"? This cannot be undone.`} />
+      {/* ── Delete Type Confirm — shows exactly what goes with it ── */}
+      <Modal open={!!delType} onClose={() => { setDelType(null); setDelImpact(null); }}
+        title="Delete Leave Type" maxWidth={720}
+        footer={<>
+          <Button variant="secondary" onClick={() => { setDelType(null); setDelImpact(null); }}>Cancel</Button>
+          <Button variant="danger" onClick={handleDeleteType} loading={delLoad}
+            disabled={impactLoad || !delImpact?.canDelete}>
+            {delImpact?.allocations?.length
+              ? `Delete type & ${delImpact.allocations.length} allocation(s)`
+              : 'Delete'}
+          </Button>
+        </>}>
+        {impactLoad ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
+        ) : !delImpact ? null : (
+          <>
+            <p style={{ marginTop: 0 }}>
+              Delete <strong>{delImpact.leaveType?.name}</strong> ({delImpact.leaveType?.code})?
+            </p>
+
+            {/* The two things that stop a delete outright */}
+            {!delImpact.canDelete && (
+              <div className="alert alert-danger" style={{ fontSize: '.85rem' }}>
+                This leave type cannot be deleted — it already has history:
+                <ul style={{ margin: '6px 0 0 18px' }}>
+                  {delImpact.blockers?.applications > 0 &&
+                    <li>{delImpact.blockers.applications} leave application(s)</li>}
+                  {delImpact.blockers?.compOffRequests > 0 &&
+                    <li>{delImpact.blockers.compOffRequests} comp off request(s)</li>}
+                </ul>
+                <div style={{ marginTop: 6 }}>
+                  Mark it <strong>Inactive</strong> instead — it stops accepting new applications
+                  and the records stay intact.
+                </div>
+              </div>
+            )}
+
+            {delImpact.allocations?.length > 0 ? (
+              <>
+                <div className="alert alert-warning" style={{ fontSize: '.85rem' }}>
+                  <strong>{delImpact.teacherCount} teacher(s)</strong> currently hold days of this
+                  leave type — <strong>{delImpact.totals?.remaining} day(s)</strong> still
+                  available out of {delImpact.totals?.allocated} allocated.
+                  Deleting the type <strong>permanently removes these allocations</strong>.
+                </div>
+                <div className="table-wrap" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Teacher</th><th>Year</th><th>Allocated</th>
+                        <th>Used</th><th>Pending</th><th>Available</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {delImpact.allocations.map(a => (
+                        <tr key={a._id}>
+                          <td>
+                            {a.teacher?.name || <em style={{ color: 'var(--text-muted)' }}>Removed employee</em>}
+                            {a.teacher?.employeeId &&
+                              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{a.teacher.employeeId}</div>}
+                          </td>
+                          <td>{a.academicYear}</td>
+                          <td>{a.totalAllocated + a.carriedForward}</td>
+                          <td>{a.used}</td>
+                          <td>{a.pending}</td>
+                          <td><strong>{a.remaining}</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ fontWeight: 600 }}>
+                        <td colSpan={2}>Total</td>
+                        <td>{delImpact.totals?.allocated}</td>
+                        <td>{delImpact.totals?.used}</td>
+                        <td>{delImpact.totals?.pending}</td>
+                        <td>{delImpact.totals?.remaining}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="alert alert-info" style={{ fontSize: '.85rem' }}>
+                No teacher holds an allocation for this leave type.
+              </div>
+            )}
+
+            {delImpact.canDelete && (
+              <p style={{ color: 'var(--text-muted)', fontSize: '.82rem', marginBottom: 0 }}>
+                Also removed: this type&rsquo;s policy rules
+                {delImpact.ledgerEntries > 0 && ` and ${delImpact.ledgerEntries} ledger entr${delImpact.ledgerEntries === 1 ? 'y' : 'ies'}`}.
+                This cannot be undone.
+              </p>
+            )}
+          </>
+        )}
+      </Modal>
 
       {/* ── Allocate Modal ── */}
       {allocModal && (() => {
@@ -779,11 +1092,13 @@ export default function AdminLeave() {
         const isMonthly   = !!selLT?.monthlyAccrual?.enabled;
         const proratedDays = computeProration(selLT?.annualAllocation || 0, activeAY);
         const isMidYear   = proratedDays !== selLT?.annualAllocation && proratedDays !== 0;
+        // Mirrors the server's precedence in adminAllocate — if these two ever
+        // disagree the preview lies about what is about to be written.
         const computedDays = allocForm.overrideDays !== ''
           ? Number(allocForm.overrideDays)
           : isMonthly && !allocForm.giveFullAllocation
             ? 0
-            : allocForm.useProration && !isMonthly
+            : allocForm.useProration
               ? proratedDays
               : (selLT?.annualAllocation || 0);
         const teacherCount = allocForm.teacherMode === 'all'
@@ -804,7 +1119,16 @@ export default function AdminLeave() {
               <div className="form-group">
                 <label className="form-label required">Leave Type</label>
                 <select className="form-control" required value={allocForm.leaveTypeId}
-                  onChange={e => setAllocForm(f => ({ ...f, leaveTypeId: e.target.value, giveFullAllocation: true, useProration: false, overrideDays: '' }))}>
+                  onChange={e => {
+                    const next = leaveTypes.find(t => t._id === e.target.value);
+                    setAllocForm(f => ({
+                      ...f, leaveTypeId: e.target.value,
+                      // An accruing type defaults to the accrual path, which is
+                      // the whole point of marking it as accruing.
+                      giveFullAllocation: !next?.monthlyAccrual?.enabled,
+                      useProration: false, overrideDays: '',
+                    }));
+                  }}>
                   <option value="">Select type…</option>
                   {leaveTypes.filter(t => t.isActive).map(t => (
                     <option key={t._id} value={t._id}>{t.name} ({t.code}) — {t.annualAllocation} days/yr{t.monthlyAccrual?.enabled ? ' · monthly' : ''}</option>
@@ -892,33 +1216,36 @@ export default function AdminLeave() {
                     </span>}
                   </div>
 
-                  {isMonthly ? (
-                    <div style={{ display: 'flex', gap: 20, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 20, marginBottom: 8, flexWrap: 'wrap' }}>
+                    {/* An accruing type is allocated once — the row opens at 0
+                        and the monthly sweep tops it up from there. */}
+                    {isMonthly && (
                       <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
-                        <input type="radio" checked={!allocForm.giveFullAllocation}
-                          onChange={() => setAllocForm(f => ({ ...f, giveFullAllocation: false, overrideDays: '' }))} />
+                        <input type="radio" checked={!allocForm.giveFullAllocation && allocForm.overrideDays === ''}
+                          onChange={() => setAllocForm(f => ({ ...f, giveFullAllocation: false, useProration: false, overrideDays: '' }))} />
                         <span>Start at 0 <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>(auto-credit {selLT.monthlyAccrual.daysPerMonth}/month)</span></span>
                       </label>
+                    )}
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                      <input type="radio"
+                        checked={(!isMonthly || allocForm.giveFullAllocation) && !allocForm.useProration && allocForm.overrideDays === ''}
+                        onChange={() => setAllocForm(f => ({ ...f, giveFullAllocation: true, useProration: false, overrideDays: '' }))} />
+                      <span>{isMonthly ? `Give all ${selLT.annualAllocation} days now` : `Full (${selLT.annualAllocation} days)`}</span>
+                    </label>
+                    {/* Proration applies to accruing types too — it is the
+                        opening figure for someone starting mid-year. */}
+                    {isMidYear && (
                       <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
-                        <input type="radio" checked={allocForm.giveFullAllocation}
-                          onChange={() => setAllocForm(f => ({ ...f, giveFullAllocation: true, overrideDays: '' }))} />
-                        <span>Give all {selLT.annualAllocation} days now</span>
+                        <input type="radio" checked={allocForm.useProration && allocForm.overrideDays === ''}
+                          onChange={() => setAllocForm(f => ({ ...f, giveFullAllocation: true, useProration: true, overrideDays: '' }))} />
+                        <span>Prorated ({proratedDays} days <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>based on remaining months</span>)</span>
                       </label>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 20, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
-                        <input type="radio" checked={!allocForm.useProration && allocForm.overrideDays === ''}
-                          onChange={() => setAllocForm(f => ({ ...f, useProration: false, overrideDays: '' }))} />
-                        <span>Full ({selLT.annualAllocation} days)</span>
-                      </label>
-                      {isMidYear && (
-                        <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
-                          <input type="radio" checked={allocForm.useProration && allocForm.overrideDays === ''}
-                            onChange={() => setAllocForm(f => ({ ...f, useProration: true, overrideDays: '' }))} />
-                          <span>Prorated ({proratedDays} days <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>based on remaining months</span>)</span>
-                        </label>
-                      )}
+                    )}
+                  </div>
+                  {isMonthly && !allocForm.giveFullAllocation && allocForm.overrideDays === '' && (
+                    <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                      Allocate once — {selLT.monthlyAccrual.daysPerMonth} day(s) are credited automatically
+                      at the start of each month, up to {selLT.annualAllocation} for the year.
                     </div>
                   )}
 
@@ -935,12 +1262,127 @@ export default function AdminLeave() {
                   </div>
 
                   <div style={{ marginTop: 12, padding: '8px 14px', background: 'var(--primary)', color: '#fff', borderRadius: 4, fontSize: '.85rem' }}>
-                    Will allocate <strong>{computedDays}</strong> day(s) to <strong>{teacherCount}</strong> teacher(s)
+                    {isMonthly && computedDays === 0
+                      ? <>Will enrol <strong>{teacherCount}</strong> teacher(s) at <strong>0</strong> days, then credit <strong>{selLT.monthlyAccrual.daysPerMonth}</strong> day(s) each month</>
+                      : <>Will allocate <strong>{computedDays}</strong> day(s) to <strong>{teacherCount}</strong> teacher(s){allocForm.useProration && allocForm.overrideDays === '' ? <> (prorated from {selLT.annualAllocation})</> : null}</>}
                   </div>
                 </div>
               )}
 
             </form>
+          </Modal>
+        );
+      })()}
+
+      {/* ── Clear Allocation ── */}
+      {clearModal && (() => {
+        const selLT = leaveTypes.find(t => t._id === clearForm.leaveTypeId);
+        // The Allocations tab already holds every balance for the active year,
+        // so the exact rows about to be zeroed are known here — no need to ask
+        // the server what a clear would touch.
+        const targetIds = clearForm.teacherMode === 'all'
+          ? teacherList.map(t => t._id)
+          : clearForm.teacherMode === 'except'
+            ? teacherList.filter(t => !clearForm.checkedTeachers.includes(t._id)).map(t => t._id)
+            : clearForm.checkedTeachers;
+        const targetSet = new Set(targetIds.map(String));
+        const affected = (allocations || []).filter(a =>
+          String(a.leaveType?._id) === String(clearForm.leaveTypeId)
+          && targetSet.has(String(a.teacher?._id))
+          && ((a.totalAllocated || 0) + (a.carriedForward || 0)) > 0);
+        const daysRemoved  = affected.reduce((n, a) => n + (a.totalAllocated || 0) + (a.carriedForward || 0), 0);
+        const stillPending = affected.reduce((n, a) => n + (a.pending || 0), 0);
+
+        return (
+          <Modal open={clearModal} onClose={() => setClearModal(false)} title="Clear Allocation" maxWidth={640}
+            footer={<>
+              <Button variant="secondary" onClick={() => setClearModal(false)}>Cancel</Button>
+              <Button variant="danger" onClick={handleClearAllocations} loading={clearLoad}
+                disabled={!clearForm.leaveTypeId || affected.length === 0}>
+                {affected.length ? `Clear ${affected.length} allocation(s)` : 'Clear'}
+              </Button>
+            </>}>
+            <div className="form-group">
+              <label className="form-label required">Leave Type</label>
+              <select className="form-control" required value={clearForm.leaveTypeId}
+                onChange={e => setClearForm(f => ({ ...f, leaveTypeId: e.target.value }))}>
+                <option value="">Select type…</option>
+                {leaveTypes.map(t => <option key={t._id} value={t._id}>{t.name} ({t.code})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Teachers</label>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                {[['all', 'All Teachers'], ['select', 'Select Specific'], ['except', 'Except Specific']].map(([val, label]) => (
+                  <label key={val} style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                    <input type="radio" name="clearTeacherMode" value={val}
+                      checked={clearForm.teacherMode === val}
+                      onChange={() => setClearForm(f => ({ ...f, teacherMode: val, checkedTeachers: [] }))} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {(clearForm.teacherMode === 'select' || clearForm.teacherMode === 'except') && (
+                <div style={{ maxHeight: 170, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 0' }}>
+                  {teacherList.map(t => (
+                    <label key={t._id} style={{ display: 'flex', gap: 8, padding: '5px 10px', cursor: 'pointer', alignItems: 'center' }}>
+                      <input type="checkbox" checked={clearForm.checkedTeachers.includes(t._id)}
+                        onChange={e => setClearForm(f => ({
+                          ...f,
+                          checkedTeachers: e.target.checked
+                            ? [...f.checkedTeachers, t._id]
+                            : f.checkedTeachers.filter(id => id !== t._id),
+                        }))} />
+                      <span>{t.name}</span>
+                      {t.employeeId && <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>({t.employeeId})</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {clearForm.leaveTypeId && (affected.length === 0 ? (
+              <div className="alert alert-info" style={{ fontSize: '.85rem' }}>
+                None of the selected teachers hold any {selLT?.name} days to clear.
+              </div>
+            ) : (
+              <>
+                <div className="alert alert-warning" style={{ fontSize: '.85rem' }}>
+                  <strong>{daysRemoved} day(s)</strong> will be removed from <strong>{affected.length} teacher(s)</strong>.
+                  Days already <strong>used</strong> stay on the record — only the allocated and
+                  carried-forward figures go to 0.
+                  {selLT?.monthlyAccrual?.enabled &&
+                    ` Monthly accrual restarts from today at ${selLT.monthlyAccrual.daysPerMonth} day(s)/month.`}
+                </div>
+                {/* Pending applications were filed against days that are about to
+                    disappear — the admin should see that before confirming. */}
+                {stillPending > 0 && (
+                  <div className="alert alert-danger" style={{ fontSize: '.85rem' }}>
+                    {stillPending} day(s) are awaiting approval against this allocation. Clearing it
+                    leaves those requests with no balance behind them — approve or reject them first.
+                  </div>
+                )}
+                <div className="table-wrap" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr><th>Teacher</th><th>Allocated</th><th>Used</th><th>Pending</th><th>After clear</th></tr>
+                    </thead>
+                    <tbody>
+                      {affected.map(a => (
+                        <tr key={a._id}>
+                          <td>{a.teacher?.name || '—'}</td>
+                          <td>{(a.totalAllocated || 0) + (a.carriedForward || 0)}</td>
+                          <td>{a.used || 0}</td>
+                          <td>{a.pending || 0}</td>
+                          <td><strong>0</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ))}
           </Modal>
         );
       })()}
@@ -1037,29 +1479,72 @@ export default function AdminLeave() {
       </Modal>
 
       {/* ── Carry Forward Modal ── */}
-      <Modal open={cfModal} onClose={() => setCfModal(false)} title="Run Carry-Forward"
-        footer={<>
-          <Button variant="secondary" onClick={() => setCfModal(false)}>Cancel</Button>
-          <Button form="cf-form" type="submit" loading={cfLoad}>Run</Button>
-        </>}>
-        <form id="cf-form" onSubmit={handleCarryForward}>
-          <p style={{ color: 'var(--text-muted)', marginBottom: 12 }}>
-            Carry forward unused leave from one academic year to the next (for eligible leave types).
-          </p>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">From Year</label>
-              <input type="text" className="form-control" required value={cfForm.fromYear}
-                onChange={e => setCfForm(f => ({ ...f, fromYear: e.target.value }))} placeholder="e.g. 2024-25" />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">To Year</label>
-              <input type="text" className="form-control" required value={cfForm.toYear}
-                onChange={e => setCfForm(f => ({ ...f, toYear: e.target.value }))} placeholder="e.g. 2025-26" />
-            </div>
-          </div>
-        </form>
-      </Modal>
+      {cfModal && (() => {
+        const startOf = (label) => academicYears.find(y => y.label === label)?.startDate;
+        // A year can only receive from one that starts before it, so the two lists
+        // constrain each other rather than allowing an impossible pair. The list
+        // is sorted ascending, so the last year has nothing after it to feed.
+        const fromOptions = academicYears.slice(0, -1);
+        const toOptions   = cfForm.fromYear
+          ? academicYears.filter(y => new Date(y.startDate) > new Date(startOf(cfForm.fromYear)))
+          : academicYears;
+        const valid = !!cfForm.fromYear && !!cfForm.toYear
+          && new Date(startOf(cfForm.fromYear)) < new Date(startOf(cfForm.toYear));
+
+        return (
+          <Modal open={cfModal} onClose={() => setCfModal(false)} title="Run Carry-Forward"
+            footer={<>
+              <Button variant="secondary" onClick={() => setCfModal(false)}>Cancel</Button>
+              <Button form="cf-form" type="submit" loading={cfLoad} disabled={!valid}>Run</Button>
+            </>}>
+            <form id="cf-form" onSubmit={handleCarryForward}>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 12 }}>
+                Carry forward unused leave from one academic year to the next (for eligible leave types).
+              </p>
+              {academicYears.length < 2 ? (
+                <div className="alert alert-warning" style={{ fontSize: '.85rem' }}>
+                  Carry-forward needs at least two academic years — this school has
+                  {academicYears.length === 1 ? ' only one' : ' none'}. Add the next year first.
+                </div>
+              ) : (
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label className="form-label required">From Year</label>
+                    <select className="form-control" required value={cfForm.fromYear}
+                      onChange={e => {
+                        const fromYear = e.target.value;
+                        // Drop a To year that is no longer later than From.
+                        setCfForm(f => ({
+                          ...f, fromYear,
+                          toYear: f.toYear && new Date(startOf(f.toYear)) > new Date(startOf(fromYear)) ? f.toYear : '',
+                        }));
+                      }}>
+                      <option value="">Select year…</option>
+                      {fromOptions.map(y => (
+                        <option key={y.label} value={y.label}>{y.label}{y.status === 'active' ? ' (active)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label required">To Year</label>
+                    <select className="form-control" required value={cfForm.toYear}
+                      disabled={!cfForm.fromYear}
+                      onChange={e => setCfForm(f => ({ ...f, toYear: e.target.value }))}>
+                      <option value="">{cfForm.fromYear ? 'Select year…' : 'Pick a From year first'}</option>
+                      {toOptions.map(y => (
+                        <option key={y.label} value={y.label}>{y.label}{y.status === 'active' ? ' (active)' : ''}</option>
+                      ))}
+                    </select>
+                    {cfForm.fromYear && toOptions.length === 0 && (
+                      <div className="form-error">No academic year starts after {cfForm.fromYear}.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </form>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

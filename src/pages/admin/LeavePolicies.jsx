@@ -61,7 +61,7 @@ const CheckList = ({ label, options, selected = [], onChange, empty }) => (
   </div>
 );
 
-export default function AdminLeavePolicies() {
+export default function AdminLeavePolicies({ onSaved }) {
   const { data, loading, refetch } = useFetch(() => api.getLeavePolicies());
   const [selected, setSelected] = useState(null);   // leaveType id
   const [form, setForm] = useState(null);
@@ -96,6 +96,9 @@ export default function AdminLeavePolicies() {
       await api.updateLeavePolicy(selected, form);
       toast.success(`${form.leaveType?.name} policy saved`);
       refetch();
+      // The parent renders the allocation and apply forms from the merged type
+      // list, which this save just invalidated.
+      onSaved?.();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setSaving(false); }
   };
@@ -110,6 +113,9 @@ export default function AdminLeavePolicies() {
     );
   }
 
+  // The server refuses accrual that credits nothing, so the form does not offer
+  // to submit it.
+  const accrualInvalid = !!form?.monthlyAccrual?.enabled && !(form.monthlyAccrual.daysPerMonth > 0);
   const isCompOff = form?.leaveType?.category === 'compoff';
   const otherTypes = leaveTypes.filter(t => t._id !== selected);
 
@@ -157,7 +163,7 @@ export default function AdminLeavePolicies() {
                     : 'Running on defaults — saving will pin these rules for this leave type.'}
                 </p>
               </div>
-              <Button type="submit" loading={saving}>Save Policy</Button>
+              <Button type="submit" loading={saving} disabled={accrualInvalid}>Save Policy</Button>
             </div>
           </div>
 
@@ -267,12 +273,26 @@ export default function AdminLeavePolicies() {
               <>
                 <Toggle label="Accrue monthly instead of allocating up front"
                   checked={form.monthlyAccrual?.enabled}
-                  onChange={v => setIn('monthlyAccrual', { enabled: v })}
+                  onChange={v => setIn('monthlyAccrual', {
+                    enabled: v,
+                    // Turning accrual on with 0 days a month is a rule that does
+                    // nothing, so seed a sensible figure from the annual
+                    // entitlement rather than leave it at a silent no-op.
+                    daysPerMonth: v && !(form.monthlyAccrual?.daysPerMonth > 0)
+                      ? Math.round(((form.leaveType?.annualAllocation || 0) / 12) * 2) / 2
+                      : form.monthlyAccrual?.daysPerMonth,
+                  })}
                   hint="The balance starts at 0 and is topped up each month, capped at the annual allocation" />
                 {form.monthlyAccrual?.enabled && (
                   <div style={{ maxWidth: 260 }}>
                     <Num label="Days accrued per month" value={form.monthlyAccrual?.daysPerMonth}
                       onChange={v => setIn('monthlyAccrual', { daysPerMonth: v })} step={0.5} />
+                    {!(form.monthlyAccrual?.daysPerMonth > 0) && (
+                      <div className="form-error">
+                        Must be greater than 0 — accrual crediting 0 days a month would never
+                        add anything to the balance.
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -330,9 +350,6 @@ export default function AdminLeavePolicies() {
                 onChange={v => setIn('approval', { approverDesignations: v })}
                 empty="No designations configured" />
             )}
-            <Toggle label="Require two sign-offs" checked={form.approval?.twoLevel}
-              onChange={v => setIn('approval', { twoLevel: v })}
-              hint="The second approver must be a different person; the leave is not approved and no balance moves until both have signed" />
           </Section>
 
           <Section title="Availability">
@@ -342,7 +359,7 @@ export default function AdminLeavePolicies() {
           </Section>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
-            <Button type="submit" loading={saving}>Save Policy</Button>
+            <Button type="submit" loading={saving} disabled={accrualInvalid}>Save Policy</Button>
           </div>
         </form>
       )}
