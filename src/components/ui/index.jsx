@@ -68,14 +68,30 @@ export const Badge = ({ children, variant = 'primary' }) => (
 );
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
+//
+// The background scroll lock is COUNTED, not saved-and-restored per modal.
+// Modals stack — a confirmation sits on top of the form it is guarding — and
+// with a per-modal `prev` the inner one captures the outer one's 'hidden'. When
+// both close in the same commit React runs the destroys in tree order, so the
+// outer clears the lock and the inner then puts 'hidden' straight back, leaving
+// the page permanently unscrollable. Counting is order-independent.
+let openModalCount = 0;
+let overflowBeforeFirstModal = '';
+
 export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }) => {
   // Hold the background still while a modal is up, so closing it doesn't leave
   // the page scrolled somewhere the user never went.
   React.useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    if (!open) return undefined;
+    if (openModalCount === 0) {
+      overflowBeforeFirstModal = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    openModalCount += 1;
+    return () => {
+      openModalCount -= 1;
+      if (openModalCount === 0) document.body.style.overflow = overflowBeforeFirstModal;
+    };
   }, [open]);
 
   if (!open) return null;

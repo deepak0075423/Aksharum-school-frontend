@@ -5,6 +5,7 @@ import * as api from '../../api/admin.api';
 import { toggleStudent } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import StudentForm from './StudentForm';
+import { saveFile, saveBase64 } from '../../utils/downloadFile';
 
 export default function Students() {
   const [page, setPage]     = useState(1);
@@ -23,6 +24,8 @@ export default function Students() {
   const [bulkFile, setBulkFile]     = useState(null);
   const [bulkLoading, setBulkLoad]  = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
+  const [errorsSaved, setErrorsSaved] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   // { total, current, currentName, created, errorCount, errors, done }
   const bulkFileRef = useRef(null);
 
@@ -33,6 +36,22 @@ export default function Students() {
 
   const openCreate = () => { setEditing(null); setFormOpen(true); };
   const openEdit   = (r) => { setEditing(r);   setFormOpen(true); };
+
+  const resetBulk = () => {
+    setBulkModal(false); setBulkProgress(null); setBulkFile(null);
+    setErrorsSaved(false); setConfirmClose(false);
+  };
+  // The failed-row sheet is built once, inside the import response, and is not
+  // stored anywhere — so closing without saving it silently throws away the only
+  // record of what went wrong. Warn before that happens.
+  const closeBulk = () => {
+    if (bulkProgress?.errorFile && !errorsSaved) { setConfirmClose(true); return; }
+    resetBulk();
+  };
+  const saveErrorSheet = () => {
+    saveBase64(bulkProgress.errorFile.base64, bulkProgress.errorFile.filename);
+    setErrorsSaved(true);
+  };
 
   const handleBulkImport = async (e) => {
     e.preventDefault();
@@ -79,7 +98,8 @@ export default function Students() {
               errors:     evt.success ? p.errors : [...p.errors, { row: evt.row, name: evt.name, reason: evt.reason }],
             }));
           } else if (evt.type === 'done') {
-            setBulkProgress(p => ({ ...p, done: true }));
+            // The failed rows come back as a ready-to-correct sheet, not just a list.
+            setBulkProgress(p => ({ ...p, done: true, errorFile: evt.errorFile ?? null }));
             // A re-uploaded sheet updates the students it already created, so
             // both counts are "imported" as far as the admin is concerned.
             const created = (evt.created ?? 0) + (evt.updated ?? 0);
@@ -100,10 +120,7 @@ export default function Students() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const buffer = await api.downloadStudentTemplate();
-      const url = URL.createObjectURL(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-      const a = document.createElement('a'); a.href = url; a.download = 'student-template.xlsx'; a.click();
-      URL.revokeObjectURL(url);
+      saveFile(await api.downloadStudentTemplate(), 'student-template.xlsx');
     } catch { toast.error('Failed to download template'); }
   };
 
@@ -153,7 +170,7 @@ export default function Students() {
       <PageHeader title="Students" subtitle={`${data?.total ?? 0} students`}
         action={
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" type="button" onClick={() => { setBulkModal(true); setBulkProgress(null); setBulkFile(null); }}>Bulk Import</Button>
+            <Button variant="secondary" type="button" onClick={() => { resetBulk(); setBulkModal(true); }}>Bulk Import</Button>
             <Button type="button" onClick={openCreate}>+ Add Student</Button>
           </div>
         } />
@@ -246,13 +263,13 @@ export default function Students() {
       )}
 
       {/* ══ Bulk Import Modal ════════════════════════════════════════════════ */}
-      <Modal open={bulkModal && !bulkLoading} onClose={() => { setBulkModal(false); setBulkProgress(null); setBulkFile(null); }} title="Bulk Import Students" maxWidth={520}
+      <Modal open={bulkModal && !bulkLoading} onClose={closeBulk} title="Bulk Import Students" maxWidth={520}
         footer={
           bulkProgress?.done ? (
-            <Button onClick={() => { setBulkModal(false); setBulkProgress(null); setBulkFile(null); }}>Close</Button>
+            <Button onClick={closeBulk}>Close</Button>
           ) : (
             <>
-              <Button variant="secondary" onClick={() => { setBulkModal(false); setBulkProgress(null); setBulkFile(null); }}>Cancel</Button>
+              <Button variant="secondary" onClick={closeBulk}>Cancel</Button>
               <Button form="bulk-import-form" type="submit" loading={bulkLoading}>Import</Button>
             </>
           )
@@ -278,6 +295,21 @@ export default function Students() {
                     <span style={{ color: 'var(--danger)' }}>{e.reason}</span>
                   </div>
                 ))}
+              </div>
+            )}
+            {bulkProgress.errorFile && (
+              <div style={{ marginTop: 12 }}>
+                <Button variant="secondary" style={{ width: '100%' }}
+                  onClick={saveErrorSheet}>
+                  Download the {bulkProgress.errorFile.rows} failed row{bulkProgress.errorFile.rows !== 1 ? 's' : ''} (.xlsx)
+                </Button>
+                <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0, lineHeight: 1.6 }}>
+                  That file is your own sheet with just these rows and an <strong>Error</strong> column saying
+                  what stopped each one. Fix them there and upload the same file again — the rows that
+                  already imported are not in it.
+                  {bulkProgress.errorFile.total > bulkProgress.errorFile.rows
+                    && ` Showing the first ${bulkProgress.errorFile.rows} of ${bulkProgress.errorFile.total} failures.`}
+                </p>
               </div>
             )}
           </div>
@@ -310,6 +342,26 @@ export default function Students() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Rendered after the import modal on purpose: both portal to <body>, so
+          the later one stacks on top of it. */}
+      <Modal open={confirmClose} onClose={() => setConfirmClose(false)}
+        title="Download the failed rows first?" maxWidth={440}
+        footer={
+          <>
+            <Button variant="secondary" onClick={resetBulk}>Close anyway</Button>
+            <Button onClick={() => { saveErrorSheet(); resetBulk(); }}>Download &amp; Close</Button>
+          </>
+        }>
+        <p style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
+          <strong style={{ color: 'var(--text)' }}>
+            {bulkProgress?.errorFile?.rows} row{bulkProgress?.errorFile?.rows !== 1 ? 's' : ''} did not import.
+          </strong>{' '}
+          The sheet listing them — with the reason against each row — has not been downloaded, and
+          the server does not keep a copy. Close now and the only way to see those rows again is to
+          run the whole import a second time.
+        </p>
       </Modal>
     </div>
   );
