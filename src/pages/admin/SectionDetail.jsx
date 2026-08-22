@@ -238,6 +238,22 @@ export default function SectionDetail() {
     (sst || []).filter(r => r.subject?._id === subjectForm.subject).map(r => r.teacher?._id).filter(Boolean)
   );
   const subjectTeachers = (selectedSubject?.teachers || []).filter(t => !alreadyAssigned.has(t._id));
+
+  /**
+   * "Anita Sharma — Maths 3 · Science 2 · total 5"
+   *
+   * The subject being assigned comes first, so the number that matters for this
+   * decision is the one right after the name. A teacher with nothing yet is
+   * labelled as such rather than left looking the same as a loaded one.
+   */
+  const teacherLabel = (teacher) => {
+    const load = teacherOpts?.load?.[teacher._id];
+    if (!load?.bySubject?.length) return `${teacher.name} — no classes yet`;
+    const here  = load.bySubject.filter(x => x.subject === subjectForm.subject);
+    const other = load.bySubject.filter(x => x.subject !== subjectForm.subject);
+    const parts = [...here, ...other].map(x => `${x.subjectName} ${x.sections}`);
+    return `${teacher.name} — ${parts.join(' · ')} · total ${load.total}`;
+  };
   const enrolled = section?.enrolledStudents || [];
   const rollsAssigned = !!section?.rollNumbersAssignedAt;
 
@@ -495,7 +511,7 @@ export default function SectionDetail() {
                   disabled={!subjectForm.subject}>
                   <option value="">— Choose teacher —</option>
                   {subjectTeachers.map(t => (
-                    <option key={t._id} value={t._id}>{t.name}</option>
+                    <option key={t._id} value={t._id}>{teacherLabel(t)}</option>
                   ))}
                 </select>
             }

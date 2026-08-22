@@ -525,12 +525,17 @@ export default function TimetableGenerate() {
                                 ? sub.teachers.map(t => t.name).join(', ')
                                 : <span style={{ color: 'var(--danger)' }}>none assigned</span>}
                             </span>
+                          ) : !sub.teachers.length ? (
+                            <span style={{ fontSize: '.78rem', color: 'var(--danger)' }}
+                              title="Assign a subject teacher for this section first — Sections → this section → Subjects">
+                              no teacher assigned for this subject
+                            </span>
                           ) : (
                             <select className="form-control" style={{ fontSize: '.8rem', padding: '4px 6px' }}
                               value={rules[sub._id]?.teacher || ''}
                               onChange={e => patchRule(sub._id, { teacher: e.target.value || null })}>
                               <option value="">No teacher</option>
-                              {(meta?.teachers || []).map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                              {sub.teachers.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
                             </select>
                           )}
                         </td>
@@ -645,7 +650,7 @@ export default function TimetableGenerate() {
         <SubjectRules
           subject={subjects.find(x => x._id === tuning)}
           rule={rules[tuning]}
-          teachers={meta?.teachers || []}
+          teachers={subjects.find(x => x._id === tuning)?.teachers || []}
           rooms={meta?.rooms || []}
           workingDays={plan?.capacity?.days || DAYS}
           perSectionTeachers={allSections}
@@ -766,7 +771,11 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, periodsPerD
               {t.name}
             </label>
           ))}
-          {!teachers.length && <span style={{ fontSize: '.78rem', color: 'var(--text-light)' }}>No teachers yet</span>}
+          {!teachers.length && (
+            <span style={{ fontSize: '.78rem', color: 'var(--text-light)' }}>
+              No one is assigned to teach this subject in these sections
+            </span>
+          )}
         </div>
         <div className="form-hint">Used when the primary teacher is unavailable or already at their limit.</div>
       </div>
