@@ -51,6 +51,10 @@ export default function TimetableGenerate() {
   const [progress, setProgress] = useState(null);   // { status, progress, stats, errorCount… }
   const [versionId, setVersionId] = useState(null);
   const [conflicts, setConflicts] = useState([]);
+  // Sections taught a subject together — one teacher, one room, one lesson.
+  const [sectionMerges, setSectionMerges] = useState([]);
+  const [mergeDraft, setMergeDraft] = useState({ subject: '', sections: [] });
+  const [mergeBusy, setMergeBusy] = useState(false);
   const pollRef = useRef(null);
 
   /* ── Load dropdown data ────────────────────────────────────────────────── */
@@ -78,9 +82,49 @@ export default function TimetableGenerate() {
   ), [allSections, sectionId, sectionsOfSelected]);
   const scopeCount = scopeSectionIds.length;
 
+  const reloadMerges = async () => {
+    try {
+      const m = await api.getMerges({
+        yearId: yearId || undefined,
+        sectionIds: sectionsOfSelected.map(x => x._id).join(','),
+      });
+      setSectionMerges(m.data ?? m ?? []);
+    } catch { /* the list simply stays as it was */ }
+  };
+
+  const addMerge = async () => {
+    if (!mergeDraft.subject) return toast.error('Pick the subject to merge');
+    if (mergeDraft.sections.length < 2) return toast.error('Pick at least two sections');
+    setMergeBusy(true);
+    try {
+      const res = await api.saveMerge({
+        yearId: yearId || undefined,
+        subject: mergeDraft.subject,
+        sections: mergeDraft.sections,
+      });
+      const saved = res.data ?? res;
+      toast.success(saved?.replaced
+        ? 'Merged — an overlapping merge for this subject was replaced'
+        : 'Sections merged');
+      setMergeDraft({ subject: '', sections: [] });
+      await reloadMerges();
+    } catch (e) { toast.error(e.message); }
+    finally { setMergeBusy(false); }
+  };
+
+  const removeMerge = async (id) => {
+    setMergeBusy(true);
+    try { await api.deleteMerge(id); await reloadMerges(); toast.success('Merge removed'); }
+    catch (e) { toast.error(e.message); }
+    finally { setMergeBusy(false); }
+  };
+
   /* ── The class's subjects + what the week can actually hold ────────────── */
   useEffect(() => {
-    if (!classId || !scopeCount) { setPlan(null); setRules({}); setMerges({}); setPicked([]); setTuning(null); return; }
+    if (!classId || !scopeCount) {
+      setPlan(null); setRules({}); setMerges({}); setPicked([]); setTuning(null); setSectionMerges([]);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setPlanLoading(true);
@@ -93,6 +137,15 @@ export default function TimetableGenerate() {
         setMerges(Object.fromEntries(d.subjects.filter(s => s.mergeGroup).map(s => [s._id, s.mergeGroup])));
         setPicked([]);
         setTuning(null);
+        // Merges are per year, not per run: a merge set up while generating one
+        // section must still be there when the next section is generated.
+        try {
+          const m = await api.getMerges({
+            yearId: yearId || undefined,
+            sectionIds: sectionsOfSelected.map(x => x._id).join(','),
+          });
+          if (!cancelled) setSectionMerges(m.data ?? m ?? []);
+        } catch { if (!cancelled) setSectionMerges([]); }
       } catch (e) {
         if (!cancelled) { setPlan(null); setRules({}); setMerges({}); toast.error(e.message); }
       } finally {
@@ -433,7 +486,92 @@ export default function TimetableGenerate() {
       </Card>
 
       <Card
-        title="2 · Subjects & Weekly Periods"
+        title="2 · Combined Classes"
+        action={sectionMerges.length
+          ? <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{sectionMerges.length} merged</span>
+          : null}
+      >
+        <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginTop: 0 }}>
+          Sections that sit together for a subject — one teacher, one room, one lesson, at the same time
+          in every section&rsquo;s grid. Merges belong to the academic year, so one set up here still
+          applies when you generate the other sections later, on their own.
+        </p>
+
+        {!classId || !scopeCount ? (
+          <Alert variant="info">Pick a class first.</Alert>
+        ) : (
+          <>
+            {sectionMerges.length > 0 && (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 12 }}>
+                {sectionMerges.map(m => (
+                  <div key={m._id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                    borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: '.82rem', flex: 1 }}>
+                      <strong>{m.subjectName}</strong>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {' '}— {m.sections.map(x => x.label).join('  +  ')}
+                      </span>
+                      {m.teacherName && <span style={{ color: 'var(--text-muted)' }}> · {m.teacherName}</span>}
+                      {m.roomName && <span style={{ color: 'var(--text-muted)' }}> · {m.roomName}</span>}
+                    </span>
+                    <button className="btn btn-secondary btn-sm" disabled={mergeBusy}
+                      onClick={() => removeMerge(m._id)}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ marginBottom: 0, minWidth: 200 }}>
+                <label className="form-label">Subject</label>
+                <select className="form-control" value={mergeDraft.subject}
+                  onChange={e => setMergeDraft(d => ({ ...d, subject: e.target.value }))}>
+                  <option value="">— Choose —</option>
+                  {subjects.map(sub => (
+                    <option key={sub._id} value={sub._id}>{sub.subjectName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 240 }}>
+                <label className="form-label">Sections that sit together</label>
+                <div style={{
+                  display: 'flex', gap: 12, flexWrap: 'wrap', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', padding: '9px 10px',
+                }}>
+                  {sectionsOfSelected.map(sec => (
+                    <label key={sec._id} style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: '.82rem' }}>
+                      <input type="checkbox" checked={mergeDraft.sections.includes(sec._id)}
+                        onChange={() => setMergeDraft(d => ({
+                          ...d,
+                          sections: d.sections.includes(sec._id)
+                            ? d.sections.filter(x => x !== sec._id)
+                            : [...d.sections, sec._id],
+                        }))} />
+                      {sec.sectionName}
+                    </label>
+                  ))}
+                  {!sectionsOfSelected.length && (
+                    <span style={{ fontSize: '.78rem', color: 'var(--text-light)' }}>This class has no sections</span>
+                  )}
+                </div>
+              </div>
+              <Button variant="secondary" onClick={addMerge} loading={mergeBusy}
+                disabled={!mergeDraft.subject || mergeDraft.sections.length < 2}>
+                Merge
+              </Button>
+            </div>
+            <div className="form-hint" style={{ marginTop: 6 }}>
+              The teacher is whoever is assigned to the subject in every merged section. Leave the sections
+              teaching it separately to schedule them independently.
+            </div>
+          </>
+        )}
+      </Card>
+
+      <Card
+        title="3 · Subjects & Weekly Periods"
         action={plan && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '.8rem' }}>
             <span style={{ color: 'var(--text-muted)' }}>Available</span>
@@ -617,7 +755,7 @@ export default function TimetableGenerate() {
         )}
       </Card>
 
-      <Card title="3 · Optimisation Options">
+      <Card title="4 · Optimisation Options">
         <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 0 }}>
           Hard rules (no teacher/class/room clash, availability, weekly requirements, lab rooms) are always enforced.
           These control what the optimiser tries to improve afterwards.

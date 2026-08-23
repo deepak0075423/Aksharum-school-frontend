@@ -121,13 +121,14 @@ export const headCell = {
  * One period card. Draggable when `onDragStart` is supplied — the whole
  * drag-and-drop layer is native HTML5, no extra library.
  */
-export function PeriodCard({ subject, teacher, room, tone, draggable, onDragStart, onClick, dim, locked, manual }) {
+export function PeriodCard({ subject, teacher, room, tone, draggable, onDragStart, onClick, dim, locked, manual, withSections }) {
   return (
     <div
       draggable={!!draggable}
       onDragStart={onDragStart}
       onClick={onClick}
-      title={[subject, teacher, room].filter(Boolean).join(' · ')}
+      title={[subject, teacher, room, withSections && `together with ${withSections}`]
+        .filter(Boolean).join(' · ')}
       style={{
         background: tone.bg,
         border: `1px solid ${tone.br}`,
@@ -147,6 +148,11 @@ export function PeriodCard({ subject, teacher, room, tone, draggable, onDragStar
       </div>
       {teacher && <div style={{ fontSize: '.66rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{teacher}</div>}
       {room && <div style={{ fontSize: '.63rem', color: 'var(--text-light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {room}</div>}
+      {withSections && (
+        <div style={{ fontSize: '.63rem', color: tone.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          🔗 with {withSections}
+        </div>
+      )}
     </div>
   );
 }

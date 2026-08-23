@@ -227,7 +227,6 @@ export default function TimetableConfiguration() {
         <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
           {[
             ['hardTeacherDailyLimit',   'Teacher daily limit is a hard rule'],
-            ['enforceRoomCapacity',     'A class is never placed in a room too small for it'],
             ['enforceTeacherQualified', 'Only teachers assigned to a subject may teach it'],
           ].map(([key, label]) => (
             <label key={key} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '.85rem' }}>

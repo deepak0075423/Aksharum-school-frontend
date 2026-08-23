@@ -48,6 +48,7 @@ const TTVersions      = lazy(() => import('./pages/timetable/admin/Versions'));
 const TTVersionDetail = lazy(() => import('./pages/timetable/admin/VersionDetail'));
 const TTAvailability  = lazy(() => import('./pages/timetable/admin/Availability'));
 const TTRooms         = lazy(() => import('./pages/timetable/admin/Rooms'));
+const TTReports       = lazy(() => import('./pages/timetable/admin/Reports'));
 const TTConfiguration = lazy(() => import('./pages/timetable/admin/Configuration'));
 const ASubstitutions  = lazy(() => import('./pages/admin/Substitutions'));
 const ANotifications= lazy(() => import('./pages/admin/Notifications'));
@@ -373,6 +374,7 @@ export default function App() {
               <Route path="versions/:id"      element={<TTVersionDetail />} />
               <Route path="availability"      element={<TTAvailability />} />
               <Route path="rooms"             element={<TTRooms />} />
+              <Route path="reports"           element={<TTReports />} />
               <Route path="configuration"     element={<TTConfiguration />} />
             </Route>
             <Route path="notifications"   element={<ANotifications />} />

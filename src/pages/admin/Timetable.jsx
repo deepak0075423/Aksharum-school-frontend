@@ -9,7 +9,7 @@ import {
   getSectionSubjectTeachers, getTimetableTeachers,
   downloadSectionTimetable, downloadAllTimetables,
 } from '../../api/admin.api';
-import { PageHeader, Spinner } from '../../components/ui/index';
+import { PageHeader, Spinner, Modal, Button } from '../../components/ui/index';
 
 const DAYS      = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
@@ -344,7 +344,11 @@ export default function AdminTimetable() {
   };
 
   /* ── Save all entries ──────────────────────────────────────────────────── */
-  const handleSave = async () => {
+  // The server now refuses a save that would break the timetable. It hands back
+  // what is wrong; this holds it while the admin decides to fix or override.
+  const [blocked, setBlocked] = useState(null);   // { conflicts, entries }
+
+  const handleSave = async (force = false) => {
     if (!selectedSection) return;
     setSaving(true);
     try {
@@ -360,14 +364,22 @@ export default function AdminTimetable() {
           });
         });
       });
-      const res = await saveTimetableEntries(selectedSection._id, { entries, yearId: selectedYearId || undefined });
+      const res = await saveTimetableEntries(selectedSection._id, {
+        entries, yearId: selectedYearId || undefined, ...(force ? { force: true } : {}),
+      });
       if (res?.data?.timetableId && !ttId) setTtId(String(res.data.timetableId));
-      if (res?.data?.conflicts?.length) {
-        toast.error(`Saved — ${res.data.conflicts.length} teacher conflict(s) detected`);
+      setBlocked(null);
+      const warnings = (res?.data?.conflicts || []).filter(c => c.severity === 'warning');
+      if (force) toast.success('Saved with conflicts');
+      else if (warnings.length) toast.success(`Saved — ${warnings.length} thing(s) worth checking`);
+      else toast.success('Timetable saved');
+    } catch (e) {
+      if (e?.status === 409 && e?.data?.data?.conflicts) {
+        setBlocked({ conflicts: e.data.data.conflicts });
       } else {
-        toast.success('Timetable saved');
+        toast.error(e?.data?.message || e?.message || 'Could not save');
       }
-    } catch (e) { toast.error(e?.response?.data?.message || e.message); }
+    }
     finally { setSaving(false); }
   };
 
@@ -686,7 +698,7 @@ export default function AdminTimetable() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-secondary btn-sm" onClick={() => setCellData({})}>Clear</button>
                   <button className="btn btn-secondary btn-sm" onClick={openGenerate} title="Rough scratch fill for this one section. For a conflict-free school-wide timetable use the Generate tab.">⚡ Quick Fill</button>
-                  <button className="btn btn-primary btn-sm" disabled={saving} onClick={handleSave}>
+                  <button className="btn btn-primary btn-sm" disabled={saving} onClick={() => handleSave(false)}>
                     {saving ? 'Saving…' : 'Save Timetable'}
                   </button>
                 </div>
@@ -743,6 +755,33 @@ export default function AdminTimetable() {
           )}
         </>
       )}
+
+      {/* The save the server refused, and why. */}
+      <Modal open={!!blocked} onClose={() => setBlocked(null)} title="This timetable has conflicts" maxWidth={560}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setBlocked(null)}>Go back and fix</Button>
+            <Button variant="danger" loading={saving} onClick={() => handleSave(true)}>Save anyway</Button>
+          </>
+        }>
+        <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '.88rem' }}>
+          Saving as it stands would double-book a teacher or a room. Fix the periods below, or override
+          if you know something the timetable does not.
+        </p>
+        <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+          {(blocked?.conflicts || []).map((c, i) => (
+            <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
+              <span style={{
+                fontWeight: 700,
+                color: c.severity === 'error' ? 'var(--danger)' : '#b45309',
+              }}>
+                {c.dayOfWeek} P{c.periodNumber}
+              </span>
+              <span style={{ color: 'var(--text-muted)' }}> — {c.message}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
 
       {/* ══ CELL EDIT MODAL ═══════════════════════════════════════════════ */}
       {editModal && (
@@ -828,7 +867,9 @@ function GridCell({ cell }) {
               </div>
             ))}
             {(cell.mergedSections || []).length > 0 && (
-              <div style={{ fontSize: '.65rem', color: 'var(--primary)', marginTop: 1 }}>🔗 merged</div>
+              <div style={{ fontSize: '.65rem', color: 'var(--primary)', marginTop: 1 }}>
+                🔗 with {cell.mergedSections.map(m => m.sectionName || m).join(', ')}
+              </div>
             )}
           </>
       }

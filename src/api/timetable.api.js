@@ -20,6 +20,21 @@ export const createRoom   = (data)   => api.post(`${base}/rooms`, data);
 export const updateRoom   = (id, d)  => api.put(`${base}/rooms/${id}`, d);
 export const deleteRoom   = (id)     => api.delete(`${base}/rooms/${id}`);
 
+// ── Reports over the published week ───────────────────────────────────────────
+export const getTeacherWorkload  = (yearId) => api.get(`${base}/reports/teacher-workload`, { params: yearId ? { yearId } : {} });
+export const getRoomUtilisation  = (yearId) => api.get(`${base}/reports/room-utilisation`, { params: yearId ? { yearId } : {} });
+
+// ── Carry a year's plan into the next one ─────────────────────────────────────
+// Without `apply` this only reports what would happen.
+export const carryForward = (data) => api.post(`${base}/carry-forward`, data);
+
+// ── Merge groups ──────────────────────────────────────────────────────────────
+// Sections taught a subject together: one teacher, one room, one lesson.
+export const getMerges   = (params)  => api.get(`${base}/merges`, { params });
+export const saveMerge   = (data)    => api.post(`${base}/merges`, data);
+export const updateMerge = (id, d)   => api.put(`${base}/merges/${id}`, d);
+export const deleteMerge = (id)      => api.delete(`${base}/merges/${id}`);
+
 // ── Teacher availability ──────────────────────────────────────────────────────
 export const getAvailability  = (yearId)        => api.get(`${base}/availability`, { params: yearId ? { yearId } : {} });
 export const saveAvailability = (teacherId, d)  => api.put(`${base}/availability/${teacherId}`, d);
@@ -33,7 +48,9 @@ export const getConflicts   = (id, p)     => api.get(`${base}/versions/${id}/con
 export const updateVersion  = (id, d)     => api.put(`${base}/versions/${id}`, d);
 export const deleteVersion  = (id)        => api.delete(`${base}/versions/${id}`);
 export const validateVersion = (id)       => api.post(`${base}/versions/${id}/validate`);
-export const publishVersion  = (id)       => api.post(`${base}/versions/${id}/publish`);
+export const publishVersion  = (id, body) => api.post(`${base}/versions/${id}/publish`, body || {});
+// What publishing would overwrite in the live grid, before committing to it.
+export const publishPreview  = (id)       => api.get(`${base}/versions/${id}/publish-preview`);
 export const regenerate      = (id, d)    => api.post(`${base}/versions/${id}/regenerate`, d);
 export const duplicateVersion = (id, d)   => api.post(`${base}/versions/${id}/duplicate`, d);
 export const restoreVersion   = (id)      => api.post(`${base}/versions/${id}/restore`);

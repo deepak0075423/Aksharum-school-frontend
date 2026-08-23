@@ -200,6 +200,7 @@ export const TIMETABLE_ADMIN_TABS = [
   { to: '/admin/timetable/versions',     label: '🗂 Versions' },
   { to: '/admin/timetable/availability', label: '🧑‍🏫 Teacher Availability' },
   { to: '/admin/timetable/rooms',        label: '🚪 Rooms' },
+  { to: '/admin/timetable/reports',      label: '📊 Reports' },
   { to: '/admin/timetable/configuration', label: '⚙️ Configuration' },
 ];
 

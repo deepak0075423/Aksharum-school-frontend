@@ -172,6 +172,8 @@ export default function TimetableVersionDetail() {
   const uniqJoin = (values, sep) => [...new Set(values.filter(Boolean))].join(sep);
   const slot = {
     isMerged: (e) => !!(e.additionalSubjects || []).length,
+    // The other sections sitting in this same lesson.
+    withSections: (e) => (e.mergedSections || []).map(nameOf.section).filter(Boolean).join(', '),
     subject: (e) => uniqJoin([e.subject, ...(e.additionalSubjects || []).map(m => m.subject)]
       .map(nameOf.subject), ' + '),
     teacher: (e) => uniqJoin([e.teacher, ...(e.additionalSubjects || []).map(m => m.teacher)]
@@ -265,19 +267,37 @@ export default function TimetableVersionDetail() {
     else setView('conflicts');
   };
 
-  const doPublish = async () => {
+  // Publishing reprojects every section from this draft, so anything typed into
+  // the LIVE grid since the last publish is about to go. The server refuses
+  // until that is acknowledged; this holds the list while the admin decides.
+  const [liveEdits, setLiveEdits] = useState(null);
+  const [outside, setOutside] = useState(null);
+
+  const doPublish = async (overwriteLiveEdits = false) => {
     setBusy(true);
     try {
-      const res = await api.publishVersion(id);
+      const res = await api.publishVersion(id, overwriteLiveEdits ? { overwriteLiveEdits: true } : undefined);
       const d = res.data ?? res;
       toast.success(d.message || 'Timetable published');
       setPublish(false);
+      setLiveEdits(null);
+      setOutside(null);
       await load();
     } catch (e) {
-      toast.error(e.message);
-      setPublish(false);
-      if (e.data?.data?.conflicts) setView('conflicts');
-      await load();
+      if (e.status === 409 && e.data?.data?.outsideClashes) {
+        // Clashes with sections this version does not own — the case that put
+        // five double-bookings into the live grid unnoticed.
+        setPublish(false);
+        setOutside(e.data.data.outsideClashes);
+      } else if (e.status === 409 && e.data?.data?.liveEdits) {
+        setPublish(false);
+        setLiveEdits(e.data.data.liveEdits);
+      } else {
+        toast.error(e.message);
+        setPublish(false);
+        if (e.data?.data?.conflicts) setView('conflicts');
+        await load();
+      }
     } finally { setBusy(false); }
   };
 
@@ -352,6 +372,7 @@ export default function TimetableVersionDetail() {
                             subject={slot.subject(entry)}
                             teacher={slot.teacher(entry)}
                             room={slot.room(entry)}
+                            withSections={slot.withSections(entry)}
                             tone={subjectColor(entry.subject)}
                             draggable={editable && !entry.isLocked}
                             manual={entry.isManual}
@@ -447,6 +468,7 @@ export default function TimetableVersionDetail() {
                           subject={slot.subject(entry)}
                           teacher={slot.teacher(entry)}
                           room={slot.room(entry)}
+                          withSections={slot.withSections(entry)}
                           tone={subjectColor(entry.subject)}
                           draggable={editable && !entry.isLocked}
                           manual={entry.isManual}
@@ -684,7 +706,7 @@ export default function TimetableVersionDetail() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setPublish(false)}>Cancel</Button>
-            <Button loading={busy} onClick={doPublish}>Publish</Button>
+            <Button loading={busy} onClick={() => doPublish(false)}>Publish</Button>
           </>
         }
       >
@@ -692,6 +714,64 @@ export default function TimetableVersionDetail() {
         <p>
           Publishing this timetable will make it visible to teachers and students, and will replace the
           currently published schedule for these {sections.length} section(s). Continue?
+        </p>
+      </Modal>
+
+      {/* Teachers or rooms already committed elsewhere at the same time. */}
+      <Modal
+        open={!!outside}
+        onClose={() => setOutside(null)}
+        title="Clashes with other sections"
+        maxWidth={560}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOutside(null)}>Go back</Button>
+            <Button variant="danger" loading={busy} onClick={() => doPublish(true)}>Publish anyway</Button>
+          </>
+        }
+      >
+        <p style={{ marginTop: 0 }}>
+          This draft is valid on its own, but {outside?.length} period{outside?.length === 1 ? '' : 's'} would
+          collide with timetables already published for sections this version does not cover.
+        </p>
+        <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+          {(outside || []).map((c, i) => (
+            <div key={i} style={{ padding: '7px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
+              <Badge label={c.kind} />
+              <span style={{ marginLeft: 8 }}>{c.message}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
+
+      {/* Live grid corrections publishing is about to reproject over. */}
+      <Modal
+        open={!!liveEdits}
+        onClose={() => setLiveEdits(null)}
+        title="Hand edits will be replaced"
+        maxWidth={520}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setLiveEdits(null)}>Keep them, cancel</Button>
+            <Button variant="danger" loading={busy} onClick={() => doPublish(true)}>Replace and publish</Button>
+          </>
+        }
+      >
+        <p style={{ marginTop: 0 }}>
+          {liveEdits?.length} period{liveEdits?.length === 1 ? '' : 's'} in the live timetable
+          {liveEdits?.length === 1 ? ' was' : ' were'} edited by hand since the last publish.
+          Publishing rebuilds every section from this draft, so those corrections will be lost.
+        </p>
+        <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+          {(liveEdits || []).map((e, i) => (
+            <div key={i} style={{ padding: '7px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
+              <strong>{e.sectionName}</strong>
+              <span style={{ color: 'var(--text-muted)' }}> · {e.dayOfWeek} P{e.periodNumber} · {e.subjectName}</span>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginBottom: 0 }}>
+          To keep them, cancel and make the same changes in this draft first.
         </p>
         <p style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
           The previous published version is archived, not deleted — you can restore it at any time.
