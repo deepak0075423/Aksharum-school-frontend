@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
 import { getDashboard, getSchools } from '../../api/superAdmin.api';
-import { StatCard, Spinner } from '../../components/ui/index';
+import { StatCard, Spinner, SchoolLogo } from '../../components/ui/index';
 
 export default function SADashboard() {
   const navigate = useNavigate();
@@ -87,9 +87,7 @@ export default function SADashboard() {
                     borderBottom: '1px solid var(--border)', transition: 'background .15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                  <div style={{ width: 32, height: 32, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {s.logo ? <img src={s.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>🏫</span>}
-                  </div>
+                  <SchoolLogo school={s} size={32} />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
                     <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
                     {s.code && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Code: {s.code}</div>}
@@ -141,9 +139,7 @@ export default function SADashboard() {
             {data.recentSchools.map(s => (
               <Link key={s._id} to={`/super-admin/schools/${s._id}/edit`}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {s.logo ? <img src={s.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>🏫</span>}
-                </div>
+                <SchoolLogo school={s} size={32} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{s.name}</div>
                   {s.code && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Code: {s.code}</div>}

@@ -631,7 +631,7 @@ export default function TimetableGenerate() {
                     const partners = key ? (groups.get(key) || []).filter(x => x._id !== sub._id) : [];
                     const colour = subjectColor(sub._id);
                     return (
-                      <tr key={sub._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <tr key={sub._id} data-focus-id={sub._id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '6px' }}>
                           <input type="checkbox" checked={picked.includes(sub._id)} disabled={!!key}
                             title={key ? 'Already merged — unmerge it first' : 'Select to merge with another subject'}

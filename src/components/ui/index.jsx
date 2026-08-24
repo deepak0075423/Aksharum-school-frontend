@@ -143,7 +143,12 @@ export const Empty = ({ icon = '📭', title = 'No data', message, action }) => 
 );
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-export const Table = ({ columns, data, loading, emptyIcon, emptyTitle }) => {
+/**
+ * `focusIds` lets a row answer to more than its own `_id` — pass
+ * `focusIds={r => [r.exam?._id]}` and a notification about the exam finds the
+ * result row that came from it. See hooks/useFocusHighlight.js.
+ */
+export const Table = ({ columns, data, loading, emptyIcon, emptyTitle, focusIds }) => {
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
       <Spinner />
@@ -157,15 +162,20 @@ export const Table = ({ columns, data, loading, emptyIcon, emptyTitle }) => {
           <tr>{columns.map(c => <th key={c.key}>{c.label}</th>)}</tr>
         </thead>
         <tbody>
-          {data.map((row, i) => (
-            <tr key={row._id || i}>
+          {data.map((row, i) => {
+            // data-focus-id is how a notification finds the row it was about —
+            // see hooks/useFocusHighlight.js. Every page using <Table> gets it.
+            const focus = [row._id, ...(focusIds?.(row) || [])].filter(Boolean).join(' ');
+            return (
+            <tr key={row._id || i} data-focus-id={focus || undefined}>
               {columns.map(c => (
                 <td key={c.key}>
                   {c.render ? c.render(row) : row[c.key]}
                 </td>
               ))}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -501,3 +511,5 @@ export function MiniCalendar({ holidays = [], leaves = [], attendance = [], holi
     </div>
   );
 }
+
+export { default as SchoolLogo } from './SchoolLogo';

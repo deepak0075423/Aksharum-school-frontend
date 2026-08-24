@@ -173,7 +173,7 @@ export default function SelfAttendance({ api, regularization }) {
               <thead><tr><th>Date</th><th>Requested Times</th><th>Reason</th><th>Status</th><th>Admin Remarks</th></tr></thead>
               <tbody>
                 {myRequests.map(r => (
-                  <tr key={r._id}>
+                  <tr key={r._id} data-focus-id={r._id}>
                     <td>{r.date ? new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                     <td style={{ fontSize: '.85rem' }}>
                       {(r.checkIn || r.checkOut)

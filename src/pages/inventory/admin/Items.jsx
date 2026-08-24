@@ -191,7 +191,7 @@ export default function InventoryItems() {
               <table className="table" style={{ width: '100%' }}>
                 <thead><tr><th>Warehouse</th><th>On Hand</th><th>Reserved</th><th>Available</th></tr></thead>
                 <tbody>{detail.stock.map(s => (
-                  <tr key={s._id}><td>{s.warehouse?.name}</td><td>{s.quantity}</td><td>{s.reserved}</td><td><strong>{s.available}</strong></td></tr>
+                  <tr key={s._id} data-focus-id={s._id}><td>{s.warehouse?.name}</td><td>{s.quantity}</td><td>{s.reserved}</td><td><strong>{s.available}</strong></td></tr>
                 ))}</tbody>
               </table>
             )}
@@ -200,7 +200,7 @@ export default function InventoryItems() {
               <table className="table" style={{ width: '100%' }}>
                 <thead><tr><th>Type</th><th>Qty</th><th>Balance</th><th>When</th></tr></thead>
                 <tbody>{detail.transactions.map(t => (
-                  <tr key={t._id}><td>{t.type}</td><td style={{ color: t.quantity < 0 ? 'var(--danger,#ef4444)' : 'var(--success,#22c55e)' }}>{t.quantity > 0 ? '+' : ''}{t.quantity}</td><td>{t.balanceAfter}</td><td style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{new Date(t.createdAt).toLocaleDateString()}</td></tr>
+                  <tr key={t._id} data-focus-id={t._id}><td>{t.type}</td><td style={{ color: t.quantity < 0 ? 'var(--danger,#ef4444)' : 'var(--success,#22c55e)' }}>{t.quantity > 0 ? '+' : ''}{t.quantity}</td><td>{t.balanceAfter}</td><td style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{new Date(t.createdAt).toLocaleDateString()}</td></tr>
                 ))}</tbody>
               </table>
             )}

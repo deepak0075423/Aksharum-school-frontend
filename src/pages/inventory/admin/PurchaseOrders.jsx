@@ -233,7 +233,7 @@ export default function AdminPurchaseOrders() {
             <table className="table" style={{ width: '100%' }}>
               <thead><tr><th>Item</th><th>Ordered</th><th>Received</th><th>Unit ₹</th><th>GST%</th></tr></thead>
               <tbody>{d.items.map(it => (
-                <tr key={it._id}><td>{it.itemName}</td><td>{it.quantity} {it.unit}</td><td>{it.receivedQty}</td><td>{fmt(it.unitPrice)}</td><td>{it.gst}%</td></tr>
+                <tr key={it._id} data-focus-id={it._id}><td>{it.itemName}</td><td>{it.quantity} {it.unit}</td><td>{it.receivedQty}</td><td>{fmt(it.unitPrice)}</td><td>{it.gst}%</td></tr>
               ))}</tbody>
             </table>
             <div style={{ textAlign: 'right', marginTop: 8, fontSize: '.85rem', lineHeight: 1.6 }}>

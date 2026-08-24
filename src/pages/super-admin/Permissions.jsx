@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/superAdmin.api';
-import { PageHeader, Spinner } from '../../components/ui/index';
+import { PageHeader, Spinner, SchoolLogo } from '../../components/ui/index';
 
 const MODULES = [
   { key: 'attendance',    label: 'Attendance',     icon: '✅' },
@@ -154,11 +154,7 @@ export default function Permissions() {
                 style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', userSelect: 'none' }}
                 onClick={() => toggleExpand(school._id)}
               >
-                <div style={{ width: 36, height: 36, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {school.logo
-                    ? <img src={school.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span>🏫</span>}
-                </div>
+                <SchoolLogo school={school} size={36} />
 
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{school.name}</div>

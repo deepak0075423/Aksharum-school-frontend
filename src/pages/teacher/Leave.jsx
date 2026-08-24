@@ -7,6 +7,7 @@ import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
 import TeacherLeaveApprovals from './LeaveApprovals';
 import { getMyCompOff, getLeaveTypePolicies, getLeaveApprovals } from '../../api/teacher.api';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
+import { useSearchParams } from 'react-router-dom';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -60,7 +61,12 @@ function estimateDays(fromDate, toDate, leaveMode, leaveSettings = {}, holidaySe
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TeacherLeave() {
-  const [tab, setTab] = useState('my-leaves');
+  // Notifications link straight at a tab (?tab=…), so the page opens where the
+  // notification was about rather than on its default.
+  const [searchParams] = useSearchParams();
+  const wantedTab = searchParams.get('tab');
+  const [tab, setTab] = useState(
+    ['my-leaves', 'balance', 'compoff', 'approvals', 'compoff-approvals'].includes(wantedTab) ? wantedTab : 'my-leaves');
 
   // Approvers are picked by designation (the Principal pattern), so a teacher
   // may or may not have an approvals queue — ask the server once for each.

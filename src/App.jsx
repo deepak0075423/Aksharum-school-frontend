@@ -21,6 +21,7 @@ const VerifyOtp      = lazy(() => import('./pages/auth/VerifyOtp'));
 const NewPassword    = lazy(() => import('./pages/auth/NewPassword'));
 const ResetPassword  = lazy(() => import('./pages/auth/ResetPassword'));
 const MagicLogin     = lazy(() => import('./pages/auth/MagicLogin'));
+const NotifRedirect  = lazy(() => import('./pages/shared/NotificationRedirect'));
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
 const SADashboard      = lazy(() => import('./pages/super-admin/Dashboard'));
@@ -330,6 +331,9 @@ export default function App() {
           <Route path="/new-password"   element={<GuestOnly><NewPassword /></GuestOnly>} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/magic/:token" element={<MagicLogin />} />
+          {/* Where every notification email points — resolves to the reader's
+              own screen for that notification, whatever their role. */}
+          <Route path="/n/:receiptId" element={<NotifRedirect />} />
           <Route path="/" element={<HomeRedirect />} />
 
           {/* Super Admin */}

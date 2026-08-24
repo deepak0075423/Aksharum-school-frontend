@@ -75,7 +75,7 @@ export default function PayrollAdminDashboard() {
               <thead><tr><th>Period</th><th>Employees</th><th>Gross</th><th>Net</th><th>Status</th></tr></thead>
               <tbody>
                 {runs.map(r => (
-                  <tr key={r._id}>
+                  <tr key={r._id} data-focus-id={r._id}>
                     <td><strong>{MONTHS[(r.month || 1) - 1]} {r.year}</strong></td>
                     <td>{r.totalEmployees ?? 0}</td>
                     <td>{fmt(r.totalGross)}</td>

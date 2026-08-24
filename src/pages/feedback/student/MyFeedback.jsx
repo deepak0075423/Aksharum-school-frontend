@@ -63,7 +63,9 @@ function FeedbackCard({ row, done }) {
   const urgent = !done && left != null && left <= 2;
 
   return (
-    <div className="card">
+    // A campaign notification names the campaign, not this assignment, so the
+    // card answers to both — see hooks/useFocusHighlight.js.
+    <div className="card" data-focus-id={[row._id, row.campaign?._id || row.campaign].filter(Boolean).join(' ')}>
       <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
         <div>
           <div style={{ fontSize: '1.02rem', fontWeight: 700 }}>{row.subject || 'General'}</div>

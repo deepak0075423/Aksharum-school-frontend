@@ -7,6 +7,7 @@ import { connectSocket, disconnectSocket } from '../../socket';
 import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
 import { notificationIconUrl } from '../../utils/branding';
+import { notificationPath, hasTarget } from '../../utils/notificationLink';
 
 function playNotifSound() {
   try {
@@ -25,15 +26,20 @@ function playNotifSound() {
   } catch {}
 }
 
-function requestBrowserPush(title, body, school) {
+// `onOpen` fires when the OS notification itself is clicked — the tab is
+// focused first, since the browser leaves it in the background otherwise and
+// the navigation would happen somewhere nobody is looking.
+function requestBrowserPush(title, body, school, onOpen) {
   if (!('Notification' in window)) return;
   const icon = notificationIconUrl(school);   // the school's own logo when it has one
+  const show = () => {
+    const n = new Notification(title, { body, icon });
+    n.onclick = () => { window.focus(); n.close(); onOpen?.(); };
+  };
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon });
+    show();
   } else if (Notification.permission === 'default') {
-    Notification.requestPermission().then(p => {
-      if (p === 'granted') new Notification(title, { body, icon });
-    });
+    Notification.requestPermission().then(p => { if (p === 'granted') show(); });
   }
 }
 
@@ -74,12 +80,16 @@ export default function Header({ onMenuClick, onCollapseClick }) {
       setUnreadCount(count);
     });
 
-    // Real-time action notifications pushed via the WebSocket Gateway
+    // Real-time action notifications pushed via the WebSocket Gateway. The
+    // payload carries this reader's own destination — resolved server-side,
+    // because the same notification opens elsewhere for a different role.
     sock.on('notification:new', (n) => {
       playNotifSound();
-      requestBrowserPush(n?.title || 'New Notification', n?.body || '', user?.school);
+      const path = notificationPath(n);
+      const open = () => { if (path) navigate(path); };
+      requestBrowserPush(n?.title || 'New Notification', n?.body || '', user?.school, open);
       toast(t => (
-        <div style={{ cursor: 'pointer' }} onClick={() => toast.dismiss(t.id)}>
+        <div style={{ cursor: 'pointer' }} onClick={() => { toast.dismiss(t.id); open(); }}>
           <strong style={{ display: 'block', fontSize: '.88rem' }}>{n?.title}</strong>
           {n?.body && (
             <span style={{ fontSize: '.8rem', color: '#64748b', display: 'block',
@@ -87,14 +97,19 @@ export default function Header({ onMenuClick, onCollapseClick }) {
               {n.body}
             </span>
           )}
+          {hasTarget(n) && (
+            <span style={{ fontSize: '.75rem', color: 'var(--primary)', fontWeight: 600 }}>Tap to open →</span>
+          )}
         </div>
       ), { icon: '🔔', duration: 5000 });
-      // Show it instantly in the bell dropdown list
+      // Show it instantly in the bell dropdown list. The receipt id comes from
+      // the payload so this row can be marked read and followed like any other.
       setNotifs(prev => [{
-        _id: `rt-${n?._id || Date.now()}`,
+        _id: n?.receiptId || `rt-${n?._id || Date.now()}`,
         isRead: false,
         createdAt: n?.createdAt || new Date().toISOString(),
         notification: n,
+        link: n?.link,
       }, ...prev].slice(0, 10));
     });
 
@@ -137,13 +152,21 @@ export default function Header({ onMenuClick, onCollapseClick }) {
   };
 
   const handleClickNotif = async (receipt) => {
-    const n = receipt.notification || receipt;
-    setDetailNotif({ receipt, notification: n });
+    const n    = receipt.notification || receipt;
+    const path = notificationPath(receipt);
     setBellOpen(false);
+
+    // A notification that names a destination goes straight there — reading the
+    // body in a dialog first is a step nobody wants. Ones with nowhere to go
+    // (a message an admin typed by hand) still open in the dialog.
+    if (hasTarget(receipt)) navigate(path);
+    else setDetailNotif({ receipt, notification: n });
+
     if (!receipt.isRead) {
       try {
         await markOneRead(receipt._id);
         setNotifs(prev => prev.map(r => r._id === receipt._id ? { ...r, isRead: true } : r));
+        setUnreadCount(c => Math.max(0, c - 1));
       } catch {}
     }
   };
@@ -263,9 +286,16 @@ export default function Header({ onMenuClick, onCollapseClick }) {
                           {n.body}
                         </div>
                       )}
-                      <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 4,
-                        paddingLeft: r.isRead ? 0 : 13 }}>
-                        {new Date(r.createdAt || n.createdAt).toLocaleString()}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        gap: 8, marginTop: 4, paddingLeft: r.isRead ? 0 : 13 }}>
+                        <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
+                          {new Date(r.createdAt || n.createdAt).toLocaleString()}
+                        </span>
+                        {hasTarget(r) && (
+                          <span style={{ fontSize: '.72rem', color: 'var(--primary)', fontWeight: 600, flexShrink: 0 }}>
+                            Open →
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

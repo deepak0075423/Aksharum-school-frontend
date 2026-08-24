@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/superAdmin.api';
-import { PageHeader, Button, Table, Badge, Modal, Spinner, Empty } from '../../components/ui/index';
+import { PageHeader, Button, Table, Badge, Modal, Spinner, Empty, SchoolLogo } from '../../components/ui/index';
 
 export default function Schools() {
   const [page, setPage]         = useState(1);
@@ -71,17 +71,7 @@ export default function Schools() {
 
   const columns = [
     {
-      key: 'logo', label: 'Logo', render: r => (
-        <div style={{
-          width: 40, height: 40, borderRadius: 6, overflow: 'hidden',
-          border: '1px solid var(--border)', background: 'var(--bg)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          {r.logo
-            ? <img src={r.logo} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: '1.2rem' }}>🏫</span>}
-        </div>
-      ),
+      key: 'logo', label: 'Logo', render: r => <SchoolLogo school={r} size={40} />,
     },
     {
       key: 'name', label: 'School Name', render: r => (

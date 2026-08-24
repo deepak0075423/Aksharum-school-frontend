@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getInbox, getSent, markOneRead, clearAll } from '../../api/notifications.api';
+import { notificationPath, hasTarget } from '../../utils/notificationLink';
 import * as saApi from '../../api/superAdmin.api';
 import { PageHeader, Button, Badge, Modal, Spinner } from '../../components/ui/index';
 
@@ -66,6 +68,7 @@ function SentList({ data, loading }) {
 }
 
 export default function SANotifications() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('inbox');
 
   const { data: inboxData, loading: inboxLoading, refetch: refetchInbox } = useFetch(getInbox);
@@ -102,7 +105,10 @@ export default function SANotifications() {
   };
   const handleClickReceipt = async (r) => {
     const n = r.notification || r;
-    setDetail({ receipt: r, notification: n });
+    // A notification with a destination goes there; one without is just its
+    // own text, so the dialog is the destination.
+    if (hasTarget(r)) navigate(notificationPath(r));
+    else setDetail({ receipt: r, notification: n });
     if (!r.isRead) {
       try { await markOneRead(r._id); refetchInbox(); } catch {}
     }
@@ -193,8 +199,16 @@ export default function SANotifications() {
                         <strong style={{ fontSize: '.9rem' }}>{n.title}</strong>
                       </div>
                       {n.body && <p style={{ margin: 0, fontSize: '.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{n.body}</p>}
-                      <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6 }}>
-                        {new Date(r.createdAt || n.createdAt).toLocaleString()}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        gap: 8, marginTop: 6 }}>
+                        <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
+                          {new Date(r.createdAt || n.createdAt).toLocaleString()}
+                        </span>
+                        {hasTarget(r) && (
+                          <span style={{ fontSize: '.72rem', color: 'var(--primary)', fontWeight: 600, flexShrink: 0 }}>
+                            Open →
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

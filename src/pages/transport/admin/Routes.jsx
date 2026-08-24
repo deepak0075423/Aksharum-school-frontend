@@ -150,7 +150,7 @@ export default function TransportRoutes() {
             <table className="table" style={{ width: '100%' }}>
               <thead><tr><th>#</th><th>Stop</th><th>AM</th><th>PM</th><th>km</th></tr></thead>
               <tbody>{[...(detail.stops || [])].sort((a,b)=>a.sequence-b.sequence).map(s => (
-                <tr key={s._id}><td>{s.sequence}</td><td>{s.name}</td><td>{s.arrivalTime || '—'}</td><td>{s.eveningTime || '—'}</td><td>{s.distanceFromStart || 0}</td></tr>
+                <tr key={s._id} data-focus-id={s._id}><td>{s.sequence}</td><td>{s.name}</td><td>{s.arrivalTime || '—'}</td><td>{s.eveningTime || '—'}</td><td>{s.distanceFromStart || 0}</td></tr>
               ))}</tbody>
             </table>
           </div>

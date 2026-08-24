@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAllNotifications, markOneRead } from '../../api/notifications.api';
 import { PageHeader, Spinner, Modal } from '../../components/ui/index';
 import { connectSocket, getSocket } from '../../socket';
+import { notificationPath, hasTarget } from '../../utils/notificationLink';
 
 export default function Notifications() {
+  const navigate = useNavigate();
+  // /n/:id sends readers here with ?receipt= when a notification has nowhere
+  // more specific to go — so it opens on itself instead of a bare list.
+  const [params, setParams] = useSearchParams();
+  const openReceiptId = params.get('receipt');
   const [receipts,  setReceipts]  = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [unread,    setUnread]    = useState(0);
@@ -38,7 +45,10 @@ export default function Notifications() {
 
   const handleClickReceipt = async (r) => {
     const n = r.notification || r;
-    setDetail({ receipt: r, notification: n });
+    // Straight to what it is about when the notification names a destination;
+    // otherwise the body is all there is, so show that.
+    if (hasTarget(r)) navigate(notificationPath(r));
+    else setDetail({ receipt: r, notification: n });
     if (!r.isRead) {
       try {
         await markOneRead(r._id);
@@ -47,6 +57,17 @@ export default function Notifications() {
       } catch {}
     }
   };
+
+  // Arriving with ?receipt=… opens that one and drops the parameter, so a
+  // refresh does not re-open it.
+  useEffect(() => {
+    if (!openReceiptId || loading) return;
+    const r = receipts.find(x => String(x._id) === openReceiptId);
+    if (!r) return;
+    setDetail({ receipt: r, notification: r.notification || r });
+    setParams(prev => { const next = new URLSearchParams(prev); next.delete('receipt'); return next; },
+      { replace: true });
+  }, [openReceiptId, loading, receipts, setParams]);
 
   return (
     <div className="page">
@@ -98,10 +119,17 @@ export default function Notifications() {
                     {new Date(r.createdAt || n.createdAt).toLocaleString()}
                   </div>
                 </div>
-                <span style={{ fontSize: '.75rem', color: r.isRead ? 'var(--text-muted)' : 'var(--primary)',
-                  fontWeight: r.isRead ? 400 : 600, flexShrink: 0, paddingTop: 2 }}>
-                  {r.isRead ? 'Read' : 'Unread'}
-                </span>
+                <div style={{ flexShrink: 0, paddingTop: 2, textAlign: 'right' }}>
+                  <div style={{ fontSize: '.75rem', color: r.isRead ? 'var(--text-muted)' : 'var(--primary)',
+                    fontWeight: r.isRead ? 400 : 600 }}>
+                    {r.isRead ? 'Read' : 'Unread'}
+                  </div>
+                  {hasTarget(r) && (
+                    <div style={{ fontSize: '.72rem', color: 'var(--primary)', fontWeight: 600, marginTop: 4 }}>
+                      Open →
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

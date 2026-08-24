@@ -80,7 +80,7 @@ export default function LibraryDashboard() {
               <thead><tr><th>Book</th><th>Issued to</th><th>Issue date</th><th>Due date</th><th>Status</th></tr></thead>
               <tbody>
                 {d.recent.map(i => (
-                  <tr key={i._id}>
+                  <tr key={i._id} data-focus-id={i._id}>
                     <td><strong>{i.book?.title || '—'}</strong></td>
                     <td>{i.issuedTo?.name || '—'}</td>
                     <td className="text-muted text-sm">{i.issueDate ? new Date(i.issueDate).toLocaleDateString('en-IN') : '—'}</td>

@@ -486,7 +486,7 @@ export default function DesignationPermissions({ api, title, subtitle, schoolLab
               </thead>
               <tbody>
                 {blocked.teachers.map(t => (
-                  <tr key={t._id}>
+                  <tr key={t._id} data-focus-id={t._id}>
                     <td style={{ fontFamily: 'monospace', fontSize: '.8rem' }}>{t.employeeId || '—'}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{t.name}</div>

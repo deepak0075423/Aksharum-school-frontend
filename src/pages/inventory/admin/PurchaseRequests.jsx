@@ -121,7 +121,7 @@ export default function AdminPurchaseRequests() {
             <table className="table" style={{ width: '100%', marginTop: 8 }}>
               <thead><tr><th>Item</th><th>Qty</th><th>Est. Price</th></tr></thead>
               <tbody>{d.items.map(it => (
-                <tr key={it._id}><td>{it.itemName}</td><td>{it.quantity} {it.unit}</td><td>{fmt(it.estimatedPrice)}</td></tr>
+                <tr key={it._id} data-focus-id={it._id}><td>{it.itemName}</td><td>{it.quantity} {it.unit}</td><td>{fmt(it.estimatedPrice)}</td></tr>
               ))}</tbody>
             </table>
             <div style={{ textAlign: 'right', fontWeight: 600, marginTop: 6 }}>Total: {fmt(d.estimatedTotal)}</div>

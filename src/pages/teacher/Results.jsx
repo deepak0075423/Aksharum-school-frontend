@@ -170,7 +170,7 @@ function TestMarksModal({ test, onClose }) {
             <thead><tr><th>Student</th><th style={{ width: 130 }}>Marks /{state.test.maxMarks}</th><th style={{ width: 80 }}>Absent</th></tr></thead>
             <tbody>
               {state.rows.map((r, i) => (
-                <tr key={r._id}>
+                <tr key={r._id} data-focus-id={r._id}>
                   <td>{r.name}</td>
                   <td>
                     <input type="number" className="form-control" min="0" max={state.test.maxMarks}

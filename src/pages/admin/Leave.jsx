@@ -6,6 +6,7 @@ import { PageHeader, Table, Badge, Button, Modal, Spinner, Pagination } from '..
 import { AdminCompOff, AdminCompOffPolicy } from './CompOff';
 import AdminLeavePolicies from './LeavePolicies';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
+import { useSearchParams } from 'react-router-dom';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -79,7 +80,12 @@ function downloadBuffer(data, filename) {
 }
 
 export default function AdminLeave() {
-  const [tab, setTab] = useState('requests');
+  // Notifications link straight at a tab (?tab=…), so the page opens where the
+  // notification was about rather than on its default.
+  const [searchParams] = useSearchParams();
+  const wantedTab = searchParams.get('tab');
+  const [tab, setTab] = useState(
+    ['requests', 'types', 'policies', 'allocations', 'balance', 'compoff', 'reports'].includes(wantedTab) ? wantedTab : 'requests');
 
   // ── Requests ─────────────────────────────────────────────────────────────────
   const [reqPage,      setReqPage]      = useState(1);
@@ -1078,7 +1084,7 @@ export default function AdminLeave() {
                     </thead>
                     <tbody>
                       {delImpact.allocations.map(a => (
-                        <tr key={a._id}>
+                        <tr key={a._id} data-focus-id={a._id}>
                           <td>
                             {a.teacher?.name || <em style={{ color: 'var(--text-muted)' }}>Removed employee</em>}
                             {a.teacher?.employeeId &&
@@ -1405,7 +1411,7 @@ export default function AdminLeave() {
                     </thead>
                     <tbody>
                       {affected.map(a => (
-                        <tr key={a._id}>
+                        <tr key={a._id} data-focus-id={a._id}>
                           <td>{a.teacher?.name || '—'}</td>
                           <td>{(a.totalAllocated || 0) + (a.carriedForward || 0)}</td>
                           <td>{a.used || 0}</td>

@@ -309,7 +309,7 @@ export default function TeacherDocuments() {
                 </thead>
                 <tbody>
                   {subs.map(s => (
-                    <tr key={s._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <tr key={s._id} data-focus-id={s._id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '8px 10px' }}>{s.student?.name || '—'}</td>
                       <td style={{ padding: '8px 10px' }}>
                         <Badge variant={s.status === 'submitted' ? 'success' : s.status === 'late' ? 'warning' : 'secondary'}>

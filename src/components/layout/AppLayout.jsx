@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import Header  from './Header';
 import { ChatNotifyProvider } from '../../contexts/ChatNotifyContext';
+import useFocusHighlight from '../../hooks/useFocusHighlight';
 
 export default function AppLayout() {
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -11,6 +12,10 @@ export default function AppLayout() {
   const [animKey, setAnimKey] = useState(0);
   const location    = useLocation();
   const prevPath    = useRef(location.pathname);
+
+  // A notification's link carries ?focus=<id>; this finds that row on whatever
+  // page it landed on and flags it. Mounted here so no page has to opt in.
+  useFocusHighlight();
 
   useEffect(() => {
     const msg = sessionStorage.getItem('welcome_msg');

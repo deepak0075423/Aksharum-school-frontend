@@ -8,6 +8,7 @@ import {
 } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Spinner, Button } from '../../components/ui/index';
 import SelfAttendance from '../../components/attendance/SelfAttendance';
+import { useSearchParams } from 'react-router-dom';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -218,7 +219,12 @@ function RegularizationRequests() {
 }
 
 export default function AdminAttendance() {
-  const [tab, setTab] = useState('my-attendance');
+  // Notifications link straight at a tab (?tab=…), so the page opens where the
+  // notification was about rather than on its default.
+  const [searchParams] = useSearchParams();
+  const wantedTab = searchParams.get('tab');
+  const [tab, setTab] = useState(
+    ['my-attendance', 'regularise', 'requests'].includes(wantedTab) ? wantedTab : 'my-attendance');
 
   return (
     <div className="page">

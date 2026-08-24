@@ -79,7 +79,7 @@ export default function FeesAdminDashboard() {
               <thead><tr><th>Student</th><th>Receipt</th><th>Amount</th><th>Mode</th><th>Date</th><th>Status</th></tr></thead>
               <tbody>
                 {d.recentPayments.map(p => (
-                  <tr key={p._id}>
+                  <tr key={p._id} data-focus-id={p._id}>
                     <td><strong>{p.student?.name || p.studentSnapshot?.name || '—'}</strong></td>
                     <td className="text-muted">{p.receiptNumber || '—'}</td>
                     <td><strong>{fmt(p.amount)}</strong></td>

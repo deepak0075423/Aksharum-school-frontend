@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getAllNotifications, getSent, markOneRead } from '../../api/notifications.api';
+import { notificationPath, hasTarget } from '../../utils/notificationLink';
 import { sendNotification, getClassesWithSections } from '../../api/admin.api';
 import { PageHeader, Button, Badge, Modal, Spinner } from '../../components/ui/index';
 
@@ -80,6 +82,7 @@ function SentList({ data, loading }) {
 }
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('inbox');
 
   // The full history, not the bell's queue. Clearing the bell marks receipts
@@ -115,7 +118,10 @@ export default function Notifications() {
 
   const handleClickReceipt = async (r) => {
     const n = r.notification || r;
-    setDetailNotif({ receipt: r, notification: n });
+    // Notifications that name a destination go there; a plain message opens
+    // in the dialog, because its body is the whole point.
+    if (hasTarget(r)) navigate(notificationPath(r));
+    else setDetailNotif({ receipt: r, notification: n });
     if (!r.isRead) {
       try { await markOneRead(r._id); refetchInbox(); } catch {}
     }
@@ -213,10 +219,17 @@ export default function Notifications() {
                         {new Date(r.createdAt || n.createdAt).toLocaleString()}
                       </div>
                     </div>
-                    <span style={{ fontSize: '.75rem', color: r.isRead ? 'var(--text-muted)' : 'var(--primary)',
-                      fontWeight: r.isRead ? 400 : 600, flexShrink: 0, paddingTop: 2 }}>
-                      {r.isRead ? 'Read' : 'Unread'}
-                    </span>
+                    <div style={{ flexShrink: 0, paddingTop: 2, textAlign: 'right' }}>
+                      <div style={{ fontSize: '.75rem', color: r.isRead ? 'var(--text-muted)' : 'var(--primary)',
+                        fontWeight: r.isRead ? 400 : 600 }}>
+                        {r.isRead ? 'Read' : 'Unread'}
+                      </div>
+                      {hasTarget(r) && (
+                        <div style={{ fontSize: '.72rem', color: 'var(--primary)', fontWeight: 600, marginTop: 4 }}>
+                          Open →
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}

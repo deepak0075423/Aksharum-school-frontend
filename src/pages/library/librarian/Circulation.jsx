@@ -456,7 +456,7 @@ export default function LibraryCirculation() {
               {returnList.map(i => {
                 const late = new Date(i.dueDate) < new Date();
                 return (
-                <tr key={i._id}>
+                <tr key={i._id} data-focus-id={i._id}>
                   <td><strong>{i.book?.title||'—'}</strong><br /><small>{i.bookCopy?.uniqueCode||''}</small></td>
                   <td>{i.issuedTo?.name || '—'}</td>
                   <td style={late ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>

@@ -182,7 +182,7 @@ export default function Sections() {
                 <thead><tr><th>Section</th><th>Currently</th><th>Capacity</th></tr></thead>
                 <tbody>
                   {(preview.sections || []).map(s => (
-                    <tr key={s._id}>
+                    <tr key={s._id} data-focus-id={s._id}>
                       <td style={{ fontWeight: 600 }}>{s.sectionName}</td>
                       <td>{s.currentCount}</td>
                       <td>{s.maxStudents || <span className="text-muted">not set</span>}</td>

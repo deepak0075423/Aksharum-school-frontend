@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { takePendingNotification } from '../../utils/notificationLink';
 import toast from 'react-hot-toast';
 import { login } from '../../api/auth.api';
 import { isEmail } from '../../utils/validators';
@@ -41,7 +42,12 @@ export default function Login() {
       signIn(res.token, res.refreshToken, res.user);
       toast.success(`Welcome, ${res.user.name}!`);
       if (res.user.isFirstLogin) navigate('/reset-password');
-      else navigate(roleHome[res.user.role] || '/');
+      else {
+        // Someone who arrived from a notification link while signed out gets
+        // taken to that notification, not dropped on their dashboard.
+        const pending = takePendingNotification();
+        navigate(pending ? `/n/${pending}` : (roleHome[res.user.role] || '/'));
+      }
     } catch (err) {
       toast.error(err.message || 'Login failed');
     } finally {

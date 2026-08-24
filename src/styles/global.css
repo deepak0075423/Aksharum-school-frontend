@@ -1158,3 +1158,24 @@ select.ed-major { height: 44px; border-radius: var(--radius-lg); flex: 0 0 220px
   .ed-toolbar__main { flex-direction: column; align-items: stretch; }
   select.ed-major { flex: 1 1 auto; width: 100%; }
 }
+
+/* ── Notification focus highlight ────────────────────────────────────────────
+   The row a notification was about, flagged on arrival. Following a link lands
+   on a list; this is what says "this one". Fades out on its own — see
+   hooks/useFocusHighlight.js. */
+@keyframes focus-flash {
+  0%,
+  55%  { background-color: rgba(79, 70, 229, .17); box-shadow: inset 3px 0 0 var(--primary); }
+  100% { background-color: transparent;            box-shadow: inset 3px 0 0 transparent; }
+}
+.focus-flash,
+.focus-flash > td {
+  animation: focus-flash 4s ease-out forwards;
+}
+/* Table rows carry the stripe on the first cell, since <tr> cannot paint a
+   background over its own cells in every browser. */
+.focus-flash > td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-flash, .focus-flash > td { animation-duration: 4s; animation-timing-function: step-end; }
+}

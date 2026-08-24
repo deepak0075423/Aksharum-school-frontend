@@ -133,7 +133,7 @@ export default function InventoryDashboard() {
               <thead><tr><th>Item</th><th>Type</th><th>Qty</th><th>Balance</th><th>Warehouse</th><th>By</th><th>When</th></tr></thead>
               <tbody>
                 {d.recentTransactions.map(t => (
-                  <tr key={t._id}>
+                  <tr key={t._id} data-focus-id={t._id}>
                     <td>{t.item?.name || '—'}</td>
                     <td><Badge variant={TX_COLOR[t.type] || 'muted'}>{TX_LABEL[t.type] || t.type}</Badge></td>
                     <td style={{ color: t.quantity < 0 ? 'var(--danger,#ef4444)' : 'var(--success,#22c55e)' }}>{t.quantity > 0 ? '+' : ''}{t.quantity}</td>

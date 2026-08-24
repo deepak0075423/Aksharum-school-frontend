@@ -140,12 +140,15 @@ export default function SectionDetail() {
   const [unassignConfirm, setUnassignConfirm] = useState(null); // { subjectId, teacherId, teacherName, subjectName }
   const [unassigning, setUnassigning]         = useState(false);
 
-  // Student enrollment
+  // Student enrollment — the picker is multi-select, so it holds a set of
+  // chosen ids and enrols them in one call.
   const [studentModal, setStudentModal]         = useState(false);
   const [studentSearch, setStudentSearch]       = useState('');
-  const [studentResults, setStudentResults]     = useState([]);
-  const [studentSearching, setStudentSearching] = useState(false);
-  const [enrollingId, setEnrollingId]           = useState(null);
+  const [pool, setPool]                         = useState(null);   // { students, total, truncated, seats }
+  const [poolLoading, setPoolLoading]           = useState(false);
+  const [picked, setPicked]                     = useState([]);     // student ids, in click order
+  const [showTaken, setShowTaken]               = useState(false);  // reveal students another section holds
+  const [enrolling, setEnrolling]               = useState(false);
   const [removeStudentConfirm, setRemoveStudentConfirm] = useState(null);
   const [removingStudent, setRemovingStudent]   = useState(false);
   const studentSearchTimer = React.useRef(null);
@@ -162,31 +165,64 @@ export default function SectionDetail() {
     finally { setUnassigning(false); }
   };
 
-  const handleStudentSearch = (val) => {
-    setStudentSearch(val);
-    setStudentResults([]);
-    clearTimeout(studentSearchTimer.current);
-    if (!val.trim()) return;
-    studentSearchTimer.current = setTimeout(async () => {
-      setStudentSearching(true);
-      try {
-        const res = await api.getStudents({ search: val.trim(), limit: 10 });
-        setStudentResults(res?.data?.data || []);
-      } catch {} finally { setStudentSearching(false); }
-    }, 350);
+  // The server decides who is a candidate — it already knows this section's
+  // roster and every sibling section's, so students enrolled here never come
+  // back at all and those held elsewhere come back flagged.
+  const loadPool = React.useCallback(async (search = '') => {
+    setPoolLoading(true);
+    try {
+      const res = await api.getAssignableStudents(id, { search: search.trim(), limit: 200 });
+      setPool(res?.data ?? res);
+    } catch (err) {
+      toast.error(err.message || 'Could not load students');
+      setPool({ students: [], total: 0 });
+    } finally { setPoolLoading(false); }
+  }, [id]);
+
+  const openStudentModal = () => {
+    setStudentModal(true);
+    setStudentSearch('');
+    setPicked([]);
+    setShowTaken(false);
+    loadPool('');
   };
 
-  const handleEnrollStudent = async (studentId, studentName) => {
-    setEnrollingId(studentId);
+  const handleStudentSearch = (val) => {
+    setStudentSearch(val);
+    clearTimeout(studentSearchTimer.current);
+    studentSearchTimer.current = setTimeout(() => loadPool(val), 350);
+  };
+
+  const togglePick = (studentId) => {
+    setPicked(prev => prev.includes(studentId)
+      ? prev.filter(x => x !== studentId)
+      : [...prev, studentId]);
+  };
+
+  const handleEnrollPicked = async () => {
+    if (!picked.length) return;
+    setEnrolling(true);
     try {
-      await api.assignStudentToSection(id, studentId);
-      toast.success(`${studentName} enrolled`);
-      setStudentModal(false);
-      setStudentSearch('');
-      setStudentResults([]);
-      refetchSec();
+      const res = await api.assignStudentsToSection(id, picked);
+      const d = res?.data ?? res;
+      if (d?.enrolled?.length) {
+        toast.success(d.enrolled.length === 1
+          ? `${d.enrolled[0].name} enrolled`
+          : `${d.enrolled.length} students enrolled`);
+      }
+      // Partial success is the normal case for a batch — say what did not go in
+      // rather than closing on a silent half-result.
+      (d?.failed || []).forEach(f => toast.error(`${f.name}: ${f.reason}`));
+      if (d?.enrolled?.length) {
+        setStudentModal(false);
+        setPicked([]);
+        refetchSec();
+      } else {
+        setPicked([]);
+        loadPool(studentSearch);
+      }
     } catch (err) { toast.error(err.message); }
-    finally { setEnrollingId(null); }
+    finally { setEnrolling(false); }
   };
 
   const handleRemoveStudent = async () => {
@@ -256,6 +292,20 @@ export default function SectionDetail() {
   };
   const enrolled = section?.enrolledStudents || [];
   const rollsAssigned = !!section?.rollNumbersAssignedAt;
+
+  // ── Student picker, derived ────────────────────────────────────────────────
+  const candidates     = pool?.students || [];
+  const freeCandidates = candidates.filter(c => c.assignable);
+  const takenCount     = candidates.length - freeCandidates.length;
+  // Students another section holds are hidden by default — they cannot be
+  // picked, and burying the real choices behind them helps nobody.
+  const visibleCandidates = showTaken ? candidates : freeCandidates;
+  const allFreePicked  = freeCandidates.length > 0 && freeCandidates.every(c => picked.includes(c._id));
+  const toggleSelectAll = () =>
+    setPicked(allFreePicked ? [] : freeCandidates.map(c => c._id));
+  // null when the section has no capacity set, which the server reads as unlimited
+  const seatsFree    = pool?.seats?.free ?? null;
+  const overCapacity = seatsFree !== null && picked.length > seatsFree;
 
   if (loadSec) return <div className="loading-page"><Spinner /></div>;
 
@@ -395,7 +445,7 @@ export default function SectionDetail() {
                 Assign Roll Numbers
               </Button>
             )}
-            <Button onClick={() => { setStudentModal(true); setStudentSearch(''); setStudentResults([]); }}>+ Assign Student</Button>
+            <Button onClick={openStudentModal}>+ Assign Students</Button>
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
@@ -519,40 +569,102 @@ export default function SectionDetail() {
         </form>
       </Modal>
 
-      {/* ── Assign Student Modal ─────────────────────────────────────────── */}
-      <Modal open={studentModal} onClose={() => setStudentModal(false)} title="Assign Student to Section"
-        footer={<Button variant="secondary" onClick={() => setStudentModal(false)}>Close</Button>}>
-        <div className="form-group" style={{ marginBottom: 8 }}>
-          <label className="form-label">Search student by name or email</label>
-          <input className="form-control" placeholder="Type to search…" value={studentSearch}
-            onChange={e => handleStudentSearch(e.target.value)} autoFocus />
+      {/* ── Assign Students Modal ────────────────────────────────────────── */}
+      <Modal open={studentModal} onClose={() => setStudentModal(false)} title="Assign Students to Section" maxWidth={620}
+        footer={<>
+          <span style={{ flex: 1, alignSelf: 'center', fontSize: '.82rem', color: 'var(--text-muted)' }}>
+            {picked.length ? `${picked.length} selected` : 'Select one or more students'}
+          </span>
+          <Button variant="secondary" onClick={() => setStudentModal(false)}>Cancel</Button>
+          <Button onClick={handleEnrollPicked} loading={enrolling} disabled={!picked.length || overCapacity}>
+            {picked.length > 1 ? `Enroll ${picked.length} students` : 'Enroll'}
+          </Button>
+        </>}>
+        <div className="form-group" style={{ marginBottom: 10 }}>
+          <label className="form-label">Search by name or email</label>
+          <input className="form-control" placeholder="Type to search — or pick from the list below…"
+            value={studentSearch} onChange={e => handleStudentSearch(e.target.value)} autoFocus />
         </div>
-        {studentSearching && <div style={{ padding: '8px 0', textAlign: 'center' }}><Spinner size="sm" /></div>}
-        {!studentSearching && studentSearch && studentResults.length === 0 && (
-          <p style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>No students found.</p>
+
+        {/* Seats left, so a batch bigger than the section is caught before saving */}
+        {seatsFree !== null && (
+          <p style={{ fontSize: '.78rem', margin: '0 0 10px',
+            color: overCapacity ? 'var(--danger)' : 'var(--text-muted)' }}>
+            {overCapacity
+              ? `Only ${seatsFree} seat${seatsFree === 1 ? '' : 's'} left in this section — ${picked.length} selected.`
+              : `${seatsFree} of ${pool?.seats?.capacity} seat${seatsFree === 1 ? '' : 's'} free.`}
+          </p>
         )}
-        {studentResults.length > 0 && (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-            {studentResults.map(s => {
-              const alreadyEnrolled = enrolled.some(e => e._id === s._id);
-              return (
-                <div key={s._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{s.name}</div>
-                    <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{s.email}</div>
-                    {s.className && <div style={{ fontSize: '.75rem', color: 'var(--primary)' }}>{s.className}{s.sectionName ? ` – ${s.sectionName}` : ''}</div>}
-                  </div>
-                  {alreadyEnrolled
-                    ? <span style={{ fontSize: '.78rem', color: 'var(--success)' }}>Already enrolled</span>
-                    : <button className="btn btn-primary btn-sm" disabled={enrollingId === s._id}
-                        onClick={() => handleEnrollStudent(s._id, s.name)}>
-                        {enrollingId === s._id ? 'Enrolling…' : 'Enroll'}
-                      </button>
-                  }
-                </div>
-              );
-            })}
-          </div>
+
+        {poolLoading ? (
+          <div style={{ padding: '20px 0', textAlign: 'center' }}><Spinner /></div>
+        ) : visibleCandidates.length === 0 ? (
+          <p style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>
+            {studentSearch
+              ? 'No students match that search who are not already in this section.'
+              : 'Every student is already enrolled in a section.'}
+          </p>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 6, fontSize: '.78rem' }}>
+              <button type="button" onClick={toggleSelectAll}
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0 }}>
+                {allFreePicked ? 'Clear selection' : `Select all ${freeCandidates.length}`}
+              </button>
+              <span style={{ color: 'var(--text-muted)' }}>
+                {freeCandidates.length} available
+                {takenCount > 0 && ` · ${takenCount} in another section`}
+              </span>
+            </div>
+
+            <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' }}>
+              {visibleCandidates.map(st => {
+                const checked  = picked.includes(st._id);
+                const blocked  = !st.assignable;
+                return (
+                  <label key={st._id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                      borderBottom: '1px solid var(--border)',
+                      cursor: blocked ? 'not-allowed' : 'pointer',
+                      background: checked ? '#eef2ff' : 'transparent',
+                      opacity: blocked ? .55 : 1,
+                    }}>
+                    <input type="checkbox" checked={checked} disabled={blocked}
+                      onChange={() => togglePick(st._id)} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: '.88rem' }}>{st.name}</div>
+                      <div style={{ fontSize: '.75rem', color: 'var(--text-muted)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {st.email}{st.admissionNumber ? ` · Adm. ${st.admissionNumber}` : ''}
+                      </div>
+                    </div>
+                    {blocked
+                      ? <span style={{ fontSize: '.72rem', color: 'var(--warning)', flexShrink: 0 }}>{st.enrolledIn}</span>
+                      : st.sameClass
+                        ? <Badge variant="success">This class</Badge>
+                        : <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>No section</span>}
+                  </label>
+                );
+              })}
+            </div>
+
+            {takenCount > 0 && (
+              <button type="button" onClick={() => setShowTaken(v => !v)}
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer',
+                  padding: '8px 0 0', fontSize: '.78rem' }}>
+                {showTaken
+                  ? 'Hide students enrolled elsewhere'
+                  : `Show ${takenCount} student${takenCount === 1 ? '' : 's'} enrolled in another section`}
+              </button>
+            )}
+            {pool?.truncated && (
+              <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+                Showing the first {pool.students.length} of {pool.total} — narrow it down with the search box.
+              </p>
+            )}
+          </>
         )}
       </Modal>
 

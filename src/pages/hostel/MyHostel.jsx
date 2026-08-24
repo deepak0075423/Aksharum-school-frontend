@@ -420,7 +420,7 @@ export default function MyHostel({ role = 'student' }) {
                     <thead><tr><th>Date</th><th>Meal</th><th>Items</th></tr></thead>
                     <tbody>
                       {lists.mess.menu.map((m) => (
-                        <tr key={m._id}>
+                        <tr key={m._id} data-focus-id={m._id}>
                           <td style={{ fontSize: '.82rem' }}>{dd(m.date)}</td>
                           <td style={{ fontSize: '.82rem', textTransform: 'capitalize' }}>{m.meal}</td>
                           <td style={{ fontSize: '.82rem' }}>{(m.items || []).join(', ')}</td>

@@ -52,7 +52,9 @@ export default function StudentResults() {
       <div className="card"><div className="card-body" style={{ padding: 0 }}>
         {tab === 'exams'
           ? (rl ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>
-              : <Table columns={examCols} data={results} emptyIcon="📊" emptyTitle="No published results yet" />)
+              : <Table columns={examCols} data={results} emptyIcon="📊" emptyTitle="No published results yet"
+                  /* a "results published" notification names the exam, not this result row */
+                  focusIds={r => [r.exam?._id || r.exam]} />)
           : (cl ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>
               : <Table columns={testCols} data={classTests} emptyIcon="📝" emptyTitle="No class tests" />)
         }

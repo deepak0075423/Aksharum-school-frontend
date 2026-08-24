@@ -28,7 +28,9 @@ const periodTime = (p) => (p.startTime ? `${p.startTime}${p.endTime ? `–${p.en
 function DutyRow({ d, mine }) {
   const isToday = new Date(d.date).toISOString().slice(0, 10) === todayIso();
   return (
-    <div style={{
+    // data-focus-id lets a substitution notification flag this exact duty on
+    // arrival — see hooks/useFocusHighlight.js.
+    <div data-focus-id={d._id} style={{
       display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px',
       borderTop: '1px solid var(--border)', flexWrap: 'wrap',
       background: isToday ? 'var(--bg-secondary)' : 'transparent',

@@ -187,7 +187,7 @@ export default function Employees() {
               </thead>
               <tbody>
                 {employees.map((e) => (
-                  <tr key={e._id} className="ed-row" onClick={() => navigate(`${base}/employees/${e._id}`)}>
+                  <tr key={e._id} data-focus-id={e._id} className="ed-row" onClick={() => navigate(`${base}/employees/${e._id}`)}>
                     {/* Identity: avatar, name and the employee ID that names them */}
                     <td>
                       <div className="ed-emp">

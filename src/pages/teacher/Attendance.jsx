@@ -9,6 +9,7 @@ import {
 import { PageHeader, Table, Badge, Button, Spinner } from '../../components/ui/index';
 import SelfAttendance from '../../components/attendance/SelfAttendance';
 import ClassRanking from '../../components/attendance/ClassRanking';
+import { useSearchParams } from 'react-router-dom';
 
 // ── Class attendance ranking ──────────────────────────────────────────────────
 function SectionRanking() {
@@ -178,7 +179,12 @@ function CorrectionRequests() {
 }
 
 export default function TeacherAttendance() {
-  const [tab, setTab] = useState('mark');
+  // Notifications link straight at a tab (?tab=…), so the page opens where the
+  // notification was about rather than on its default.
+  const [searchParams] = useSearchParams();
+  const wantedTab = searchParams.get('tab');
+  const [tab, setTab] = useState(
+    ['mark', 'ranking', 'mine', 'correct'].includes(wantedTab) ? wantedTab : 'mark');
   return (
     <div className="page">
       <PageHeader title="Attendance" subtitle="Mark your section and clock your own day" />
