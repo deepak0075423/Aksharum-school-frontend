@@ -35,7 +35,8 @@ export default function BulkImportOverlay({ open, title, progress }) {
     }}>
       <div style={{
         background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-        padding: '26px 28px', width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)',
+        padding: 'clamp(18px, 5vw, 26px) clamp(16px, 5vw, 28px)',
+        width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
           <Spinner size="sm" />
@@ -63,7 +64,7 @@ export default function BulkImportOverlay({ open, title, progress }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(62px, 1fr))', gap: 8 }}>
           {tiles.map(({ n, label, tone }) => (
             <div key={label} style={{
               background: tone === 'success' ? 'var(--success-light,#f0fdf4)'
