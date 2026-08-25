@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/transport.api';
 import { PageHeader, Table, Button, Modal, Badge, Pagination } from '../../../components/ui/index';
+import useFocusTarget from '../../../hooks/useFocusTarget';
 
 const ST = { pending: 'warning', approved: 'success', rejected: 'danger', cancelled: 'muted' };
 const TYPE = { new_transport: 'New Transport', route_change: 'Route Change', stop_change: 'Stop Change',
@@ -16,13 +17,28 @@ export default function TransportRequests() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (page = 1) => {
+  // Following a notification: the server is told which request to show and
+  // answers with the page holding it, instead of page 1 where it rarely is.
+  const { focusId, release: releaseFocus } = useFocusTarget();
+
+  const load = useCallback(async (page = 1, focus = null) => {
     setLoad(true);
-    try { const res = await api.getRequests({ page, limit: 20, status }); const d = res.data ?? res;
-      setRows(d.data || []); setPg({ page: d.page, pages: d.pages, total: d.total }); }
+    try {
+      const res = await api.getRequests({ page, limit: 20, status, focus: focus || undefined });
+      const d = res.data ?? res;
+      setRows(d.data || []);
+      setPg({ page: d.page, pages: d.pages, total: d.total });
+      // The request exists but the status filter hides it — this list defaults
+      // to "pending", so an approved one would otherwise never show.
+      if (focus && d.focusFound === false && status) setStatus('');
+    }
     catch (err) { toast.error(err.message); } finally { setLoad(false); }
   }, [status]);
-  useEffect(() => { load(1); }, [status]); // eslint-disable-line
+  useEffect(() => { load(1, focusId); }, [status, focusId]); // eslint-disable-line
+
+  // Paging or filtering by hand releases the notification's hold on the list.
+  const onPage   = (p) => { releaseFocus(); load(p); };
+  const onStatus = (v) => { releaseFocus(); setStatus(v); };
 
   const doAct = async () => {
     setBusy(true);
@@ -45,13 +61,13 @@ export default function TransportRequests() {
     <div className="page">
       <PageHeader title="Transport Requests" subtitle="Route / stop / address change & cancellation approvals" />
       <div style={{ marginBottom: 16 }}>
-        <select className="form-control" style={{ maxWidth: 200 }} value={status} onChange={e => setStatus(e.target.value)}>
+        <select className="form-control" style={{ maxWidth: 200 }} value={status} onChange={e => onStatus(e.target.value)}>
           {['pending','approved','rejected','cancelled',''].map(s => <option key={s} value={s}>{s || 'All'}</option>)}</select>
       </div>
       <div className="card"><div className="card-body" style={{ padding: 0 }}>
         <Table columns={columns} data={rows} loading={loading} emptyIcon="📨" emptyTitle="No requests" />
       </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
+      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={onPage} />
 
       <Modal open={!!act} onClose={() => setAct(null)} title={`${act?.action === 'approve' ? 'Approve' : 'Reject'} Request`} maxWidth={480}
         footer={<><Button variant="secondary" onClick={() => setAct(null)}>Cancel</Button>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
+import useFocusTarget, { useFocusFilterReset } from '../../hooks/useFocusTarget';
 import { Table, Badge, Button, Modal, Spinner, Pagination, Empty } from '../../components/ui/index';
 
 // Comp Off lives inside Leave Management — these two panels are mounted as
@@ -61,6 +62,9 @@ export function AdminCompOff() {
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
 
+  // Following a notification: the server is told which request to show and
+  // answers with the page holding it, instead of page 1 where it rarely is.
+  const { focusId, release: releaseFocus } = useFocusTarget();
   const { data, loading, refetch } = useFetch(
     () => api.getCompOffRequests({
       page, limit: 20,
@@ -69,9 +73,21 @@ export function AdminCompOff() {
       source:      fSource   || undefined,
       fromDate:    fFrom     || undefined,
       toDate:      fTo       || undefined,
+      focus:       focusId   || undefined,
     }),
-    [page, fStatus, fCategory, fSource, fFrom, fTo],
+    [page, fStatus, fCategory, fSource, fFrom, fTo, focusId],
   );
+
+  const clearFilters = useCallback(() => {
+    setFStatus(''); setFCategory(''); setFSource(''); setFFrom(''); setFTo(''); setPage(1);
+  }, []);
+  // The request exists but a filter in force hides it — clearing them is what
+  // following the notification meant.
+  useFocusFilterReset(data, focusId, clearFilters);
+
+  // Every filter and page control releases the notification's hold on the list.
+  const onFilter = (setter) => (value) => { releaseFocus(); setPage(1); setter(value); };
+  const onPage   = (p) => { releaseFocus(); setPage(p); };
 
   const enabled  = data?.enabled !== false;
   const requests = data?.items || [];
@@ -267,32 +283,32 @@ export function AdminCompOff() {
       {sub === 'requests' && (
         <div className="card">
           <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select className="form-control" style={{ width: 150 }} value={fStatus} onChange={e => { setFStatus(e.target.value); setPage(1); }}>
+            <select className="form-control" style={{ width: 150 }} value={fStatus} onChange={e => onFilter(setFStatus)(e.target.value)}>
               <option value="">All Statuses</option>
               {['draft', 'pending', 'approved', 'rejected', 'cancelled', 'expired'].map(s => (
                 <option key={s} value={s}>{s === 'draft' ? 'ready to apply' : s}</option>
               ))}
             </select>
-            <select className="form-control" style={{ width: 160 }} value={fCategory} onChange={e => { setFCategory(e.target.value); setPage(1); }}>
+            <select className="form-control" style={{ width: 160 }} value={fCategory} onChange={e => onFilter(setFCategory)(e.target.value)}>
               <option value="">All Day Types</option>
               {Object.entries(DAY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
-            <select className="form-control" style={{ width: 150 }} value={fSource} onChange={e => { setFSource(e.target.value); setPage(1); }}>
+            <select className="form-control" style={{ width: 150 }} value={fSource} onChange={e => onFilter(setFSource)(e.target.value)}>
               <option value="">All Sources</option>
               <option value="manual">Manual</option>
               <option value="attendance">From Attendance</option>
             </select>
-            <input type="date" className="form-control" style={{ width: 160 }} value={fFrom} onChange={e => { setFFrom(e.target.value); setPage(1); }} />
-            <input type="date" className="form-control" style={{ width: 160 }} value={fTo}   onChange={e => { setFTo(e.target.value); setPage(1); }} />
+            <input type="date" className="form-control" style={{ width: 160 }} value={fFrom} onChange={e => onFilter(setFFrom)(e.target.value)} />
+            <input type="date" className="form-control" style={{ width: 160 }} value={fTo}   onChange={e => onFilter(setFTo)(e.target.value)} />
             {(fStatus || fCategory || fSource || fFrom || fTo) && (
-              <button className="btn btn-secondary btn-sm" onClick={() => { setFStatus(''); setFCategory(''); setFSource(''); setFFrom(''); setFTo(''); setPage(1); }}>Clear</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => { releaseFocus(); clearFilters(); }}>Clear</button>
             )}
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             <Table columns={columns} data={requests} loading={loading} emptyIcon="🕓" emptyTitle="No Comp Off requests" />
           </div>
           <div style={{ padding: '0 16px 16px' }}>
-            <Pagination page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} onPage={setPage} />
+            <Pagination page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} onPage={onPage} />
           </div>
         </div>
       )}
@@ -544,7 +560,7 @@ function CompOffLedger({ employees = [], onChanged }) {
         <Table columns={columns} data={data?.entries || []} loading={loading} emptyIcon="📒" emptyTitle="No ledger entries" />
       </div>
       <div style={{ padding: '0 16px 16px' }}>
-        <Pagination page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} onPage={setPage} />
+        <Pagination page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} onPage={onPage} />
       </div>
 
       <Modal open={adjModal} onClose={() => setAdjModal(false)} title="Manual Comp Off Adjustment"

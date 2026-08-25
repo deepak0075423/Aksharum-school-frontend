@@ -39,6 +39,14 @@ export default function TimetableVersionDetail() {
   const [exporting, setExporting] = useState('');
   const [regenModal, setRegen] = useState(false);
   const [regenProgress, setRegenProgress] = useState(null);
+  // Publishing reprojects every section from this draft, so anything typed into
+  // the LIVE grid since the last publish is about to go. The server refuses
+  // until that is acknowledged; these hold the lists while the admin decides.
+  // They belong up here with the rest of the state: the render bails out early
+  // while the version is loading, and a hook declared below that point runs on
+  // some renders and not others — which is what broke this screen.
+  const [liveEdits, setLiveEdits] = useState(null);
+  const [outside, setOutside] = useState(null);
   const releasedRef = useRef(false);
   const pollRef = useRef(null);
 
@@ -266,12 +274,6 @@ export default function TimetableVersionDetail() {
     if (result?.valid) setPublish(true);
     else setView('conflicts');
   };
-
-  // Publishing reprojects every section from this draft, so anything typed into
-  // the LIVE grid since the last publish is about to go. The server refuses
-  // until that is acknowledged; this holds the list while the admin decides.
-  const [liveEdits, setLiveEdits] = useState(null);
-  const [outside, setOutside] = useState(null);
 
   const doPublish = async (overwriteLiveEdits = false) => {
     setBusy(true);

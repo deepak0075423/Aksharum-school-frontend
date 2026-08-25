@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -7,6 +7,7 @@ import { AdminCompOff, AdminCompOffPolicy } from './CompOff';
 import AdminLeavePolicies from './LeavePolicies';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
 import { useSearchParams } from 'react-router-dom';
+import useFocusTarget, { useFocusFilterReset } from '../../hooks/useFocusTarget';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -98,7 +99,10 @@ export default function AdminLeave() {
   const [comment,   setComment]   = useState('');
   const [actLoad,   setActLoad]   = useState(false);
 
-  const { data: reqData, loading: reqLoading, refetch: refetchReq } = useFetch(
+  // Following a notification: the server is told which request to show and
+  // answers with the page holding it, instead of page 1 where it rarely is.
+  const { focusId, release: releaseFocus } = useFocusTarget();
+  const { data: reqData, meta: reqMeta, loading: reqLoading, refetch: refetchReq } = useFetch(
     () => api.getLeaveRequests({
       page: reqPage, limit: 20,
       status:    reqStatus    || undefined,
@@ -106,9 +110,22 @@ export default function AdminLeave() {
       leaveType: reqLeaveType || undefined,
       fromDate:  reqFromDate  || undefined,
       toDate:    reqToDate    || undefined,
+      focus:     focusId      || undefined,
     }),
-    [reqPage, reqStatus, reqTeacher, reqLeaveType, reqFromDate, reqToDate],
+    [reqPage, reqStatus, reqTeacher, reqLeaveType, reqFromDate, reqToDate, focusId],
   );
+
+  const clearReqFilters = useCallback(() => {
+    setReqStatus(''); setReqTeacher(''); setReqLeaveType('');
+    setReqFromDate(''); setReqToDate(''); setReqPage(1);
+  }, []);
+  // The request exists but a filter in force hides it — clearing them is what
+  // following the notification meant.
+  useFocusFilterReset(reqMeta, focusId, clearReqFilters);
+
+  // Every filter and page control releases the notification's hold on the list.
+  const onReqFilter = (setter) => (value) => { releaseFocus(); setReqPage(1); setter(value); };
+  const onReqPage   = (p) => { releaseFocus(); setReqPage(p); };
 
   const { data: teachers } = useFetch(() => api.getTeachers({ limit: 500 }));
   const teacherList = teachers?.data || [];
@@ -528,38 +545,36 @@ export default function AdminLeave() {
       {tab === 'requests' && (
         <div className="card">
           <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select className="form-control" style={{ width: 150 }} value={reqStatus} onChange={e => { setReqStatus(e.target.value); setReqPage(1); }}>
+            <select className="form-control" style={{ width: 150 }} value={reqStatus} onChange={e => onReqFilter(setReqStatus)(e.target.value)}>
               <option value="">All Statuses</option>
               {['pending','approved','rejected','cancelled','modification_requested'].map(s => (
                 <option key={s} value={s}>{s.replace('_', ' ')}</option>
               ))}
             </select>
-            <select className="form-control" style={{ width: 160 }} value={reqTeacher} onChange={e => { setReqTeacher(e.target.value); setReqPage(1); }}>
+            <select className="form-control" style={{ width: 160 }} value={reqTeacher} onChange={e => onReqFilter(setReqTeacher)(e.target.value)}>
               <option value="">All Teachers</option>
               {teacherList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
             </select>
-            <select className="form-control" style={{ width: 150 }} value={reqLeaveType} onChange={e => { setReqLeaveType(e.target.value); setReqPage(1); }}>
+            <select className="form-control" style={{ width: 150 }} value={reqLeaveType} onChange={e => onReqFilter(setReqLeaveType)(e.target.value)}>
               <option value="">All Types</option>
               {leaveTypes.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
             </select>
             <input type="date" className="form-control" style={{ width: 140 }} value={reqFromDate}
-              onChange={e => { setReqFromDate(e.target.value); setReqPage(1); }} title="From date" />
+              onChange={e => onReqFilter(setReqFromDate)(e.target.value)} title="From date" />
             <input type="date" className="form-control" style={{ width: 140 }} value={reqToDate}
-              onChange={e => { setReqToDate(e.target.value); setReqPage(1); }} title="To date" />
+              onChange={e => onReqFilter(setReqToDate)(e.target.value)} title="To date" />
             {(reqStatus || reqTeacher || reqLeaveType || reqFromDate || reqToDate) && (
-              <button className="btn btn-secondary btn-sm" onClick={() => {
-                setReqStatus(''); setReqTeacher(''); setReqLeaveType('');
-                setReqFromDate(''); setReqToDate(''); setReqPage(1);
-              }}>Clear</button>
+              <button className="btn btn-secondary btn-sm"
+                onClick={() => { releaseFocus(); clearReqFilters(); }}>Clear</button>
             )}
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {reqLoading ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
               : <Table columns={reqColumns} data={reqData || []} emptyIcon="🏖️" emptyTitle="No leave requests" />}
           </div>
-          {reqData?.pages > 1 && (
+          {reqMeta?.pages > 1 && (
             <div className="card-footer">
-              <Pagination page={reqPage} pages={reqData.pages} total={reqData.total} onPage={setReqPage} />
+              <Pagination page={reqMeta.page || reqPage} pages={reqMeta.pages} total={reqMeta.total} onPage={onReqPage} />
             </div>
           )}
         </div>

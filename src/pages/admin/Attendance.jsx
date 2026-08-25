@@ -9,6 +9,7 @@ import {
 import { PageHeader, Table, Badge, Spinner, Button } from '../../components/ui/index';
 import SelfAttendance from '../../components/attendance/SelfAttendance';
 import { useSearchParams } from 'react-router-dom';
+import useFocusTarget from '../../hooks/useFocusTarget';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -161,12 +162,21 @@ function RegulariseAttendance() {
 // ── Tab 2: Teacher regularization requests ────────────────────────────────────
 function RegularizationRequests() {
   const [status, setStatus] = useState('pending');
+  // Following a notification about a request that has since been decided: this
+  // list shows pending only, so the request would be filtered out of the very
+  // page the notification sent you to.
+  const { focusId, release: releaseFocus } = useFocusTarget();
 
   const { data, loading, refetch } = useFetch(
     () => getRegularizationRequests({ page: 1, limit: 100, status: status || undefined }),
     [status],
   );
   const requests = Array.isArray(data) ? data : [];
+
+  useEffect(() => {
+    if (!focusId || loading || !status) return;
+    if (!requests.some(r => String(r._id) === focusId)) setStatus('');
+  }, [focusId, loading, status, requests]);
 
   const handleReview = async (id, st) => {
     try {
@@ -203,7 +213,7 @@ function RegularizationRequests() {
     <div className="card">
       <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <select className="form-control" style={{ width: 160 }} value={status}
-          onChange={e => setStatus(e.target.value)}>
+          onChange={e => { releaseFocus(); setStatus(e.target.value); }}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>

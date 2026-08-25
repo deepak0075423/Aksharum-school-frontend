@@ -26,7 +26,7 @@ export default function Students() {
   const [bulkProgress, setBulkProgress] = useState(null);
   const [errorsSaved, setErrorsSaved] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  // { total, current, currentName, created, errorCount, errors, done }
+  // { total, current, currentName, created, updated, errorCount, errors, done }
   const bulkFileRef = useRef(null);
 
   const { data, loading, refetch } = useFetch(
@@ -57,7 +57,7 @@ export default function Students() {
     e.preventDefault();
     if (!bulkFile) { toast.error('Please select an Excel file'); return; }
     setBulkLoad(true);
-    setBulkProgress({ total: 0, current: 0, currentName: '', created: 0, errorCount: 0, errors: [], done: false });
+    setBulkProgress({ total: 0, current: 0, currentName: '', created: 0, updated: 0, errorCount: 0, errors: [], done: false });
     try {
       const fd = new FormData();
       fd.append('excelFile', bulkFile);
@@ -91,22 +91,40 @@ export default function Students() {
             setBulkProgress(p => ({ ...p, current: evt.current, currentName: evt.name }));
           } else if (evt.type === 'row_done') {
             if (evt.success) didCreate = true;
+            // A row that matched a student already on file is an update, not a
+            // creation — counting the two together made a re-uploaded sheet
+            // report every existing student as newly created.
+            const isUpdate = evt.success && evt.action === 'updated';
             setBulkProgress(p => ({
               ...p,
-              created:    evt.success ? p.created + 1    : p.created,
-              errorCount: evt.success ? p.errorCount     : p.errorCount + 1,
+              created:    evt.success && !isUpdate ? p.created + 1 : p.created,
+              updated:    isUpdate ? p.updated + 1 : p.updated,
+              errorCount: evt.success ? p.errorCount : p.errorCount + 1,
               errors:     evt.success ? p.errors : [...p.errors, { row: evt.row, name: evt.name, reason: evt.reason }],
             }));
           } else if (evt.type === 'done') {
-            // The failed rows come back as a ready-to-correct sheet, not just a list.
-            setBulkProgress(p => ({ ...p, done: true, errorFile: evt.errorFile ?? null }));
-            // A re-uploaded sheet updates the students it already created, so
-            // both counts are "imported" as far as the admin is concerned.
-            const created = (evt.created ?? 0) + (evt.updated ?? 0);
+            // The server's own tally wins over the row-by-row one: if the run
+            // stopped early, the difference from `total` is the shortfall.
+            const created = evt.created ?? 0;
+            const updated = evt.updated ?? 0;
             const failed  = evt.errors?.length ?? 0;
-            if (created === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
-            else if (failed > 0) toast(`Imported ${created} student(s), ${failed} row(s) failed`, { icon: '⚠️' });
-            else if (created > 0) toast.success(`Imported ${created} student(s)`);
+            // The failed rows come back as a ready-to-correct sheet, not just a list.
+            setBulkProgress(p => ({
+              ...p,
+              done: true,
+              created,
+              updated,
+              errorCount: failed,
+              total: evt.total ?? p.total,
+              errorFile: evt.errorFile ?? null,
+            }));
+            const touched = created + updated;
+            const parts = [];
+            if (created) parts.push(`${created} new`);
+            if (updated) parts.push(`${updated} already on file`);
+            if (touched === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
+            else if (failed > 0) toast(`${parts.join(', ')} — ${failed} row(s) failed`, { icon: '⚠️' });
+            else if (touched > 0) toast.success(`Imported ${touched} student(s) (${parts.join(', ')})`);
             else toast.error('No rows found in the file');
             if (didCreate) refetch();
           } else if (evt.type === 'error') {
@@ -245,6 +263,10 @@ export default function Students() {
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{bulkProgress?.created ?? 0}</div>
                 <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Created</div>
               </div>
+              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{bulkProgress?.updated ?? 0}</div>
+                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Already on file</div>
+              </div>
               <div style={{ flex: 1, background: (bulkProgress?.errorCount ?? 0) > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${(bulkProgress?.errorCount ?? 0) > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, color: (bulkProgress?.errorCount ?? 0) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress?.errorCount ?? 0}</div>
                 <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Errors</div>
@@ -280,13 +302,29 @@ export default function Students() {
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1, background: 'var(--success-light,#f0fdf4)', border: '1px solid var(--success)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkProgress.created}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Students Created</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Newly Created</div>
+              </div>
+              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkProgress.updated ?? 0}</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Already Existed</div>
               </div>
               <div style={{ flex: 1, background: bulkProgress.errorCount > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress.errorCount}</div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Errors</div>
               </div>
             </div>
+            {(() => {
+              const seen = (bulkProgress.created ?? 0) + (bulkProgress.updated ?? 0) + (bulkProgress.errorCount ?? 0);
+              const total = bulkProgress.total ?? 0;
+              if (!total || seen >= total) return null;
+              return (
+                <div style={{ background: 'var(--danger-light,#fef2f2)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '.82rem', color: 'var(--danger)' }}>
+                  Only {seen} of {total} rows were processed — the import stopped early.
+                  Upload the sheet again to continue; students already on file are matched by
+                  email and updated rather than duplicated.
+                </div>
+              );
+            })()}
             {bulkProgress.errors.length > 0 && (
               <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
                 {bulkProgress.errors.map((e, i) => (
