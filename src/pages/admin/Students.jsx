@@ -226,58 +226,72 @@ export default function Students() {
       {/* ══ Fullscreen blocking overlay while import runs ═══════════════════ */}
       {bulkLoading && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'fixed', inset: 0, zIndex: 9999, padding: 20,
+          background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           pointerEvents: 'all',
         }}>
-          <div style={{ background: 'var(--card)', borderRadius: 12, padding: '32px 36px', width: '100%', maxWidth: 480, boxShadow: '0 8px 40px rgba(0,0,0,.3)' }}>
-            <h3 style={{ margin: '0 0 20px', fontSize: '1.05rem' }}>Importing Students…</h3>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+            padding: '26px 28px', width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <Spinner size="sm" />
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Importing Students…</h3>
+            </div>
 
-            {/* Progress bar */}
-            {bulkProgress && bulkProgress.total > 0 && (
+            {/* Progress bar — only once the sheet has been read and a row count is known */}
+            {bulkProgress && bulkProgress.total > 0 ? (
               <>
-                <div style={{ background: 'var(--border)', borderRadius: 99, height: 8, marginBottom: 10, overflow: 'hidden' }}>
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 99, height: 8, marginBottom: 8, overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: 99, background: 'var(--primary)',
                     width: `${Math.round((bulkProgress.current / bulkProgress.total) * 100)}%`,
                     transition: 'width .2s',
                   }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>
                   <span>Processing {bulkProgress.current} of {bulkProgress.total}</span>
-                  <span>{Math.round((bulkProgress.current / bulkProgress.total) * 100)}%</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round((bulkProgress.current / bulkProgress.total) * 100)}%</span>
                 </div>
               </>
+            ) : (
+              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 14 }}>
+                Reading the sheet…
+              </div>
             )}
 
             {/* Currently processing */}
             {bulkProgress?.currentName && (
-              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Creating account for <strong style={{ color: 'var(--text)' }}>{bulkProgress.currentName}</strong>…
+              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Processing <strong style={{ color: 'var(--text)' }}>{bulkProgress.currentName}</strong>…
               </div>
             )}
 
             {/* Live counters */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, background: 'var(--success-light,#f0fdf4)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{bulkProgress?.created ?? 0}</div>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Created</div>
-              </div>
-              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{bulkProgress?.updated ?? 0}</div>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Already on file</div>
-              </div>
-              <div style={{ flex: 1, background: (bulkProgress?.errorCount ?? 0) > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${(bulkProgress?.errorCount ?? 0) > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: (bulkProgress?.errorCount ?? 0) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress?.errorCount ?? 0}</div>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Errors</div>
-              </div>
-              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{bulkProgress?.total ?? 0}</div>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Total</div>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {[
+                { n: bulkProgress?.created ?? 0, label: 'Created',  tone: 'success' },
+                { n: bulkProgress?.updated ?? 0, label: 'Existing', tone: null },
+                { n: bulkProgress?.errorCount ?? 0, label: 'Errors', tone: (bulkProgress?.errorCount ?? 0) > 0 ? 'danger' : null },
+                { n: bulkProgress?.total ?? 0,   label: 'Total',    tone: null },
+              ].map(({ n, label, tone }) => (
+                <div key={label} style={{
+                  background: tone === 'success' ? 'var(--success-light,#f0fdf4)'
+                            : tone === 'danger'  ? 'var(--danger-light,#fef2f2)' : 'var(--bg)',
+                  border: `1px solid ${tone === 'success' ? 'var(--success)' : tone === 'danger' ? 'var(--danger)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius)', padding: '10px 6px', textAlign: 'center',
+                }}>
+                  <div style={{
+                    fontSize: '1.4rem', fontWeight: 700, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums',
+                    color: tone === 'success' ? 'var(--success)' : tone === 'danger' ? 'var(--danger)' : 'var(--text)',
+                  }}>{n}</div>
+                  <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</div>
+                </div>
+              ))}
             </div>
 
-            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 18, marginBottom: 0, textAlign: 'center' }}>
+            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 16, marginBottom: 0, textAlign: 'center' }}>
               Please wait — do not close or refresh this page.
             </p>
           </div>
