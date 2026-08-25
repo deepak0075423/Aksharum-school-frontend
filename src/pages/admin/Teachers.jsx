@@ -6,6 +6,7 @@ import * as api from '../../api/admin.api';
 import { toggleTeacher } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import TeacherForm from './TeacherForm';
+import BulkImportOverlay from '../../components/BulkImportOverlay';
 import { saveFile, saveBase64 } from '../../utils/downloadFile';
 
 export default function Teachers() {
@@ -21,7 +22,8 @@ export default function Teachers() {
   const [bulkModal, setBulkModal]   = useState(false);
   const [bulkFile, setBulkFile]     = useState(null);
   const [bulkLoading, setBulkLoad]  = useState(false);
-  const [bulkResult, setBulkResult] = useState(null);   // { created, updated, errors[], errorFile }
+  // { total, current, currentName, created, updated, errorCount, errors, done }
+  const [bulkProgress, setBulkProgress] = useState(null);
   const [errorsSaved, setErrorsSaved] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const bulkFileRef = React.useRef(null);
@@ -39,7 +41,7 @@ export default function Teachers() {
   const designations = Array.isArray(desigData) ? desigData : [];
 
   const resetBulk = () => {
-    setBulkModal(false); setBulkFile(null); setBulkResult(null);
+    setBulkModal(false); setBulkFile(null); setBulkProgress(null);
     setErrorsSaved(false); setConfirmClose(false);
     if (bulkFileRef.current) bulkFileRef.current.value = '';
   };
@@ -47,11 +49,11 @@ export default function Teachers() {
   // stored anywhere — so closing without saving it silently throws away the only
   // record of what went wrong. Warn before that happens.
   const closeBulk = () => {
-    if (bulkResult?.errorFile && !errorsSaved) { setConfirmClose(true); return; }
+    if (bulkProgress?.errorFile && !errorsSaved) { setConfirmClose(true); return; }
     resetBulk();
   };
   const saveErrorSheet = () => {
-    saveBase64(bulkResult.errorFile.base64, bulkResult.errorFile.filename);
+    saveBase64(bulkProgress.errorFile.base64, bulkProgress.errorFile.filename);
     setErrorsSaved(true);
   };
 
@@ -61,26 +63,90 @@ export default function Teachers() {
     } catch { toast.error('Failed to download template'); }
   };
 
+  // The import streams row-by-row over SSE, so this reads the response body
+  // itself rather than going through the axios helper, which would only hand
+  // back the whole thing once the last teacher had been written.
   const handleBulkImport = async (e) => {
     e.preventDefault();
-    if (!bulkFile) return toast.error('Please select an Excel file');
+    if (!bulkFile) { toast.error('Please select an Excel file'); return; }
     setBulkLoad(true);
+    setBulkProgress({ total: 0, current: 0, currentName: '', created: 0, updated: 0, errorCount: 0, errors: [], done: false });
     try {
       const fd = new FormData();
       fd.append('excelFile', bulkFile);
-      const res = await api.bulkImportTeachers(fd);
-      const created = res?.created ?? 0;
-      const updated = res?.updated ?? 0;
-      const errors  = res?.errors  ?? [];
-      // The failed rows come back as a ready-to-correct sheet, not just a list.
-      setBulkResult({ created, updated, errors, errorFile: res?.errorFile ?? null });
-      // A sheet re-uploaded after fixing a few rows updates the teachers that
-      // already exist — counting only creations would report that as a failure.
-      const touched = created + updated;
-      if (touched) { toast.success(`${touched} teacher${touched !== 1 ? 's' : ''} imported`); refetch(); }
-      else toast.error('No teachers were imported');
-    } catch (err) { toast.error(err.message); }
-    finally { setBulkLoad(false); }
+      const token = localStorage.getItem('token');
+      const baseURL = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${baseURL}/admin/teachers/bulk`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!response.ok) {
+        const json = await response.json();
+        throw new Error(json.message || 'Import failed');
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let didWrite = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const chunks = buf.split('\n\n');
+        buf = chunks.pop();
+        for (const chunk of chunks) {
+          if (!chunk.startsWith('data: ')) continue;
+          const evt = JSON.parse(chunk.slice(6));
+          if (evt.type === 'total') {
+            setBulkProgress(p => ({ ...p, total: evt.total }));
+          } else if (evt.type === 'processing') {
+            setBulkProgress(p => ({ ...p, current: evt.current, currentName: evt.name }));
+          } else if (evt.type === 'row_done') {
+            if (evt.success) didWrite = true;
+            // A row that matched a teacher already on file is an update, not a
+            // creation — the admin has to be able to tell the two apart.
+            const isUpdate = evt.success && evt.action === 'updated';
+            setBulkProgress(p => ({
+              ...p,
+              created:    evt.success && !isUpdate ? p.created + 1 : p.created,
+              updated:    isUpdate ? p.updated + 1 : p.updated,
+              errorCount: evt.success ? p.errorCount : p.errorCount + 1,
+              errors:     evt.success ? p.errors : [...p.errors, { row: evt.row, name: evt.name, reason: evt.reason }],
+            }));
+          } else if (evt.type === 'done') {
+            // The server's own tally wins over the row-by-row one: if the run
+            // stopped early, the difference from `total` is the shortfall.
+            const created = evt.created ?? 0;
+            const updated = evt.updated ?? 0;
+            const failed  = evt.errors?.length ?? 0;
+            // The failed rows come back as a ready-to-correct sheet, not just a list.
+            setBulkProgress(p => ({
+              ...p,
+              done: true,
+              created,
+              updated,
+              errorCount: failed,
+              errors: evt.errors ?? p.errors,
+              total: evt.total ?? p.total,
+              errorFile: evt.errorFile ?? null,
+            }));
+            const touched = created + updated;
+            const parts = [];
+            if (created) parts.push(`${created} new`);
+            if (updated) parts.push(`${updated} updated`);
+            if (touched === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
+            else if (failed > 0) toast(`${parts.join(', ')} — ${failed} row(s) failed`, { icon: '⚠️' });
+            else if (touched > 0) toast.success(`Imported ${touched} teacher(s) (${parts.join(', ')})`);
+            else toast.error('No rows found in the file');
+            if (didWrite) refetch();
+          } else if (evt.type === 'error') {
+            throw new Error(evt.message);
+          }
+        }
+      }
+    } catch (err) { toast.error(err.message); setBulkLoad(false); setBulkProgress(null); return; }
+    setBulkLoad(false);
   };
 
   const handleDelete = async () => {
@@ -132,7 +198,7 @@ export default function Teachers() {
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <Link to="/admin/designations" className="btn btn-secondary">🎫 Designations</Link>
-            <Button variant="secondary" onClick={() => { setBulkResult(null); setBulkFile(null); setBulkModal(true); }}>Bulk Import</Button>
+            <Button variant="secondary" onClick={() => { setBulkProgress(null); setBulkFile(null); setBulkModal(true); }}>Bulk Import</Button>
             <Button onClick={() => setModal(true)}>+ Add Teacher</Button>
           </div>
         } />
@@ -156,9 +222,12 @@ export default function Teachers() {
         )}
       </div>
 
+      {/* Blocking progress panel while the import streams — shared with Students */}
+      <BulkImportOverlay open={bulkLoading} title="Importing Teachers…" progress={bulkProgress} />
+
       {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
-      <Modal open={bulkModal} onClose={closeBulk} title="Bulk Import Teachers" maxWidth={520}
-        footer={bulkResult ? (
+      <Modal open={bulkModal && !bulkLoading} onClose={closeBulk} title="Bulk Import Teachers" maxWidth={520}
+        footer={bulkProgress?.done ? (
           <Button onClick={closeBulk}>Close</Button>
         ) : (
           <>
@@ -166,25 +235,37 @@ export default function Teachers() {
             <Button form="teacher-bulk-form" type="submit" loading={bulkLoading}>Import</Button>
           </>
         )}>
-        {bulkResult ? (
+        {bulkProgress?.done ? (
           <div>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid var(--success)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkResult.created}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Teachers Created</div>
+              <div style={{ flex: 1, background: 'var(--success-light,#f0fdf4)', border: '1px solid var(--success)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkProgress.created}</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Newly Created</div>
               </div>
               <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkResult.updated ?? 0}</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkProgress.updated ?? 0}</div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Updated</div>
               </div>
-              <div style={{ flex: 1, background: bulkResult.errors.length ? '#fef2f2' : 'var(--bg)', border: `1px solid ${bulkResult.errors.length ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkResult.errors.length ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkResult.errors.length}</div>
+              <div style={{ flex: 1, background: bulkProgress.errorCount > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress.errorCount}</div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Errors</div>
               </div>
             </div>
-            {bulkResult.errors.length > 0 && (
+            {(() => {
+              const seen = (bulkProgress.created ?? 0) + (bulkProgress.updated ?? 0) + (bulkProgress.errorCount ?? 0);
+              const total = bulkProgress.total ?? 0;
+              if (!total || seen >= total) return null;
+              return (
+                <div style={{ background: 'var(--danger-light,#fef2f2)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '.82rem', color: 'var(--danger)' }}>
+                  Only {seen} of {total} rows were processed — the import stopped early.
+                  Upload the sheet again to continue; teachers already on file are matched by
+                  email and updated rather than duplicated.
+                </div>
+              );
+            })()}
+            {bulkProgress.errors.length > 0 && (
               <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                {bulkResult.errors.map((e, i) => (
+                {bulkProgress.errors.map((e, i) => (
                   <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
                     <span style={{ fontWeight: 600 }}>Row {e.row}{e.name ? ` — ${e.name}` : ''}: </span>
                     <span style={{ color: 'var(--danger)' }}>{e.reason}</span>
@@ -192,18 +273,18 @@ export default function Teachers() {
                 ))}
               </div>
             )}
-            {bulkResult.errorFile && (
+            {bulkProgress.errorFile && (
               <div style={{ marginTop: 12 }}>
                 <Button variant="secondary" style={{ width: '100%' }}
                   onClick={saveErrorSheet}>
-                  Download the {bulkResult.errorFile.rows} failed row{bulkResult.errorFile.rows !== 1 ? 's' : ''} (.xlsx)
+                  Download the {bulkProgress.errorFile.rows} failed row{bulkProgress.errorFile.rows !== 1 ? 's' : ''} (.xlsx)
                 </Button>
                 <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0, lineHeight: 1.6 }}>
                   That file is your own sheet with just these rows and an <strong>Error</strong> column saying
                   what stopped each one. Fix them there and upload the same file again — the rows that
                   already imported are not in it.
-                  {bulkResult.errorFile.total > bulkResult.errorFile.rows
-                    && ` Showing the first ${bulkResult.errorFile.rows} of ${bulkResult.errorFile.total} failures.`}
+                  {bulkProgress.errorFile.total > bulkProgress.errorFile.rows
+                    && ` Showing the first ${bulkProgress.errorFile.rows} of ${bulkProgress.errorFile.total} failures.`}
                 </p>
               </div>
             )}
@@ -249,7 +330,7 @@ export default function Teachers() {
         }>
         <p style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
           <strong style={{ color: 'var(--text)' }}>
-            {bulkResult?.errorFile?.rows} row{bulkResult?.errorFile?.rows !== 1 ? 's' : ''} did not import.
+            {bulkProgress?.errorFile?.rows} row{bulkProgress?.errorFile?.rows !== 1 ? 's' : ''} did not import.
           </strong>{' '}
           The sheet listing them — with the reason against each row — has not been downloaded, and
           the server does not keep a copy. Close now and the only way to see those rows again is to

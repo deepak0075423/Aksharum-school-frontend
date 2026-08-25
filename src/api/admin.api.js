@@ -79,6 +79,10 @@ export const previewAdmissionNumber = (format) => api.get('/admin/admission-numb
 export const previewEmployeeId      = (format) => api.get('/admin/employee-id/preview', { params: format ? { format } : {} });
 export const updateStudent  = (id, data) => api.put(`/admin/students/${id}`, data);
 export const toggleStudent  = (id)       => api.patch(`/admin/users/${id}/toggle`);
+// Both bulk endpoints stream row-by-row progress as SSE, which axios cannot
+// read incrementally — Students.jsx and Teachers.jsx call them with fetch() and
+// consume the body themselves. These two are kept only so an existing import
+// does not break; do not reach for them for a new caller.
 export const bulkImportStudents        = (fd) => api.post('/admin/students/bulk', fd);
 export const bulkImportTeachers        = (fd) => api.post('/admin/teachers/bulk', fd);
 export const downloadTeacherTemplate   = ()   => api.get('/admin/teachers/template', { responseType: 'arraybuffer' });

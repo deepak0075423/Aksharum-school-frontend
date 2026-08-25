@@ -5,6 +5,7 @@ import * as api from '../../api/admin.api';
 import { toggleStudent } from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import StudentForm from './StudentForm';
+import BulkImportOverlay from '../../components/BulkImportOverlay';
 import { saveFile, saveBase64 } from '../../utils/downloadFile';
 
 export default function Students() {
@@ -121,7 +122,7 @@ export default function Students() {
             const touched = created + updated;
             const parts = [];
             if (created) parts.push(`${created} new`);
-            if (updated) parts.push(`${updated} already on file`);
+            if (updated) parts.push(`${updated} updated`);
             if (touched === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
             else if (failed > 0) toast(`${parts.join(', ')} — ${failed} row(s) failed`, { icon: '⚠️' });
             else if (touched > 0) toast.success(`Imported ${touched} student(s) (${parts.join(', ')})`);
@@ -223,80 +224,8 @@ export default function Students() {
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
         loading={delLoad} title="Delete Student" message={`Delete "${del?.name}"? This cannot be undone.`} />
 
-      {/* ══ Fullscreen blocking overlay while import runs ═══════════════════ */}
-      {bulkLoading && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999, padding: 20,
-          background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          pointerEvents: 'all',
-        }}>
-          <div style={{
-            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
-            padding: '26px 28px', width: '100%', maxWidth: 460, boxShadow: 'var(--shadow-lg)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <Spinner size="sm" />
-              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Importing Students…</h3>
-            </div>
-
-            {/* Progress bar — only once the sheet has been read and a row count is known */}
-            {bulkProgress && bulkProgress.total > 0 ? (
-              <>
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 99, height: 8, marginBottom: 8, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', borderRadius: 99, background: 'var(--primary)',
-                    width: `${Math.round((bulkProgress.current / bulkProgress.total) * 100)}%`,
-                    transition: 'width .2s',
-                  }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>
-                  <span>Processing {bulkProgress.current} of {bulkProgress.total}</span>
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round((bulkProgress.current / bulkProgress.total) * 100)}%</span>
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 14 }}>
-                Reading the sheet…
-              </div>
-            )}
-
-            {/* Currently processing */}
-            {bulkProgress?.currentName && (
-              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Processing <strong style={{ color: 'var(--text)' }}>{bulkProgress.currentName}</strong>…
-              </div>
-            )}
-
-            {/* Live counters */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-              {[
-                { n: bulkProgress?.created ?? 0, label: 'Created',  tone: 'success' },
-                { n: bulkProgress?.updated ?? 0, label: 'Existing', tone: null },
-                { n: bulkProgress?.errorCount ?? 0, label: 'Errors', tone: (bulkProgress?.errorCount ?? 0) > 0 ? 'danger' : null },
-                { n: bulkProgress?.total ?? 0,   label: 'Total',    tone: null },
-              ].map(({ n, label, tone }) => (
-                <div key={label} style={{
-                  background: tone === 'success' ? 'var(--success-light,#f0fdf4)'
-                            : tone === 'danger'  ? 'var(--danger-light,#fef2f2)' : 'var(--bg)',
-                  border: `1px solid ${tone === 'success' ? 'var(--success)' : tone === 'danger' ? 'var(--danger)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)', padding: '10px 6px', textAlign: 'center',
-                }}>
-                  <div style={{
-                    fontSize: '1.4rem', fontWeight: 700, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums',
-                    color: tone === 'success' ? 'var(--success)' : tone === 'danger' ? 'var(--danger)' : 'var(--text)',
-                  }}>{n}</div>
-                  <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</div>
-                </div>
-              ))}
-            </div>
-
-            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 16, marginBottom: 0, textAlign: 'center' }}>
-              Please wait — do not close or refresh this page.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Blocking progress panel while the import streams — shared with Teachers */}
+      <BulkImportOverlay open={bulkLoading} title="Importing Students…" progress={bulkProgress} />
 
       {/* ══ Bulk Import Modal ════════════════════════════════════════════════ */}
       <Modal open={bulkModal && !bulkLoading} onClose={closeBulk} title="Bulk Import Students" maxWidth={520}
@@ -320,7 +249,7 @@ export default function Students() {
               </div>
               <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkProgress.updated ?? 0}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Already Existed</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Updated</div>
               </div>
               <div style={{ flex: 1, background: bulkProgress.errorCount > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress.errorCount}</div>
