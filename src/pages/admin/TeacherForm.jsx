@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import * as api from '../../api/admin.api';
 import { Button, Modal } from '../../components/ui/index';
 import AddressFields from '../../components/ui/AddressFields';
+import ExistingDoc from '../../components/ExistingDoc';
 import { isPincode } from '../../utils/indiaStates';
 
 // Kept in step with validateTeacherIntake() in school-backend/controllers/admin.controller.js
@@ -11,6 +12,10 @@ const PHONE_RE    = /^[+\d\s-]{7,15}$/;
 const AADHAAR_RE  = /^\d{12}$/;
 const PAN_RE      = /^[A-Z]{5}\d{4}[A-Z]$/i;
 const IFSC_RE     = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+
+// Uploads are served from the backend ROOT, while VITE_API_URL points at /api
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
+const docUrl   = (file) => (file ? `${API_BASE}/uploads/staff-docs/${file}` : '');
 
 const BLOOD_GROUPS  = ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'];
 const QUALIFICATIONS = ['B.A.', 'B.Sc.', 'B.Com.', 'M.A.', 'M.Sc.', 'M.Com.', 'B.Tech.', 'M.Tech.', 'Ph.D.', 'Other'];
@@ -78,8 +83,12 @@ function Stepper({ step }) {
   );
 }
 
-/** File picker that shows the chosen filename and can be cleared. */
-function FileField({ label, required, value, onChange, error, hint }) {
+/**
+ * File picker that shows the chosen filename and can be cleared, and — on an
+ * edit — the paperwork already on the record, so the admin can check what is
+ * there before deciding whether to replace it.
+ */
+function FileField({ label, required, value, existing, onChange, error, hint }) {
   const ref = React.useRef(null);
   return (
     <div className="form-group">
@@ -87,7 +96,7 @@ function FileField({ label, required, value, onChange, error, hint }) {
       <input ref={ref} type="file" className={`form-control${error ? ' error' : ''}`}
         accept=".pdf,.jpg,.jpeg,.png"
         onChange={e => onChange(e.target.files?.[0] || null)} />
-      {value && (
+      {value ? (
         <div style={{ fontSize: '.75rem', color: 'var(--success)', marginTop: 4 }}>
           ✓ {value.name}
           <button type="button" onClick={() => { onChange(null); if (ref.current) ref.current.value = ''; }}
@@ -95,6 +104,8 @@ function FileField({ label, required, value, onChange, error, hint }) {
             remove
           </button>
         </div>
+      ) : (
+        <ExistingDoc url={docUrl(existing)} name={existing} />
       )}
       {hint && !error && <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{hint}</span>}
       <Err msg={error} />
@@ -313,7 +324,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           {step === 1 && <Button variant="secondary" onClick={close}>Cancel</Button>}
           {step < STEPS.length
             ? <Button onClick={next}>Next →</Button>
-            : <Button onClick={submit} loading={saving}>Create Teacher</Button>}
+            : <Button onClick={submit} loading={saving}>{editing ? 'Update Teacher' : 'Create Teacher'}</Button>}
         </>
       }>
       <Stepper step={step} />
@@ -445,9 +456,9 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
             <Err msg={errs.aadhaarNumber} />
           </div>
           <Row>
-            <FileField label="Aadhaar — Front" required hint={onFile.aadhaarFront ? "On file — choose a file to replace" : undefined} value={files.aadhaarFront}
+            <FileField label="Aadhaar — Front" required existing={onFile.aadhaarFront} value={files.aadhaarFront}
               onChange={setFile('aadhaarFront')} error={errs.aadhaarFront} />
-            <FileField label="Aadhaar — Back" required hint={onFile.aadhaarBack ? "On file — choose a file to replace" : undefined} value={files.aadhaarBack}
+            <FileField label="Aadhaar — Back" required existing={onFile.aadhaarBack} value={files.aadhaarBack}
               onChange={setFile('aadhaarBack')} error={errs.aadhaarBack} />
           </Row>
           <Row>
@@ -458,7 +469,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
                 onChange={e => { setErrs(x => ({ ...x, panNumber: undefined })); setForm(f => ({ ...f, panNumber: e.target.value.toUpperCase() })); }} />
               <Err msg={errs.panNumber} />
             </div>
-            <FileField label="PAN Card Upload" required hint={onFile.panCard ? "On file — choose a file to replace" : undefined} value={files.panCard}
+            <FileField label="PAN Card Upload" required existing={onFile.panCard} value={files.panCard}
               onChange={setFile('panCard')} error={errs.panCard} />
           </Row>
           <div className="form-group">
@@ -554,11 +565,12 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
                   value={form.previousSchool} onChange={set('previousSchool')} />
                 <Err msg={errs.previousSchool} />
               </div>
-              <FileField label="Resignation Letter (last company)" required hint={onFile.resignationLetter ? "On file — choose a file to replace" : undefined} value={files.resignationLetter} onChange={setFile('resignationLetter')} error={errs.resignationLetter} />
+              <FileField label="Resignation Letter (last company)" required existing={onFile.resignationLetter}
+                value={files.resignationLetter} onChange={setFile('resignationLetter')} error={errs.resignationLetter} />
               <Row>
-                <FileField label="Experience Certificate" hint="Optional"
+                <FileField label="Experience Certificate" hint="Optional" existing={onFile.experienceCertificate}
                   value={files.experienceCertificate} onChange={setFile('experienceCertificate')} />
-                <FileField label="Joining Letter (last company)" hint="Optional"
+                <FileField label="Joining Letter (last company)" hint="Optional" existing={onFile.joiningLetter}
                   value={files.joiningLetter} onChange={setFile('joiningLetter')} />
               </Row>
             </>

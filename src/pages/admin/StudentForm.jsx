@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../api/admin.api';
 import { Button, Modal, Spinner } from '../../components/ui/index';
+import ExistingDoc from '../../components/ExistingDoc';
 import AddressFields from '../../components/ui/AddressFields';
 import { isPincode } from '../../utils/indiaStates';
 
@@ -104,8 +105,9 @@ function Stepper({ step }) {
 }
 
 /**
- * File picker showing the chosen filename, plus a link to whatever is already
- * on file so an edit never forces a needless re-upload.
+ * File picker showing the chosen filename, plus whatever is already on file — as
+ * a thumbnail where the scan is an image — so an edit never forces a needless
+ * re-upload, and a wrong scan can be spotted without saving first.
  */
 function FileField({ label, required, value, existing, onChange, error, hint }) {
   const ref = useRef(null);
@@ -123,14 +125,9 @@ function FileField({ label, required, value, existing, onChange, error, hint }) 
             remove
           </button>
         </div>
-      ) : existing ? (
-        <div style={{ fontSize: '.75rem', marginTop: 4 }}>
-          <a href={docUrl(existing)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>
-            📎 View file on record
-          </a>
-          <span style={{ color: 'var(--text-muted)' }}> — choose a file to replace it</span>
-        </div>
-      ) : null}
+      ) : (
+        <ExistingDoc url={docUrl(existing)} name={existing} />
+      )}
       {hint && !error && <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{hint}</span>}
       <Err msg={error} />
     </div>
@@ -667,7 +664,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
           {step > 1 && <Button variant="secondary" onClick={() => { setErrs({}); setStep(s => s - 1); }}>← Back</Button>}
           {step === 1 && <Button variant="secondary" onClick={close}>Cancel</Button>}
           {isLast
-            ? <Button onClick={submit} loading={saving}>{isEdit ? 'Save Changes' : 'Create Student'}</Button>
+            ? <Button onClick={submit} loading={saving}>{isEdit ? 'Update Student' : 'Create Student'}</Button>
             : <Button onClick={next} loading={checking}>Next →</Button>}
         </>
       }>

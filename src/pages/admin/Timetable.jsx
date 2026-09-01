@@ -101,7 +101,7 @@ export default function AdminTimetable() {
 
   const { data: classesRaw,       loading: classesLoading } = useFetch(() => getClassesWithSections(true), []);
   const { data: subjectsRaw }     = useFetch(getSubjects, []);
-  const { data: teachersRaw }     = useFetch(() => getTeachers({ limit: 200 }), []);
+  const { data: teachersRaw }     = useFetch(() => getTeachers({ limit: 200, status: 'active' }), []);
   const { data: schoolSettingsRaw } = useFetch(getSchoolSettings, []);
   const { data: yearsRaw }        = useFetch(getAcademicYears, []);
 

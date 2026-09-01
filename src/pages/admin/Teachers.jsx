@@ -4,9 +4,10 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { toggleTeacher } from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
+import { PageHeader, Table, Badge, Button, Modal, Pagination, PageSize, Spinner } from '../../components/ui/index';
 import TeacherForm from './TeacherForm';
 import BulkImportOverlay from '../../components/BulkImportOverlay';
+import TeacherDependencyDialog from '../../components/TeacherDependencyDialog';
 import { saveFile, saveBase64 } from '../../utils/downloadFile';
 
 export default function Teachers() {
@@ -14,8 +15,10 @@ export default function Teachers() {
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
   const [search, setSearch]     = useState('');
-  const [del, setDel]           = useState(null);
-  const [delLoading, setDL]     = useState(false);
+  // Delete and Deactivate both go through the dependency dialog — it is what
+  // shows the admin the classes, subjects, books and periods still attached, and
+  // it is the only thing that fires either action.
+  const [depTarget, setDepTarget] = useState(null);   // { teacher, action }
   const [modal, setModal]       = useState(false);
 
   // Bulk import
@@ -149,20 +152,21 @@ export default function Teachers() {
     setBulkLoad(false);
   };
 
-  const handleDelete = async () => {
-    setDL(true);
-    try { await api.deleteTeacher(del._id); toast.success('Teacher deleted'); setDel(null); refetch(); }
-    catch (err) { toast.error(err.message); }
-    finally { setDL(false); }
-  };
-
   const handleEdit = (r) => setEditUser(r);
 
+  /**
+   * Activating is immediate; deactivating is not.
+   *
+   * Switching an account back on resolves dependencies rather than creating
+   * them, so there is nothing to check — but switching it off strands whatever
+   * still points at it, which is what the dialog is for.
+   */
   const handleToggle = async (r) => {
-    toast.loading(r.isActive ? 'Deactivating…' : 'Activating…', { id: 'toggle' });
+    if (r.isActive) { setDepTarget({ teacher: r, action: 'deactivate' }); return; }
+    toast.loading('Activating…', { id: 'toggle' });
     try {
       await toggleTeacher(r._id);
-      toast.success(r.isActive ? 'Teacher deactivated' : 'Teacher activated', { id: 'toggle' });
+      toast.success('Teacher activated', { id: 'toggle' });
       refetch();
     } catch (err) { toast.error(err.message, { id: 'toggle' }); }
   };
@@ -187,7 +191,7 @@ export default function Teachers() {
         <button className="btn btn-warning btn-sm" onClick={() => handleToggle(r)}>
           {r.isActive ? 'Deactivate' : 'Activate'}
         </button>
-        <button className="btn btn-danger btn-sm" onClick={() => setDel(r)}>Delete</button>
+        <button className="btn btn-danger btn-sm" onClick={() => setDepTarget({ teacher: r, action: 'delete' })}>Delete</button>
       </div>
     )},
   ];
@@ -347,8 +351,14 @@ export default function Teachers() {
       <TeacherForm open={!!editUser} teacher={editUser} onClose={() => setEditUser(null)}
         onCreated={refetch} designations={designations} />
 
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
-        loading={delLoading} title="Delete Teacher" message={`Delete "${del?.name}"? This cannot be undone.`} />
+      {/* Delete / Deactivate — dependencies first, the action only once clear */}
+      <TeacherDependencyDialog
+        open={!!depTarget}
+        teacher={depTarget?.teacher}
+        action={depTarget?.action}
+        onClose={() => setDepTarget(null)}
+        onDone={refetch}
+      />
     </div>
   );
 }

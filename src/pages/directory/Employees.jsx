@@ -21,6 +21,9 @@ const EMPTY = {
   search: '', department: '', designation: '', staffType: '', employmentType: '',
   status: '', subject: '', classId: '', sectionId: '', joiningYear: '',
   reportingManager: '', verification: '', completion: '',
+  // Active by default. 'all' and 'inactive' are one pick away, and Clear
+  // returns here rather than to "everyone", so the list keeps its meaning.
+  accountStatus: 'active',
 };
 
 export default function Employees() {
@@ -135,6 +138,12 @@ export default function Employees() {
               aria-label="Filter by designation">
               <option value="">All designations</option>
               {(opts.designations || []).map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select className="form-control ed-major" value={filters.accountStatus} onChange={set('accountStatus')}
+              aria-label="Filter by account status">
+              <option value="active">Active teachers</option>
+              <option value="inactive">Inactive teachers</option>
+              <option value="all">All teachers</option>
             </select>
           </div>
         </div>

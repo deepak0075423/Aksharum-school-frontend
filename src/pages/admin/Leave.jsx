@@ -127,7 +127,7 @@ export default function AdminLeave() {
   const onReqFilter = (setter) => (value) => { releaseFocus(); setReqPage(1); setter(value); };
   const onReqPage   = (p) => { releaseFocus(); setReqPage(p); };
 
-  const { data: teachers } = useFetch(() => api.getTeachers({ limit: 500 }));
+  const { data: teachers } = useFetch(() => api.getTeachers({ limit: 500, status: 'active' }));
   const teacherList = teachers?.data || [];
 
   const handleAction = async () => {

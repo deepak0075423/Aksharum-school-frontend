@@ -25,7 +25,7 @@ export default function Subjects() {
     if (!modal) return;
     if (teachers.length) return;
     setTL(true);
-    api.getTeachers({ limit: 200 })
+    api.getTeachers({ limit: 200, status: 'active' })
       .then(res => setTeachers(res?.data?.data || res?.data || []))
       .catch(() => {})
       .finally(() => setTL(false));

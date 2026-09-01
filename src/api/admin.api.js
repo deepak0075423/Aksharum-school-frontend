@@ -58,9 +58,15 @@ export const createTeacher = (data) => api.post('/admin/teachers', data);
 // on an edit, and anything already on file is kept.
 export const updateTeacherFull = (id, data) => api.put(`/admin/teachers/${id}`, data);
 export const getTeacherDetail  = (id) => api.get(`/admin/teachers/${id}`);
-export const deleteTeacher = (id) => api.delete(`/admin/teachers/${id}`);
+// Everything still pointing at a teacher — classes, subjects, books, periods.
+// The Delete / Deactivate dialog shows this before it will do anything.
+export const getTeacherDependencies = (id) => api.get(`/admin/teachers/${id}/dependencies`);
+// `force` clears the teacher out of every timetable period and nothing else;
+// the server refuses it while any other dependency is still outstanding.
+export const deleteTeacher = (id, force = false) =>
+  api.delete(`/admin/teachers/${id}${force ? '?force=true' : ''}`);
 export const updateTeacher  = (id, data) => api.put(`/admin/users/${id}`, data);
-export const toggleTeacher  = (id)       => api.patch(`/admin/users/${id}/toggle`);
+export const toggleTeacher  = (id, force = false) => api.patch(`/admin/users/${id}/toggle`, force ? { force: true } : {});
 
 export const checkEmail            = (email) => api.get('/admin/users/check-email', { params: { email } });
 export const getClassesWithSections = (all) => api.get('/admin/classes-with-sections', all ? { params: { all: 'true' } } : {});
