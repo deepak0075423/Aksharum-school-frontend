@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Spinner, Confirm } from '../../components/ui/index';
+import SectionCapacityModal from '../../components/SectionCapacityModal';
 
 const TYPE_ORDER  = ['theory', 'practical', 'elective'];
 const TYPE_LABEL  = { theory: 'Theory', practical: 'Practical', elective: 'Elective' };
@@ -57,6 +58,10 @@ export default function SectionDetail() {
   const [assignConfirm, setAssignConfirm]   = useState(false);
   const [rollEdit, setRollEdit]             = useState(null);   // { _id, name, value }
   const [savingRoll, setSavingRoll]         = useState(false);
+
+  // Capacity — editable after the section exists, because a class grows and the
+  // seat count set on day one stops being true.
+  const [capModal, setCapModal] = useState(false);
 
   // Subject assignment modal
   const [subjectModal, setSubjectModal]   = useState(false);
@@ -318,7 +323,8 @@ export default function SectionDetail() {
       </div>
 
       <PageHeader title={`Section ${section?.sectionName || ''}`}
-        subtitle={`${section?.currentCount ?? 0} / ${section?.maxStudents ?? 40} students enrolled`} />
+        subtitle={`${section?.currentCount ?? 0} / ${section?.maxStudents ?? 40} students enrolled`}
+        action={<Button variant="secondary" onClick={() => setCapModal(true)}>Edit capacity</Button>} />
 
       {/* ── Teachers card ─────────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 16 }}>
@@ -529,6 +535,13 @@ export default function SectionDetail() {
         message={unassignConfirm
           ? `Are you sure you want to remove ${unassignConfirm.teacherName} from teaching ${unassignConfirm.subjectName} in this section?`
           : ''}
+      />
+
+      <SectionCapacityModal
+        open={capModal}
+        section={section}
+        onClose={() => setCapModal(false)}
+        onSaved={() => { refetchSec(); refetchOpts(); }}
       />
 
       {/* ── Assign Subject Modal ─────────────────────────────────────────── */}

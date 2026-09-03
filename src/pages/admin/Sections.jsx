@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Button, Modal, Spinner, Empty, Confirm, Alert } from '../../components/ui/index';
+import SectionCapacityModal from '../../components/SectionCapacityModal';
 
 export default function Sections() {
   const { id }              = useParams();
@@ -11,6 +12,8 @@ export default function Sections() {
   const [modal, setModal]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm]     = useState({ name: '', capacity: 40 });
+  // The section whose seat count is being edited, or null.
+  const [capSection, setCapSection] = useState(null);
   const [formErr, setFormErr] = useState('');
 
   // Section shuffle — one redistribution per class per academic year, then locked
@@ -141,13 +144,26 @@ export default function Sections() {
                   <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 16 }}>
                     Students: {sec.currentCount ?? 0}
                   </p>
-                  <Link to={`/admin/sections/${sec._id}`} className="btn btn-primary btn-sm">Manage</Link>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <Link to={`/admin/sections/${sec._id}`} className="btn btn-primary btn-sm">Manage</Link>
+                    {/* Editable here as well as on the section page: the shuffle
+                        preview below complains about seats, and this is where
+                        every section's figure is visible at once. */}
+                    <button className="btn btn-secondary btn-sm" onClick={() => setCapSection(sec)}>Capacity</button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )
       }
+
+      <SectionCapacityModal
+        open={!!capSection}
+        section={capSection}
+        onClose={() => setCapSection(null)}
+        onSaved={refetch}
+      />
 
       {/* Shuffle. The counts come from the server, and when the students do not
           fit in the seats the dialog says so instead of offering the action. */}

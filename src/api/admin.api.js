@@ -121,6 +121,10 @@ export const lockSectionShuffle   = (classId) => api.post(`/admin/classes/${clas
 
 // Sections
 export const getSectionDetail = (id) => api.get(`/admin/sections/${id}`);
+// Seats in a section. The server refuses a figure below the students already
+// enrolled, so the caller can surface that as a form error.
+export const updateSectionCapacity = (id, maxStudents) =>
+  api.put(`/admin/sections/${id}/capacity`, { maxStudents });
 export const updateSectionTeacher = (id, data) => api.put(`/admin/sections/${id}/teachers`, data);
 export const deleteSection  = (id) => api.delete(`/admin/sections/${id}`);
 export const getSectionSubjectTeachers  = (id) => api.get(`/admin/sections/${id}/subjects`);
