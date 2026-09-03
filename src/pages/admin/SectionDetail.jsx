@@ -44,6 +44,13 @@ export default function SectionDetail() {
   // Teacher list with class-teacher availability for this section's academic year
   const { data: teacherOpts, refetch: refetchOpts } = useFetch(() => api.getSectionTeacherOptions(id), [id]);
   const { data: chatGroup, refetch: refetchGroup }  = useFetch(() => api.getSectionChatGroup(id), [id]);
+  // The other sections of this class. Hindi in Class 5 is rarely section A
+  // alone, so the assign dialog offers its siblings alongside it.
+  const classId = section?.class;
+  const { data: classDetail } = useFetch(
+    () => (classId ? api.getClassDetail(classId) : Promise.resolve(null)),
+    [classId],
+  );
 
   // Teacher assignment modal (shared for class teacher + vice teacher)
   const [teacherModal, setTeacherModal]   = useState(false);
@@ -67,6 +74,9 @@ export default function SectionDetail() {
   const [subjectModal, setSubjectModal]   = useState(false);
   const [savingSubject, setSavingSubject] = useState(false);
   const [subjectForm, setSubjectForm]     = useState({ subject: '', teacher: '' });
+  // Section ids this assignment goes to. Seeded with the section being viewed,
+  // which is the only one the old single-section dialog could ever reach.
+  const [subjectSections, setSubjectSections] = useState([]);
 
   const openTeacherModal = (role) => {
     setTeacherRole(role);
@@ -128,12 +138,35 @@ export default function SectionDetail() {
     finally { setSavingRoll(false); }
   };
 
+  const openSubjectModal = () => {
+    setSubjectForm({ subject: '', teacher: '' });
+    setSubjectSections([String(id)]);
+    setSubjectModal(true);
+  };
+
+  const toggleSubjectSection = (secId) => setSubjectSections((cur) =>
+    cur.includes(secId) ? cur.filter((x) => x !== secId) : [...cur, secId]);
+
+  /**
+   * One section still goes through the single-section endpoint it always did;
+   * several go through the class-scoped one, which checks they are all siblings
+   * and skips any that already hold this exact subject-and-teacher pairing.
+   */
   const handleAssignSubject = async (e) => {
     e.preventDefault();
+    if (!subjectSections.length) { toast.error('Pick at least one section'); return; }
     setSavingSubject(true);
     try {
-      await api.assignSectionSubjectTeacher(id, subjectForm);
-      toast.success('Subject assigned');
+      if (subjectSections.length === 1) {
+        await api.assignSectionSubjectTeacher(subjectSections[0], subjectForm);
+        toast.success('Subject assigned');
+      } else {
+        const res = await api.assignSubjectToSections(classId, { ...subjectForm, sectionIds: subjectSections });
+        const d = res?.data ?? res;
+        toast.success(d.created
+          ? `${d.subjectName} assigned to section${d.created === 1 ? '' : 's'} ${d.toCreate.join(', ')}`
+          : 'Those sections already had this teacher for this subject');
+      }
       setSubjectModal(false);
       setSubjectForm({ subject: '', teacher: '' });
       refetchSST();
@@ -384,7 +417,7 @@ export default function SectionDetail() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Subject Teachers</h3>
-          <Button onClick={() => setSubjectModal(true)}>+ Assign Subject</Button>
+          <Button onClick={openSubjectModal}>+ Assign Subject</Button>
         </div>
         <div className="card-body" style={{ padding: loadSST ? 32 : 0 }}>
           {loadSST
@@ -548,7 +581,9 @@ export default function SectionDetail() {
       <Modal open={subjectModal} onClose={() => setSubjectModal(false)} title="Assign Subject Teacher"
         footer={<>
           <Button variant="secondary" onClick={() => setSubjectModal(false)}>Cancel</Button>
-          <Button form="subject-assign-form" type="submit" loading={savingSubject}>Assign</Button>
+          <Button form="subject-assign-form" type="submit" loading={savingSubject} disabled={!subjectSections.length}>
+            {subjectSections.length > 1 ? `Assign to ${subjectSections.length} sections` : 'Assign'}
+          </Button>
         </>}>
         <form id="subject-assign-form" onSubmit={handleAssignSubject}>
           <div className="form-group">
@@ -578,6 +613,36 @@ export default function SectionDetail() {
                   ))}
                 </select>
             }
+          </div>
+
+          {/* Sections of this class. Ticking several writes the subject to all
+              of them in one action — the whole point on a setup day, where
+              Hindi goes to A, B, C and D identically. */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label required">Sections</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {(classDetail?.sections || []).map((sec) => {
+                const sid = String(sec._id);
+                const on  = subjectSections.includes(sid);
+                return (
+                  <button key={sid} type="button" onClick={() => toggleSubjectSection(sid)}
+                    style={{
+                      border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                      background: on ? 'var(--primary)' : 'var(--bg-card)',
+                      color: on ? 'var(--text-on-primary)' : 'var(--text)',
+                      borderRadius: 99, padding: '5px 14px', fontSize: '.82rem', fontWeight: 600,
+                      cursor: 'pointer',
+                    }}>
+                    {sec.sectionName}{sid === String(id) ? ' · this one' : ''}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.6 }}>
+              {subjectSections.length > 1
+                ? `This teacher takes this subject in ${subjectSections.length} sections. Any section that already has this exact pairing is left alone.`
+                : 'Tick more sections to assign the same subject and teacher to all of them at once.'}
+            </p>
           </div>
         </form>
       </Modal>
