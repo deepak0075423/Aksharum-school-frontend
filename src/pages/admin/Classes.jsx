@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Button, Modal, Confirm, Spinner, Empty } from '../../components/ui/index';
+import BulkClassCreateModal from '../../components/BulkClassCreateModal';
 
 export default function Classes() {
   const [selectedYear, setSelectedYear] = useState('');
@@ -16,6 +17,7 @@ export default function Classes() {
   const [form, setForm]     = useState({ name: '' });
   const [formErr, setFormErr] = useState('');
   const [editCls, setEditCls] = useState(null);   // class being renamed
+  const [bulkModal, setBulkModal] = useState(false);
 
   const { data: years } = useFetch(api.getAcademicYears);
 
@@ -91,6 +93,7 @@ export default function Classes() {
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="secondary" onClick={() => setAssignConfirm(true)}>Assign Students to Class</Button>
+            <Button variant="secondary" onClick={() => setBulkModal(true)}>Bulk Create</Button>
             <Button onClick={openCreate}>+ Add Class</Button>
           </div>
         } />
@@ -113,7 +116,13 @@ export default function Classes() {
       </div>
 
       {!classes?.length
-        ? <Empty icon="🏛️" title="No classes yet" action={<Button onClick={openCreate}>Create First Class</Button>} />
+        ? <Empty icon="🏛️" title="No classes yet"
+            action={
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button onClick={() => setBulkModal(true)}>Bulk Create Classes</Button>
+                <Button variant="secondary" onClick={openCreate}>Add One Class</Button>
+              </div>
+            } />
         : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 16 }}>
             {classes.map(cls => (
@@ -135,6 +144,13 @@ export default function Classes() {
           </div>
         )
       }
+
+      <BulkClassCreateModal
+        open={bulkModal}
+        academicYear={selectedYear || undefined}
+        onClose={() => setBulkModal(false)}
+        onCreated={refetch}
+      />
 
       <Modal open={modal} onClose={() => { setModal(false); setEditCls(null); setFormErr(''); }}
         title={editCls ? 'Edit Class' : 'Add Class'}

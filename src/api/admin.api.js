@@ -108,11 +108,17 @@ export const setActiveYear       = (id) => api.patch(`/admin/academic-years/${id
 // Classes
 export const getClasses     = (params) => api.get('/admin/classes', { params });
 export const createClass    = (data) => api.post('/admin/classes', data);
+// A whole grade range plus N sections each, in one call. Pass `preview: true`
+// to get back exactly what a real run would create, without writing anything.
+export const bulkCreateClasses = (data) => api.post('/admin/classes/bulk', data);
 export const getClassDetail = (id) => api.get(`/admin/classes/${id}`);
 export const updateClass    = (id, data) => api.put(`/admin/classes/${id}`, data);
 export const deleteClass          = (id) => api.delete(`/admin/classes/${id}`);
 export const autoAssignStudents   = (academicYear) => api.post('/admin/classes/auto-assign', academicYear ? { academicYear } : {});
 export const createSection        = (classId, data) => api.post(`/admin/classes/${classId}/sections`, data);
+// Several sections onto one class. `count` is how many to ADD — the server picks
+// the next free letters. `preview: true` names them without writing anything.
+export const bulkCreateSections   = (classId, data) => api.post(`/admin/classes/${classId}/sections/bulk`, data);
 // What the shuffle would do, before anything moves: how many students, how many
 // seats across the sections, and the reason when it cannot be done.
 export const shufflePreview       = (classId) => api.get(`/admin/classes/${classId}/shuffle-preview`);

@@ -5,6 +5,7 @@ import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Button, Modal, Spinner, Empty, Confirm, Alert } from '../../components/ui/index';
 import SectionCapacityModal from '../../components/SectionCapacityModal';
+import AddSectionsModal from '../../components/AddSectionsModal';
 
 export default function Sections() {
   const { id }              = useParams();
@@ -12,6 +13,7 @@ export default function Sections() {
   const [modal, setModal]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm]     = useState({ name: '', capacity: 40 });
+  const [multiModal, setMultiModal] = useState(false);
   // The section whose seat count is being edited, or null.
   const [capSection, setCapSection] = useState(null);
   const [formErr, setFormErr] = useState('');
@@ -112,6 +114,7 @@ export default function Sections() {
             {!isLocked && shuffle.shuffledAt && (
               <Button variant="secondary" onClick={() => setLockConfirm(true)}>🔒 Lock Sections</Button>
             )}
+            <Button variant="secondary" onClick={() => setMultiModal(true)}>+ Add Several</Button>
             <Button onClick={openCreate}>+ Add Section</Button>
           </div>
         } />
@@ -130,7 +133,13 @@ export default function Sections() {
       )}
 
       {!sections.length
-        ? <Empty icon="🏛️" title="No sections yet" action={<Button onClick={openCreate}>Create Section</Button>} />
+        ? <Empty icon="🏛️" title="No sections yet"
+            action={
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button onClick={() => setMultiModal(true)}>Add Several Sections</Button>
+                <Button variant="secondary" onClick={openCreate}>Add One</Button>
+              </div>
+            } />
         : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
             {sections.map(sec => (
@@ -157,6 +166,14 @@ export default function Sections() {
           </div>
         )
       }
+
+      <AddSectionsModal
+        open={multiModal}
+        classId={id}
+        className={cls?.className}
+        onClose={() => setMultiModal(false)}
+        onCreated={refetch}
+      />
 
       <SectionCapacityModal
         open={!!capSection}
