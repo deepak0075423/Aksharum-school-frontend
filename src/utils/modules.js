@@ -11,24 +11,24 @@
  */
 
 export const MODULES = [
-  { key: 'attendance',   label: 'Attendance',       icon: '✅', adminBase: '/admin/attendance',  adminHome: '/admin/attendance' },
-  { key: 'timetable',    label: 'Timetable',        icon: '🕐', adminBase: '/admin/timetable',   adminHome: '/admin/timetable' },
-  { key: 'result',       label: 'Results',          icon: '📊', adminBase: '/admin/results',     adminHome: '/admin/results' },
-  { key: 'aptitudeExam', label: 'Aptitude Exams',   icon: '📝', adminBase: '/admin/exams',       adminHome: '/admin/exams' },
-  { key: 'fees',         label: 'Fees',             icon: '💰', adminBase: '/admin/fees',        adminHome: '/admin/fees/dashboard' },
-  { key: 'payroll',      label: 'Payroll',          icon: '💵', adminBase: '/admin/payroll',     adminHome: '/admin/payroll/dashboard' },
-  { key: 'library',      label: 'Library',          icon: '📖', adminBase: '/admin/library',     adminHome: '/admin/library/dashboard' },
-  { key: 'inventory',    label: 'Inventory',        icon: '📦', adminBase: '/admin/inventory',   adminHome: '/admin/inventory/dashboard' },
-  { key: 'transport',    label: 'Transport',        icon: '🚌', adminBase: '/admin/transport',   adminHome: '/admin/transport/dashboard' },
-  { key: 'hostel',       label: 'Hostel',           icon: '🏨', adminBase: '/admin/hostel',      adminHome: '/admin/hostel/dashboard' },
-  { key: 'videoLibrary', label: 'Video Learning',   icon: '🎬', adminBase: '/admin/videos',      adminHome: '/admin/videos/browse' },
-  { key: 'feedback',     label: 'Teacher Feedback', icon: '⭐', adminBase: '/admin/feedback',    adminHome: '/admin/feedback/dashboard' },
-  { key: 'leave',        label: 'Leave',            icon: '🏖️', adminBase: '/admin/leave',       adminHome: '/admin/leave' },
-  { key: 'document',     label: 'Documents',        icon: '📁', adminBase: '/admin/documents',   adminHome: '/admin/documents' },
-  { key: 'holiday',      label: 'Holidays',         icon: '🎉', adminBase: '/admin/holidays',    adminHome: '/admin/holidays' },
-  { key: 'notification', label: 'Notifications',    icon: '🔔', adminBase: '/admin/notifications', adminHome: '/admin/notifications' },
-  { key: 'employeeDirectory', label: 'Employee Directory', icon: '🗂️', adminBase: '/admin/employee-directory', adminHome: '/admin/employee-directory/dashboard' },
-  { key: 'chat',         label: 'Chat',             icon: '💬' },   // no administrative surface
+  { key: 'attendance',   label: 'Attendance',       icon: 'checkSquare', adminBase: '/admin/attendance',  adminHome: '/admin/attendance' },
+  { key: 'timetable',    label: 'Timetable',        icon: 'clock', adminBase: '/admin/timetable',   adminHome: '/admin/timetable' },
+  { key: 'result',       label: 'Results',          icon: 'chart', adminBase: '/admin/results',     adminHome: '/admin/results' },
+  { key: 'aptitudeExam', label: 'Aptitude Exams',   icon: 'fileCheck', adminBase: '/admin/exams',       adminHome: '/admin/exams' },
+  { key: 'fees',         label: 'Fees',             icon: 'wallet', adminBase: '/admin/fees',        adminHome: '/admin/fees/dashboard' },
+  { key: 'payroll',      label: 'Payroll',          icon: 'banknote', adminBase: '/admin/payroll',     adminHome: '/admin/payroll/dashboard' },
+  { key: 'library',      label: 'Library',          icon: 'bookOpen', adminBase: '/admin/library',     adminHome: '/admin/library/dashboard' },
+  { key: 'inventory',    label: 'Inventory',        icon: 'package', adminBase: '/admin/inventory',   adminHome: '/admin/inventory/dashboard' },
+  { key: 'transport',    label: 'Transport',        icon: 'bus', adminBase: '/admin/transport',   adminHome: '/admin/transport/dashboard' },
+  { key: 'hostel',       label: 'Hostel',           icon: 'hotel', adminBase: '/admin/hostel',      adminHome: '/admin/hostel/dashboard' },
+  { key: 'videoLibrary', label: 'Video Learning',   icon: 'video', adminBase: '/admin/videos',      adminHome: '/admin/videos/browse' },
+  { key: 'feedback',     label: 'Teacher Feedback', icon: 'star', adminBase: '/admin/feedback',    adminHome: '/admin/feedback/dashboard' },
+  { key: 'leave',        label: 'Leave',            icon: 'umbrella', adminBase: '/admin/leave',       adminHome: '/admin/leave' },
+  { key: 'document',     label: 'Documents',        icon: 'files', adminBase: '/admin/documents',   adminHome: '/admin/documents' },
+  { key: 'holiday',      label: 'Holidays',         icon: 'party', adminBase: '/admin/holidays',    adminHome: '/admin/holidays' },
+  { key: 'notification', label: 'Notifications',    icon: 'bell', adminBase: '/admin/notifications', adminHome: '/admin/notifications' },
+  { key: 'employeeDirectory', label: 'Employee Directory', icon: 'folder', adminBase: '/admin/employee-directory', adminHome: '/admin/employee-directory/dashboard' },
+  { key: 'chat',         label: 'Chat',             icon: 'chat' },   // no administrative surface
 ];
 
 export const ADMIN_CAPABLE_MODULES = MODULES.filter(m => m.adminBase);

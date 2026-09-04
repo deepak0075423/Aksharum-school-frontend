@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -14,7 +14,12 @@ export default function Teachers() {
   const [page, setPage]         = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
-  const [search, setSearch]     = useState('');
+  // Seeded from ?search= so the header's global search can land on one person:
+  // it navigates here with the name prefilled and ?focus=<id>, and the focus
+  // highlight can only flag a row that actually rendered — see
+  // hooks/useFocusHighlight.js.
+  const [params] = useSearchParams();
+  const [search, setSearch]     = useState(() => params.get('search') || '');
   // Delete and Deactivate both go through the dependency dialog — it is what
   // shows the admin the classes, subjects, books and periods still attached, and
   // it is the only thing that fires either action.
@@ -32,6 +37,14 @@ export default function Teachers() {
   const bulkFileRef = React.useRef(null);
 
   const [editUser, setEditUser]   = useState(null);
+
+
+  // The list does not remount when only the query string changes, so a second
+  // search from the header has to be picked up here as well as at mount.
+  const urlSearch = params.get('search') || '';
+  React.useEffect(() => {
+    if (urlSearch) { setSearch(urlSearch); setPage(1); }
+  }, [urlSearch]);
 
   const { data, loading, refetch } = useFetch(
     () => api.getTeachers({ page, search, limit }),

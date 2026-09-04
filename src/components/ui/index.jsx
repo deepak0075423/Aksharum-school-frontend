@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import Icon from './icons';
 
 // ── Spinner ────────────────────────────────────────────────────────────────────
 export const Spinner = ({ size = '' }) => (
@@ -308,7 +309,7 @@ function isWeekendOff(date, satConfig) {
   return false;
 }
 
-export function MiniCalendar({ holidays = [], leaves = [], attendance = [], holidayListPath = '', saturdayConfig }) {
+export function MiniCalendar({ holidays = [], leaves = [], attendance = [], holidayListPath = '', saturdayConfig, title }) {
   const today        = new Date();
   const todayIso     = localIso(today);
   const [view, setView] = React.useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -376,14 +377,20 @@ export function MiniCalendar({ holidays = [], leaves = [], attendance = [], holi
 
   return (
     <div className="card">
+      {title && (
+        <div className="card-header">
+          <h2>{title}</h2>
+        </div>
+      )}
       <div className="card-body" style={{ padding: '16px 18px' }}>
 
         {/* Month navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <button
+            aria-label="Previous month"
             onClick={() => setView(new Date(yr, mon - 1, 1))}
-            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, width: 30, height: 30, cursor: 'pointer', fontSize: '.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            ‹
+            className="cal-nav">
+            <Icon name="chevronLeft" size={16} />
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <strong style={{ fontSize: '.92rem' }}>{CAL_MONTHS[mon]} {yr}</strong>
@@ -397,9 +404,10 @@ export function MiniCalendar({ holidays = [], leaves = [], attendance = [], holi
             )}
           </div>
           <button
+            aria-label="Next month"
             onClick={() => setView(new Date(yr, mon + 1, 1))}
-            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, width: 30, height: 30, cursor: 'pointer', fontSize: '.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            ›
+            className="cal-nav">
+            <Icon name="chevronRight" size={16} />
           </button>
         </div>
 
@@ -469,7 +477,10 @@ export function MiniCalendar({ holidays = [], leaves = [], attendance = [], holi
               const sameDay = !end || localIso(start) === localIso(end);
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', padding: '3px 0', color: 'var(--text)' }}>
-                  <span>🎉 {h.name}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706', flexShrink: 0 }} />
+                    {h.name}
+                  </span>
                   <span style={{ color: 'var(--text-muted)' }}>
                     {start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                     {!sameDay ? ` – ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}

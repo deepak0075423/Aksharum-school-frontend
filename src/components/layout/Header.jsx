@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { logout } from '../../api/auth.api';
 import { getInbox, markAllRead, markOneRead, clearAll } from '../../api/notifications.api';
@@ -8,6 +8,9 @@ import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
 import { notificationIconUrl } from '../../utils/branding';
 import { notificationPath, hasTarget } from '../../utils/notificationLink';
+import Icon from '../ui/icons';
+import GlobalSearch from './GlobalSearch';
+import pageTitle from '../../utils/pageTitle';
 
 function playNotifSound() {
   try {
@@ -46,6 +49,7 @@ function requestBrowserPush(title, body, school, onOpen) {
 export default function Header({ onMenuClick, onCollapseClick }) {
   const { user, signOut }   = useAuth();
   const navigate            = useNavigate();
+  const location            = useLocation();
 
   const [dropOpen,   setDropOpen]   = useState(false);
   const [bellOpen,   setBellOpen]   = useState(false);
@@ -185,38 +189,38 @@ export default function Header({ onMenuClick, onCollapseClick }) {
 
   const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
+  const title = pageTitle(location.pathname);
+  // The global search reads the admin list endpoints, so it is only offered to
+  // the role those endpoints answer for.
+  const canSearch = user?.role === 'school_admin';
+
   return (
     <div className="header">
       {/* Mobile hamburger */}
       <button className="header__toggle btn-icon" onClick={onMenuClick}
-        style={{ display: 'none' }} id="mobile-menu-btn">☰</button>
+        style={{ display: 'none' }} id="mobile-menu-btn" aria-label="Open menu">
+        <Icon name="menu" size={20} />
+      </button>
 
       {/* Desktop collapse toggle */}
       <button className="header__toggle btn-icon" onClick={onCollapseClick}
-        id="desktop-collapse-btn">☰</button>
+        id="desktop-collapse-btn" aria-label="Collapse sidebar">
+        <Icon name="menu" size={20} />
+      </button>
 
-      <div style={{ flex: 1 }} />
+      <h1 className="header__title">{title}</h1>
+
+      {canSearch && <GlobalSearch />}
 
       {/* Actions */}
       <div className="header__actions">
-        <Link to="/profile" className="header__btn" title="Profile">👤</Link>
-
         {/* Bell */}
         <div className="dropdown" ref={bellRef}>
           <button className="header__btn" title="Notifications" onClick={openBell}
-            style={{ position: 'relative' }}>
-            🔔
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
+            <Icon name="bell" size={20} />
             {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute', top: 2, right: 2,
-                background: 'var(--danger)', color: '#fff',
-                fontSize: '.6rem', fontWeight: 700,
-                borderRadius: 99, minWidth: 16, height: 16,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '0 4px', lineHeight: 1,
-              }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
+              <span className="header__count">{unreadCount > 99 ? '99+' : unreadCount}</span>
             )}
           </button>
 
@@ -317,12 +321,20 @@ export default function Header({ onMenuClick, onCollapseClick }) {
 
         {/* Avatar dropdown */}
         <div className="dropdown" ref={dropRef}>
-          <div className="header__avatar" onClick={() => { setDropOpen(o => !o); setBellOpen(false); }}
-            title={user?.name}>
-            {user?.profileImage
-              ? <img src={user.profileImage} alt="" />
-              : initials}
-          </div>
+          <button className="header__user" title={user?.name} type="button"
+            onClick={() => { setDropOpen(o => !o); setBellOpen(false); }}
+            aria-haspopup="menu" aria-expanded={dropOpen}>
+            <span className="header__avatar">
+              {user?.profileImage
+                ? <img src={user.profileImage} alt="" />
+                : initials}
+            </span>
+            <span className="header__user-text">
+              <span className="header__user-name">{user?.name}</span>
+              <span className="header__user-role">{user?.role?.replace('_', ' ')}</span>
+            </span>
+            <Icon name="chevronDown" size={15} className="header__user-caret" />
+          </button>
 
           {dropOpen && (
             <div className="dropdown-menu">
@@ -333,11 +345,11 @@ export default function Header({ onMenuClick, onCollapseClick }) {
                 </div>
               </div>
               <Link to="/profile" className="dropdown-item" onClick={() => setDropOpen(false)}>
-                👤 Profile
+                <Icon name="user" size={17} /> Profile
               </Link>
               <div className="dropdown-divider" />
               <button className="dropdown-item danger" onClick={handleLogout}>
-                🚪 Logout
+                <Icon name="logOut" size={17} /> Logout
               </button>
             </div>
           )}

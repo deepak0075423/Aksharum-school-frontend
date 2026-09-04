@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -12,7 +13,12 @@ export default function Students() {
   const [page, setPage]     = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
-  const [search, setSearch] = useState('');
+  // Seeded from ?search= so the header's global search can land on one person:
+  // it navigates here with the name prefilled and ?focus=<id>, and the focus
+  // highlight can only flag a row that actually rendered — see
+  // hooks/useFocusHighlight.js.
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState(() => params.get('search') || '');
   const [del, setDel]       = useState(null);
   const [delLoad, setDL]    = useState(false);
 
@@ -29,6 +35,14 @@ export default function Students() {
   const [confirmClose, setConfirmClose] = useState(false);
   // { total, current, currentName, created, updated, errorCount, errors, done }
   const bulkFileRef = useRef(null);
+
+
+  // The list does not remount when only the query string changes, so a second
+  // search from the header has to be picked up here as well as at mount.
+  const urlSearch = params.get('search') || '';
+  React.useEffect(() => {
+    if (urlSearch) { setSearch(urlSearch); setPage(1); }
+  }, [urlSearch]);
 
   const { data, loading, refetch } = useFetch(
     () => api.getStudents({ page, search, limit }),
