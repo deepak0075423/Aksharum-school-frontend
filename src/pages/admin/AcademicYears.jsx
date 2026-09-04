@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner } from '../../components/ui/index';
+import ImportYearStructureModal from '../../components/ImportYearStructureModal';
 
 export default function AcademicYears() {
   const { data: years, loading, refetch } = useFetch(api.getAcademicYears);
@@ -68,6 +69,9 @@ export default function AcademicYears() {
     catch (err) { toast.error(err.message); }
   };
 
+  // The year being filled from another year's structure, or null.
+  const [importInto, setImportInto] = useState(null);
+
   const columns = [
     { key: 'yearName',  label: 'Year',   render: r => <strong>{r.yearName}</strong> },
     { key: 'startDate', label: 'Start',  render: r => r.startDate ? new Date(r.startDate).toLocaleDateString() : '—' },
@@ -77,6 +81,9 @@ export default function AcademicYears() {
     { key: 'actions', label: 'Actions', render: r => (
       <div className="actions">
         <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>
+        {/* Building next year starts here: copy this year's classes, sections,
+            subjects and subject teachers rather than retyping them. */}
+        <button className="btn btn-secondary btn-sm" onClick={() => setImportInto(r)}>Import Structure</button>
         {r.status !== 'active' && <button className="btn btn-primary btn-sm" onClick={() => handleSetActive(r._id)}>Set Active</button>}
         <button className="btn btn-danger btn-sm" onClick={() => setDel(r)}>Delete</button>
       </div>
@@ -89,6 +96,14 @@ export default function AcademicYears() {
     <div className="page">
       <PageHeader title="Academic Years" subtitle="Manage school academic years"
         action={<Button onClick={openCreate}>+ Add Year</Button>} />
+
+      <ImportYearStructureModal
+        open={!!importInto}
+        targetYear={importInto}
+        years={years}
+        onClose={() => setImportInto(null)}
+        onImported={refetch}
+      />
 
       <div className="card">
         <div className="card-body" style={{ padding: 0 }}>

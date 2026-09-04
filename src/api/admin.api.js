@@ -104,6 +104,10 @@ export const createAcademicYear  = (data) => api.post('/admin/academic-years', d
 export const updateAcademicYear  = (id, data) => api.put(`/admin/academic-years/${id}`, data);
 export const deleteAcademicYear  = (id) => api.delete(`/admin/academic-years/${id}`);
 export const setActiveYear       = (id) => api.patch(`/admin/academic-years/${id}/set-active`);
+// Copy another year's classes, sections, subject links and subject-teacher
+// assignments into `id`. `preview: true` runs every check and reports what it
+// would create, and what it would skip and why, without writing.
+export const importYearStructure = (id, data) => api.post(`/admin/academic-years/${id}/import-structure`, data);
 
 // Classes
 export const getClasses     = (params) => api.get('/admin/classes', { params });
@@ -153,7 +157,11 @@ export const getSectionChatGroup          = (id) => api.get(`/admin/sections/${i
 export const syncSectionChatGroup         = (id) => api.post(`/admin/sections/${id}/chat-group`);
 
 // Subjects
-export const getSubjects   = () => api.get('/admin/subjects');
+// `academicYear` does not filter the catalogue — subjects belong to the school
+// and every year shares them. It attaches a per-subject `usage` block saying
+// where that subject is used in that year, plus inUse/notInUse counts on the
+// envelope. Omit it and the response is the plain catalogue every dropdown wants.
+export const getSubjects   = (params) => api.get('/admin/subjects', { params });
 export const createSubject = (data) => api.post('/admin/subjects', data);
 export const updateSubject = (id, data) => api.put(`/admin/subjects/${id}`, data);
 export const deleteSubject = (id) => api.delete(`/admin/subjects/${id}`);
