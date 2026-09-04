@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { getReceiptTemplates, updateReceiptTemplate, fetchReceiptPreview } from '../../api/admin.api';
 import { Button, Spinner } from '../ui/index';
@@ -34,6 +34,10 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
   const [loading, setLoading]  = useState(true);
   const [saving,  setSaving]   = useState(false);
   const [preview, setPreview]  = useState('');
+  // The receipt is as tall as its content — a fixed frame height cut the footer
+  // and signature line off the bottom, which made the preview look broken.
+  const frameRef = useRef(null);
+  const [frameH, setFrameH] = useState(560);
 
   const load = (mod = module) => {
     setLoading(true);
@@ -88,6 +92,25 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
     }, 250);
     return () => { live = false; clearTimeout(t); };
   }, [form, module, mode]);
+
+  /**
+   * Grow the frame to the receipt inside it. srcDoc is same-origin here (the
+   * sandbox keeps allow-same-origin), so the document can be measured; the
+   * clamp stops a malformed render from producing a mile-long panel.
+   */
+  const fitFrame = useCallback(() => {
+    const doc = frameRef.current?.contentDocument;
+    const h   = doc && Math.max(doc.documentElement?.scrollHeight || 0, doc.body?.scrollHeight || 0);
+    if (h) setFrameH(Math.min(1400, Math.max(420, h)));
+  }, []);
+
+  // srcDoc swaps do not always fire load before the new document has laid out,
+  // so the measurement is taken again on the next frame.
+  useEffect(() => {
+    if (!preview) return undefined;
+    const t = setTimeout(fitFrame, 60);
+    return () => clearTimeout(t);
+  }, [preview, fitFrame]);
 
   if (!modules.length) return null;
   if (!module || loading || !form) {
@@ -152,7 +175,7 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 380px) 1fr', gap: 20, alignItems: 'start' }}>
+          <div className="rcpt-grid">
             <div>
               <div className="form-group">
                 <label className="form-label">Design</label>
@@ -213,12 +236,17 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
             <div>
               <div className="form-label" style={{ marginBottom: 6 }}>Preview</div>
               <iframe
+                ref={frameRef}
                 title="Receipt preview"
                 srcDoc={preview}
                 sandbox="allow-same-origin"
+                onLoad={fitFrame}
+                scrolling="no"
                 style={{
-                  width: '100%', height: 560, border: '1px solid var(--border)',
+                  width: '100%', height: frameH, display: 'block',
+                  border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', background: '#fff',
+                  transition: 'height .2s ease',
                 }}
               />
             </div>

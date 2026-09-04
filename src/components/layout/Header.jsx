@@ -210,7 +210,12 @@ export default function Header({ onMenuClick, onCollapseClick }) {
 
       <h1 className="header__title">{title}</h1>
 
-      {canSearch && <GlobalSearch />}
+      {/* The middle slot is always present, even when there is no search to put
+          in it: it is what holds the actions against the right edge. Without it
+          every role that cannot search got a header bunched up on the left. */}
+      <div className="header__mid">
+        {canSearch && <GlobalSearch />}
+      </div>
 
       {/* Actions */}
       <div className="header__actions">

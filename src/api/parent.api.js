@@ -1,5 +1,6 @@
 import api from './axios';
-export const getDashboard    = () => api.get('/parent/dashboard');
+// `params` may carry { childId } — which child's detail block to build.
+export const getDashboard    = (params) => api.get('/parent/dashboard', { params });
 export const getModules      = () => api.get('/parent/modules');
 export const getSchoolConfig = () => api.get('/profile/school-config');
 export const getChildClass    = () => api.get('/parent/child-class');

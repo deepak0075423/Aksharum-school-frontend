@@ -10,7 +10,7 @@ import { Panel, PanelLink, Note } from '../../components/dashboard/parts';
 import { useQuickAccess, CustomizeButton, QuickAccessPicker } from '../../components/dashboard/quickAccess';
 import {
   Highlight, QuickTile, PerformanceOverview, SubjectMarks, ResultHighlight, EventRow,
-} from './dashboardParts';
+} from '../../components/dashboard/studentParts';
 
 /**
  * Every tile a student can put on Quick Access, in the order they appear before

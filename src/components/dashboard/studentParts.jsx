@@ -1,9 +1,10 @@
 /**
- * The student dashboard's panels.
+ * Panels about ONE student's figures.
  *
- * Everything here is shaped by what a student is shown: a month of their own
- * attendance, their published marks, the tiles they chose to keep. Shared
- * shapes (Panel, RowLink, Note) come from components/dashboard/parts.
+ * Shared by the student dashboard (about themselves) and the parent dashboard
+ * (about their child) — the same numbers with the same meaning, so the same
+ * components draw them. Generic shapes (Panel, RowLink, Note) come from
+ * ./parts; anything shaped by one screen alone stays in that page's own file.
  *
  * Chart colours come from pages/analytics/viz.jsx, whose palette was validated
  * against this app's light surface. Marks are a magnitude, so the bars are one
@@ -14,9 +15,9 @@ import { Link } from 'react-router-dom';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
-import Icon, { TrophyScene } from '../../components/ui/icons';
-import { Panel } from '../../components/dashboard/parts';
-import { VIZ } from '../analytics/viz';
+import Icon, { TrophyScene } from '../ui/icons';
+import { Panel } from './parts';
+import { VIZ } from '../../pages/analytics/viz';
 
 // ── Highlight card — the three figures the page leads with ───────────────────
 /**
@@ -54,11 +55,12 @@ export const Highlight = ({ icon, tone, label, value, valueTone, sub, meter, del
 );
 
 // ── Quick access ─────────────────────────────────────────────────────────────
-export const QuickTile = ({ to, icon, tone, label }) => (
-  <Link to={to} className="sqt">
+export const QuickTile = ({ to, icon, tone, label, sub }) => (
+  <Link to={to} className={`sqt${sub ? ' sqt--sub' : ''}`}>
     <span className={`sqt__icon tint-${tone}`}><Icon name={icon} size={22} /></span>
     <span className="sqt__label">{label}</span>
-    <Icon name="chevronRight" size={14} className="sqt__chev" />
+    {sub && <span className="sqt__sub">{sub} <Icon name="arrowRight" size={12} /></span>}
+    {!sub && <Icon name="chevronRight" size={14} className="sqt__chev" />}
   </Link>
 );
 
