@@ -135,7 +135,8 @@ export function AttendanceOverview({ trend = [], today, to }) {
               <span>Days appear here as sections record them.</span>
             </div>
           ) : (
-          <ResponsiveContainer width="100%" height={236}>
+          <div className="chartbox chartbox--att">
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={rows} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="attFill" x1="0" y1="0" x2="0" y2="1">
@@ -164,6 +165,7 @@ export function AttendanceOverview({ trend = [], today, to }) {
               />
             </AreaChart>
           </ResponsiveContainer>
+          </div>
           )}
         </div>
 

@@ -128,7 +128,8 @@ export function PerformanceOverview({ trend = [], to }) {
         </div>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={216}>
+          <div className="chartbox chartbox--perf">
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} margin={{ top: 14, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid stroke={VIZ.grid} strokeDasharray="3 4" vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} dy={6}
@@ -146,6 +147,7 @@ export function PerformanceOverview({ trend = [], to }) {
               />
             </LineChart>
           </ResponsiveContainer>
+          </div>
           {to && (
             <Link to={to} className="dpanel__link sperf__more">
               View detailed report <Icon name="chevronRight" size={14} />

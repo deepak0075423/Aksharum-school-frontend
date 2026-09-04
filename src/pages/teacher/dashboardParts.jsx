@@ -171,7 +171,8 @@ export function ClassPerformance({ classes = [], to }) {
           <span>Class averages appear once an exam is released.</span>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={252}>
+        <div className="chartbox chartbox--bars">
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 26, right: 12, left: 0, bottom: 0 }}
             barCategoryGap="28%">
             <defs>
@@ -195,6 +196,7 @@ export function ClassPerformance({ classes = [], to }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        </div>
       )}
     </Panel>
   );

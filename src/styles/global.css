@@ -1668,6 +1668,14 @@ a.stile:hover {
 }
 .attgrid__more { font-size: .78rem; }
 
+/* Chart height lives in CSS so a phone can have a shorter plot without the
+   component knowing anything about viewport width. ResponsiveContainer fills
+   this box; it cannot size itself from a percentage without one. */
+.chartbox { width: 100%; }
+.chartbox--att  { height: 236px; }
+.chartbox--perf { height: 216px; }
+.chartbox--bars { height: 252px; }
+
 .attgrid__empty {
   height: 236px;
   display: flex; flex-direction: column;
@@ -2444,4 +2452,95 @@ a.stile:hover {
 @media (max-width: 360px) {
   .dash .stat-grid,
   .shl-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHONE LAYOUT
+   Below this width the dashboards stop being a narrowed desktop page and take
+   the shape a phone actually wants: a tinted header to anchor the top, and
+   Quick Access as an app launcher rather than a column of cards.
+   Nothing is removed — every tile leads to the same place it does on desktop.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+
+  /* ── Greeting ──────────────────────────────────────────────────────────
+     A tint rather than another white box, so the page has a visible top. */
+  .hero, .shero {
+    background:    linear-gradient(160deg, #f0eeff 0%, #eaeeff 52%, var(--bg-card) 100%);
+    border-color:  #ddd6fe;
+    border-radius: var(--radius-lg);
+    padding:       16px 15px;
+  }
+  .hero__row { gap: 12px; }
+  .shero__text h1,
+  .hero__greet h1 { font-size: 1.22rem; letter-spacing: -.01em; }
+  .shero__text p,
+  .hero__greet p  { font-size: .84rem; margin-top: 4px; }
+  .shero__meta    { margin-top: 11px; gap: 6px; }
+  .shero__chip    { background: rgba(255,255,255,.75); padding: 4px 10px; font-size: .73rem; }
+  /* The strip sits on the tint, so it needs its own surface to stay legible. */
+  .clockstrip     { background: var(--bg-card); margin-top: 14px; }
+  .hero__year     { background: rgba(255,255,255,.72); }
+
+  /* ── Quick Access as a launcher ────────────────────────────────────────
+     Four across, icon over label, no card chrome. Sixteen shortcuts fit in
+     four rows instead of eight, which is the difference between a screen and
+     a scroll. The description line is a desktop affordance — on a launcher the
+     icon and the name are the label. */
+  .qgrid,
+  .sqt-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 2px;
+    padding: 14px 8px 16px;
+  }
+  .qtile,
+  .sqt {
+    flex-direction: column;
+    align-items:    center;
+    justify-content: flex-start;
+    gap:            7px;
+    min-height:     0;
+    padding:        6px 2px;
+    border:         none;
+    background:     none;
+    box-shadow:     none;
+    text-align:     center;
+  }
+  .qtile:hover, .sqt:hover {
+    transform: none; box-shadow: none; background: none; border: none;
+  }
+  .qtile:active, .sqt:active { opacity: .6; }
+  .qtile__icon,
+  .sqt__icon {
+    width: 48px; height: 48px; border-radius: 16px; margin: 0;
+  }
+  .sqt__icon { border-radius: 50%; }
+  .qtile__icon svg, .sqt__icon svg { width: 21px; height: 21px; }
+  .qtile__label,
+  .sqt__label {
+    font-size: .67rem; font-weight: 600; line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .qtile__sub, .sqt__sub,
+  .qtile__chev, .sqt__chev { display: none; }
+
+  /* The panel around a launcher wants less chrome than one around a table. */
+  .dpanel:has(.qgrid) .dpanel__head,
+  .dpanel:has(.sqt-grid) .dpanel__head { border-bottom: none; padding-bottom: 4px; }
+}
+
+/* Very narrow phones drop to three across rather than squeezing the labels. */
+@media (max-width: 360px) {
+  .qgrid, .sqt-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Shorter plots on a phone — the same data, without the dead space a
+   desktop-height chart leaves above a 90% bar. */
+@media (max-width: 600px) {
+  .chartbox--att  { height: 186px; }
+  .chartbox--perf { height: 176px; }
+  .chartbox--bars { height: 208px; }
+  .attgrid__empty { height: 168px; }
 }
