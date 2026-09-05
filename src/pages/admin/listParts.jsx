@@ -264,10 +264,16 @@ export function useSelection(rows, resetKey) {
  * them identically. Row ids go on `data-focus-id` so a notification or the
  * header's global search can flag the row it was about — see
  * hooks/useFocusHighlight.js.
+ *
+ * `renderExpanded` opens one row at a time into a full-width strip beneath it,
+ * for detail that is too wide for a cell but too small to be worth a drawer —
+ * Designations shows every module and the level it grants there. Pages that
+ * pass neither prop are unaffected.
  */
 export function ListTable({
   columns, rows, loading, selection, startIndex = 0,
   emptyIcon, emptyTitle, emptyMessage, emptyAction,
+  expandedId, renderExpanded,
 }) {
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div>;
@@ -292,22 +298,37 @@ export function ListTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={row._id} data-focus-id={row._id}
-              className={selection?.has(row._id) ? 'is-picked' : undefined}>
-              {selection && (
-                <td className="ltable__tick">
-                  <input type="checkbox" checked={selection.has(row._id)}
-                    onChange={() => selection.toggle(row._id)}
-                    aria-label={`Select ${row.name}`} />
-                </td>
-              )}
-              <td className="ltable__num">{startIndex + i + 1}</td>
-              {columns.map((c) => (
-                <td key={c.key} className={c.className}>{c.render(row)}</td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const open = renderExpanded && expandedId === row._id;
+            return (
+              <React.Fragment key={row._id}>
+                <tr data-focus-id={row._id}
+                  className={[
+                    selection?.has(row._id) ? 'is-picked' : '',
+                    open ? 'is-open' : '',
+                  ].filter(Boolean).join(' ') || undefined}>
+                  {selection && (
+                    <td className="ltable__tick">
+                      <input type="checkbox" checked={selection.has(row._id)}
+                        onChange={() => selection.toggle(row._id)}
+                        aria-label={`Select ${row.name}`} />
+                    </td>
+                  )}
+                  <td className="ltable__num">{startIndex + i + 1}</td>
+                  {columns.map((c) => (
+                    <td key={c.key} className={c.className}>{c.render(row)}</td>
+                  ))}
+                </tr>
+                {open && (
+                  <tr className="ltable__exp">
+                    <td colSpan={columns.length + 1 + (selection ? 1 : 0)}>
+                      {renderExpanded(row)}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>

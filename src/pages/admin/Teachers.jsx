@@ -55,7 +55,9 @@ export default function Teachers() {
   // hooks/useFocusHighlight.js.
   const [params] = useSearchParams();
   const [search, setSearch]   = useState(() => params.get('search') || '');
-  const [filters, setFilters] = useState(EMPTY);
+  // ?designation= arrives from the Designations screen — "who holds this one"
+  // is the same question this list already answers behind its filter panel.
+  const [filters, setFilters] = useState(() => ({ ...EMPTY, designation: params.get('designation') || '' }));
   const [showFilters, setShowFilters] = useState(false);
 
   // Delete and Deactivate both go through the dependency dialog — it is what

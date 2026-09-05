@@ -2957,3 +2957,306 @@ button.lstat:hover, a.lstat:hover {
   .lfoot__right { width: 100%; justify-content: space-between; }
   .lpagefoot { justify-content: center; text-align: center; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGNATIONS — the list frame's extras
+   ───────────────────────────────────────────────────────────────────────────
+   Admin → Designations is a listpg like Students or Teachers, but a designation
+   is a permission record rather than a person: the row leads with a drawn role
+   instead of a face, and its widest column is a summary of module access. Only
+   what is particular to that lives here — everything else is .l* above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Status tabs ───────────────────────────────────────────────────────────
+   Status is the one filter worth spending a whole row on: it is how an admin
+   thinks about the list ("what is switched off?"), and the counts answer the
+   question before the tab is even pressed. Everything else stays in the
+   toolbar below. */
+.ltabs {
+  display:       flex;
+  gap:           2px;
+  padding:       0 18px;
+  border-bottom: 1px solid var(--border);
+  overflow-x:    auto;
+  scrollbar-width: none;
+}
+.ltabs::-webkit-scrollbar { display: none; }
+.ltab {
+  padding:       14px 14px 12px;
+  font-size:     .85rem;
+  font-weight:   600;
+  color:         var(--text-muted);
+  white-space:   nowrap;
+  background:    none;
+  border:        none;
+  border-bottom: 2px solid transparent;
+  cursor:        pointer;
+  transition:    color var(--transition), border-color var(--transition);
+}
+.ltab:hover  { color: var(--primary); }
+.ltab.is-on  { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* A dropdown sitting inline in the toolbar rather than in the filter panel.
+   This page has two, and both fit — the panel exists for the account lists,
+   which have six. */
+.ltools .lsel {
+  width:       auto;
+  flex-shrink: 0;
+  font-size:   .85rem;
+  padding:     9px 30px 9px 12px;
+  cursor:      pointer;
+}
+
+/* ── The ⓘ on a column heading ───────────────────────────────────────────── */
+.lhead { display: inline-flex; align-items: center; gap: 6px; }
+.lhead__hint {
+  width: 14px; height: 14px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  font-size: .6rem; font-weight: 700; font-style: italic;
+  color: var(--text-light); cursor: help; text-transform: none;
+}
+.lhead__hint:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── The identity cell ─────────────────────────────────────────────────────
+   A designation has no photograph, so it is drawn from its own name — see
+   lookOf() in designationParts.jsx. */
+.ldesig { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.ldesig__icon {
+  border-radius:   10px;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+.ldesig__name { font-size: .9rem; font-weight: 600; }
+
+.ldesc {
+  font-size:   .82rem;
+  color:       var(--text-muted);
+  line-height: 1.45;
+  max-width:   230px;
+}
+
+.lusers { display: flex; flex-direction: column; gap: 1px; font-size: .82rem; white-space: nowrap; }
+.lusers b { font-weight: 600; }
+.lusers span + span { font-size: .76rem; color: var(--text-muted); }
+
+/* ── Column widths ─────────────────────────────────────────────────────────
+   Two of these cells hold prose and one holds a meter, so without a hint the
+   browser hands them the whole table and squeezes Status against Actions. */
+.dcol-name   { width: 180px; }
+.dcol-desc   { width: 230px; }
+.dcol-users  { width: 104px; }
+.dcol-acc    { width: 240px; min-width: 200px; }
+.dcol-status { width: 96px; }
+
+/* ── Module access, summarised ─────────────────────────────────────────────
+   Eighteen modules never fitted in a cell, and the three that did said nothing
+   about the level each was granted at — which is the only thing this column is
+   asked. So the cell carries the shape of the access instead: a bar in the
+   three level colours, the counts behind it, and the full list one press away
+   underneath the row. */
+.lacc {
+  display:       flex;
+  align-items:   center;
+  gap:           9px;
+  width:         100%;
+  padding:       7px 9px;
+  border:        1px solid transparent;
+  border-radius: var(--radius);
+  background:    none;
+  font:          inherit;
+  text-align:    left;
+  cursor:        pointer;
+  transition:    background var(--transition), border-color var(--transition);
+}
+.lacc:hover   { background: var(--bg); border-color: var(--border); }
+.lacc.is-open { background: #eef2ff; border-color: #c7d2fe; }
+
+.lacc__bar {
+  display:       flex;
+  width:         58px;
+  height:        7px;
+  flex-shrink:   0;
+  gap:           2px;
+  border-radius: 99px;
+  overflow:      hidden;
+}
+.lacc__seg              { display: block; min-width: 3px; border-radius: 99px; }
+.lacc__seg--admin       { background: #4f46e5; }
+.lacc__seg--user        { background: #22c55e; }
+.lacc__seg--none        { background: var(--border); }
+
+.lacc__txt { flex: 1; min-width: 0; font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
+.lacc__txt b          { font-weight: 700; }
+.lacc__txt b.is-admin { color: #4f46e5; }
+.lacc__txt b.is-user  { color: #15803d; }
+.lacc__txt b.is-none  { color: var(--text-muted); }
+
+.lacc__chev { flex-shrink: 0; color: var(--text-light); transition: transform var(--transition); }
+.lacc.is-open .lacc__chev { transform: rotate(180deg); color: var(--primary); }
+
+/* ── The row, opened ───────────────────────────────────────────────────────
+   Grouped by level, not alphabetically: "what does this designation
+   administer" should be one line to read, and the modules it cannot touch
+   should be visibly a separate group. */
+.ltable tr.is-open > td { background: #f8faff; border-bottom-color: transparent; }
+.ltable__exp > td {
+  padding:    0 16px 16px !important;
+  background: #f8faff;
+}
+.laccd {
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+  padding:       6px 16px 14px;
+}
+.laccd__row      { padding: 12px 0; }
+.laccd__row + .laccd__row { border-top: 1px dashed var(--border); }
+.laccd__head     { display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px; }
+.laccd__dot      { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+.laccd__head--admin .laccd__dot { background: #4f46e5; }
+.laccd__head--user  .laccd__dot { background: #22c55e; }
+.laccd__head--none  .laccd__dot { background: var(--border); }
+.laccd__title    { font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.laccd__head--admin .laccd__title { color: #4f46e5; }
+.laccd__head--user  .laccd__title { color: #15803d; }
+.laccd__head--none  .laccd__title { color: var(--text-muted); }
+.laccd__note     { font-size: .74rem; color: var(--text-light); }
+.laccd__foot     { padding-top: 12px; border-top: 1px dashed var(--border); }
+
+/* ── Module chips ──────────────────────────────────────────────────────────
+   Colour carries the LEVEL, not the module. A per-module palette answered a
+   question nobody had while leaving the levels — the thing this page exists
+   for — invisible. */
+.lmods { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lmod {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       4px 10px;
+  border-radius: 999px;
+  font-size:     .74rem;
+  font-weight:   600;
+  white-space:   nowrap;
+  border:        1px solid transparent;
+}
+.lmod--admin { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.lmod--user  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.lmod--none  { background: var(--bg); color: var(--text-light); border-color: var(--border); font-weight: 500; }
+
+/* ── The editor ────────────────────────────────────────────────────────────
+   One designation at a time, in a modal wide enough to hold two columns of
+   modules — the page-wide grid with a single Save is gone, so a change is
+   never left half-applied across several rows. */
+.dform {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap:                   0 18px;
+}
+
+.dgrid__head {
+  display:         flex;
+  align-items:     flex-end;
+  justify-content: space-between;
+  gap:             12px;
+  flex-wrap:       wrap;
+  margin-bottom:   12px;
+  border-top:      1px solid var(--border);
+  padding-top:     18px;
+}
+.dgrid__head h4 { font-size: .95rem; font-weight: 700; }
+.dgrid__head p  { font-size: .78rem; color: var(--text-muted); margin-top: 3px; }
+.dgrid__bulk    { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.dgrid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap:                   10px;
+}
+.drow {
+  display:       flex;
+  align-items:   center;
+  gap:           11px;
+  padding:       10px 12px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+  transition:    border-color var(--transition), background var(--transition);
+}
+.drow--admin { border-color: rgba(99,102,241,.45); background: rgba(99,102,241,.06); }
+.drow--user  { border-color: rgba(34,197,94,.40);  background: rgba(34,197,94,.05); }
+.drow__icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: .95rem;
+}
+.drow__text  { flex: 1; min-width: 0; }
+.drow__label { font-size: .87rem; font-weight: 600; }
+.drow__desc  {
+  font-size: .72rem; color: var(--text-muted); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.dlevels {
+  display:       inline-flex;
+  flex-shrink:   0;
+  border:        1px solid var(--border);
+  border-radius: 8px;
+  overflow:      hidden;
+  background:    var(--bg-card);
+}
+.dlevel {
+  padding:      5px 11px;
+  font-size:    .76rem;
+  font-weight:  500;
+  color:        var(--text-muted);
+  background:   transparent;
+  border:       none;
+  cursor:       pointer;
+  white-space:  nowrap;
+}
+.dlevel + .dlevel { border-left: 1px solid var(--border); }
+.dlevel:disabled  { color: var(--border); cursor: not-allowed; }
+.dlevel:not(:disabled):hover { background: var(--bg); }
+.dlevel.is-on              { font-weight: 700; }
+.dlevel--admin.is-on { background: rgba(99,102,241,.14); color: #4f46e5; }
+.dlevel--user.is-on  { background: rgba(34,197,94,.12);  color: #15803d; }
+.dlevel--none.is-on  { background: var(--bg);            color: var(--text); }
+
+.dnote {
+  display:       flex;
+  gap:           9px;
+  margin-top:    16px;
+  padding:       11px 14px;
+  border:        1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg);
+  font-size:     .78rem;
+  line-height:   1.6;
+  color:         var(--text-muted);
+}
+.dnote svg      { flex-shrink: 0; margin-top: 2px; color: var(--warning); }
+.dnote strong   { color: var(--text); }
+.dnote--plain   { border: none; background: none; padding: 0; margin: 12px 0 14px; }
+
+/* ── The Manage Modules panel ──────────────────────────────────────────────
+   Laid out as the Help panel beside it, because they are a pair: one is where
+   to ask, the other is where to change what this page can offer. */
+.lmodpanel { display: flex; gap: 16px; }
+.lmodpanel .lhelp__mark { background: #dcfce7; color: #059669; }
+
+@media (max-width: 1200px) {
+  .dcol-desc { width: 180px; }
+  .ldesc     { max-width: 180px; }
+}
+@media (max-width: 900px) {
+  .laccd { padding: 4px 12px 12px; }
+}
+@media (max-width: 768px) {
+  .ltabs { padding: 0 14px; }
+  .ltools .lsel { flex: 1 1 160px; width: auto; }
+  .dgrid { grid-template-columns: 1fr; }
+  .drow  { flex-wrap: wrap; }
+  .dlevels { margin-left: 43px; }
+}
