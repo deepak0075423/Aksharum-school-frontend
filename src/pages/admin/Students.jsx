@@ -1,161 +1,109 @@
-import React, { useState, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { toggleStudent } from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, PageSize, Spinner } from '../../components/ui/index';
+import { useAuth } from '../../contexts/AuthContext';
+import { Badge, Button, Confirm } from '../../components/ui/index';
+import Icon, { StudentsScene, SupportScene } from '../../components/ui/icons';
 import StudentForm from './StudentForm';
-import BulkImportOverlay from '../../components/BulkImportOverlay';
-import { saveFile, saveBase64 } from '../../utils/downloadFile';
+import BulkImport from '../../components/BulkImport';
+import { saveFile } from '../../utils/downloadFile';
+import {
+  Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
+  FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
+  Who, Stack, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
+  HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate,
+} from './listParts';
+
+const GENDERS  = ['Male', 'Female', 'Other'];
+const STATUSES = [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
+
+const SORTS = [
+  { value: 'name',   label: 'Name (A–Z)' },
+  { value: 'name_z', label: 'Name (Z–A)' },
+  { value: 'roll',   label: 'Roll number' },
+  { value: 'class',  label: 'Class & section' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+];
+
+const EMPTY = { status: '', gender: '', classId: '', sectionId: '', sort: 'name' };
 
 export default function Students() {
-  const [page, setPage]     = useState(1);
+  const { user } = useAuth();
+
+  const [page, setPage]   = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
+
   // Seeded from ?search= so the header's global search can land on one person:
   // it navigates here with the name prefilled and ?focus=<id>, and the focus
   // highlight can only flag a row that actually rendered — see
   // hooks/useFocusHighlight.js.
   const [params] = useSearchParams();
-  const [search, setSearch] = useState(() => params.get('search') || '');
-  const [del, setDel]       = useState(null);
-  const [delLoad, setDL]    = useState(false);
+  const [search, setSearch]   = useState(() => params.get('search') || '');
+  const [filters, setFilters] = useState(EMPTY);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const [del, setDel]         = useState(null);
+  const [delLoad, setDL]      = useState(false);
+  const [busy, setBusy]       = useState(false);
 
   // One wizard drives both admission and editing — `editing` null means "add"
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing]   = useState(null);
-
-  // ── Bulk import ───────────────────────────────────────────────────────────
-  const [bulkModal, setBulkModal]   = useState(false);
-  const [bulkFile, setBulkFile]     = useState(null);
-  const [bulkLoading, setBulkLoad]  = useState(false);
-  const [bulkProgress, setBulkProgress] = useState(null);
-  const [errorsSaved, setErrorsSaved] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
-  // { total, current, currentName, created, updated, errorCount, errors, done }
-  const bulkFileRef = useRef(null);
-
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [viewing, setViewing]   = useState(null);   // the row behind the drawer
 
   // The list does not remount when only the query string changes, so a second
   // search from the header has to be picked up here as well as at mount.
   const urlSearch = params.get('search') || '';
-  React.useEffect(() => {
+  useEffect(() => {
     if (urlSearch) { setSearch(urlSearch); setPage(1); }
   }, [urlSearch]);
 
-  const { data, loading, refetch } = useFetch(
-    () => api.getStudents({ page, search, limit }),
-    [page, search, limit],
-  );
+  // A request per keystroke is a request per keystroke; wait for a pause.
+  const [term, setTerm] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
+  const query = useMemo(
+    () => ({ page, limit, search: term || undefined, ...Object.fromEntries(
+      Object.entries(filters).filter(([, v]) => v),
+    ) }),
+    [page, limit, term, filters],
+  );
+  const queryKey = JSON.stringify(query);
+
+  const { data, loading, refetch } = useFetch(() => api.getStudents(query), [queryKey]);
+
+  // Class and section dropdowns, from the running academic year.
+  const { data: tree } = useFetch(() => api.getClassesWithSections(), []);
+  const classes  = Array.isArray(tree) ? tree : [];
+  const sections = filters.classId
+    ? (classes.find((c) => c._id === filters.classId)?.sections || [])
+    : classes.flatMap((c) => c.sections || []);
+
+  const rows      = data?.data || [];
+  const stats     = data?.stats || {};
+  const selection = useSelection(rows, queryKey);
+
+  const set = (patch) => { setFilters((f) => ({ ...f, ...patch })); setPage(1); };
+  // A section belongs to one class, so picking a class drops a section from
+  // another one rather than leaving a filter pair that can never match.
+  const setClass = (classId) => set({ classId, sectionId: '' });
+
+  const filterCount = activeFilterCount(filters, EMPTY);
+  const anyFilter   = !!term || filterCount > 0;
+  const clearAll    = () => { setSearch(''); setTerm(''); setFilters(EMPTY); setPage(1); };
+
+  // ── Actions ────────────────────────────────────────────────────────────────
   const openCreate = () => { setEditing(null); setFormOpen(true); };
   const openEdit   = (r) => { setEditing(r);   setFormOpen(true); };
-
-  const resetBulk = () => {
-    setBulkModal(false); setBulkProgress(null); setBulkFile(null);
-    setErrorsSaved(false); setConfirmClose(false);
-  };
-  // The failed-row sheet is built once, inside the import response, and is not
-  // stored anywhere — so closing without saving it silently throws away the only
-  // record of what went wrong. Warn before that happens.
-  const closeBulk = () => {
-    if (bulkProgress?.errorFile && !errorsSaved) { setConfirmClose(true); return; }
-    resetBulk();
-  };
-  const saveErrorSheet = () => {
-    saveBase64(bulkProgress.errorFile.base64, bulkProgress.errorFile.filename);
-    setErrorsSaved(true);
-  };
-
-  const handleBulkImport = async (e) => {
-    e.preventDefault();
-    if (!bulkFile) { toast.error('Please select an Excel file'); return; }
-    setBulkLoad(true);
-    setBulkProgress({ total: 0, current: 0, currentName: '', created: 0, updated: 0, errorCount: 0, errors: [], done: false });
-    try {
-      const fd = new FormData();
-      fd.append('excelFile', bulkFile);
-      const token = localStorage.getItem('token');
-      const baseURL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${baseURL}/admin/students/bulk`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (!response.ok) {
-        const json = await response.json();
-        throw new Error(json.message || 'Import failed');
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      let didCreate = false;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const chunks = buf.split('\n\n');
-        buf = chunks.pop();
-        for (const chunk of chunks) {
-          if (!chunk.startsWith('data: ')) continue;
-          const evt = JSON.parse(chunk.slice(6));
-          if (evt.type === 'total') {
-            setBulkProgress(p => ({ ...p, total: evt.total }));
-          } else if (evt.type === 'processing') {
-            setBulkProgress(p => ({ ...p, current: evt.current, currentName: evt.name }));
-          } else if (evt.type === 'row_done') {
-            if (evt.success) didCreate = true;
-            // A row that matched a student already on file is an update, not a
-            // creation — counting the two together made a re-uploaded sheet
-            // report every existing student as newly created.
-            const isUpdate = evt.success && evt.action === 'updated';
-            setBulkProgress(p => ({
-              ...p,
-              created:    evt.success && !isUpdate ? p.created + 1 : p.created,
-              updated:    isUpdate ? p.updated + 1 : p.updated,
-              errorCount: evt.success ? p.errorCount : p.errorCount + 1,
-              errors:     evt.success ? p.errors : [...p.errors, { row: evt.row, name: evt.name, reason: evt.reason }],
-            }));
-          } else if (evt.type === 'done') {
-            // The server's own tally wins over the row-by-row one: if the run
-            // stopped early, the difference from `total` is the shortfall.
-            const created = evt.created ?? 0;
-            const updated = evt.updated ?? 0;
-            const failed  = evt.errors?.length ?? 0;
-            // The failed rows come back as a ready-to-correct sheet, not just a list.
-            setBulkProgress(p => ({
-              ...p,
-              done: true,
-              created,
-              updated,
-              errorCount: failed,
-              total: evt.total ?? p.total,
-              errorFile: evt.errorFile ?? null,
-            }));
-            const touched = created + updated;
-            const parts = [];
-            if (created) parts.push(`${created} new`);
-            if (updated) parts.push(`${updated} updated`);
-            if (touched === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
-            else if (failed > 0) toast(`${parts.join(', ')} — ${failed} row(s) failed`, { icon: '⚠️' });
-            else if (touched > 0) toast.success(`Imported ${touched} student(s) (${parts.join(', ')})`);
-            else toast.error('No rows found in the file');
-            if (didCreate) refetch();
-          } else if (evt.type === 'error') {
-            throw new Error(evt.message);
-          }
-        }
-      }
-    } catch (err) { toast.error(err.message); setBulkLoad(false); setBulkProgress(null); return; }
-    setBulkLoad(false);
-  };
-
-  const handleDownloadTemplate = async () => {
-    try {
-      saveFile(await api.downloadStudentTemplate(), 'student-template.xlsx');
-    } catch { toast.error('Failed to download template'); }
-  };
 
   const handleDelete = async () => {
     setDL(true);
@@ -173,61 +121,207 @@ export default function Students() {
     } catch (err) { toast.error(err.message, { id: 'tog' }); }
   };
 
+  /**
+   * Switch every selected account that is not already in the target state.
+   *
+   * The endpoint toggles rather than sets, so rows already the right way round
+   * are skipped — otherwise "Activate 5" would switch off the two that were
+   * already on. Failures are counted, not swallowed.
+   */
+  const bulkSetActive = async (active) => {
+    const targets = selection.rows.filter((r) => (r.isActive !== false) !== active);
+    if (!targets.length) {
+      toast(`Nothing to change — every selected student is already ${active ? 'active' : 'inactive'}.`);
+      return;
+    }
+    const word = active ? 'Activating' : 'Deactivating';
+    toast.loading(`${word} ${targets.length} student${targets.length === 1 ? '' : 's'}…`, { id: 'bulk' });
+    setBusy(true);
+    let done = 0;
+    let failed = 0;
+    for (const r of targets) {
+      try { await toggleStudent(r._id); done += 1; }
+      catch { failed += 1; }
+    }
+    setBusy(false);
+    if (failed) toast.error(`${done} changed, ${failed} failed`, { id: 'bulk' });
+    else toast.success(`${done} student${done === 1 ? '' : 's'} ${active ? 'activated' : 'deactivated'}`, { id: 'bulk' });
+    selection.clear();
+    refetch();
+  };
+
+  const handleExport = async () => {
+    toast.loading('Building the spreadsheet…', { id: 'exp' });
+    try {
+      const { page: _p, limit: _l, ...rest } = query;
+      saveFile(await api.exportStudents(rest), 'students.xlsx');
+      toast.success('Downloaded', { id: 'exp' });
+    } catch (err) { toast.error(err.message || 'Export failed', { id: 'exp' }); }
+  };
+
+  // ── Columns ────────────────────────────────────────────────────────────────
   const columns = [
-    { key: 'name', label: 'Student', render: r => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div className="avatar avatar-sm" style={{ background: 'var(--success)' }}>{r.name?.[0]}</div>
-        <div>
-          <div style={{ fontWeight: 600 }}>{r.name}</div>
-          <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{r.email}</div>
-        </div>
-      </div>
-    )},
-    { key: 'rollNumber', label: 'Roll No', render: r => r.rollNumber || '—' },
-    { key: 'class', label: 'Class / Section', render: r =>
-      r.className ? `${r.className}${r.sectionName ? ` – ${r.sectionName}` : ''}` : '—' },
-    { key: 'gender',     label: 'Gender',  render: r => r.gender || '—' },
-    { key: 'status',     label: 'Status',  render: r =>
-      <Badge variant={r.isActive ? 'success' : 'muted'}>{r.isActive ? 'Active' : 'Inactive'}</Badge> },
-    { key: 'actions', label: 'Actions', render: r => (
-      <div className="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>
-        <button className="btn btn-warning btn-sm"   onClick={() => handleToggle(r)}>{r.isActive ? 'Deactivate' : 'Activate'}</button>
-        <button className="btn btn-danger btn-sm"    onClick={() => setDel(r)}>Delete</button>
-      </div>
-    )},
+    {
+      key: 'name',
+      label: 'Student',
+      render: (r) => (
+        <Who name={r.name} sub={r.email} photo={r.profileImage} tone="green" />
+      ),
+    },
+    { key: 'roll',  label: 'Roll No', render: (r) => orBlank(r.rollNumber) },
+    {
+      key: 'class',
+      label: 'Class / Section',
+      render: (r) => (r.className
+        ? <Stack main={r.className} sub={r.sectionName ? `Section ${r.sectionName}` : 'Not placed in a section'} />
+        : orBlank('')),
+    },
+    { key: 'gender', label: 'Gender', render: (r) => orBlank(r.gender) },
+    {
+      key: 'parent',
+      label: 'Parent / Guardian',
+      render: (r) => (r.parentName
+        ? <Stack main={r.parentName} sub={r.parentPhone} />
+        : orBlank('')),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r) => (
+        <Badge variant={r.isActive !== false ? 'success' : 'muted'}>
+          {r.isActive !== false ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      className: 'ltable__acts',
+      render: (r) => (
+        <RowActions>
+          <IconAction icon="eye" label="View details" onClick={() => setViewing(r)} />
+          <IconAction icon="pencil" label="Edit student" variant="edit" onClick={() => openEdit(r)} />
+          <RowMenu>
+            <MenuItem icon="chart" to={`/admin/student-analytics/${r._id}`}>Analytics</MenuItem>
+            {r.currentSection && (
+              <MenuItem icon="building" to={`/admin/sections/${r.currentSection}`}>Open section</MenuItem>
+            )}
+            <MenuItem icon="power" onClick={() => handleToggle(r)}>
+              {r.isActive !== false ? 'Deactivate' : 'Activate'}
+            </MenuItem>
+            <MenuSep />
+            <MenuItem icon="trash" danger onClick={() => setDel(r)}>Delete student</MenuItem>
+          </RowMenu>
+        </RowActions>
+      ),
+    },
   ];
 
   return (
-    <div className="page">
-      <PageHeader title="Students" subtitle={`${data?.total ?? 0} students`}
-        action={
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" type="button" onClick={() => { resetBulk(); setBulkModal(true); }}>Bulk Import</Button>
-            <Button type="button" onClick={openCreate}>+ Add Student</Button>
-          </div>
-        } />
+    <div className="page listpg">
+      <Crumbs here="Students" />
 
-      <div className="card">
-        <div className="card-header">
-          <input className="form-control" style={{ maxWidth: 280 }} placeholder="🔍 Search students…"
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {loading
-            ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : <Table columns={columns} data={data?.data} emptyIcon="👨‍🎓" emptyTitle="No students found" />}
-        </div>
-        {data && (data.total > 5 || data.pages > 1) && (
-          <div className="card-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <PageSize value={limit} total={data.total} onChange={(n) => { setLimit(n); setPage(1); }} />
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} />
-            </div>
+      <ListHero
+        title="Students"
+        subtitle="Manage all students, view details, and keep information up to date."
+        quote="Every student's journey matters. Together, we build a brighter future."
+        scene={StudentsScene}
+      />
+
+      <ListStats>
+        <ListStat icon="users" tone="indigo" value={stats.total} label="Total Students"
+          caption="Across all classes" on={!filters.status} onClick={() => set({ status: '' })} />
+        <ListStat icon="student" tone="green" value={stats.active} label="Active Students"
+          caption="Currently enrolled" on={filters.status === 'active'} onClick={() => set({ status: 'active' })} />
+        <ListStat icon="userCircle" tone="pink" value={stats.inactive} label="Inactive Students"
+          caption="Not enrolled" on={filters.status === 'inactive'} onClick={() => set({ status: 'inactive' })} />
+        <ListStat icon="userPlus" tone="amber" value={stats.newThisYear} label="New Admissions"
+          caption="This academic year" />
+      </ListStats>
+
+      <section className="card">
+        <div className="ltools">
+          <SearchField value={search} onChange={setSearch}
+            placeholder="Search name, roll no, admission no or email…" />
+
+          <FiltersButton open={showFilters} count={filterCount}
+            onClick={() => setShowFilters((v) => !v)} />
+
+          <span className="ltools__sep" />
+
+          <div className="ltools__acts">
+            <Button variant="secondary" onClick={handleExport}>
+              <Icon name="download" size={16} /> Export
+            </Button>
+            <Button variant="secondary" onClick={() => setBulkOpen(true)}>
+              <Icon name="upload" size={16} /> Bulk Import
+            </Button>
+            <Button onClick={openCreate}><Icon name="plus" size={16} /> Add Student</Button>
           </div>
+        </div>
+
+        {showFilters && (
+          <FilterPanel onReset={clearAll}>
+            <FilterField label="Class" value={filters.classId} onChange={setClass}
+              all="All classes" options={classes.map((c) => ({ value: c._id, label: c.className }))} />
+            <FilterField label="Section" value={filters.sectionId}
+              onChange={(v) => set({ sectionId: v })}
+              all="All sections" options={sections.map((x) => ({ value: x._id, label: x.sectionName }))} />
+            <FilterField label="Status" value={filters.status}
+              onChange={(v) => set({ status: v })}
+              all="All status" options={STATUSES} />
+            <FilterField label="Gender" value={filters.gender}
+              onChange={(v) => set({ gender: v })}
+              all="Any gender" options={GENDERS} />
+            <FilterField label="Sort by" value={filters.sort} defaultValue="name"
+              onChange={(v) => set({ sort: v })} options={SORTS} />
+          </FilterPanel>
         )}
+
+        <SelectionBar count={selection.ids.length} noun="student" onClear={selection.clear}>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+            onClick={() => bulkSetActive(true)}>Activate</button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+            onClick={() => bulkSetActive(false)}>Deactivate</button>
+        </SelectionBar>
+
+        <ListTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          selection={selection}
+          startIndex={(page - 1) * limit}
+          emptyIcon={anyFilter ? '🔍' : '🎒'}
+          emptyTitle={anyFilter ? 'No students match these filters' : 'No students yet'}
+          emptyMessage={anyFilter
+            ? 'Try a different class, section or search term.'
+            : 'Admit your first student, or bring a whole class in from a spreadsheet.'}
+          emptyAction={anyFilter
+            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+            : <Button onClick={openCreate}>+ Add Student</Button>}
+        />
+
+        <ListFooter
+          page={page} pages={data?.pages || 1} total={data?.total || 0}
+          limit={limit} count={rows.length} noun="student"
+          onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
+        />
+      </section>
+
+      <div className="lbottom">
+        <QuickActions items={[
+          { icon: 'userPlus', tone: 'indigo', bg: '#f5f3ff', label: 'Add Student', sub: 'Admit one student', onClick: openCreate },
+          { icon: 'upload',   tone: 'green',  bg: '#f0fdf4', label: 'Bulk Import', sub: 'From a spreadsheet', onClick: () => setBulkOpen(true) },
+          { icon: 'building', tone: 'amber',  bg: '#fffbeb', label: 'Manage Classes', sub: 'Classes & sections', to: '/admin/classes' },
+          { icon: 'download', tone: 'teal',   bg: '#f0fdfa', label: 'Export List', sub: 'Download as Excel', onClick: handleExport },
+        ]} />
+        <HelpPanel scene={SupportScene}
+          text="Facing an issue with admissions, roll numbers or section placement? Message your school's support team and someone will pick it up." />
       </div>
 
+      <PageFoot schoolName={user?.school?.name} />
+
+      {/* ── Overlays ─────────────────────────────────────────────────────────── */}
       <StudentForm
         open={formOpen}
         student={editing}
@@ -235,129 +329,123 @@ export default function Students() {
         onSaved={refetch}
       />
 
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
-        loading={delLoad} title="Delete Student" message={`Delete "${del?.name}"? This cannot be undone.`} />
-
-      {/* Blocking progress panel while the import streams — shared with Teachers */}
-      <BulkImportOverlay open={bulkLoading} title="Importing Students…" progress={bulkProgress} />
-
-      {/* ══ Bulk Import Modal ════════════════════════════════════════════════ */}
-      <Modal open={bulkModal && !bulkLoading} onClose={closeBulk} title="Bulk Import Students" maxWidth={520}
-        footer={
-          bulkProgress?.done ? (
-            <Button onClick={closeBulk}>Close</Button>
-          ) : (
-            <>
-              <Button variant="secondary" onClick={closeBulk}>Cancel</Button>
-              <Button form="bulk-import-form" type="submit" loading={bulkLoading}>Import</Button>
-            </>
-          )
-        }>
-        {bulkProgress?.done ? (
-          /* ── Results ── */
-          <div>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              <div style={{ flex: 1, background: 'var(--success-light,#f0fdf4)', border: '1px solid var(--success)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkProgress.created}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Newly Created</div>
-              </div>
-              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkProgress.updated ?? 0}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Updated</div>
-              </div>
-              <div style={{ flex: 1, background: bulkProgress.errorCount > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress.errorCount}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Errors</div>
-              </div>
-            </div>
-            {(() => {
-              const seen = (bulkProgress.created ?? 0) + (bulkProgress.updated ?? 0) + (bulkProgress.errorCount ?? 0);
-              const total = bulkProgress.total ?? 0;
-              if (!total || seen >= total) return null;
-              return (
-                <div style={{ background: 'var(--danger-light,#fef2f2)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '.82rem', color: 'var(--danger)' }}>
-                  Only {seen} of {total} rows were processed — the import stopped early.
-                  Upload the sheet again to continue; students already on file are matched by
-                  email and updated rather than duplicated.
-                </div>
-              );
-            })()}
-            {bulkProgress.errors.length > 0 && (
-              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                {bulkProgress.errors.map((e, i) => (
-                  <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-                    <span style={{ fontWeight: 600 }}>Row {e.row}{e.name ? ` — ${e.name}` : ''}: </span>
-                    <span style={{ color: 'var(--danger)' }}>{e.reason}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {bulkProgress.errorFile && (
-              <div style={{ marginTop: 12 }}>
-                <Button variant="secondary" style={{ width: '100%' }}
-                  onClick={saveErrorSheet}>
-                  Download the {bulkProgress.errorFile.rows} failed row{bulkProgress.errorFile.rows !== 1 ? 's' : ''} (.xlsx)
-                </Button>
-                <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0, lineHeight: 1.6 }}>
-                  That file is your own sheet with just these rows and an <strong>Error</strong> column saying
-                  what stopped each one. Fix them there and upload the same file again — the rows that
-                  already imported are not in it.
-                  {bulkProgress.errorFile.total > bulkProgress.errorFile.rows
-                    && ` Showing the first ${bulkProgress.errorFile.rows} of ${bulkProgress.errorFile.total} failures.`}
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* ── File picker ── */
-          <form id="bulk-import-form" onSubmit={handleBulkImport}>
-            <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginTop: 0 }}>
-              Upload an Excel file (.xlsx). Parent accounts are created automatically, or mapped to an existing account if the email already exists.
-            </p>
-            <div style={{ marginBottom: 14 }}>
-              <Button type="button" variant="secondary" onClick={handleDownloadTemplate} style={{ width: '100%' }}>
-                Download Template (.xlsx)
-              </Button>
-            </div>
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
-              The template carries every field of the Add Student wizard — personal, address, Aadhaar,
-              previous school, enrolment and the full father / mother / guardian records. Its
-              <em> Reference</em> sheet lists the exact values each column accepts, which ones are
-              required, and this school’s own classes and sections.
-              <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
-              Only the certificates themselves can’t be imported — photo, Aadhaar scans, birth
-              certificate, TC. Open each student in Edit afterwards to attach them.
-              Re-uploading a corrected sheet updates the students it already created.
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label required">Excel File</label>
-              <input ref={bulkFileRef} type="file" className="form-control" accept=".xlsx,.xls"
-                onChange={e => setBulkFile(e.target.files[0] || null)} />
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* Rendered after the import modal on purpose: both portal to <body>, so
-          the later one stacks on top of it. */}
-      <Modal open={confirmClose} onClose={() => setConfirmClose(false)}
-        title="Download the failed rows first?" maxWidth={440}
-        footer={
+      <BulkImport
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        endpoint="/admin/students/bulk"
+        noun="student"
+        template={{ download: api.downloadStudentTemplate, filename: 'student-template.xlsx' }}
+        intro="Upload an Excel file (.xlsx). Parent accounts are created automatically, or mapped to an existing account if the email already exists."
+        onImported={refetch}
+        columns={(
           <>
-            <Button variant="secondary" onClick={resetBulk}>Close anyway</Button>
-            <Button onClick={() => { saveErrorSheet(); resetBulk(); }}>Download &amp; Close</Button>
+            <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
+            The template carries every field of the Add Student wizard — personal, address, Aadhaar,
+            previous school, enrolment and the full father / mother / guardian records. Its
+            <em> Reference</em> sheet lists the exact values each column accepts, which ones are
+            required, and this school’s own classes and sections.
+            <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
+            Only the certificates themselves can’t be imported — photo, Aadhaar scans, birth
+            certificate, TC. Open each student in Edit afterwards to attach them.
+            Re-uploading a corrected sheet updates the students it already created.
           </>
-        }>
-        <p style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
-          <strong style={{ color: 'var(--text)' }}>
-            {bulkProgress?.errorFile?.rows} row{bulkProgress?.errorFile?.rows !== 1 ? 's' : ''} did not import.
-          </strong>{' '}
-          The sheet listing them — with the reason against each row — has not been downloaded, and
-          the server does not keep a copy. Close now and the only way to see those rows again is to
-          run the whole import a second time.
-        </p>
-      </Modal>
+        )}
+      />
+
+      <StudentDrawer
+        row={viewing}
+        onClose={() => setViewing(null)}
+        onEdit={(r) => { setViewing(null); openEdit(r); }}
+      />
+
+      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
+        loading={delLoad} title="Delete Student"
+        message={`Delete "${del?.name}"? Their record, enrolment and history go with them. This cannot be undone.`} />
     </div>
+  );
+}
+
+/**
+ * The whole student record beside the list.
+ *
+ * The row already carries the summary, so that renders immediately and the full
+ * profile fills in behind it — opening a drawer should never be a blank wait.
+ */
+function StudentDrawer({ row, onClose, onEdit }) {
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    if (!row) { setDetail(null); return undefined; }
+    let live = true;
+    api.getStudent(row._id).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [row]);
+
+  if (!row) return null;
+  const p  = detail?.profile || {};
+  const pp = detail?.parentProfile || {};
+  const guardian = pp.guardian?.name ? pp.guardian : null;
+  const address = [p.address, p.city, p.state, p.pincode].filter(Boolean).join(', ');
+
+  return (
+    <Drawer open onClose={onClose}>
+      <DrawerHead
+        name={row.name} sub={row.email} photo={row.profileImage} tone="green" onClose={onClose}
+        tags={[
+          <Badge key="s" variant={row.isActive !== false ? 'success' : 'muted'}>
+            {row.isActive !== false ? 'Active' : 'Inactive'}
+          </Badge>,
+          row.className
+            ? <Badge key="c" variant="primary">{row.className}{row.sectionName ? ` – ${row.sectionName}` : ''}</Badge>
+            : null,
+        ].filter(Boolean)}
+      />
+
+      <div className="ldrawer__body">
+        <DrawerSection title="Enrolment" fields={[
+          ['Admission number', row.admissionNumber],
+          ['Roll number', row.rollNumber],
+          ['Class', row.className],
+          ['Section', row.sectionName],
+          ['Admitted on', fmtDate(row.createdAt)],
+        ]} />
+
+        <DrawerSection title="Personal" fields={[
+          ['Gender', row.gender],
+          ['Date of birth', fmtDate(row.dob)],
+          ['Blood group', p.bloodGroup],
+          ['Religion', p.religion],
+          ['Category', p.category],
+          ['Nationality', p.nationality],
+        ]} />
+
+        <DrawerSection title="Contact" fields={[
+          ['Email', row.email],
+          ['Phone', row.phone],
+          ['Address', address],
+        ]} />
+
+        <DrawerSection title="Parent / Guardian" fields={[
+          ['Primary contact', row.parentName],
+          ['Phone', row.parentPhone],
+          ['Father', pp.father?.name],
+          ['Mother', pp.mother?.name],
+          ['Guardian', guardian ? `${guardian.name}${guardian.relation ? ` (${guardian.relation})` : ''}` : ''],
+        ]} />
+
+        <DrawerSection title="Emergency contact" fields={[
+          ['Name', p.emergencyContactName],
+          ['Phone', p.emergencyContactPhone],
+          ['Relation', p.emergencyContactRelation],
+        ]} />
+      </div>
+
+      <DrawerFoot>
+        <Link className="btn btn-secondary" to={`/admin/student-analytics/${row._id}`}>
+          <Icon name="chart" size={15} /> Analytics
+        </Link>
+        <Button onClick={() => onEdit(row)}><Icon name="pencil" size={15} /> Edit</Button>
+      </DrawerFoot>
+    </Drawer>
   );
 }

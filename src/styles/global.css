@@ -2544,3 +2544,416 @@ a.stile:hover {
   .chartbox--bars { height: 208px; }
   .attgrid__empty { height: 168px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCOUNT LIST PAGES
+   Students, Teachers and Admins — the three screens that manage people. They
+   are the same screen with different columns, so they share one frame: a
+   titled header with a spot drawing, four headcount tiles, a card holding the
+   filter bar and the table, and a pair of closing panels.
+
+   Prefixed `l` so nothing here reaches another page. It borrows only .card,
+   .table, .btn, .badge and the .tint-* icon tints from the dashboard.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.listpg { display: flex; flex-direction: column; gap: 18px; }
+/* The frame already spaces its children; the crumb's own margin would double it. */
+.page.listpg .breadcrumb { margin-bottom: -4px; }
+
+/* ── Header ────────────────────────────────────────────────────────────────
+   Three parts on one row: what the page is, a drawing that idles in the middle,
+   and a line about why the work matters. The drawing is the first thing to go
+   when the row gets tight — it carries no information. */
+.lhero {
+  display:       grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(260px, 340px);
+  align-items:   center;
+  gap:           20px;
+}
+.lhero__text h1 {
+  font-size:      1.75rem;
+  font-weight:    700;
+  letter-spacing: -.02em;
+  line-height:    1.2;
+}
+.lhero__text p { color: var(--text-muted); font-size: .9rem; margin-top: 6px; }
+
+.lhero__art { color: var(--primary-light); width: 210px; flex-shrink: 0; }
+.lhero__art svg { width: 100%; height: auto; }
+
+.lhero__quote {
+  display:       flex;
+  gap:           12px;
+  background:    #f5f3ff;
+  border:        1px solid #ddd6fe;
+  border-radius: var(--radius-xl);
+  padding:       16px 20px;
+}
+.lhero__quote span {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size:   2rem;
+  line-height: .8;
+  color:       var(--primary-light);
+  flex-shrink: 0;
+}
+.lhero__quote p {
+  font-size:   .88rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color:       #4338ca;
+}
+
+/* ── Headcount tiles ───────────────────────────────────────────────────────
+   The four figures describe the school, not the filter in force — switching a
+   filter must not make the summary jump around. */
+.lstats {
+  display:               grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:                   16px;
+}
+.lstat {
+  display:         flex;
+  align-items:     center;
+  gap:             16px;
+  background:      var(--bg-card);
+  border:          1px solid var(--border);
+  border-radius:   var(--radius-lg);
+  padding:         18px 20px;
+  text-decoration: none;
+  color:           inherit;
+  transition:      border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+button.lstat { width: 100%; text-align: left; font: inherit; }
+.lstat--on   { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
+button.lstat:hover, a.lstat:hover {
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+  border-color: #c7d2fe; color: inherit;
+}
+.lstat__icon {
+  width: 52px; height: 52px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.lstat__body  { min-width: 0; }
+/* Each on its own line — they are spans, and an inline span in a blockified
+   flex item still flows inline beside its siblings. */
+.lstat__value { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+.lstat__label { display: block; font-size: .88rem; font-weight: 600; margin-top: 3px; }
+.lstat__cap   { display: block; font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Filter bar ────────────────────────────────────────────────────────────
+   Search takes the space; the dropdowns and the buttons keep their size. */
+.ltools {
+  display:     flex;
+  align-items: center;
+  gap:         10px;
+  flex-wrap:   wrap;
+  padding:     16px 18px;
+}
+.ltools + .ltools { padding-top: 0; }
+
+.lsearch { position: relative; flex: 1 1 260px; min-width: 170px; }
+.lsearch svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.lsearch input { padding-left: 38px; }
+.lsearch__clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; padding: 4px; border-radius: 50%; color: var(--text-light);
+}
+.lsearch__clear:hover { background: var(--bg); color: var(--text); }
+
+/* Search, one Filters button, then the actions — the row is built to hold a
+   single line, so no filter dropdown sits inline any more. */
+.lfbtn { flex-shrink: 0; }
+.lfbtn--on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+/* A set filter is marked inside the panel too, so an open panel says at a
+   glance which of its fields are doing something. */
+.lfsel--on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+.ltools__sep  { flex: 1 1 auto; }
+.ltools__acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* The extra filters, revealed under the main bar rather than in a popover —
+   they are checkboxes and selects, and a popover would only hide them again. */
+.lmore {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap:                   12px;
+  margin:                0 18px 16px;
+  padding:               14px 16px;
+  background:            var(--bg);
+  border:                1px solid var(--border);
+  border-radius:         var(--radius-lg);
+}
+.lmore label { display: block; font-size: .74rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+.lmore select { font-size: .85rem; padding: 8px 12px; cursor: pointer; }
+.lmore__reset { display: flex; align-items: flex-end; }
+
+/* ── Selection bar ─────────────────────────────────────────────────────────
+   Appears only once rows are ticked, and says exactly how many it will act on. */
+.lselbar {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  flex-wrap:     wrap;
+  margin:        0 18px 16px;
+  padding:       10px 14px;
+  background:    #eef2ff;
+  border:        1px solid #c7d2fe;
+  border-radius: var(--radius-lg);
+  font-size:     .85rem;
+  font-weight:   600;
+  color:         var(--primary-dark);
+}
+.lselbar__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+/* ── Table ─────────────────────────────────────────────────────────────────── */
+.ltable th { background: var(--bg); }
+.ltable td { padding: 14px 16px; }
+.ltable tr.is-picked td { background: #f5f3ff; }
+.ltable__tick  { width: 44px; padding-right: 0 !important; }
+.ltable__tick input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); display: block; }
+.ltable__num   { width: 46px; color: var(--text-muted); font-size: .82rem; }
+.ltable__acts  { width: 1%; white-space: nowrap; }
+
+/* Name + secondary line, with the avatar leading it. */
+.lwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.lwho__name {
+  font-weight: 600; font-size: .9rem; line-height: 1.3;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.lwho__sub {
+  font-size: .78rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px;
+}
+.lwho__link { color: inherit; text-decoration: none; }
+.lwho__link:hover .lwho__name { color: var(--primary); }
+
+/* A dash rather than an empty cell, so a blank reads as "nothing recorded". */
+.lnone { color: var(--text-light); }
+
+.lstack__main { font-size: .88rem; font-weight: 500; }
+.lstack__sub  { font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Subject / class chips. Past three, the rest collapse into a +N so one
+   heavily loaded teacher cannot stretch every row on the page. */
+.lchips { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; max-width: 260px; }
+.lchip {
+  background:    #eef2ff;
+  color:         #4338ca;
+  border-radius: 6px;
+  padding:       3px 8px;
+  font-size:     .74rem;
+  font-weight:   500;
+  white-space:   nowrap;
+}
+.lchip--more { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* ── Row actions ───────────────────────────────────────────────────────────── */
+.lacts { display: flex; align-items: center; gap: 6px; }
+.lact {
+  width: 32px; height: 32px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.lact:hover        { background: #eef2ff; color: var(--primary); border-color: #c7d2fe; }
+.lact--edit:hover  { background: #eef2ff; color: var(--primary); }
+.lact--on          { background: #eef2ff; color: var(--primary); border-color: #c7d2fe; }
+.lact:disabled     { opacity: .45; cursor: not-allowed; }
+
+/* Portalled so a row's menu is never clipped by the table's scroll box. */
+.lmenu {
+  position:      fixed;
+  z-index:       1100;
+  min-width:     186px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow:    var(--shadow-lg);
+  padding:       6px;
+}
+.lmenu__item {
+  display:     flex;
+  align-items: center;
+  gap:         10px;
+  width:       100%;
+  padding:     8px 10px;
+  border-radius: 8px;
+  font-size:   .85rem;
+  color:       var(--text);
+  text-align:  left;
+  text-decoration: none;
+  transition:  background var(--transition);
+}
+.lmenu__item:hover { background: var(--bg); color: var(--text); }
+.lmenu__item svg   { color: var(--text-muted); flex-shrink: 0; }
+.lmenu__item--danger        { color: var(--danger); }
+.lmenu__item--danger svg    { color: var(--danger); }
+.lmenu__item--danger:hover  { background: #fef2f2; color: var(--danger); }
+.lmenu__sep { height: 1px; background: var(--border); margin: 5px 6px; }
+
+/* ── Card footer ───────────────────────────────────────────────────────────── */
+.lfoot {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             14px;
+  flex-wrap:       wrap;
+  padding:         14px 18px;
+  border-top:      1px solid var(--border);
+  background:      var(--bg);
+}
+.lfoot__count { font-size: .82rem; color: var(--text-muted); }
+.lfoot__right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.lfoot .pagination { margin: 0; }
+
+/* ── Closing panels ────────────────────────────────────────────────────────── */
+.lbottom {
+  display:               grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap:                   18px;
+  align-items:           stretch;
+}
+.lpanel {
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       20px 22px;
+}
+.lpanel h2 { font-size: 1rem; font-weight: 700; }
+
+.lqa {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap:                   12px;
+  margin-top:            16px;
+}
+.lqa__tile {
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  gap:             8px;
+  text-align:      center;
+  padding:         18px 10px;
+  border-radius:   var(--radius-lg);
+  border:          1px solid transparent;
+  text-decoration: none;
+  color:           var(--text);
+  font:            inherit;
+  transition:      transform var(--transition), box-shadow var(--transition);
+}
+.lqa__tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); color: var(--text); }
+.lqa__tile > span:not([class]) { font-size: .82rem; font-weight: 600; line-height: 1.3; }
+.lqa__tile small { font-size: .7rem; color: var(--text-muted); line-height: 1.35; }
+
+/* ── Help panel ────────────────────────────────────────────────────────────── */
+.lhelp { display: flex; gap: 16px; position: relative; overflow: hidden; }
+.lhelp__mark {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: #eef2ff; color: var(--primary);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.lhelp__body { flex: 1; min-width: 0; z-index: 1; }
+.lhelp__body p { font-size: .85rem; color: var(--text-muted); margin: 8px 0 16px; line-height: 1.6; }
+.lhelp__art {
+  position: absolute; right: -10px; bottom: -12px; width: 150px;
+  color: var(--primary-light); opacity: .5; pointer-events: none;
+}
+.lhelp__art svg { width: 100%; height: auto; }
+
+/* ── Page footer ───────────────────────────────────────────────────────────── */
+.lpagefoot {
+  display:     flex;
+  align-items: center;
+  justify-content: space-between;
+  gap:         12px;
+  flex-wrap:   wrap;
+  padding-top: 16px;
+  border-top:  1px solid var(--border);
+  font-size:   .78rem;
+  color:       var(--text-muted);
+}
+.lpagefoot__brand { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── Detail drawer ─────────────────────────────────────────────────────────
+   The eye icon opens the whole record beside the list rather than navigating
+   away from the page of results the admin worked to filter down to. */
+.ldrawer__scrim {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(15,23,42,.45);
+  backdrop-filter: blur(2px);
+}
+.ldrawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 1001;
+  width: min(460px, 100%);
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  animation: ldrawerIn .18s ease-out;
+}
+@keyframes ldrawerIn { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+
+.ldrawer__head {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 20px 22px; border-bottom: 1px solid var(--border);
+}
+.ldrawer__id   { flex: 1; min-width: 0; }
+.ldrawer__id h3 { font-size: 1.05rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.ldrawer__id p  { font-size: .8rem; color: var(--text-muted); margin-top: 3px; overflow-wrap: anywhere; }
+.ldrawer__tags  { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+.ldrawer__body  { flex: 1; overflow-y: auto; padding: 20px 22px; }
+.ldrawer__foot  {
+  display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+  padding: 14px 22px; border-top: 1px solid var(--border); background: var(--bg);
+}
+.ldrawer__sec + .ldrawer__sec { margin-top: 24px; }
+.ldrawer__sec > h4 {
+  font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px;
+}
+.lfield { display: flex; gap: 14px; padding: 8px 0; font-size: .85rem; }
+.lfield + .lfield { border-top: 1px dashed var(--border); }
+.lfield dt { color: var(--text-muted); flex: 0 0 40%; }
+.lfield dd { flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .lhero { grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); }
+  .lhero__art { display: none; }
+}
+@media (max-width: 1100px) {
+  .lstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .lhero { grid-template-columns: 1fr; }
+  .lbottom { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .page.listpg { padding: 16px; gap: 14px; }
+  .lhero__text h1 { font-size: 1.4rem; }
+  .lstats { gap: 12px; }
+  .lstat { padding: 14px; gap: 12px; }
+  .lstat__icon  { width: 44px; height: 44px; border-radius: 12px; }
+  .lstat__value { font-size: 1.4rem; }
+  .ltools { padding: 14px; }
+  .lmore, .lselbar { margin-left: 14px; margin-right: 14px; }
+  .lsearch { flex-basis: 100%; }
+  .ltools__sep { display: none; }
+  .ltools__acts { width: 100%; flex-wrap: wrap; }
+  .ltools__acts .btn { flex: 1; justify-content: center; }
+  .lfoot { padding: 14px; }
+  .lpanel { padding: 16px; }
+  .lhelp__art { display: none; }
+}
+@media (max-width: 560px) {
+  .lstats { grid-template-columns: 1fr; }
+  .lfoot { justify-content: center; }
+  .lfoot__right { width: 100%; justify-content: space-between; }
+  .lpagefoot { justify-content: center; text-align: center; }
+}

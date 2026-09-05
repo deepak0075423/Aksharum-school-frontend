@@ -98,6 +98,15 @@ const PATHS = {
   target:      <><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.6" /><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" /></>,
   sliders:     <><path d="M4 8h9M17 8h3M4 16h4M12 16h8" /><circle cx="15" cy="8" r="2.1" /><circle cx="10" cy="16" r="2.1" /></>,
   wallet2:     <><path d="M3.5 7.6A2.1 2.1 0 0 1 5.6 5.5h9.8" /><rect x="3.5" y="7.6" width="17" height="11.4" rx="2.1" /><path d="M16.6 12.4h3.9v3.8h-3.9a1.9 1.9 0 0 1 0-3.8z" /></>,
+  pencil:      <><path d="M4 20.2h4.2L19 9.4a2.4 2.4 0 0 0-3.4-3.4L4.8 16.8z" /><path d="m14.6 7 2.4 2.4" /></>,
+  trash:       <><path d="M4.5 6.5h15" /><path d="M9 6.5V4.8A1.3 1.3 0 0 1 10.3 3.5h3.4A1.3 1.3 0 0 1 15 4.8v1.7" /><path d="M6.5 6.5 7.4 19a1.6 1.6 0 0 0 1.6 1.5h6a1.6 1.6 0 0 0 1.6-1.5l.9-12.5" /><path d="M10.4 10.2v6.4M13.6 10.2v6.4" /></>,
+  dots:        <><circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none" /></>,
+  upload:      <><path d="M12 16V4.5" /><path d="m7.5 9 4.5-4.5L16.5 9" /><path d="M4.5 19.5h15" /></>,
+  power:       <><path d="M12 3.5v8.2" /><path d="M17.4 6.6a7.6 7.6 0 1 1-10.8 0" /></>,
+  userPlus:    <><circle cx="9.5" cy="8" r="3.6" /><path d="M2.5 20a7 7 0 0 1 14 0" /><path d="M18.5 8.5v6M15.5 11.5h6" /></>,
+  mail:        <><rect x="2.8" y="5" width="18.4" height="14" rx="2.4" /><path d="m3.5 7 8.5 6 8.5-6" /></>,
+  phone:       <path d="M7.6 3.8 9.4 8 7.5 9.9a12.6 12.6 0 0 0 6.6 6.6L16 14.6l4.2 1.8v3.1a1.5 1.5 0 0 1-1.7 1.5C9.9 20.1 3.9 14.1 3 5.5a1.5 1.5 0 0 1 1.5-1.7z" />,
+  idCard:      <><rect x="2.5" y="5" width="19" height="14" rx="2.4" /><circle cx="8.4" cy="11.2" r="2.3" /><path d="M4.9 16.4a3.9 3.9 0 0 1 7 0" /><path d="M14.5 10h4.6M14.5 13.6h3.2" /></>,
 };
 
 // ── Spot illustrations ──────────────────────────────────────────────────────
@@ -156,6 +165,92 @@ export const TrophyScene = ({ className = '' }) => (
       <rect x="32" y="91" width="76" height="11" rx="2.4" />
       <rect x="42" y="102" width="56" height="11" rx="2.4" />
       <path d="M48 80v11M52 91v11M56 102v11" opacity=".5" strokeWidth="1.6" />
+    </g>
+  </svg>
+);
+
+/** Mortarboard on a stack of books — the students list header. */
+export const StudentsScene = ({ className = '' }) => (
+  <svg viewBox="0 0 200 118" fill="none" className={className} aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* leaves behind */}
+      <path d="M34 96c-14-2-22-12-22-25 13-2 23 6 24 19" opacity=".55" />
+      <path d="M12 71c12 4 20 14 22 25" opacity=".4" strokeWidth="1.5" />
+      <path d="M168 92c13-3 20-13 19-26-13-1-22 8-22 21" opacity=".55" />
+      <path d="M187 66c-11 5-19 15-20 26" opacity=".4" strokeWidth="1.5" />
+      {/* books */}
+      <rect x="52" y="80" width="96" height="13" rx="3" />
+      <rect x="44" y="93" width="112" height="13" rx="3" />
+      <path d="M62 80v13M70 93v13" opacity=".45" strokeWidth="1.5" />
+      {/* cap */}
+      <path d="M100 26 44 47l56 21 56-21z" />
+      <path d="M62 54v17c0 6 17 11 38 11s38-5 38-11V54" />
+      <path d="M152 51v20" />
+      <circle cx="152" cy="75" r="4" />
+      {/* sparkles */}
+      <path d="M30 30v9M25.5 34.5h9M172 24v7M168.5 27.5h7" opacity=".55" strokeWidth="1.5" />
+    </g>
+  </svg>
+);
+
+/** A teacher at the board — the teachers list header. */
+export const TeachersScene = ({ className = '' }) => (
+  <svg viewBox="0 0 200 118" fill="none" className={className} aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* board */}
+      <rect x="72" y="14" width="112" height="70" rx="5" />
+      <path d="M128 84v12M112 96h32" opacity=".6" />
+      <path d="M88 34h56M88 47h74M88 60h40" opacity=".5" strokeWidth="1.6" />
+      {/* teacher */}
+      <circle cx="40" cy="34" r="12" />
+      <path d="M22 96v-22a18 18 0 0 1 36 0v22" />
+      <path d="M56 66l18-10" />
+      <path d="M30 96v10M50 96v10" opacity=".8" />
+      {/* pointer + plant */}
+      <path d="M74 55l10-4" opacity=".7" strokeWidth="1.6" />
+      <path d="M180 106V92M180 92c7 0 11-5 11-12-7 0-11 5-11 12zM180 95c-6 0-10-4-10-10 6 0 10 4 10 10z" opacity=".55" strokeWidth="1.6" />
+      <path d="M8 106h184" opacity=".35" strokeWidth="1.6" />
+    </g>
+  </svg>
+);
+
+/** Someone running the school's settings — the admins list header. */
+export const AdminsScene = ({ className = '' }) => (
+  <svg viewBox="0 0 200 118" fill="none" className={className} aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* cog */}
+      <circle cx="52" cy="34" r="13" />
+      <circle cx="52" cy="34" r="5" />
+      <path d="M52 13v6M52 49v6M31 34h6M67 34h6M37 19l4 4M63 45l4 4M67 19l-4 4M41 45l-4 4" opacity=".7" strokeWidth="1.6" />
+      {/* person at a desk */}
+      <circle cx="122" cy="36" r="13" />
+      <path d="M100 92V76a22 22 0 0 1 44 0v16" />
+      {/* shield */}
+      <path d="M168 40l16 7v12c0 10-7 17-16 21-9-4-16-11-16-21V47z" opacity=".8" />
+      <path d="m162 60 4 4 8-9" opacity=".8" strokeWidth="1.6" />
+      {/* desk */}
+      <path d="M78 92h96" />
+      <path d="M92 92v14M160 92v14" opacity=".7" />
+      <rect x="30" y="72" width="34" height="20" rx="3" opacity=".55" />
+      <path d="M38 80h18M38 86h11" opacity=".45" strokeWidth="1.5" />
+    </g>
+  </svg>
+);
+
+/** Support desk — the "need help" panel on every list page. */
+export const SupportScene = ({ className = '' }) => (
+  <svg viewBox="0 0 150 110" fill="none" className={className} aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="52" cy="34" r="14" />
+      <path d="M28 96V78a24 24 0 0 1 48 0v18" />
+      {/* headset */}
+      <path d="M36 32a16 16 0 0 1 32 0" />
+      <rect x="30" y="30" width="9" height="13" rx="3" />
+      <rect x="65" y="30" width="9" height="13" rx="3" />
+      {/* speech bubbles */}
+      <path d="M92 26h44a5 5 0 0 1 5 5v22a5 5 0 0 1-5 5h-26l-11 9v-9h-7a5 5 0 0 1-5-5V31a5 5 0 0 1 5-5z" opacity=".8" />
+      <path d="M104 40h20M104 48h12" opacity=".5" strokeWidth="1.6" />
+      <path d="M6 96h138" opacity=".35" strokeWidth="1.6" />
     </g>
   </svg>
 );

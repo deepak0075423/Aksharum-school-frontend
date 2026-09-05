@@ -1,172 +1,113 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { toggleTeacher } from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Pagination, PageSize, Spinner } from '../../components/ui/index';
+import { useAuth } from '../../contexts/AuthContext';
+import { useModules } from '../../contexts/ModulesContext';
+import { Badge, Button } from '../../components/ui/index';
+import Icon, { TeachersScene, SupportScene } from '../../components/ui/icons';
 import TeacherForm from './TeacherForm';
-import BulkImportOverlay from '../../components/BulkImportOverlay';
 import TeacherDependencyDialog from '../../components/TeacherDependencyDialog';
-import { saveFile, saveBase64 } from '../../utils/downloadFile';
+import BulkImport from '../../components/BulkImport';
+import { saveFile } from '../../utils/downloadFile';
+import {
+  Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
+  FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
+  Who, Stack, Chips, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
+  HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate,
+} from './listParts';
+
+const SORTS = [
+  { value: 'name',   label: 'Name (A–Z)' },
+  { value: 'name_z', label: 'Name (Z–A)' },
+  { value: 'desig',  label: 'Designation' },
+  { value: 'joined', label: 'Joining date' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+];
+
+const STAFF_TYPES = [
+  { value: 'teaching',     label: 'Teaching' },
+  { value: 'non_teaching', label: 'Non-teaching' },
+];
+
+const STATUSES = [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
+const GENDERS  = ['Male', 'Female', 'Other'];
+
+const EMPTY = {
+  status: '', designation: '', subject: '', department: '',
+  gender: '', staffType: '', sort: 'name',
+};
 
 export default function Teachers() {
-  const [page, setPage]         = useState(1);
+  const { user }    = useAuth();
+  const { isEnabled } = useModules();
+
+  const [page, setPage]   = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
+
   // Seeded from ?search= so the header's global search can land on one person:
   // it navigates here with the name prefilled and ?focus=<id>, and the focus
   // highlight can only flag a row that actually rendered — see
   // hooks/useFocusHighlight.js.
   const [params] = useSearchParams();
-  const [search, setSearch]     = useState(() => params.get('search') || '');
+  const [search, setSearch]   = useState(() => params.get('search') || '');
+  const [filters, setFilters] = useState(EMPTY);
+  const [showFilters, setShowFilters] = useState(false);
+
   // Delete and Deactivate both go through the dependency dialog — it is what
   // shows the admin the classes, subjects, books and periods still attached, and
   // it is the only thing that fires either action.
   const [depTarget, setDepTarget] = useState(null);   // { teacher, action }
-  const [modal, setModal]       = useState(false);
-
-  // Bulk import
-  const [bulkModal, setBulkModal]   = useState(false);
-  const [bulkFile, setBulkFile]     = useState(null);
-  const [bulkLoading, setBulkLoad]  = useState(false);
-  // { total, current, currentName, created, updated, errorCount, errors, done }
-  const [bulkProgress, setBulkProgress] = useState(null);
-  const [errorsSaved, setErrorsSaved] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const bulkFileRef = React.useRef(null);
-
+  const [createOpen, setCreate]   = useState(false);
   const [editUser, setEditUser]   = useState(null);
+  const [bulkOpen, setBulkOpen]   = useState(false);
+  const [viewing, setViewing]     = useState(null);
+  const [busy, setBusy]           = useState(false);
 
-
-  // The list does not remount when only the query string changes, so a second
-  // search from the header has to be picked up here as well as at mount.
   const urlSearch = params.get('search') || '';
-  React.useEffect(() => {
+  useEffect(() => {
     if (urlSearch) { setSearch(urlSearch); setPage(1); }
   }, [urlSearch]);
 
-  const { data, loading, refetch } = useFetch(
-    () => api.getTeachers({ page, search, limit }),
-    [page, search, limit],
-  );
+  // A request per keystroke is a request per keystroke; wait for a pause.
+  const [term, setTerm] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  // Designation dropdown options. The list itself, and the module access each
-  // designation grants, are managed on /admin/designations.
+  const query = useMemo(
+    () => ({ page, limit, search: term || undefined, ...Object.fromEntries(
+      Object.entries(filters).filter(([, v]) => v),
+    ) }),
+    [page, limit, term, filters],
+  );
+  const queryKey = JSON.stringify(query);
+
+  const { data, loading, refetch } = useFetch(() => api.getTeachers(query), [queryKey]);
+
+  // The designation list, and the module access each one grants, are managed on
+  // /admin/designations — the wizard needs the whole master list, while the
+  // filter only offers the ones staff actually hold.
   const { data: desigData } = useFetch(api.getDesignations);
   const designations = Array.isArray(desigData) ? desigData : [];
 
-  const resetBulk = () => {
-    setBulkModal(false); setBulkFile(null); setBulkProgress(null);
-    setErrorsSaved(false); setConfirmClose(false);
-    if (bulkFileRef.current) bulkFileRef.current.value = '';
-  };
-  // The failed-row sheet is built once, inside the import response, and is not
-  // stored anywhere — so closing without saving it silently throws away the only
-  // record of what went wrong. Warn before that happens.
-  const closeBulk = () => {
-    if (bulkProgress?.errorFile && !errorsSaved) { setConfirmClose(true); return; }
-    resetBulk();
-  };
-  const saveErrorSheet = () => {
-    saveBase64(bulkProgress.errorFile.base64, bulkProgress.errorFile.filename);
-    setErrorsSaved(true);
-  };
+  const rows      = data?.data || [];
+  const stats     = data?.stats || {};
+  const options   = data?.options || {};
+  const selection = useSelection(rows, queryKey);
 
-  const handleDownloadTemplate = async () => {
-    try {
-      saveFile(await api.downloadTeacherTemplate(), 'teacher-template.xlsx');
-    } catch { toast.error('Failed to download template'); }
-  };
+  const set = (patch) => { setFilters((f) => ({ ...f, ...patch })); setPage(1); };
 
-  // The import streams row-by-row over SSE, so this reads the response body
-  // itself rather than going through the axios helper, which would only hand
-  // back the whole thing once the last teacher had been written.
-  const handleBulkImport = async (e) => {
-    e.preventDefault();
-    if (!bulkFile) { toast.error('Please select an Excel file'); return; }
-    setBulkLoad(true);
-    setBulkProgress({ total: 0, current: 0, currentName: '', created: 0, updated: 0, errorCount: 0, errors: [], done: false });
-    try {
-      const fd = new FormData();
-      fd.append('excelFile', bulkFile);
-      const token = localStorage.getItem('token');
-      const baseURL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${baseURL}/admin/teachers/bulk`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (!response.ok) {
-        const json = await response.json();
-        throw new Error(json.message || 'Import failed');
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      let didWrite = false;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const chunks = buf.split('\n\n');
-        buf = chunks.pop();
-        for (const chunk of chunks) {
-          if (!chunk.startsWith('data: ')) continue;
-          const evt = JSON.parse(chunk.slice(6));
-          if (evt.type === 'total') {
-            setBulkProgress(p => ({ ...p, total: evt.total }));
-          } else if (evt.type === 'processing') {
-            setBulkProgress(p => ({ ...p, current: evt.current, currentName: evt.name }));
-          } else if (evt.type === 'row_done') {
-            if (evt.success) didWrite = true;
-            // A row that matched a teacher already on file is an update, not a
-            // creation — the admin has to be able to tell the two apart.
-            const isUpdate = evt.success && evt.action === 'updated';
-            setBulkProgress(p => ({
-              ...p,
-              created:    evt.success && !isUpdate ? p.created + 1 : p.created,
-              updated:    isUpdate ? p.updated + 1 : p.updated,
-              errorCount: evt.success ? p.errorCount : p.errorCount + 1,
-              errors:     evt.success ? p.errors : [...p.errors, { row: evt.row, name: evt.name, reason: evt.reason }],
-            }));
-          } else if (evt.type === 'done') {
-            // The server's own tally wins over the row-by-row one: if the run
-            // stopped early, the difference from `total` is the shortfall.
-            const created = evt.created ?? 0;
-            const updated = evt.updated ?? 0;
-            const failed  = evt.errors?.length ?? 0;
-            // The failed rows come back as a ready-to-correct sheet, not just a list.
-            setBulkProgress(p => ({
-              ...p,
-              done: true,
-              created,
-              updated,
-              errorCount: failed,
-              errors: evt.errors ?? p.errors,
-              total: evt.total ?? p.total,
-              errorFile: evt.errorFile ?? null,
-            }));
-            const touched = created + updated;
-            const parts = [];
-            if (created) parts.push(`${created} new`);
-            if (updated) parts.push(`${updated} updated`);
-            if (touched === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
-            else if (failed > 0) toast(`${parts.join(', ')} — ${failed} row(s) failed`, { icon: '⚠️' });
-            else if (touched > 0) toast.success(`Imported ${touched} teacher(s) (${parts.join(', ')})`);
-            else toast.error('No rows found in the file');
-            if (didWrite) refetch();
-          } else if (evt.type === 'error') {
-            throw new Error(evt.message);
-          }
-        }
-      }
-    } catch (err) { toast.error(err.message); setBulkLoad(false); setBulkProgress(null); return; }
-    setBulkLoad(false);
-  };
+  const filterCount = activeFilterCount(filters, EMPTY);
+  const anyFilter   = !!term || filterCount > 0;
+  const clearAll    = () => { setSearch(''); setTerm(''); setFilters(EMPTY); setPage(1); };
 
-  const handleEdit = (r) => setEditUser(r);
-
+  // ── Actions ────────────────────────────────────────────────────────────────
   /**
    * Activating is immediate; deactivating is not.
    *
@@ -175,7 +116,7 @@ export default function Teachers() {
    * still points at it, which is what the dialog is for.
    */
   const handleToggle = async (r) => {
-    if (r.isActive) { setDepTarget({ teacher: r, action: 'deactivate' }); return; }
+    if (r.isActive !== false) { setDepTarget({ teacher: r, action: 'deactivate' }); return; }
     toast.loading('Activating…', { id: 'toggle' });
     try {
       await toggleTeacher(r._id);
@@ -184,185 +125,245 @@ export default function Teachers() {
     } catch (err) { toast.error(err.message, { id: 'toggle' }); }
   };
 
+  /**
+   * Bulk activation only — never the other way round.
+   *
+   * Deactivating a teacher can strand a class, a subject, a library loan or a
+   * timetable period, and the dependency dialog is the only thing allowed to
+   * make that call. There is no safe way to answer it for ten people at once,
+   * so deactivation stays a one-at-a-time decision.
+   */
+  const bulkActivate = async () => {
+    const targets = selection.rows.filter((r) => r.isActive === false);
+    if (!targets.length) { toast('Every selected teacher is already active.'); return; }
+    toast.loading(`Activating ${targets.length} teacher${targets.length === 1 ? '' : 's'}…`, { id: 'bulk' });
+    setBusy(true);
+    let done = 0;
+    let failed = 0;
+    for (const r of targets) {
+      try { await toggleTeacher(r._id); done += 1; }
+      catch { failed += 1; }
+    }
+    setBusy(false);
+    if (failed) toast.error(`${done} activated, ${failed} failed`, { id: 'bulk' });
+    else toast.success(`${done} teacher${done === 1 ? '' : 's'} activated`, { id: 'bulk' });
+    selection.clear();
+    refetch();
+  };
+
+  const handleExport = async () => {
+    toast.loading('Building the spreadsheet…', { id: 'exp' });
+    try {
+      const { page: _p, limit: _l, ...rest } = query;
+      saveFile(await api.exportTeachers(rest), 'teachers.xlsx');
+      toast.success('Downloaded', { id: 'exp' });
+    } catch (err) { toast.error(err.message || 'Export failed', { id: 'exp' }); }
+  };
+
+  // The directory profile is a richer view of the same person — offered only
+  // when the school actually runs that module.
+  const directoryPath = isEnabled('employeeDirectory')
+    ? '/admin/employee-directory/employees'
+    : null;
+
+  // ── Columns ────────────────────────────────────────────────────────────────
   const columns = [
-    { key: 'name', label: 'Name', render: r => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div className="avatar avatar-sm">{r.name?.[0]}</div>
-        <div>
-          <div style={{ fontWeight: 600 }}>{r.name}</div>
-          <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{r.email}</div>
-        </div>
-      </div>
-    )},
-    { key: 'designation', label: 'Designation', render: r => r.designation || <span style={{ color: 'var(--text-muted)' }}>—</span> },
-    { key: 'phone',       label: 'Phone',       render: r => r.phone       || <span style={{ color: 'var(--text-muted)' }}>—</span> },
-    { key: 'status', label: 'Status', render: r =>
-      <Badge variant={r.isActive ? 'success' : 'muted'}>{r.isActive ? 'Active' : 'Inactive'}</Badge> },
-    { key: 'actions', label: 'Actions', render: r => (
-      <div className="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(r)}>Edit</button>
-        <button className="btn btn-warning btn-sm" onClick={() => handleToggle(r)}>
-          {r.isActive ? 'Deactivate' : 'Activate'}
-        </button>
-        <button className="btn btn-danger btn-sm" onClick={() => setDepTarget({ teacher: r, action: 'delete' })}>Delete</button>
-      </div>
-    )},
+    {
+      key: 'name',
+      label: 'Teacher',
+      render: (r) => <Who name={r.name} sub={r.employeeId || r.email} photo={r.profileImage} tone="indigo" />,
+    },
+    {
+      key: 'designation',
+      label: 'Designation',
+      render: (r) => <Stack main={r.designation} sub={r.department} />,
+    },
+    { key: 'subjects', label: 'Subjects', render: (r) => <Chips items={r.subjects} max={2} /> },
+    { key: 'phone',    label: 'Phone',    render: (r) => orBlank(r.phone) },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r) => (
+        <Badge variant={r.isActive !== false ? 'success' : 'muted'}>
+          {r.isActive !== false ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    { key: 'joined', label: 'Joining Date', render: (r) => orBlank(fmtDate(r.joiningDate)) },
+    {
+      key: 'actions',
+      label: 'Actions',
+      className: 'ltable__acts',
+      render: (r) => (
+        <RowActions>
+          <IconAction icon="eye" label="View details" onClick={() => setViewing(r)} />
+          <IconAction icon="pencil" label="Edit teacher" variant="edit" onClick={() => setEditUser(r)} />
+          <RowMenu>
+            {directoryPath && (
+              <MenuItem icon="folder" to={`${directoryPath}/${r._id}`}>Directory profile</MenuItem>
+            )}
+            <MenuItem icon="badge" to="/admin/designations">Designations</MenuItem>
+            <MenuItem icon="power" onClick={() => handleToggle(r)}>
+              {r.isActive !== false ? 'Deactivate' : 'Activate'}
+            </MenuItem>
+            <MenuSep />
+            <MenuItem icon="trash" danger onClick={() => setDepTarget({ teacher: r, action: 'delete' })}>
+              Delete teacher
+            </MenuItem>
+          </RowMenu>
+        </RowActions>
+      ),
+    },
   ];
 
   return (
-    <div className="page">
-      <PageHeader title="Teachers" subtitle={`${data?.total ?? 0} teachers`}
-        action={
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Link to="/admin/designations" className="btn btn-secondary">🎫 Designations</Link>
-            <Button variant="secondary" onClick={() => { setBulkProgress(null); setBulkFile(null); setBulkModal(true); }}>Bulk Import</Button>
-            <Button onClick={() => setModal(true)}>+ Add Teacher</Button>
-          </div>
-        } />
+    <div className="page listpg">
+      <Crumbs here="Teachers" />
 
-      <div className="card">
-        <div className="card-header">
-          <input className="form-control" style={{ maxWidth: 280 }} placeholder="🔍 Search teachers…"
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {loading ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : <Table columns={columns} data={data?.data} emptyIcon="👨‍🏫" emptyTitle="No teachers found" />}
-        </div>
-        {data && (data.total > 5 || data.pages > 1) && (
-          <div className="card-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <PageSize value={limit} total={data.total} onChange={(n) => { setLimit(n); setPage(1); }} />
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <Pagination page={page} pages={data.pages} total={data.total} onPage={setPage} />
-            </div>
+      <ListHero
+        title="Teachers"
+        subtitle="Manage all teachers, view details, assign classes, and keep your school running smoothly."
+        quote="Great teachers change the world, one student at a time."
+        scene={TeachersScene}
+      />
+
+      <ListStats>
+        <ListStat icon="users" tone="indigo" value={stats.total} label="Total Teachers"
+          caption="Across all departments" on={!filters.status} onClick={() => set({ status: '' })} />
+        <ListStat icon="teacher" tone="green" value={stats.active} label="Active Teachers"
+          caption="Currently working" on={filters.status === 'active'} onClick={() => set({ status: 'active' })} />
+        <ListStat icon="userCircle" tone="pink" value={stats.inactive} label="Inactive Teachers"
+          caption="Not working" on={filters.status === 'inactive'} onClick={() => set({ status: 'inactive' })} />
+        <ListStat icon="book" tone="amber" value={stats.subjectsCovered} label="Subjects Covered"
+          caption="With an assigned teacher" />
+      </ListStats>
+
+      <section className="card">
+        <div className="ltools">
+          <SearchField value={search} onChange={setSearch}
+            placeholder="Search name, email, phone, ID or designation…" />
+
+          <FiltersButton open={showFilters} count={filterCount}
+            onClick={() => setShowFilters((v) => !v)} />
+
+          <span className="ltools__sep" />
+
+          <div className="ltools__acts">
+            <Button variant="secondary" onClick={handleExport}>
+              <Icon name="download" size={16} /> Export
+            </Button>
+            <Button variant="secondary" onClick={() => setBulkOpen(true)}>
+              <Icon name="upload" size={16} /> Bulk Import
+            </Button>
+            <Button onClick={() => setCreate(true)}><Icon name="plus" size={16} /> Add Teacher</Button>
           </div>
+        </div>
+
+        {showFilters && (
+          <FilterPanel onReset={clearAll}>
+            <FilterField label="Designation" value={filters.designation}
+              onChange={(v) => set({ designation: v })}
+              all="All designations" options={options.designations || []} />
+            <FilterField label="Subject" value={filters.subject}
+              onChange={(v) => set({ subject: v })}
+              all="All subjects" options={options.subjects || []} />
+            <FilterField label="Status" value={filters.status}
+              onChange={(v) => set({ status: v })}
+              all="All status" options={STATUSES} />
+            <FilterField label="Department" value={filters.department}
+              onChange={(v) => set({ department: v })}
+              all="Any department" options={options.departments || []} />
+            <FilterField label="Staff type" value={filters.staffType}
+              onChange={(v) => set({ staffType: v })}
+              all="Any type" options={STAFF_TYPES} />
+            <FilterField label="Gender" value={filters.gender}
+              onChange={(v) => set({ gender: v })}
+              all="Any gender" options={GENDERS} />
+            <FilterField label="Sort by" value={filters.sort} defaultValue="name"
+              onChange={(v) => set({ sort: v })} options={SORTS} />
+          </FilterPanel>
         )}
+
+        <SelectionBar count={selection.ids.length} noun="teacher" onClear={selection.clear}>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={bulkActivate}>
+            Activate
+          </button>
+          {/* Deactivating is per-teacher on purpose — see bulkActivate. */}
+        </SelectionBar>
+
+        <ListTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          selection={selection}
+          startIndex={(page - 1) * limit}
+          emptyIcon={anyFilter ? '🔍' : '🧑‍🏫'}
+          emptyTitle={anyFilter ? 'No teachers match these filters' : 'No teachers yet'}
+          emptyMessage={anyFilter
+            ? 'Try a different designation, subject or search term.'
+            : 'Add your first teacher, or bring the whole staff list in from a spreadsheet.'}
+          emptyAction={anyFilter
+            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+            : <Button onClick={() => setCreate(true)}>+ Add Teacher</Button>}
+        />
+
+        <ListFooter
+          page={page} pages={data?.pages || 1} total={data?.total || 0}
+          limit={limit} count={rows.length} noun="teacher"
+          onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
+        />
+      </section>
+
+      <div className="lbottom">
+        <QuickActions items={[
+          { icon: 'userPlus', tone: 'indigo', bg: '#f5f3ff', label: 'Add Teacher', sub: 'Onboard one member', onClick: () => setCreate(true) },
+          { icon: 'upload',   tone: 'green',  bg: '#f0fdf4', label: 'Bulk Import', sub: 'From a spreadsheet', onClick: () => setBulkOpen(true) },
+          { icon: 'badge',    tone: 'amber',  bg: '#fffbeb', label: 'Designations', sub: 'Roles & module access', to: '/admin/designations' },
+          { icon: 'download', tone: 'teal',   bg: '#f0fdfa', label: 'Export List', sub: 'Download as Excel', onClick: handleExport },
+        ]} />
+        <HelpPanel scene={SupportScene}
+          text="Questions about designations, module access or what a deactivation will affect? Message your school's support team and someone will pick it up." />
       </div>
 
-      {/* Blocking progress panel while the import streams — shared with Students */}
-      <BulkImportOverlay open={bulkLoading} title="Importing Teachers…" progress={bulkProgress} />
+      <PageFoot schoolName={user?.school?.name} />
 
-      {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
-      <Modal open={bulkModal && !bulkLoading} onClose={closeBulk} title="Bulk Import Teachers" maxWidth={520}
-        footer={bulkProgress?.done ? (
-          <Button onClick={closeBulk}>Close</Button>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={closeBulk}>Cancel</Button>
-            <Button form="teacher-bulk-form" type="submit" loading={bulkLoading}>Import</Button>
-          </>
-        )}>
-        {bulkProgress?.done ? (
-          <div>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              <div style={{ flex: 1, background: 'var(--success-light,#f0fdf4)', border: '1px solid var(--success)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>{bulkProgress.created}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Newly Created</div>
-              </div>
-              <div style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{bulkProgress.updated ?? 0}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Updated</div>
-              </div>
-              <div style={{ flex: 1, background: bulkProgress.errorCount > 0 ? 'var(--danger-light,#fef2f2)' : 'var(--bg)', border: `1px solid ${bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: bulkProgress.errorCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{bulkProgress.errorCount}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Errors</div>
-              </div>
-            </div>
-            {(() => {
-              const seen = (bulkProgress.created ?? 0) + (bulkProgress.updated ?? 0) + (bulkProgress.errorCount ?? 0);
-              const total = bulkProgress.total ?? 0;
-              if (!total || seen >= total) return null;
-              return (
-                <div style={{ background: 'var(--danger-light,#fef2f2)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: '.82rem', color: 'var(--danger)' }}>
-                  Only {seen} of {total} rows were processed — the import stopped early.
-                  Upload the sheet again to continue; teachers already on file are matched by
-                  email and updated rather than duplicated.
-                </div>
-              );
-            })()}
-            {bulkProgress.errors.length > 0 && (
-              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                {bulkProgress.errors.map((e, i) => (
-                  <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-                    <span style={{ fontWeight: 600 }}>Row {e.row}{e.name ? ` — ${e.name}` : ''}: </span>
-                    <span style={{ color: 'var(--danger)' }}>{e.reason}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {bulkProgress.errorFile && (
-              <div style={{ marginTop: 12 }}>
-                <Button variant="secondary" style={{ width: '100%' }}
-                  onClick={saveErrorSheet}>
-                  Download the {bulkProgress.errorFile.rows} failed row{bulkProgress.errorFile.rows !== 1 ? 's' : ''} (.xlsx)
-                </Button>
-                <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0, lineHeight: 1.6 }}>
-                  That file is your own sheet with just these rows and an <strong>Error</strong> column saying
-                  what stopped each one. Fix them there and upload the same file again — the rows that
-                  already imported are not in it.
-                  {bulkProgress.errorFile.total > bulkProgress.errorFile.rows
-                    && ` Showing the first ${bulkProgress.errorFile.rows} of ${bulkProgress.errorFile.total} failures.`}
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <form id="teacher-bulk-form" onSubmit={handleBulkImport}>
-            <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginTop: 0 }}>
-              Upload an Excel file (.xlsx). Each teacher is emailed a one-time password and must set their own on first login.
-            </p>
-            <div style={{ marginBottom: 14 }}>
-              <Button type="button" variant="secondary" onClick={handleDownloadTemplate} style={{ width: '100%' }}>
-                Download Template (.xlsx)
-              </Button>
-            </div>
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
-              The template carries every field of the Add Teacher form — personal, contact, government ID,
-              education, experience, bank and school details. Its <em>Reference</em> sheet lists the exact
-              values each column accepts, and which ones are required.
-              <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
-              Only the paperwork itself can’t be imported — Aadhaar and PAN scans, resignation letter,
-              experience certificate. Open each teacher in Edit afterwards to attach them.
-              Re-uploading a corrected sheet updates the teachers it already created.
-            </div>
-            <div className="form-group">
-              <label className="form-label required">Excel File</label>
-              <input ref={bulkFileRef} type="file" className="form-control" accept=".xlsx,.xls"
-                onChange={e => setBulkFile(e.target.files?.[0] || null)} />
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* Rendered after the import modal on purpose: both portal to <body>, so
-          the later one stacks on top of it. */}
-      <Modal open={confirmClose} onClose={() => setConfirmClose(false)}
-        title="Download the failed rows first?" maxWidth={440}
-        footer={
-          <>
-            <Button variant="secondary" onClick={resetBulk}>Close anyway</Button>
-            <Button onClick={() => { saveErrorSheet(); resetBulk(); }}>Download &amp; Close</Button>
-          </>
-        }>
-        <p style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
-          <strong style={{ color: 'var(--text)' }}>
-            {bulkProgress?.errorFile?.rows} row{bulkProgress?.errorFile?.rows !== 1 ? 's' : ''} did not import.
-          </strong>{' '}
-          The sheet listing them — with the reason against each row — has not been downloaded, and
-          the server does not keep a copy. Close now and the only way to see those rows again is to
-          run the whole import a second time.
-        </p>
-      </Modal>
-
-      {/* ── Create wizard (7 steps) ──────────────────────────────────────────── */}
-      {/* One seven-step wizard for both admission and editing, so an edit
-          offers every field the record was created with. */}
-      <TeacherForm open={modal} onClose={() => setModal(false)}
+      {/* ── Overlays ─────────────────────────────────────────────────────────── */}
+      {/* One seven-step wizard for both intake and editing, so an edit offers
+          every field the record was created with. */}
+      <TeacherForm open={createOpen} onClose={() => setCreate(false)}
         onCreated={refetch} designations={designations} />
 
       <TeacherForm open={!!editUser} teacher={editUser} onClose={() => setEditUser(null)}
         onCreated={refetch} designations={designations} />
+
+      <BulkImport
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        endpoint="/admin/teachers/bulk"
+        noun="teacher"
+        template={{ download: api.downloadTeacherTemplate, filename: 'teacher-template.xlsx' }}
+        intro="Upload an Excel file (.xlsx). Each teacher is emailed a one-time password and must set their own on first login."
+        onImported={refetch}
+        columns={(
+          <>
+            <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
+            The template carries every field of the Add Teacher form — personal, contact, government ID,
+            education, experience, bank and school details. Its <em>Reference</em> sheet lists the exact
+            values each column accepts, and which ones are required.
+            <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
+            Only the paperwork itself can’t be imported — Aadhaar and PAN scans, resignation letter,
+            experience certificate. Open each teacher in Edit afterwards to attach them.
+            Re-uploading a corrected sheet updates the teachers it already created.
+          </>
+        )}
+      />
+
+      <TeacherDrawer
+        row={viewing}
+        directoryPath={directoryPath}
+        onClose={() => setViewing(null)}
+        onEdit={(r) => { setViewing(null); setEditUser(r); }}
+      />
 
       {/* Delete / Deactivate — dependencies first, the action only once clear */}
       <TeacherDependencyDialog
@@ -373,5 +374,88 @@ export default function Teachers() {
         onDone={refetch}
       />
     </div>
+  );
+}
+
+/**
+ * The whole teacher record beside the list.
+ *
+ * The row already carries the summary, so that renders immediately and the full
+ * profile fills in behind it — opening a drawer should never be a blank wait.
+ */
+function TeacherDrawer({ row, onClose, onEdit, directoryPath }) {
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    if (!row) { setDetail(null); return undefined; }
+    let live = true;
+    api.getTeacherDetail(row._id).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [row]);
+
+  if (!row) return null;
+  const p = detail?.profile || {};
+  const address = [p.currentAddress, p.currentCity, p.currentState, p.currentPincode]
+    .filter(Boolean).join(', ');
+
+  return (
+    <Drawer open onClose={onClose}>
+      <DrawerHead
+        name={row.name} sub={row.email} photo={row.profileImage} tone="indigo" onClose={onClose}
+        tags={[
+          <Badge key="s" variant={row.isActive !== false ? 'success' : 'muted'}>
+            {row.isActive !== false ? 'Active' : 'Inactive'}
+          </Badge>,
+          row.designation ? <Badge key="d" variant="primary">{row.designation}</Badge> : null,
+        ].filter(Boolean)}
+      />
+
+      <div className="ldrawer__body">
+        <DrawerSection title="Role" fields={[
+          ['Employee ID', row.employeeId],
+          ['Designation', row.designation],
+          ['Department', row.department],
+          ['Staff type', row.staffType === 'non_teaching' ? 'Non-teaching' : row.staffType ? 'Teaching' : ''],
+          ['Joined on', fmtDate(row.joiningDate)],
+          ['Subjects', row.subjects?.length ? row.subjects.join(', ') : ''],
+          ['Classes', row.classes?.length ? row.classes.join(', ') : ''],
+        ]} />
+
+        <DrawerSection title="Contact" fields={[
+          ['Email', row.email],
+          ['Phone', row.phone],
+          ['Alternate phone', p.alternatePhone],
+          ['Address', address],
+        ]} />
+
+        <DrawerSection title="Personal" fields={[
+          ['Gender', row.gender],
+          ['Date of birth', fmtDate(p.dob)],
+          ['Blood group', p.bloodGroup],
+          ["Father's / husband's name", p.fatherOrHusbandName],
+        ]} />
+
+        <DrawerSection title="Qualifications" fields={[
+          ['Qualification', row.qualification],
+          ['Teaching degree', p.teachingDegree],
+          ['Total experience', p.totalExperience],
+          ['Previous school', p.previousSchool],
+        ]} />
+
+        <DrawerSection title="Emergency contact" fields={[
+          ['Name', p.emergencyContactName],
+          ['Phone', p.emergencyContactPhone],
+        ]} />
+      </div>
+
+      <DrawerFoot>
+        {directoryPath && (
+          <Link className="btn btn-secondary" to={`${directoryPath}/${row._id}`}>
+            <Icon name="folder" size={15} /> Directory profile
+          </Link>
+        )}
+        <Button onClick={() => onEdit(row)}><Icon name="pencil" size={15} /> Edit</Button>
+      </DrawerFoot>
+    </Drawer>
   );
 }

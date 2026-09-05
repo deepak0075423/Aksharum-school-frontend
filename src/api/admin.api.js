@@ -66,6 +66,10 @@ export const getTeacherDependencies = (id) => api.get(`/admin/teachers/${id}/dep
 export const deleteTeacher = (id, force = false) =>
   api.delete(`/admin/teachers/${id}${force ? '?force=true' : ''}`);
 export const updateTeacher  = (id, data) => api.put(`/admin/users/${id}`, data);
+// The same endpoint, named for what it does — it edits any account of this
+// school. Email, role and school are stripped server-side.
+export const updateUser     = (id, data) => api.put(`/admin/users/${id}`, data);
+export const toggleUser     = (id)       => api.patch(`/admin/users/${id}/toggle`);
 export const toggleTeacher  = (id, force = false) => api.patch(`/admin/users/${id}/toggle`, force ? { force: true } : {});
 
 export const checkEmail            = (email) => api.get('/admin/users/check-email', { params: { email } });
@@ -93,6 +97,13 @@ export const bulkImportStudents        = (fd) => api.post('/admin/students/bulk'
 export const bulkImportTeachers        = (fd) => api.post('/admin/teachers/bulk', fd);
 export const downloadTeacherTemplate   = ()   => api.get('/admin/teachers/template', { responseType: 'arraybuffer' });
 export const downloadStudentTemplate   = ()   => api.get('/admin/students/template', { responseType: 'arraybuffer' });
+
+// ── List exports ──────────────────────────────────────────────────────────────
+// The list as it stands on screen — same filters, same order, no paging.
+const asSheet = (url, params) => api.get(url, { params, responseType: 'arraybuffer' });
+export const exportStudents = (params) => asSheet('/admin/students/export', params);
+export const exportTeachers = (params) => asSheet('/admin/teachers/export', params);
+export const exportAdmins   = (params) => asSheet('/admin/admins/export',   params);
 
 export const getAdmins = (params) => api.get('/admin/admins', { params });
 export const createAdmin = (data) => api.post('/admin/admins', data);
