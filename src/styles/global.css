@@ -2653,14 +2653,31 @@ button.lstat:hover, a.lstat:hover {
 .ltools + .ltools { padding-top: 0; }
 
 .lsearch { position: relative; flex: 1 1 260px; min-width: 170px; }
-.lsearch svg {
+/* Direct child ONLY. The clear button holds an <svg> too, and as a descendant
+   selector this rule took that one out of flow as well: the button, left with
+   nothing in flow, collapsed to its own padding, and the × — absolutely placed
+   12px from the left edge of an 8px-wide button — hung outside the field and
+   could not be clicked. */
+.lsearch > svg {
   position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
   color: var(--text-light); pointer-events: none;
 }
-.lsearch input { padding-left: 38px; }
+/* Room at both ends: the magnifier on the left, the × on the right, so a long
+   search term runs under neither. */
+.lsearch input { padding-left: 38px; padding-right: 38px; }
 .lsearch__clear {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  display: flex; padding: 4px; border-radius: 50%; color: var(--text-light);
+  position:    absolute;
+  right:       7px;
+  top:         50%;
+  transform:   translateY(-50%);
+  display:     flex;
+  align-items: center;
+  justify-content: center;
+  width:       24px;
+  height:      24px;
+  padding:     0;
+  border-radius: 50%;
+  color:       var(--text-light);
 }
 .lsearch__clear:hover { background: var(--bg); color: var(--text); }
 
