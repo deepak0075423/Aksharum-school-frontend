@@ -2,25 +2,31 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 /**
- * Horizontal tab bar + outlet for module sections (Fees, Payroll, Library…).
- * Used as a nested layout route so every sub-page of a module is reachable
- * from anywhere inside it.
+ * The section bar for a module (Fees, Payroll, Library…) plus its outlet. Used
+ * as a nested layout route so every sub-page of a module is reachable from
+ * anywhere inside it.
+ *
+ * Deliberately NOT the `.tabs` class the pages themselves use. This is module
+ * navigation, not a switch between views of one screen, and borrowing the
+ * underline style painted a hard rule the full width of the page — directly
+ * above each page's own breadcrumb, so the two read as one confused header.
+ * A rail of pills says "sections of this module" and closes itself off, which
+ * leaves the page beneath it free to start with its own heading.
  *
  * tabs: [{ to: '/admin/fees/dashboard', label: 'Dashboard', end?: true }]
  */
 export default function ModuleNav({ tabs }) {
   return (
     <>
-      <div style={{ padding: '16px 24px 0', maxWidth: 1400 }}>
-        <div className="tabs" style={{ marginBottom: 0 }}>
+      <div className="modnav__wrap">
+        <nav className="modnav" aria-label="Module sections">
           {tabs.map(t => (
             <NavLink key={t.to} to={t.to} end={t.end}
-              className={({ isActive }) => `tab${isActive ? ' active' : ''}`}
-              style={{ textDecoration: 'none' }}>
+              className={({ isActive }) => `modnav__tab${isActive ? ' is-on' : ''}`}>
               {t.label}
             </NavLink>
           ))}
-        </div>
+        </nav>
       </div>
       <Outlet />
     </>
@@ -209,7 +215,7 @@ export const TIMETABLE_ADMIN_TABS = [
 // A normal teacher has one screen and no tab bar at all (see App.jsx), because
 // the workforce roll-ups are administrative and their endpoints refuse that tier.
 export const DIRECTORY_TABS = (base) => ([
-  { to: `${base}/dashboard`,     label: '🏠 Dashboard' },
+  { to: `${base}/dashboard`,     label: '🏠 Overview' },
   { to: `${base}/employees`,     label: '👥 All Employees' },
   { to: `${base}/departments`,   label: '🏢 Departments' },
   { to: `${base}/designations`,  label: '🎫 Designations' },

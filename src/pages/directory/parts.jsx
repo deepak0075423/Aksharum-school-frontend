@@ -169,29 +169,6 @@ export const Chips = ({ items, empty = '—', max }) => {
   );
 };
 
-/**
- * Segmented control — a choice between equivalent views, not navigation.
- * Deliberately not `.tabs`: that class paints a rule across its container and
- * would read as a second tab bar beside the module nav.
- */
-export const SegControl = ({ value, onChange, options }) => (
-  <div className="ed-seg" role="group">
-    {options.map((o) => (
-      <button
-        key={o.value}
-        type="button"
-        className={value === o.value ? 'on' : ''}
-        aria-pressed={value === o.value}
-        aria-label={o.label}
-        title={o.label}
-        onClick={() => onChange(o.value)}
-      >
-        {o.icon}
-      </button>
-    ))}
-  </div>
-);
-
 // ── Icons ────────────────────────────────────────────────────────────────────
 // Inline strokes rather than an icon package: the app has no icon dependency and
 // these are the only glyphs the directory needs.
@@ -230,14 +207,6 @@ export const BadgeIcon = ({ size = 14 }) => svg(
   <><rect x="3.5" y="6" width="17" height="13" rx="2" /><path d="M9 3h6v3H9zM8 12h3M8 15.5h6" /></>, size);
 
 export const ChevronIcon = ({ size = 16 }) => svg(<path d="M9 5l7 7-7 7" />, size);
-
-export const GridIcon = ({ size = 16 }) => svg(
-  <><rect x="3.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.4" />
-    <rect x="3.5" y="13.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.4" /></>, size);
-
-export const ListIcon = ({ size = 16 }) => svg(
-  <><path d="M8 6h13M8 12h13M8 18h13" /><circle cx="3.8" cy="6" r="1.1" fill="currentColor" />
-    <circle cx="3.8" cy="12" r="1.1" fill="currentColor" /><circle cx="3.8" cy="18" r="1.1" fill="currentColor" /></>, size);
 
 /** One iconed fact on a directory card. Renders nothing when there is no value. */
 export const Fact = ({ icon, children, wide, title }) => (

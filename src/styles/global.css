@@ -1183,6 +1183,66 @@ select.form-control {
 .tab:hover  { color: var(--primary); }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
+/* ── Module section bar ────────────────────────────────────────────────────
+   The bar above every page of a module (Fees, Library, Employee Directory…).
+
+   It used to borrow `.tabs`, which paints a 2px rule the full width of the
+   page — landing immediately above each page's own breadcrumb, so a reader met
+   two stacked navigation layers with a hard line between them and no sense of
+   which owned the page. A closed rail of pills says "sections of this module"
+   without drawing a rule across anything, and lets the page below start with
+   its own crumb and heading.
+
+   `.tabs` is left as it is: in-page tabs switch between views of ONE screen,
+   and the underline is right for that. Two jobs, two looks. */
+.modnav__wrap { padding: 20px 24px 0; max-width: 1400px; }
+.modnav {
+  display:       flex;
+  align-items:   center;
+  gap:           3px;
+  padding:       5px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow-x:    auto;
+  overflow-y:    hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+/* No edge fade: a mask is unconditional, so on the short strips (Payroll has
+   four) it would wash out the first and last pill with nothing to scroll to.
+   The rail's own border clips a long strip visibly enough. */
+.modnav::-webkit-scrollbar { display: none; }
+.modnav__tab {
+  padding:       8px 14px;
+  border-radius: var(--radius-lg);
+  font-size:     .85rem;
+  font-weight:   500;
+  line-height:   1.2;
+  color:         var(--text-muted);
+  text-decoration: none;
+  white-space:   nowrap;
+  flex-shrink:   0;
+  transition:    background var(--transition), color var(--transition);
+}
+.modnav__tab:hover { background: var(--bg); color: var(--text); }
+.modnav__tab.is-on {
+  background:  var(--primary);
+  color:       #fff;
+  font-weight: 600;
+}
+/* <Outlet/> renders the page as the bar's own sibling, so the page's 24px top
+   padding stacked on the bar's bottom gap and read as a dead band between the
+   two. Tightened here rather than on .page, which is used everywhere. */
+.modnav__wrap ~ .page,
+.modnav__wrap ~ .page-md,
+.modnav__wrap ~ .page-sm { padding-top: 16px; }
+
+@media (max-width: 768px) {
+  .modnav__wrap { padding: 14px 16px 0; }
+  .modnav__tab  { padding: 7px 12px; font-size: .82rem; }
+}
+
 /* ── Breadcrumb ────────────────────────────────────────────────────────────── */
 .breadcrumb {
   display:     flex;
@@ -1193,9 +1253,12 @@ select.form-control {
   margin-bottom: 16px;
   flex-wrap:   wrap;
 }
-.breadcrumb a       { color: var(--text-muted); }
-.breadcrumb a:hover { color: var(--primary); }
-.breadcrumb span    { color: var(--text); font-weight: 500; }
+.breadcrumb a       { color: var(--text-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+/* The last span is where you are; the ones before it are the › separators, and
+   painting those in full-strength text made the trail read as three headings. */
+.breadcrumb span                 { color: var(--text-light); font-weight: 400; }
+.breadcrumb span:last-child      { color: var(--text); font-weight: 600; }
 
 /* ── Progress ──────────────────────────────────────────────────────────────── */
 .progress-bar {
@@ -1285,27 +1348,6 @@ select.form-control {
    Prefixed `ed-` so nothing here can reach another screen. Built from the same
    tokens as the rest of the app — no new palette, no new framework.          */
 
-/* Segmented control. The list/card switch is a CHOICE, not navigation, so it
-   must not borrow .tabs — that paints a rule across the header and reads as a
-   second tab bar next to the module nav. */
-.ed-seg {
-  display: inline-flex;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 3px;
-  gap: 3px;
-}
-.ed-seg button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  width: 38px; height: 32px;
-  border: none; background: transparent; border-radius: 6px;
-  color: var(--text-muted); cursor: pointer;
-  transition: background var(--transition), color var(--transition);
-}
-.ed-seg button:hover { color: var(--primary); }
-.ed-seg button.on { background: var(--primary); color: #fff; }
-.ed-seg button svg { display: block; }
 
 /* Toolbar — the search and department stay on one line together; the
    secondary controls sit on their own row so neither can push the other out. */
@@ -3277,3 +3319,495 @@ button.lstat:hover, a.lstat:hover {
   .drow  { flex-wrap: wrap; }
   .dlevels { margin-left: 43px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — OVERVIEW
+   ───────────────────────────────────────────────────────────────────────────
+   Prefixed `edo-` (the list screens own `ed-`). Three bands: a header, a row of
+   headcount tiles, then two rows of three panels. Everything borrows the app's
+   tokens; the only colours declared here are neutrals — every data colour comes
+   from the validated palette in overviewParts.jsx, on the element itself.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.edo { display: flex; flex-direction: column; gap: 18px; }
+.page.edo .breadcrumb { margin-bottom: -4px; }
+
+/* ── Header ────────────────────────────────────────────────────────────────
+   What the page is, why it matters, and which year it is reporting. The quote
+   is the first thing to go when the row gets tight — it carries no data. */
+.edo-head {
+  display:               grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px) auto;
+  align-items:           center;
+  gap:                   18px;
+}
+.edo-title { font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.edo-head__text p { color: var(--text-muted); font-size: .9rem; margin-top: 6px; }
+
+.edo-quote {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  background:    #f5f3ff;
+  border:        1px solid #ddd6fe;
+  border-radius: var(--radius-xl);
+  padding:       14px 18px;
+  color:         var(--primary);
+}
+.edo-quote p { font-size: .88rem; font-weight: 600; line-height: 1.5; color: #4338ca; }
+
+.edo-year {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  padding:       11px 16px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background:    var(--bg-card);
+  color:         var(--primary);
+  flex-shrink:   0;
+}
+.edo-year span  { display: flex; flex-direction: column; font-weight: 700; color: var(--text); font-size: .95rem; }
+.edo-year small { font-size: .7rem; font-weight: 500; color: var(--text-muted); }
+
+/* ── Headcount tiles ───────────────────────────────────────────────────────
+   Six figures describing the school. Each is a link to the list it counts, so a
+   number is never a dead end. */
+.edo-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.edo-stat {
+  display:       flex;
+  align-items:   center;
+  gap:           13px;
+  padding:       16px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  text-decoration: none;
+  color:         var(--text);
+  transition:    transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+.edo-stat--link:hover {
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+  border-color: #c7d2fe; color: var(--text);
+}
+.edo-stat__icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.edo-stat__body  { min-width: 0; }
+.edo-stat__value { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+.edo-stat__label { display: block; font-size: .82rem; font-weight: 600; margin-top: 2px; }
+.edo-stat__cap   { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+.edo-stat__cap.is-up { color: var(--success); font-weight: 600; }
+
+/* ── Panels ────────────────────────────────────────────────────────────────
+   Three to a row, equal height, each ending in the screen that acts on it. */
+.edo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.edo-panel {
+  display:        flex;
+  flex-direction: column;
+  background:     var(--bg-card);
+  border:         1px solid var(--border);
+  border-radius:  var(--radius-xl);
+  padding:        18px 20px 20px;
+  min-width:      0;
+}
+.edo-panel__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 16px;
+}
+.edo-panel__head h2 { font-size: 1rem; font-weight: 700; }
+.edo-panel__link {
+  font-size: .8rem; font-weight: 600; color: var(--primary);
+  text-decoration: none; white-space: nowrap; flex-shrink: 0;
+}
+.edo-panel__link:hover { text-decoration: underline; }
+.edo-picker { width: auto; font-size: .8rem; padding: 6px 28px 6px 10px; cursor: pointer; }
+
+.edo-empty { font-size: .83rem; color: var(--text-muted); line-height: 1.6; }
+
+/* ── Part-to-whole ─────────────────────────────────────────────────────────
+   One stacked bar rather than a ring: it reads the same at two categories or
+   eight, every segment shares a baseline, and the key beside it carries the
+   count and the share so no value has to be judged from an area. The 2px gaps
+   keep touching fills apart for a reader who cannot separate the hues. */
+.edo-share__bar {
+  display: flex; gap: 2px; height: 14px;
+  border-radius: 999px; overflow: hidden; background: var(--bg);
+}
+.edo-share__seg { display: block; min-width: 4px; }
+.edo-share__seg:first-child { border-radius: 999px 0 0 999px; }
+.edo-share__seg:last-child  { border-radius: 0 999px 999px 0; }
+.edo-share__seg:only-child  { border-radius: 999px; }
+
+.edo-share__key { margin-top: 14px; display: flex; flex-direction: column; gap: 9px; }
+.edo-share__key li { display: flex; align-items: center; gap: 9px; font-size: .83rem; }
+.edo-share__dot  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.edo-share__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edo-share__num  { font-weight: 700; }
+.edo-share__pct  { color: var(--text-muted); font-size: .78rem; width: 46px; text-align: right; }
+
+/* ── Hero figure + meter ───────────────────────────────────────────────────
+   A single ratio against a limit, at the size it deserves. */
+.edo-hero { margin-bottom: 18px; }
+.edo-hero__fig   { display: flex; align-items: baseline; gap: 2px; }
+.edo-hero__val   { font-size: 2.4rem; font-weight: 700; line-height: 1; letter-spacing: -.03em; }
+.edo-hero__unit  { font-size: 1.1rem; font-weight: 600; color: var(--text-muted); }
+.edo-hero__label { font-size: .84rem; font-weight: 600; margin: 6px 0 10px; }
+.edo-hero__sub   { font-size: .75rem; color: var(--text-muted); margin-top: 8px; }
+.edo-meter { height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.edo-meter i { display: block; height: 100%; border-radius: 999px; transition: width .3s; }
+
+/* ── Ranked bars ───────────────────────────────────────────────────────────
+   One hue for every row. Length already says how many; a colour per department
+   would spend the identity channel re-encoding it. */
+.edo-rank { display: flex; flex-direction: column; gap: 13px; }
+.edo-rank li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+}
+.edo-rank__name { font-size: .85rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edo-rank__name a { color: inherit; text-decoration: none; }
+.edo-rank__name a:hover { color: var(--primary); }
+.edo-rank__num  { font-size: .82rem; font-weight: 700; color: var(--text-muted); }
+.edo-rank__track {
+  grid-column: 1 / -1; height: 7px; border-radius: 999px;
+  background: var(--bg); overflow: hidden;
+}
+.edo-rank__track i { display: block; height: 100%; border-radius: 999px; background: var(--primary); min-width: 4px; }
+
+/* ── Recent employees ──────────────────────────────────────────────────────── */
+.edo-recent { display: flex; flex-direction: column; }
+.edo-recent li { display: flex; align-items: center; gap: 11px; padding: 10px 0; }
+.edo-recent li + li { border-top: 1px solid var(--border); }
+.edo-recent__who  { flex: 1; min-width: 0; }
+.edo-recent__name { display: block; font-size: .87rem; font-weight: 600; color: var(--text); text-decoration: none; }
+.edo-recent__name:hover { color: var(--primary); }
+.edo-recent__role {
+  display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.edo-recent__when { font-size: .74rem; color: var(--text-muted); white-space: nowrap; }
+
+/* ── Pending items ─────────────────────────────────────────────────────────
+   Every row is a queue with somewhere to go. A row at zero stays and greys out:
+   "nothing pending" is the answer, not a reason to hide the question. */
+.edo-pending { display: flex; flex-direction: column; gap: 8px; }
+.edo-pending a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--radius-lg);
+  text-decoration: none; color: var(--text);
+  transition: background var(--transition);
+}
+.edo-pending a:hover { background: var(--bg); }
+.edo-pending__icon {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.edo-pending__text  { flex: 1; min-width: 0; }
+.edo-pending__label { display: block; font-size: .85rem; font-weight: 600; }
+.edo-pending__sub   { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; }
+.edo-pending__count {
+  min-width: 30px; height: 26px; padding: 0 8px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary); font-size: .8rem; font-weight: 700;
+}
+.edo-pending__count.is-zero { background: var(--bg); color: var(--text-light); }
+.edo-pending li.is-clear .edo-pending__label { color: var(--text-muted); font-weight: 500; }
+
+/* ── Quick actions ─────────────────────────────────────────────────────────── */
+.edo-panel--actions { justify-content: space-between; }
+.edo-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.edo-actions__tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; text-align: center; padding: 14px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card); color: var(--text); font: inherit; text-decoration: none;
+  font-size: .74rem; font-weight: 600; line-height: 1.3;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+.edo-actions__tile:hover {
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+  border-color: #c7d2fe; color: var(--text);
+}
+.edo-actions__icon {
+  width: 38px; height: 38px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+}
+.edo-actions__all { width: 100%; justify-content: center; margin-top: 12px; }
+
+/* ── Notes & the table fallback ────────────────────────────────────────────
+   Three of the eight categorical hues sit under 3:1 on white. The palette check
+   permits that only with relief: the key direct-labels every segment, and this
+   is the other half — the same numbers, one click away. */
+.edo-note {
+  display: flex; gap: 9px; margin-top: 16px; padding: 11px 13px;
+  background: var(--bg); border-radius: var(--radius-lg);
+  font-size: .76rem; line-height: 1.6; color: var(--text-muted);
+}
+.edo-note svg { flex-shrink: 0; margin-top: 2px; color: var(--primary); }
+
+.edo-table { margin-top: 14px; }
+.edo-table__toggle {
+  font-size: .75rem; font-weight: 600; color: var(--text-muted);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.edo-table__toggle:hover { color: var(--primary); }
+.edo-table table { margin-top: 10px; font-size: .8rem; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1400px) {
+  .edo-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1200px) {
+  .edo-head { grid-template-columns: minmax(0, 1fr) auto; }
+  .edo-quote { display: none; }
+  .edo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .edo-head { grid-template-columns: 1fr; }
+  .edo-grid { grid-template-columns: 1fr; }
+  .edo-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .edo-stats { grid-template-columns: 1fr; }
+  .edo-title { font-size: 1.4rem; }
+  .edo-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — ALL EMPLOYEES
+   ───────────────────────────────────────────────────────────────────────────
+   Prefixed `edl-`. The overview owns `edo-`, the profile and shared bits own
+   `ed-`. Header, headcount tiles, then one card holding the filter bar, the
+   results and the pager — so filtering and what it produced stay in one frame.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.edl { display: flex; flex-direction: column; gap: 16px; }
+.page.edl .breadcrumb { margin-bottom: -2px; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.edl-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.edl-top__text h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.edl-top__text p  { color: var(--text-muted); font-size: .9rem; margin-top: 6px; }
+.edl-top__acts    { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── Headcount tiles ───────────────────────────────────────────────────────
+   Five figures describing the school, each one the filter it names. They are
+   counted over every visible row, never the filtered page — a summary that
+   moved with the filter would answer a different question on every read. */
+.edl-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.edl-stat {
+  display: flex; align-items: center; gap: 13px;
+  padding: 15px 16px; text-align: left; width: 100%;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); color: var(--text); font: inherit;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+.edl-stat--btn { cursor: pointer; }
+.edl-stat--btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
+.edl-stat.is-on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
+.edl-stat__icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.edl-stat__body  { min-width: 0; }
+.edl-stat__value { display: block; font-size: 1.55rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+.edl-stat__label { display: block; font-size: .8rem; font-weight: 600; margin-top: 2px; }
+.edl-stat__cap   { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+.edl-stat__cap.is-up { color: var(--success); font-weight: 600; }
+
+/* ── The frame ─────────────────────────────────────────────────────────────── */
+.edl-card-wrap { padding: 0; overflow: visible; }
+
+/* ── Filter bar ────────────────────────────────────────────────────────────
+   Search takes the space; the four dropdowns keep their size and the rest sit
+   behind More Filters, so the row holds one line at any width. */
+.edl-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 16px 18px;
+}
+.edl-search { position: relative; flex: 1 1 240px; min-width: 180px; }
+.edl-search > svg {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.edl-search input { padding-left: 38px; padding-right: 38px; }
+.edl-search__clear {
+  position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; padding: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; color: var(--text-light);
+}
+.edl-search__clear:hover { background: var(--bg); color: var(--text); }
+
+.edl-pick {
+  width: auto; flex-shrink: 0; font-size: .84rem;
+  padding: 9px 30px 9px 12px; cursor: pointer;
+}
+.edl-pick.is-set { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.edl-more { flex-shrink: 0; }
+.edl-more.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+/* Revealed under the bar rather than in a popover — these are selects, and a
+   popover would only hide them again behind a second click. */
+.edl-morepanel {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px; margin: 0 18px 16px; padding: 14px 16px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.edl-field label {
+  display: block; font-size: .73rem; font-weight: 600;
+  color: var(--text-muted); margin-bottom: 5px;
+}
+.edl-field .edl-pick { width: 100%; font-size: .82rem; padding: 8px 28px 8px 10px; }
+.edl-morepanel__reset { display: flex; align-items: flex-end; }
+
+/* What is in force, each removable on its own — a filter you cannot see is a
+   filter you cannot undo. */
+.edl-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 14px; }
+.edl-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  background: #eef2ff; border: 1px solid #c7d2fe; color: var(--primary);
+  font-size: .75rem; font-weight: 500;
+}
+.edl-chip b { font-weight: 700; }
+.edl-chip:hover { background: #e0e7ff; }
+.edl-chip--clear { background: var(--bg); border-color: var(--border); color: var(--text-muted); }
+.edl-chip--clear:hover { color: var(--text); }
+
+/* ── Result bar ────────────────────────────────────────────────────────────── */
+.edl-results {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding: 0 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.edl-results__count { font-size: .85rem; font-weight: 600; }
+.edl-results__right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.edl-sortby {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .8rem; color: var(--text-muted);
+}
+.edl-sortby select { width: auto; font-size: .82rem; padding: 7px 28px 7px 10px; cursor: pointer; }
+
+.edl-view {
+  display: inline-flex; background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; gap: 3px;
+}
+.edl-view button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: calc(var(--radius) - 3px);
+  font-size: .8rem; font-weight: 600; color: var(--text-muted);
+}
+.edl-view button:hover { color: var(--primary); }
+.edl-view button.is-on { background: var(--primary); color: #fff; }
+
+/* ── Body ──────────────────────────────────────────────────────────────────── */
+.edl-body { padding: 18px; transition: opacity .15s; }
+.edl-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 16px; }
+
+/* One employee. Not wrapped in an anchor: the card carries a menu and two of
+   its own controls, and nesting those inside a link makes each of them a place
+   the browser might navigate from instead. The name and the button are the
+   ways in. */
+.edl-card {
+  display: flex; flex-direction: column;
+  padding: 16px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+.edl-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: #c7d2fe; }
+.edl-card__top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px; margin-bottom: 12px;
+}
+.edl-card__name {
+  font-size: .97rem; font-weight: 700; color: var(--text);
+  text-decoration: none; line-height: 1.3; overflow-wrap: anywhere;
+}
+.edl-card__name:hover { color: var(--primary); }
+.edl-card__role { font-size: .8rem; color: var(--text-muted); margin-top: 3px; }
+
+.edl-card__facts {
+  display: flex; flex-direction: column; gap: 7px;
+  margin: 14px 0 16px; padding-top: 13px; border-top: 1px solid var(--border);
+}
+.edl-card__fact {
+  display: flex; align-items: center; gap: 8px;
+  font-size: .78rem; color: var(--text-muted); min-width: 0;
+}
+.edl-card__fact svg  { flex-shrink: 0; opacity: .6; }
+.edl-card__fact span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Pushed to the bottom so every card in a row ends on the same line, however
+   long the name above it wrapped. */
+.edl-card__foot { display: flex; gap: 8px; margin-top: auto; }
+.edl-card__foot > * { flex: 1; justify-content: center; }
+
+/* ── Row actions ───────────────────────────────────────────────────────────── */
+.edl-rowacts { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.edl-kebab {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.edl-kebab:hover, .edl-kebab.is-on { background: #eef2ff; color: var(--primary); border-color: #c7d2fe; }
+.edl-actbtn { display: inline-flex; align-items: center; gap: 5px; }
+.edl-table__acts { width: 1%; white-space: nowrap; }
+.edl-table .ed-nm { text-decoration: none; display: block; }
+.edl-table .ed-nm:hover { color: var(--primary); }
+
+.edl-menu {
+  position: fixed; z-index: 1200; width: 190px; padding: 6px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.edl-menu__item {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 8px 10px; border-radius: var(--radius);
+  font-size: .83rem; color: var(--text); text-align: left; text-decoration: none;
+}
+.edl-menu__item:hover  { background: var(--bg); color: var(--text); }
+.edl-menu__item svg    { color: var(--text-muted); flex-shrink: 0; }
+.edl-menu__item.is-danger, .edl-menu__item.is-danger svg { color: var(--danger); }
+.edl-menu__item.is-danger:hover { background: #fef2f2; }
+.edl-menu__sep { height: 1px; background: var(--border); margin: 5px 6px; }
+
+/* ── Footer ────────────────────────────────────────────────────────────────
+   Rendered even for a single page: the count sentence is the answer to "did my
+   filter do anything", and it must not vanish once the list is short. */
+.edl-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 14px 18px; border-top: 1px solid var(--border);
+}
+.edl-foot__count { font-size: .82rem; color: var(--text-muted); }
+.edl-foot__right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.edl-foot .pagination { margin: 0; }
+.edl-foot__size select { width: auto; font-size: .82rem; padding: 6px 28px 6px 10px; cursor: pointer; }
+
+.edl-hint { font-size: .8rem; color: var(--text-muted); text-align: center; }
+.edl-hint__btn {
+  font-size: .8rem; font-weight: 600; color: var(--primary);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1400px) { .edl-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px)  { .edl-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px) {
+  .page.edl { padding: 16px; }
+  .edl-top__text h1 { font-size: 1.4rem; }
+  .edl-top__acts { width: 100%; }
+  .edl-top__acts .btn { flex: 1; justify-content: center; }
+  .edl-bar { padding: 14px; }
+  .edl-search { flex-basis: 100%; }
+  .edl-pick { flex: 1 1 150px; width: auto; }
+  .edl-morepanel, .edl-chips, .edl-results { margin-left: 14px; margin-right: 14px; padding-left: 0; padding-right: 0; }
+  .edl-body, .edl-foot { padding: 14px; }
+  .edl-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) { .edl-stats { grid-template-columns: 1fr; } }

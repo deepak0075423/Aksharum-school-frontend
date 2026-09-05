@@ -82,7 +82,7 @@ export function Avatar({ name, src, size = 38, tone = 'indigo' }) {
 export const Crumbs = ({ here }) => (
   <div className="breadcrumb">
     <Link to="/admin/dashboard">Dashboard</Link>
-    <span>›</span>
+    <span aria-hidden>›</span>
     <span>{here}</span>
   </div>
 );

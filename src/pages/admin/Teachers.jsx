@@ -64,9 +64,12 @@ export default function Teachers() {
   // shows the admin the classes, subjects, books and periods still attached, and
   // it is the only thing that fires either action.
   const [depTarget, setDepTarget] = useState(null);   // { teacher, action }
-  const [createOpen, setCreate]   = useState(false);
+  // ?new=1 / ?import=1 open the intake straight away. The Employee Directory's
+  // "Add Employee" and "Import" send people here — adding staff is this screen's
+  // job, and the directory is a read model over what it creates.
+  const [createOpen, setCreate]   = useState(() => params.get('new') === '1');
   const [editUser, setEditUser]   = useState(null);
-  const [bulkOpen, setBulkOpen]   = useState(false);
+  const [bulkOpen, setBulkOpen]   = useState(() => params.get('import') === '1');
   const [viewing, setViewing]     = useState(null);
   const [busy, setBusy]           = useState(false);
 
