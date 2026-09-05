@@ -39,6 +39,7 @@ export default function Subjects() {
   const [form, setForm]       = useState(EMPTY);
   const [teachers, setTeachers] = useState([]);
   const [teachLoad, setTL]    = useState(false);
+  const [teachQuery, setTeachQuery] = useState('');
 
   // Load teachers once for the modal
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function Subjects() {
       .finally(() => setTL(false));
   }, [modal]);
 
-  const openCreate = () => { setForm(EMPTY); setEditSub(null); setModal(true); };
+  const openCreate = () => { setForm(EMPTY); setEditSub(null); setTeachQuery(''); setModal(true); };
   const openEdit   = (r) => {
     setForm({
       name:     r.subjectName,
@@ -60,6 +61,7 @@ export default function Subjects() {
       teachers: (r.teachers || []).map(t => t._id || t),
     });
     setEditSub(r);
+    setTeachQuery('');
     setModal(true);
   };
 
@@ -98,6 +100,15 @@ export default function Subjects() {
     finally { setDL(false); }
   };
 
+  // Filtering on the same four fields the row shows, so anything a reader can
+  // see they can also type. A selected teacher always stays visible — filtering
+  // one out of the list would hide a tick the admin has already made.
+  const teachNeedle = teachQuery.trim().toLowerCase();
+  const shownTeachers = !teachNeedle ? teachers : teachers.filter(t =>
+    form.teachers.includes(t._id) ||
+    [t.name, t.email, t.department, t.designation, t.employeeId]
+      .some(v => String(v || '').toLowerCase().includes(teachNeedle)));
+
   // Only meaningful once a year is chosen and the server has attached usage.
   const shown = (subjects || []).filter((r) => {
     if (usageFilter === 'all' || !r.usage) return true;
@@ -117,10 +128,14 @@ export default function Subjects() {
       return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {ts.map(t => (
-            <span key={t._id || t} style={{
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: 4, padding: '2px 8px', fontSize: '.78rem',
-            }}>{t.name || t}</span>
+            // The chip stays a name; hovering says which one, for the rows
+            // where a school has two of them.
+            <span key={t._id || t}
+              title={[t.name, t.email, t.department, t.designation].filter(Boolean).join(' · ') || undefined}
+              style={{
+                background: 'var(--bg)', border: '1px solid var(--border)',
+                borderRadius: 4, padding: '2px 8px', fontSize: '.78rem',
+              }}>{t.name || t}</span>
           ))}
         </div>
       );
@@ -251,7 +266,13 @@ export default function Subjects() {
             </div>
           </div>
 
-          {/* Teachers multi-select */}
+          {/* Teachers multi-select.
+
+              A name and an email are not enough to pick the right person: two
+              schools out of three have a second "Priya Sharma", and the address
+              is usually a variation on the same name. Department and
+              designation are what actually separate them — the list endpoint
+              has returned both all along, the picker just never showed them. */}
           <div className="form-group" style={{ marginTop: 4 }}>
             <label className="form-label">Assign Teachers</label>
             {teachLoad ? (
@@ -259,29 +280,49 @@ export default function Subjects() {
             ) : teachers.length === 0 ? (
               <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', margin: 0 }}>No teachers found</p>
             ) : (
-              <div style={{
-                maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)', padding: '6px 0',
-              }}>
-                {teachers.map(t => {
-                  const checked = form.teachers.includes(t._id);
-                  return (
-                    <label key={t._id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '7px 14px', cursor: 'pointer',
-                      background: checked ? 'var(--primary-light, #eef2ff)' : 'transparent',
-                      transition: 'background .1s',
-                    }}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleTeacher(t._id)}
-                        style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }} />
-                      <div>
-                        <div style={{ fontWeight: 500, fontSize: '.87rem' }}>{t.name}</div>
-                        <div style={{ fontSize: '.76rem', color: 'var(--text-muted)' }}>{t.email}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
+              <>
+                <input className="form-control" style={{ marginBottom: 8 }}
+                  placeholder="Filter by name, email, department or designation…"
+                  value={teachQuery} onChange={e => setTeachQuery(e.target.value)} />
+                <div style={{
+                  maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', padding: '6px 0',
+                }}>
+                  {shownTeachers.length === 0 ? (
+                    <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', margin: 0, padding: '10px 14px' }}>
+                      No teacher matches “{teachQuery}”.
+                    </p>
+                  ) : shownTeachers.map(t => {
+                    const checked = form.teachers.includes(t._id);
+                    return (
+                      <label key={t._id} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: '8px 14px', cursor: 'pointer',
+                        background: checked ? 'var(--primary-light, #eef2ff)' : 'transparent',
+                        transition: 'background .1s',
+                      }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleTeacher(t._id)}
+                          style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer', marginTop: 3 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, fontSize: '.87rem' }}>
+                            {t.name}
+                            {t.employeeId && (
+                              <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>
+                                {t.employeeId}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '.76rem', color: 'var(--text-muted)', wordBreak: 'break-all' }}>{t.email}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
+                            {t.department  && <Badge variant="info">{t.department}</Badge>}
+                            {t.designation && <Badge variant="muted">{t.designation}</Badge>}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
             )}
             {form.teachers.length > 0 && (
               <p style={{ fontSize: '.75rem', color: 'var(--primary)', marginTop: 6 }}>

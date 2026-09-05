@@ -6,6 +6,24 @@ import { PageHeader, Table, Badge, Spinner, Button } from '../../../components/u
 import { useAuth } from '../../../contexts/AuthContext';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+const rupees  = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
+// LibraryIssuance.status: issued | returned | overdue | lost. 'lost' used to
+// fall through the label ladder and come out as "Issued" — a student who had
+// paid for a book they lost was still shown as holding it.
+const STATUS = {
+  issued:   { label: 'Issued',   variant: 'success' },
+  overdue:  { label: 'Overdue',  variant: 'danger'  },
+  returned: { label: 'Returned', variant: 'muted'   },
+  lost:     { label: 'Lost',     variant: 'warning' },
+};
+
+// The fine on a loan, once every charge against it is added up.
+const PAYMENT = {
+  pending: { label: 'Unpaid',  variant: 'danger'  },
+  paid:    { label: 'Paid',    variant: 'success' },
+  waived:  { label: 'Waived',  variant: 'muted'   },
+};
 
 export default function LibraryMyBooks() {
   const { user } = useAuth();
@@ -28,27 +46,54 @@ export default function LibraryMyBooks() {
   };
 
   const now = new Date();
-  const statusColor = (r) => {
-    if (r.status === 'returned') return 'muted';
-    if (r.isOverdue || (r.status === 'issued' && now > new Date(r.dueDate))) return 'danger';
-    return 'success';
-  };
-  const statusLabel = (r) => {
-    if (r.status === 'returned') return 'Returned';
-    if (r.isOverdue || (r.status === 'issued' && now > new Date(r.dueDate))) return 'Overdue';
-    return 'Issued';
-  };
+  // A loan the server has not swept to 'overdue' yet is still overdue to the
+  // person holding it, so the due date decides the badge for an open loan.
+  const statusOf = (r) => (
+    (r.status === 'issued' && (r.isOverdue || now > new Date(r.dueDate))) ? 'overdue' : r.status
+  );
 
   const columns = [
     { key: 'book',     label: 'Book',     render: r => <div><div style={{ fontWeight:600 }}>{r.book?.title||'—'}</div><div style={{ fontSize:'.75rem',color:'var(--text-muted)' }}>{(r.book?.authors||[]).join(', ')}</div></div> },
-    { key: 'isbn',     label: 'ISBN',     render: r => r.book?.isbn || '—' },
     { key: 'copy',     label: 'Copy',     render: r => r.bookCopy?.uniqueCode || '—' },
     { key: 'issued',   label: 'Issued',   render: r => fmtDate(r.issueDate) },
     { key: 'due',      label: 'Due Date', render: r => {
-      const overdue = r.status === 'issued' && now > new Date(r.dueDate);
+      const overdue = statusOf(r) === 'overdue';
       return <span style={{ color: overdue ? 'var(--danger)' : 'inherit', fontWeight: overdue ? 600 : 400 }}>{fmtDate(r.dueDate)}</span>;
     }},
-    { key: 'status',   label: 'Status',   render: r => <Badge variant={statusColor(r)}>{statusLabel(r)}</Badge> },
+    { key: 'status',   label: 'Status',   render: r => {
+      const st = STATUS[statusOf(r)] || { label: r.status || '—', variant: 'muted' };
+      return <Badge variant={st.variant}>{st.label}</Badge>;
+    }},
+    // Losing a book is a money event as much as a stock one. Without these
+    // three columns the only thing the member could see was that the loan had
+    // ended, never what it cost or whether they had settled it.
+    { key: 'fine',     label: 'Fine',     render: r => (
+      r.fineSummary ? <span title={(r.fineSummary.types || []).join(', ')}>{rupees(r.fineSummary.charged)}</span> : '—'
+    )},
+    { key: 'paid',     label: 'Paid',     render: r => {
+      const f = r.fineSummary;
+      if (!f) return '—';
+      return (
+        <div>
+          <div>{rupees(f.paid)}</div>
+          {f.waived > 0 && <div style={{ fontSize:'.72rem', color:'var(--text-muted)' }}>{rupees(f.waived)} waived</div>}
+        </div>
+      );
+    }},
+    { key: 'payment',  label: 'Payment',  render: r => {
+      const f = r.fineSummary;
+      if (!f) return '—';
+      const p = PAYMENT[f.status] || { label: f.status, variant: 'muted' };
+      return (
+        <div>
+          <Badge variant={p.variant}>{p.label}</Badge>
+          {f.outstanding > 0 && <div style={{ fontSize:'.72rem', color:'var(--danger)', marginTop:2 }}>{rupees(f.outstanding)} due</div>}
+          {(f.receipts || []).length > 0 && (
+            <div style={{ fontSize:'.68rem', color:'var(--text-muted)', marginTop:2 }}>{f.receipts.join(', ')}</div>
+          )}
+        </div>
+      );
+    }},
     { key: 'renewals', label: 'Renewals', render: r => r.renewalCount ?? 0 },
     { key: 'actions',  label: '', render: r => (
       r.status === 'returned' || r.status === 'lost' ? null : (
@@ -61,9 +106,9 @@ export default function LibraryMyBooks() {
 
   return (
     <div className="page">
-      <PageHeader title="My Books" subtitle="Currently borrowed and past books" />
+      <PageHeader title="My Books" subtitle="Currently borrowed, returned and written-off books" />
       <div className="card">
-        <div className="card-body" style={{ padding:0 }}>
+        <div className="card-body" style={{ padding:0, overflowX:'auto' }}>
           {loading ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>
             : <Table columns={columns} data={books} emptyIcon="📚" emptyTitle="No books borrowed" />}
         </div>

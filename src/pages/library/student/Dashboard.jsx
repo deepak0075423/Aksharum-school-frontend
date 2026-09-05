@@ -2,19 +2,49 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import useFetch from '../../../hooks/useFetch';
-import { getMyBooks, getMyFines } from '../../../api/library.api';
+import { getMyBooks, getMyFines, getTeacherMyBooks, getTeacherMyFines } from '../../../api/library.api';
 import { PageHeader, Spinner } from '../../../components/ui/index';
 
+// LibraryIssuance.status is one of issued / overdue / returned / lost. There has
+// never been an 'active' — the tile counted `b.status === 'active'` and so read
+// zero for every member who has ever had a book out. A loan the member still
+// holds is one that has not come back and has not been written off.
+const OUT_ON_LOAN = ['issued', 'overdue'];
+
+const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
 export default function LibraryStudentDashboard() {
-  const { user }                        = useAuth();
-  const { data: books,  loading: bl }   = useFetch(getMyBooks);
-  const { data: fines,  loading: fl }   = useFetch(getMyFines);
+  const { user }    = useAuth();
+  const isTeacher   = user?.role === 'teacher';
+  // The teacher endpoints are a separate mount; hitting the student ones as a
+  // teacher 403s and left both tiles at zero for exactly the same reason.
+  const { data: books, loading: bl } = useFetch(isTeacher ? getTeacherMyBooks : getMyBooks, [isTeacher]);
+  const { data: fines, loading: fl } = useFetch(isTeacher ? getTeacherMyFines : getMyFines, [isTeacher]);
 
-  const isTeacher = user?.role === 'teacher';
-  const basePath  = isTeacher ? '/teacher/library' : '/student/library';
+  const basePath = isTeacher ? '/teacher/library' : '/student/library';
 
-  const pendingFines = (fines || []).filter(f => f.status === 'pending').length;
-  const activeBooks  = (books  || []).filter(b => b.status === 'active').length;
+  const rows      = Array.isArray(books) ? books : [];
+  const fineRows  = Array.isArray(fines) ? fines : [];
+
+  const issued  = rows.filter(b => OUT_ON_LOAN.includes(b.status));
+  const overdue = rows.filter(b => b.status === 'overdue' || b.isOverdue).length;
+  const lost    = rows.filter(b => b.status === 'lost').length;
+
+  // What is still owed, not what was originally charged: a part-waived fine
+  // that has been settled is not money the member has to find.
+  const owed = fineRows.reduce((sum, f) => sum + Math.max(
+    0,
+    Number(f.amount || 0) - Number(f.waivedAmount || 0) - Number(f.paidAmount || 0),
+  ), 0);
+  const pendingFines = fineRows.filter(f => f.status === 'pending').length;
+
+  const tiles = [
+    { label: 'Books Issued', value: issued.length, bg: '#d1fae5', to: `${basePath}/my-books` },
+    { label: 'Overdue',      value: overdue,       bg: '#fef3c7', to: `${basePath}/my-books`, hide: !overdue },
+    { label: 'Lost',         value: lost,          bg: '#e5e7eb', to: `${basePath}/my-books`, hide: !lost },
+    { label: 'Pending Fines', value: pendingFines, sub: owed > 0 ? rupees(owed) + ' outstanding' : null,
+      bg: '#fee2e2', to: `${basePath}/my-fines` },
+  ].filter(t => !t.hide);
 
   const quickLinks = [
     { to: `${basePath}/search`,   icon: '🔍', label: 'Search Books', color: '#dbeafe' },
@@ -31,14 +61,17 @@ export default function LibraryStudentDashboard() {
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12, marginBottom: 24 }}>
-            <div style={{ background: '#d1fae5', borderRadius: 'var(--radius)', padding: '16px 20px' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Books Issued</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{activeBooks}</div>
-            </div>
-            <div style={{ background: '#fee2e2', borderRadius: 'var(--radius)', padding: '16px 20px' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Pending Fines</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{pendingFines}</div>
-            </div>
+            {tiles.map(t => (
+              <Link key={t.label} to={t.to}
+                style={{
+                  background: t.bg, borderRadius: 'var(--radius)', padding: '16px 20px',
+                  textDecoration: 'none', color: 'var(--text)', display: 'block',
+                }}>
+                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{t.label}</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{t.value}</div>
+                {t.sub && <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{t.sub}</div>}
+              </Link>
+            ))}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>

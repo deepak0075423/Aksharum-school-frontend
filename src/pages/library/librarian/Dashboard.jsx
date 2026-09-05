@@ -30,7 +30,9 @@ export default function LibraryDashboard() {
         <StatCard label="Copies"        value={d.totalCopies || 0}   icon="📖" color="blue" />
         <StatCard label="Issued Out"    value={d.issuedCopies || 0}  icon="📤" color="green" />
         <StatCard label="Overdue"       value={d.overdue || 0}       icon="⚠️" color="red" />
-        <StatCard label="Reservations"  value={d.reservations || 0}  icon="🔖" color="orange" />
+        {/* Queued plus held-for-collection — the tile counted only the queue,
+            so the people actually standing at the hold shelf were invisible. */}
+        <StatCard label="Active Reservations" value={d.reservations || 0} icon="🔖" color="orange" />
         <StatCard label="Pending Fines" value={d.pendingFines || 0}  icon="💸" color="purple" />
       </div>
 
@@ -59,8 +61,8 @@ export default function LibraryDashboard() {
           }}>
             <span style={{ fontSize: '1.3rem' }}>🔖</span>
             <div>
-              <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{d.reservations} reservation{d.reservations !== 1 ? 's' : ''} waiting</div>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Mark ready for pickup →</div>
+              <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{d.reservations} active reservation{d.reservations !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Queued and held for collection →</div>
             </div>
           </Link>
         )}

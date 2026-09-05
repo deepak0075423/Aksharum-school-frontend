@@ -314,19 +314,27 @@ export default function SectionDetail() {
   const subjectTeachers = (selectedSubject?.teachers || []).filter(t => !alreadyAssigned.has(t._id));
 
   /**
-   * "Anita Sharma — Maths 3 · Science 2 · total 5"
+   * "Anita Sharma (Maths · PGT) — Maths 3 · Science 2 · total 5"
    *
-   * The subject being assigned comes first, so the number that matters for this
-   * decision is the one right after the name. A teacher with nothing yet is
-   * labelled as such rather than left looking the same as a loaded one.
+   * Who they are, then how loaded they are. The department and designation are
+   * what separate two teachers with the same name; the load is what decides
+   * between them once you know which one you mean. The subject being assigned
+   * comes first among the counts, so the number that matters for this decision
+   * is the one right after the dash. A teacher with nothing yet is labelled as
+   * such rather than left looking the same as a loaded one.
    */
+  const teacherIdentity = (teacher) => {
+    const bits = [teacher.department, teacher.designation].filter(Boolean);
+    return bits.length ? `${teacher.name} (${bits.join(' · ')})` : teacher.name;
+  };
   const teacherLabel = (teacher) => {
+    const who  = teacherIdentity(teacher);
     const load = teacherOpts?.load?.[teacher._id];
-    if (!load?.bySubject?.length) return `${teacher.name} — no classes yet`;
+    if (!load?.bySubject?.length) return `${who} — no classes yet`;
     const here  = load.bySubject.filter(x => x.subject === subjectForm.subject);
     const other = load.bySubject.filter(x => x.subject !== subjectForm.subject);
     const parts = [...here, ...other].map(x => `${x.subjectName} ${x.sections}`);
-    return `${teacher.name} — ${parts.join(' · ')} · total ${load.total}`;
+    return `${who} — ${parts.join(' · ')} · total ${load.total}`;
   };
   const enrolled = section?.enrolledStudents || [];
   const rollsAssigned = !!section?.rollNumbersAssignedAt;

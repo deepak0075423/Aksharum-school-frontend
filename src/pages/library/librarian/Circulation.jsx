@@ -8,6 +8,7 @@ import MemberPicker from '../../../components/library/MemberPicker';
 import DropdownPanel, { isInsideDropdown } from '../../../components/ui/DropdownPanel';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+const money   = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 export default function LibraryCirculation() {
   // Everything, unfiltered, is the honest default — a librarian opening this
@@ -232,7 +233,11 @@ export default function LibraryCirculation() {
     catch (err) { toast.error(err?.response?.data?.message || err.message); }
   };
 
-  const statusColor = { issued: 'success', returned: 'muted', overdue: 'danger' };
+  // 'lost' was missing, so a written-off loan fell through to the grey default
+  // and looked no different from an ordinary return.
+  const statusColor = { issued: 'success', returned: 'muted', overdue: 'danger', lost: 'warning' };
+  const payColor    = { pending: 'danger', paid: 'success', waived: 'muted' };
+  const payLabel    = { pending: 'Unpaid', paid: 'Paid', waived: 'Waived' };
 
   const columns = [
     { key: 'book',     label: 'Book',    render: r => <div><div style={{ fontWeight:600 }}>{r.book?.title||'—'}</div><div style={{ fontSize:'.75rem',color:'var(--text-muted)' }}>{r.book?.isbn||''}</div></div> },
@@ -244,6 +249,36 @@ export default function LibraryCirculation() {
       return <span style={{ color: overdue ? 'var(--danger)' : 'inherit' }}>{fmtDate(r.dueDate)}</span>;
     }},
     { key: 'status',   label: 'Status',  render: r => <Badge variant={statusColor[r.status]||'muted'}>{r.status}</Badge> },
+    // What the loan cost and whether that has been settled. A loan closed as
+    // lost is a debt as much as a stock write-off, and the register showed
+    // neither the charge nor the payment against it.
+    { key: 'fine',     label: 'Fine',    render: r => {
+      const f = r.fineSummary;
+      if (!f) return <span className="text-muted">—</span>;
+      return (
+        <div>
+          <div>{money(f.charged)}</div>
+          <div style={{ fontSize:'.72rem', color:'var(--text-muted)' }}>
+            {money(f.paid)} paid{f.waived > 0 ? ` · ${money(f.waived)} waived` : ''}
+          </div>
+        </div>
+      );
+    }},
+    { key: 'payment',  label: 'Payment', render: r => {
+      const f = r.fineSummary;
+      if (!f) return <span className="text-muted">—</span>;
+      return (
+        <div>
+          <Badge variant={payColor[f.status] || 'muted'}>{payLabel[f.status] || f.status}</Badge>
+          {f.outstanding > 0 && (
+            <div style={{ fontSize:'.72rem', color:'var(--danger)', marginTop:2 }}>{money(f.outstanding)} due</div>
+          )}
+          {(f.receipts || []).length > 0 && (
+            <div style={{ fontSize:'.68rem', color:'var(--text-muted)', marginTop:2 }}>{f.receipts.join(', ')}</div>
+          )}
+        </div>
+      );
+    }},
     { key: 'actions',  label: '', render: r => r.status === 'issued' && (
       <div style={{ display:'flex', gap:4 }}>
         <button className="btn btn-secondary btn-sm" onClick={() => handleRenew(r._id)}>Renew</button>
@@ -319,7 +354,7 @@ export default function LibraryCirculation() {
             <Button variant="secondary" size="sm" onClick={exportList}>⬇ Export</Button>
           </div>
         </div>
-        <div className="card-body" style={{ padding:0 }}>
+        <div className="card-body" style={{ padding:0, overflowX:'auto' }}>
           {loading ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>
             : <Table columns={columns} data={issuances} emptyIcon="📖" emptyTitle="No issuances found" />}
         </div>
