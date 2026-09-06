@@ -193,7 +193,6 @@ export const getTeacherLeaveBalance = (teacherId) => api.get('/admin/leave/balan
 export const getLeaveApplyPreview   = (params)   => api.get('/admin/leave/apply-preview', { params });
 export const approveLeave           = (id, data) => api.post(`/admin/leave/requests/${id}/approve`, data);
 export const rejectLeave            = (id, data) => api.post(`/admin/leave/requests/${id}/reject`, data);
-export const requestLeaveModification = (id, data) => api.post(`/admin/leave/requests/${id}/modification`, data);
 export const getLeaveAllocations    = (params)   => api.get('/admin/leave/allocations', { params });
 export const allocateLeave          = (data)     => api.post('/admin/leave/allocations', data);
 // Zeroes allocated + carried-forward days, keeping used/pending history

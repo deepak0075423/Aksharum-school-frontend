@@ -13,7 +13,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-dig
 
 const STATUS_VARIANT = {
   pending: 'warning', approved: 'success', rejected: 'danger',
-  cancelled: 'muted', modification_requested: 'info',
+  cancelled: 'muted',
 };
 
 export default function TeacherLeaveApprovals() {
@@ -64,7 +64,7 @@ export default function TeacherLeaveApprovals() {
     )},
     { key: 'status', label: 'Status', render: r => (
       <div>
-        <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status?.replace('_', ' ')}</Badge>
+        <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge>
         {r.approvalsRequired > 1 && r.status === 'pending' && (
           <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
             sign-off {r.approvalLevel || 0}/{r.approvalsRequired}

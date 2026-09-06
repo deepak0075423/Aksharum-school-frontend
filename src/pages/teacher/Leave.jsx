@@ -13,7 +13,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-dig
 
 const STATUS_VARIANT = {
   pending: 'warning', approved: 'success', rejected: 'danger',
-  cancelled: 'muted', modification_requested: 'info',
+  cancelled: 'muted',
 };
 
 const EMPTY_FORM = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
@@ -254,11 +254,11 @@ export default function TeacherLeave() {
   const leaveColumns = [
     { key: 'type',    label: 'Type',    render: r => r.leaveType?.name || '—' },
     { key: 'dates',   label: 'Period',  render: r => <div><div>{fmtDate(r.fromDate)} – {fmtDate(r.toDate)}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.totalDays} day(s) · {r.leaveMode?.replace('_', ' ')}</div></div> },
-    { key: 'status',  label: 'Status',  render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status?.replace('_', ' ')}</Badge> },
+    { key: 'status',  label: 'Status',  render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge> },
     { key: 'reason',  label: 'Reason',  render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
     { key: 'comment', label: 'Admin Comment', render: r => r.adminComment ? <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{r.adminComment}</span> : '—' },
     { key: 'doc',     label: 'Doc', render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
-    { key: 'actions', label: '', render: r => (r.status === 'pending' || r.status === 'modification_requested') ? (
+    { key: 'actions', label: '', render: r => r.status === 'pending' ? (
       <button className="btn btn-danger btn-sm" onClick={() => setCancelItem(r)}>Cancel</button>
     ) : null },
   ];
@@ -294,8 +294,8 @@ export default function TeacherLeave() {
             <select className="form-control" style={{ width: 160 }} value={filterStatus}
               onChange={e => setFilterStatus(e.target.value)}>
               <option value="">All Statuses</option>
-              {['pending','approved','rejected','cancelled','modification_requested'].map(s => (
-                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+              {['pending','approved','rejected','cancelled'].map(s => (
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>

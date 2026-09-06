@@ -13,7 +13,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-dig
 
 const STATUS_VARIANT = {
   pending: 'warning', approved: 'success', rejected: 'danger',
-  cancelled: 'muted', modification_requested: 'info',
+  cancelled: 'muted',
 };
 
 // Identity and entitlement only — every rule lives in the type's LeavePolicy
@@ -137,12 +137,10 @@ export default function AdminLeave() {
       const { type, request } = actionModal;
       if (type === 'approve')   await api.approveLeave(request._id, { adminComment: comment });
       else if (type === 'reject')  await api.rejectLeave(request._id, { adminComment: comment });
-      else if (type === 'modify')  await api.requestLeaveModification(request._id, { adminComment: comment });
       else if (type === 'reverse') await api.reverseApprovedLeave(request._id, { adminComment: comment });
       toast.success(type === 'approve' ? 'Leave approved'
         : type === 'reject'  ? 'Leave rejected'
-        : type === 'reverse' ? `Leave reversed — ${request.totalDays} day(s) restored`
-        : 'Modification requested');
+        : `Leave reversed — ${request.totalDays} day(s) restored`);
       setActionModal(null); setComment('');
       refetchReq();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -227,15 +225,14 @@ export default function AdminLeave() {
         )}
       </div>
     )},
-    { key: 'status',   label: 'Status',   render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status?.replace('_', ' ')}</Badge> },
+    { key: 'status',   label: 'Status',   render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge> },
     { key: 'reason',   label: 'Reason',   render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
     { key: 'doc',      label: 'Doc',      render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
     { key: 'actions',  label: '',         render: r => {
-      if (r.status === 'pending' || r.status === 'modification_requested') return (
+      if (r.status === 'pending') return (
         <div style={{ display: 'flex', gap: 4 }}>
           <button className="btn btn-success btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'approve', request: r }); }}>Approve</button>
           <button className="btn btn-danger btn-sm"  onClick={() => { setComment(''); setActionModal({ type: 'reject',  request: r }); }}>Reject</button>
-          {r.status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'modify', request: r }); }}>Modify</button>}
         </div>
       );
       // Undoing an approval is the only way to hand the days back — and the
@@ -547,8 +544,8 @@ export default function AdminLeave() {
           <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <select className="form-control" style={{ width: 150 }} value={reqStatus} onChange={e => onReqFilter(setReqStatus)(e.target.value)}>
               <option value="">All Statuses</option>
-              {['pending','approved','rejected','cancelled','modification_requested'].map(s => (
-                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+              {['pending','approved','rejected','cancelled'].map(s => (
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
             <select className="form-control" style={{ width: 160 }} value={reqTeacher} onChange={e => onReqFilter(setReqTeacher)(e.target.value)}>
@@ -773,12 +770,11 @@ export default function AdminLeave() {
         );
       })()}
 
-      {/* ── Action Modal (Approve / Reject / Modify / Reverse) ── */}
+      {/* ── Action Modal (Approve / Reject / Reverse) ── */}
       <Modal open={!!actionModal} onClose={() => { setActionModal(null); setComment(''); }}
         title={actionModal?.type === 'approve' ? 'Approve Leave'
              : actionModal?.type === 'reject'  ? 'Reject Leave'
-             : actionModal?.type === 'reverse' ? 'Reverse Approved Leave'
-             : 'Request Modification'}
+             : 'Reverse Approved Leave'}
         footer={<>
           <Button variant="secondary" onClick={() => { setActionModal(null); setComment(''); }}>Cancel</Button>
           <Button variant={actionModal?.type === 'approve' ? 'primary' : 'danger'} onClick={handleAction} loading={actLoad}>Confirm</Button>

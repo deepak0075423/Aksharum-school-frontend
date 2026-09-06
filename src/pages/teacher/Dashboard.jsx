@@ -130,7 +130,7 @@ export default function TeacherDashboard() {
     getMyLeaves().then(r => {
       const data = r.data ?? r ?? [];
       setLeaves(Array.isArray(data)
-        ? data.filter(l => ['approved', 'pending', 'modification_requested'].includes(l.status))
+        ? data.filter(l => ['approved', 'pending'].includes(l.status))
         : []);
     }).catch(() => {});
   }, [modules]);
