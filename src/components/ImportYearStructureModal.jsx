@@ -7,12 +7,13 @@ import { Modal, Button, Spinner } from './ui/index';
  * Copy a year's academic structure into another year.
  *
  * Setting up next year means rebuilding what this year already describes, so
- * this copies the classes, their sections, the subjects against each class and
- * the teacher against each subject in each section.
+ * this copies the classes, their sections, the year's subject list, which class
+ * teaches what, and the teacher against each subject in each section.
  *
- * Subjects themselves are NOT copied — they belong to the school, not to a year,
- * and duplicating them would leave the school with two "Hindi". The dialog says
- * so, because "import subjects" reads like it should.
+ * Each of those is its own tick box. The subject list and the curriculum are
+ * deliberately separate: copying last year's subjects is a different request
+ * from putting last year's curriculum onto this year's classes, and the Subjects
+ * screen asks only for the first.
  *
  * Nothing is overwritten. Anything already in the target year is reported as
  * "already there" and left alone, so this can top up a partly-built year and a
@@ -24,12 +25,13 @@ const KIND_LABEL = {
 };
 
 /** Everything, unless the caller narrows it. */
-const ALL_PARTS = { classes: true, sections: true, subjects: true, assignments: true };
+const ALL_PARTS = { classes: true, sections: true, subjects: true, curriculum: true, assignments: true };
 
 const PARTS = [
   { key: 'classes',     label: 'Classes',             hint: 'Class 1, Class 2, …' },
   { key: 'sections',    label: 'Sections',            hint: 'A, B, C under each class' },
-  { key: 'subjects',    label: 'Subjects',            hint: 'The year\u2019s subject list, plus which class teaches what' },
+  { key: 'subjects',    label: 'Subjects',            hint: 'The year\u2019s subject list — Science, Hindi, \u2026' },
+  { key: 'curriculum',  label: 'Curriculum',          hint: 'Which class teaches which subject' },
   { key: 'assignments', label: 'Subject teachers',    hint: 'Who teaches a subject in one section' },
 ];
 

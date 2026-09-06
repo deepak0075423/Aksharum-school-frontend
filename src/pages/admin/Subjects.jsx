@@ -183,13 +183,15 @@ export default function Subjects() {
           </div>
         } />
 
-      {/* Opened from Subjects, so it starts on the curriculum alone — the other
-          parts are still there to tick if the year needs building out too. */}
+      {/* Opened from Subjects, so it starts on the subject list alone. The
+          curriculum is left off on purpose: importing a subject list must not
+          also decide which class teaches what. Both are still there to tick if
+          the year needs building out too. */}
       <ImportYearStructureModal
         open={importOpen}
         targetYear={(years || []).find((y) => String(y._id) === String(selectedYear)) || null}
         years={years}
-        defaultParts={{ classes: false, sections: false, subjects: true, assignments: false }}
+        defaultParts={{ classes: false, sections: false, subjects: true, curriculum: false, assignments: false }}
         onClose={() => setImportOpen(false)}
         onImported={refetch}
       />
