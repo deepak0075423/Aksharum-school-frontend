@@ -27,13 +27,54 @@ const KIND_LABEL = {
 /** Everything, unless the caller narrows it. */
 const ALL_PARTS = { classes: true, sections: true, subjects: true, curriculum: true, assignments: true };
 
+const LABEL = {
+  classes: 'Classes', sections: 'Sections', subjects: 'Subjects',
+  curriculum: 'Curriculum', assignments: 'Subject teachers',
+};
+
+/**
+ * `needs` is what a part rests on. A class↔subject link has nothing to join
+ * without a class and a subject; a subject teacher needs the section and that
+ * link as well, since a teacher against a subject the class is not marked as
+ * teaching cannot be stored. The same table is enforced server-side — this copy
+ * only greys the box early rather than failing the submit.
+ */
 const PARTS = [
-  { key: 'classes',     label: 'Classes',             hint: 'Class 1, Class 2, …' },
-  { key: 'sections',    label: 'Sections',            hint: 'A, B, C under each class' },
-  { key: 'subjects',    label: 'Subjects',            hint: 'The year\u2019s subject list — Science, Hindi, \u2026' },
-  { key: 'curriculum',  label: 'Curriculum',          hint: 'Which class teaches which subject' },
-  { key: 'assignments', label: 'Subject teachers',    hint: 'Who teaches a subject in one section' },
+  { key: 'classes',     label: LABEL.classes,     hint: 'Class 1, Class 2, …' },
+  { key: 'sections',    label: LABEL.sections,    hint: 'A, B, C under each class', needs: ['classes'] },
+  { key: 'subjects',    label: LABEL.subjects,    hint: 'The year\u2019s subject list — Science, Hindi, \u2026' },
+  { key: 'curriculum',  label: LABEL.curriculum,  hint: 'Which class teaches which subject',
+    needs: ['subjects', 'classes'] },
+  { key: 'assignments', label: LABEL.assignments, hint: 'Who teaches a subject in one section',
+    needs: ['subjects', 'classes', 'sections', 'curriculum'] },
 ];
+
+/** "Subjects and Classes", "Subjects, Classes and Sections". */
+const listOf = (keys) => keys.map((k) => LABEL[k]).reduce((acc, name, i, all) =>
+  (i === 0 ? name : `${acc}${i === all.length - 1 ? ' and ' : ', '}${name}`), '');
+
+/** Dependencies of `part` that neither the tick boxes nor the target year supply. */
+const unmetOf = (part, pick, has) => (!has || !part.needs)
+  ? []
+  : part.needs.filter((k) => !pick[k] && !(has[k] > 0));
+
+/**
+ * Unticking a part takes whatever rested on it with it, transitively — a
+ * curriculum with no subject list left to point at cannot be imported, and
+ * leaving the box ticked would only fail on submit. Idempotent, so re-running it
+ * on an already-legal set changes nothing and cannot loop.
+ */
+function settleParts(next, has) {
+  if (!has) return next;
+  let out = next;
+  for (let pass = 0; pass < PARTS.length; pass += 1) {
+    for (const p of PARTS) {
+      if (!out[p.key] || !p.needs) continue;
+      if (p.needs.some((k) => !out[k] && !(has[k] > 0))) out = { ...out, [p.key]: false };
+    }
+  }
+  return out;
+}
 
 export default function ImportYearStructureModal({
   open, targetYear, years, onClose, onImported, defaultParts = ALL_PARTS,
@@ -52,6 +93,12 @@ export default function ImportYearStructureModal({
   const options = (years || []).filter((y) => String(y._id) !== String(targetYear?._id));
   const nothingPicked = !Object.values(parts).some(Boolean);
 
+  // What the target year already holds. Known only once a plan has come back,
+  // and independent of what is ticked, so it stays put between previews. Until
+  // it arrives nothing is greyed — guessing would grey the wrong boxes.
+  const has = plan?.targetHas || null;
+  const unmet = (part) => unmetOf(part, parts, has);
+
   useEffect(() => {
     if (!open) return;
     setFromYear(options[0]?._id || '');
@@ -67,7 +114,14 @@ export default function ImportYearStructureModal({
     api.importYearStructure(targetYear._id, {
       fromYear, include: parts, includeClassTeachers: withTeachers, preview: true,
     })
-      .then((res) => { if (alive) { setPlan(res?.data ?? res); setError(''); } })
+      .then((res) => {
+        if (!alive) return;
+        const next = res?.data ?? res;
+        setPlan(next); setError('');
+        // A box ticked before the year's contents were known may now be illegal.
+        // Passed the freshly-fetched targetHas rather than the render's copy.
+        if (next?.targetHas) setParts((cur) => settleParts(cur, next.targetHas));
+      })
       .catch((err) => { if (alive) { setPlan(null); setError(err.message || 'Could not read that year'); } })
       .finally(() => { if (alive) setLoad(false); });
     return () => { alive = false; };
@@ -120,7 +174,8 @@ export default function ImportYearStructureModal({
       title={`Import into ${targetYear?.yearName || 'this year'}`} maxWidth={580}
       footer={<>
         <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button form="import-year-form" type="submit" loading={saving} disabled={!plan || !!error || !total || nothingPicked}>
+        <Button form="import-year-form" type="submit" loading={saving}
+          disabled={!plan || !!error || !total || nothingPicked || !!plan.blocked?.length}>
           {plan && !error && total ? `Import ${total} record${total === 1 ? '' : 's'}` : 'Import'}
         </Button>
       </>}>
@@ -143,16 +198,27 @@ export default function ImportYearStructureModal({
         <div className="form-group">
           <label className="form-label required">What to import</label>
           <div style={{ display: 'grid', gap: 6 }}>
-            {PARTS.map((part) => (
-              <label key={part.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '.85rem', cursor: 'pointer' }}>
-                <input type="checkbox" checked={!!parts[part.key]} style={{ marginTop: 3 }}
-                  onChange={(e) => setParts((cur) => ({ ...cur, [part.key]: e.target.checked }))} />
-                <span>
-                  {part.label}
-                  <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '.75rem' }}>{part.hint}</span>
-                </span>
-              </label>
-            ))}
+            {PARTS.map((part) => {
+              const missing = unmet(part);
+              const off = missing.length > 0;
+              return (
+                <label key={part.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start',
+                  fontSize: '.85rem', cursor: off ? 'not-allowed' : 'pointer', opacity: off ? .55 : 1 }}>
+                  <input type="checkbox" checked={!!parts[part.key] && !off} disabled={off} style={{ marginTop: 3 }}
+                    onChange={(e) => setParts((cur) => settleParts({ ...cur, [part.key]: e.target.checked }, has))} />
+                  <span>
+                    {part.label}
+                    <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '.75rem' }}>{part.hint}</span>
+                    {off && (
+                      <span style={{ display: 'block', color: 'var(--warning,#b45309)', fontSize: '.75rem' }}>
+                        Needs {listOf(missing)} — tick {missing.length > 1 ? 'them' : 'it'} too, or set
+                        {missing.length > 1 ? ' them' : ' it'} up in {targetYear?.yearName} first.
+                      </span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
           </div>
           {nothingPicked && (
             <span style={{ fontSize: '.78rem', color: 'var(--danger)' }}>Tick at least one.</span>
@@ -196,6 +262,14 @@ export default function ImportYearStructureModal({
               {withTeachers && <Tile n={plan.classTeachersToSet} label="Class teachers"
                 hint="The teacher in charge of a section" />}
             </div>
+
+            {plan.blocked?.length > 0 && (
+              <div style={{ background: 'var(--danger-light,#fef2f2)', border: '1px solid var(--danger)',
+                borderRadius: 8, padding: '10px 14px', fontSize: '.82rem', color: 'var(--danger)',
+                marginBottom: 12, lineHeight: 1.6 }}>
+                {plan.blocked.map((b) => <div key={b.part}>{b.message}</div>)}
+              </div>
+            )}
 
             {total === 0 && (
               <p style={{ fontSize: '.82rem', margin: '0 0 12px', lineHeight: 1.7,
