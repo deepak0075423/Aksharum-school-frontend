@@ -4066,11 +4066,8 @@ button.lstat:hover, a.lstat:hover {
 }
 .clscard__gap { flex: 1 1 auto; }
 
-/* The card's own menu, opened in place — a card grid has no scroll box to clip
-   it, and it belongs under the card it acts on. */
-.clsmenu { position: relative; }
-.clsmenu__panel { position: absolute; right: 0; top: calc(100% + 6px); }
-.clsmenu__panel--up { top: auto; bottom: calc(100% + 6px); }
+/* The card's overflow menu is the shared, portalled .lmenu (see RowMenu in
+   listParts.jsx) — it cannot live inside .card, which clips its own content. */
 
 /* ── The view switch ───────────────────────────────────────────────────────── */
 .clsview {
@@ -4279,10 +4276,6 @@ button.lstat:hover, a.lstat:hover {
   border-top:  1px solid var(--border);
 }
 .seccard__gap { flex: 1 1 auto; }
-
-.secmenu { position: relative; }
-.secmenu__panel { position: absolute; right: 0; top: calc(100% + 6px); }
-.secmenu__panel--up { top: auto; bottom: calc(100% + 6px); }
 
 /* ── Table cells ───────────────────────────────────────────────────────────── */
 .secwho { display: flex; align-items: center; gap: 11px; min-width: 0; }

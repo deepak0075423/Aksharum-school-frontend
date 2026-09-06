@@ -14,6 +14,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Alert, Badge, Button, Modal } from '../../components/ui/index';
+import { MenuItem, MenuSep, RowMenu } from './listParts';
 
 // ── Reading a class ──────────────────────────────────────────────────────────
 
@@ -189,63 +190,28 @@ export const ClassCard = ({ cls, onEdit, onDelete, onToggle, onSections }) => (
 );
 
 /**
- * The card's overflow menu.
+ * The card's overflow menu — the same actions the table row offers, opened from
+ * the same portalled RowMenu.
  *
- * Rendered in place rather than portalled: a card grid has no horizontal scroll
- * box to be clipped by, and the menu opening under the card it belongs to is
- * exactly where it is expected. It flips above the button in the last row.
+ * It has to be portalled. A `.card` clips its own content so its corners stay
+ * round, so a panel positioned inside the grid was cut off at the card's bottom
+ * edge — which is every card on the last row, and the menu is taller than the
+ * gap under it. RowMenu positions from the button's own rect outside the card
+ * and flips above the button when the space below is tight.
  */
 function CardMenu({ cls, onToggle, onDelete, onSections }) {
-  const [open, setOpen] = useState(false);
-  const [up, setUp]     = useState(false);
-  const ref = React.useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const away = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const esc  = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open]);
-
-  const toggle = () => {
-    const box = ref.current?.getBoundingClientRect();
-    if (box) setUp(window.innerHeight - box.bottom < 200);
-    setOpen((o) => !o);
-  };
-
   return (
-    <div className="clsmenu" ref={ref}>
-      <button type="button" className={`lact${open ? ' lact--on' : ''}`} onClick={toggle}
-        aria-label="More actions" aria-expanded={open}>
-        <Icon name="dots" size={16} />
-      </button>
-      {open && (
-        <div className={`lmenu clsmenu__panel${up ? ' clsmenu__panel--up' : ''}`} onClick={() => setOpen(false)}>
-          <button type="button" className="lmenu__item" onClick={() => onSections(cls)}>
-            <Icon name="plus" size={16} /> Add sections
-          </button>
-          <Link className="lmenu__item" to={`/admin/classes/${cls._id}`}>
-            <Icon name="layers" size={16} /> Manage sections
-          </Link>
-          <Link className="lmenu__item" to="/admin/subjects">
-            <Icon name="book" size={16} /> Assign subjects
-          </Link>
-          <div className="lmenu__sep" />
-          <button type="button" className="lmenu__item" onClick={() => onToggle(cls)}>
-            <Icon name="power" size={16} /> {cls.status === 'active' ? 'Deactivate class' : 'Activate class'}
-          </button>
-          <div className="lmenu__sep" />
-          <button type="button" className="lmenu__item lmenu__item--danger" onClick={() => onDelete(cls)}>
-            <Icon name="trash" size={16} /> Delete class
-          </button>
-        </div>
-      )}
-    </div>
+    <RowMenu>
+      <MenuItem icon="plus" onClick={() => onSections(cls)}>Add sections</MenuItem>
+      <MenuItem icon="layers" to={`/admin/classes/${cls._id}`}>Manage sections</MenuItem>
+      <MenuItem icon="book" to="/admin/subjects">Assign subjects</MenuItem>
+      <MenuSep />
+      <MenuItem icon="power" onClick={() => onToggle(cls)}>
+        {cls.status === 'active' ? 'Deactivate class' : 'Activate class'}
+      </MenuItem>
+      <MenuSep />
+      <MenuItem icon="trash" danger onClick={() => onDelete(cls)}>Delete class</MenuItem>
+    </RowMenu>
   );
 }
 
