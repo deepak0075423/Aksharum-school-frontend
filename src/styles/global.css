@@ -2939,6 +2939,26 @@ button.lstat:hover, a.lstat:hover {
 }
 .lpagefoot__brand { display: inline-flex; align-items: center; gap: 6px; }
 
+/* ── What is blocking a delete ─────────────────────────────────────────────
+   Records that own other records refuse to be deleted and say what is in the
+   way — a year still holding classes, a class students are still sitting in.
+   The dialogs differ; the list of blockers is the same shape everywhere. */
+.lblock {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.lblock__row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+.lblock__row + .lblock__row { border-top: 1px solid var(--border); }
+.lblock__row svg { color: var(--text-light); flex-shrink: 0; }
+.lblock__row b   { color: var(--text); }
+
 /* ── Detail drawer ─────────────────────────────────────────────────────────
    The eye icon opens the whole record beside the list rather than navigating
    away from the page of results the admin worked to filter down to. */
@@ -3811,3 +3831,771 @@ button.lstat:hover, a.lstat:hover {
   .edl-cards { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) { .edl-stats { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACADEMIC YEARS — the list frame's extras
+   ───────────────────────────────────────────────────────────────────────────
+   Admin → Academic Years is a listpg like Students or Designations, but the
+   record it lists is a span of dates rather than a person or a permission. So
+   the row leads with a calendar leaf instead of a face, and its widest cell is
+   the session itself: two dates with a bar showing where today falls between
+   them. Everything else is .l* above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The identity cell ─────────────────────────────────────────────────────
+   A torn-off calendar leaf, tinted by where the year sits against today — one
+   glance down the column separates what has finished from what is running. */
+.aywho { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ayleaf {
+  width: 42px; height: 46px; flex-shrink: 0;
+  border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid transparent;
+  line-height: 1.1;
+  overflow: hidden;
+}
+.ayleaf__top {
+  font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  opacity: .85;
+}
+.ayleaf__year { font-size: .82rem; font-weight: 700; }
+.ayleaf--running  { background: #dcfce7; color: #047857; border-color: #a7f3d0; }
+.ayleaf--upcoming { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+.ayleaf--ended    { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
+.ayleaf--unknown  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
+.aywho__name { font-size: .92rem; font-weight: 600; line-height: 1.3; }
+.aywho__sub  { font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── The session ───────────────────────────────────────────────────────────
+   The bar is the point of this column: "two thirds gone" is the cue to start
+   building next year, and no pair of dates says that as quickly. */
+.aysession__dates {
+  display: flex; align-items: center; gap: 7px;
+  font-size: .84rem; font-weight: 500; white-space: nowrap;
+}
+.aysession__dates svg { color: var(--text-light); flex-shrink: 0; }
+.aysession__meta { font-size: .73rem; color: var(--text-muted); margin-top: 5px; }
+
+.aybar {
+  height: 5px; border-radius: 999px; background: var(--border);
+  margin-top: 8px; overflow: hidden; max-width: 220px;
+}
+.aybar span { display: block; height: 100%; border-radius: 999px; }
+.aybar--running  span { background: var(--success); }
+.aybar--upcoming span { background: var(--secondary); }
+.aybar--ended    span { background: var(--text-light); }
+.aybar--unknown  span { background: var(--warning); }
+
+/* ── Status, and where today falls ─────────────────────────────────────────
+   Two different facts: the badge is the year the school WORKS in, the chip is
+   the calendar. They usually agree — the row is worth reading when they don't. */
+.aystatus { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.aychip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: .7rem; font-weight: 600; white-space: nowrap;
+}
+.aychip--green  { background: #dcfce7; color: #047857; }
+.aychip--blue   { background: #e0f2fe; color: #0369a1; }
+.aychip--amber  { background: #fef3c7; color: #92400e; }
+.aychip--indigo { background: #eef2ff; color: var(--primary); }
+
+/* ── Counts ────────────────────────────────────────────────────────────────── */
+.aycount { display: flex; flex-direction: column; gap: 1px; }
+.aycount__n   { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+/* A zero is a fact worth reading, not a number to shout — an empty year is the
+   normal state of one just created. */
+.aycount__n--zero { color: var(--text-light); font-weight: 600; }
+.aycount__sub { font-size: .72rem; color: var(--text-muted); }
+.aycount--link { text-decoration: none; color: inherit; }
+.aycount--link:hover .aycount__n { color: var(--primary); }
+
+/* ── Column widths ─────────────────────────────────────────────────────────
+   The session cell holds a bar and two dates; without a hint the browser hands
+   it whatever is left and squeezes the counts against the actions. */
+.aycol-year    { width: 200px; }
+.aycol-session { width: 260px; }
+.aycol-status  { width: 130px; }
+.aycol-num     { width: 96px; }
+
+/* ── The form's summary line ───────────────────────────────────────────────
+   What is about to be saved, in a sentence, so the dates are checked before the
+   Create button rather than by the server afterwards. */
+.aypreview {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+.aypreview svg { color: var(--primary); flex-shrink: 0; }
+.aypreview b   { color: var(--text); }
+
+/* ── Responsive ────────────────────────────────────────────────────────────
+   Below the tablet breakpoint the table scrolls sideways in .table-wrap rather
+   than crushing the session cell, so only the fixed widths need relaxing. */
+@media (max-width: 1200px) {
+  .aycol-year    { width: 170px; }
+  .aycol-session { width: 220px; }
+}
+@media (max-width: 768px) {
+  .aybar { max-width: none; }
+  .aystatus { flex-direction: row; align-items: center; flex-wrap: wrap; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CLASSES — the list frame's extras
+   ───────────────────────────────────────────────────────────────────────────
+   Admin → Classes is a listpg, but a class is a container rather than a record:
+   sections under it, students inside those, a teacher against each. So the body
+   defaults to a grid of cards — each one saying how full the class is and what
+   it is still missing — with the same rows available as a table. Everything
+   else is .l* above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The grade chip ────────────────────────────────────────────────────────
+   A class has no photograph and its name is nearly the same as its neighbour's,
+   so the number carries the recognition. Tinted by grade, which makes a wall of
+   twelve cards scannable instead of uniform. */
+.clsgrade {
+  border-radius:   12px;
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  font-weight:     700;
+  flex-shrink:     0;
+  line-height:     1;
+}
+
+/* ── Seats ─────────────────────────────────────────────────────────────────
+   Students against the seats their sections actually have. The bar is the
+   answer to "can this class take another admission". */
+.clsseats { margin-top: 14px; }
+.clsbar {
+  height: 6px; border-radius: 999px; background: var(--border); overflow: hidden;
+}
+.clsbar span { display: block; height: 100%; border-radius: 999px; background: var(--success); }
+.clsbar--tight span { background: var(--warning); }
+.clsbar--over  span { background: var(--danger); width: 100% !important; }
+.clsseats__label { font-size: .75rem; color: var(--text-muted); margin-top: 6px; }
+.clsseats__label b { color: var(--text); font-weight: 700; }
+
+/* ── The card ──────────────────────────────────────────────────────────────── */
+.clsgrid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap:                   16px;
+}
+.clsbody { padding: 18px; }
+
+.clscard {
+  display:        flex;
+  flex-direction: column;
+  background:     var(--bg-card);
+  border:         1px solid var(--border);
+  border-radius:  var(--radius-xl);
+  padding:        16px 18px 14px;
+  transition:     border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.clscard:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
+/* A class that is not running still shows every figure — it is just not the
+   thing being worked on, and the card says so by stepping back. */
+.clscard--off { background: var(--bg); }
+.clscard--off .clsgrade { filter: grayscale(.55); }
+
+.clscard__head { display: flex; align-items: flex-start; gap: 12px; }
+.clscard__id   { flex: 1; min-width: 0; }
+.clscard__id h3 { font-size: 1rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.clscard__id p  { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+
+.clsmetrics {
+  display:               grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:                   8px;
+  margin-top:            14px;
+  padding-top:           14px;
+  border-top:            1px dashed var(--border);
+}
+.clsmetric {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            2px;
+  text-align:     center;
+  text-decoration: none;
+  color:          inherit;
+  border-radius:  10px;
+  padding:        4px 2px;
+}
+.clsmetric svg      { color: var(--text-light); }
+.clsmetric__v       { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+.clsmetric__l       { font-size: .7rem; color: var(--text-muted); }
+.clsmetric--link:hover { background: #eef2ff; color: inherit; }
+.clsmetric--link:hover svg,
+.clsmetric--link:hover .clsmetric__v { color: var(--primary); }
+
+/* ── What the class is still missing ───────────────────────────────────────
+   One sentence, not a count: "3 sections without a class teacher" is a job,
+   "3 issues" is a puzzle. The rest hang off the title attribute. */
+.clsnote {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  margin-top:    12px;
+  padding:       8px 10px;
+  background:    #fffbeb;
+  border:        1px solid #fde68a;
+  border-radius: var(--radius);
+  font-size:     .74rem;
+  line-height:   1.35;
+  color:         #92400e;
+}
+.clsnote svg { flex-shrink: 0; }
+.clsnote b   { margin-left: auto; flex-shrink: 0; }
+
+.clscard__foot {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  margin-top:  14px;
+  padding-top: 14px;
+  border-top:  1px solid var(--border);
+}
+.clscard__gap { flex: 1 1 auto; }
+
+/* The card's own menu, opened in place — a card grid has no scroll box to clip
+   it, and it belongs under the card it acts on. */
+.clsmenu { position: relative; }
+.clsmenu__panel { position: absolute; right: 0; top: calc(100% + 6px); }
+.clsmenu__panel--up { top: auto; bottom: calc(100% + 6px); }
+
+/* ── The view switch ───────────────────────────────────────────────────────── */
+.clsview {
+  display:       inline-flex;
+  flex-shrink:   0;
+  border:        1px solid var(--border);
+  border-radius: var(--radius);
+  overflow:      hidden;
+  background:    var(--bg-card);
+}
+.clsview button {
+  display:     inline-flex;
+  align-items: center;
+  gap:         6px;
+  padding:     8px 12px;
+  font-size:   .82rem;
+  font-weight: 600;
+  color:       var(--text-muted);
+  background:  none;
+  border:      none;
+  cursor:      pointer;
+  transition:  background var(--transition), color var(--transition);
+}
+.clsview button + button { border-left: 1px solid var(--border); }
+.clsview button:hover    { color: var(--primary); }
+.clsview button.is-on    { background: var(--primary); color: #fff; }
+
+/* ── Table cells ───────────────────────────────────────────────────────────── */
+.clswho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.clswho__name { font-size: .9rem; font-weight: 600; line-height: 1.3; }
+.clswho__sub  { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+
+.clscount { display: flex; flex-direction: column; gap: 1px; text-decoration: none; color: inherit; }
+.clscount__n   { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+.clscount__n--zero { color: var(--text-light); font-weight: 600; }
+.clscount__sub { font-size: .72rem; color: var(--text-muted); }
+.clscount--link:hover .clscount__n { color: var(--primary); }
+
+.clsseatcell__n   { font-size: .85rem; white-space: nowrap; }
+.clsseatcell__n b { font-size: 1.05rem; font-weight: 700; }
+.clsseatcell__n span { color: var(--text-muted); }
+.clsseatcell .clsseats { margin-top: 6px; max-width: 150px; }
+
+.clsstatuscell { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.clschip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px;
+  background: #fef3c7; color: #92400e;
+  font-size: .7rem; font-weight: 600; white-space: nowrap;
+}
+
+/* ── Column widths ─────────────────────────────────────────────────────────── */
+.clscol-name   { width: 200px; }
+.clscol-seats  { width: 170px; }
+.clscol-status { width: 130px; }
+.clscol-num    { width: 110px; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .clsbody { padding: 14px; }
+  .clsgrid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .clsview { width: 100%; }
+  .clsview button { flex: 1; justify-content: center; }
+  .clsstatuscell { flex-direction: row; align-items: center; flex-wrap: wrap; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTIONS — one class, one level down
+   ───────────────────────────────────────────────────────────────────────────
+   Admin → Classes → a class. The same listpg frame as Classes, so the grid,
+   the view switch and the card menu are reused from .cls* above; only what a
+   section has and Classes does not — a class teacher on the card, the seat
+   meter inside a tile, the shuffle state — lives here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The crumb row, with the way back out of it. */
+.sectop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.page.listpg .sectop .breadcrumb { margin-bottom: 0; }
+
+/* ── The seat meter inside a stat tile ─────────────────────────────────────
+   Occupancy is a percentage, and a percentage on its own is hard to feel. All
+   spans: the caption it sits in is a span, and a div inside one is invalid. */
+.secmeter {
+  display: block;
+  height: 5px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.secmeter > span { display: block; height: 100%; border-radius: 999px; background: var(--warning); }
+
+/* ── Shuffle state ─────────────────────────────────────────────────────────
+   The rule is not obvious from the buttons: shuffle as often as you like, then
+   lock it for the year — and locking cannot be undone. */
+.secshuffle {
+  display:       flex;
+  align-items:   flex-start;
+  gap:           10px;
+  padding:       12px 14px;
+  border-radius: var(--radius-lg);
+  background:    var(--bg);
+  border:        1px solid var(--border);
+  font-size:     .83rem;
+  line-height:   1.5;
+  color:         var(--text-muted);
+}
+.secshuffle svg { color: var(--text-light); flex-shrink: 0; margin-top: 1px; }
+.secshuffle--locked { background: #f0fdf4; border-color: #a7f3d0; color: #065f46; }
+.secshuffle--locked svg { color: #059669; }
+
+/* ── The card ──────────────────────────────────────────────────────────────
+   Same shell as a class card; a section leads with its letter and the teacher
+   standing in front of it. */
+.secchip {
+  border-radius:   12px;
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  font-weight:     700;
+  flex-shrink:     0;
+  line-height:     1;
+}
+
+.seccard {
+  display:        flex;
+  flex-direction: column;
+  background:     var(--bg-card);
+  border:         1px solid var(--border);
+  border-radius:  var(--radius-xl);
+  padding:        16px 18px 14px;
+  transition:     border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.seccard:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
+.seccard--off  { background: var(--bg); }
+.seccard--off .secchip { filter: grayscale(.55); }
+
+.seccard__head { display: flex; align-items: flex-start; gap: 12px; }
+.seccard__id   { flex: 1; min-width: 0; }
+.seccard__id h3 { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+
+/* Who is in front of the section — the fact the old page never showed. */
+.secteacher {
+  display:     flex;
+  align-items: center;
+  gap:         6px;
+  margin-top:  4px;
+  font-size:   .78rem;
+  color:       var(--text-muted);
+  min-width:   0;
+}
+.secteacher svg { color: var(--text-light); flex-shrink: 0; }
+.secteacher__name {
+  color: var(--text); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.secteacher__vice { font-size: .7rem; }
+/* An empty post is an action, not a blank. */
+.secteacher--none { color: var(--primary); font-weight: 600; text-decoration: none; }
+.secteacher--none svg { color: var(--primary); }
+.secteacher--none:hover { text-decoration: underline; text-underline-offset: 3px; color: var(--primary); }
+
+.secseats { margin-top: 14px; }
+.secbar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.secbar span { display: block; height: 100%; border-radius: 999px; background: var(--success); }
+.secbar--tight span { background: var(--warning); }
+.secbar--over  span { background: var(--danger); width: 100% !important; }
+.secseats__label { font-size: .75rem; color: var(--text-muted); margin-top: 6px; }
+.secseats__label b { color: var(--text); font-weight: 700; }
+
+.secmetrics {
+  display:               grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:                   8px;
+  margin-top:            14px;
+  padding-top:           14px;
+  border-top:            1px dashed var(--border);
+}
+.secmetric { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.secmetric svg    { color: var(--text-light); }
+.secmetric__v     { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+.secmetric__l     { font-size: .7rem; color: var(--text-muted); }
+
+.secnote {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  margin-top:    12px;
+  padding:       8px 10px;
+  background:    #fffbeb;
+  border:        1px solid #fde68a;
+  border-radius: var(--radius);
+  font-size:     .74rem;
+  line-height:   1.35;
+  color:         #92400e;
+}
+.secnote svg { flex-shrink: 0; }
+.secnote b   { margin-left: auto; flex-shrink: 0; }
+
+.seccard__foot {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  margin-top:  14px;
+  padding-top: 14px;
+  border-top:  1px solid var(--border);
+}
+.seccard__gap { flex: 1 1 auto; }
+
+.secmenu { position: relative; }
+.secmenu__panel { position: absolute; right: 0; top: calc(100% + 6px); }
+.secmenu__panel--up { top: auto; bottom: calc(100% + 6px); }
+
+/* ── Table cells ───────────────────────────────────────────────────────────── */
+.secwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.secwho__name { font-size: .9rem; font-weight: 600; line-height: 1.3; }
+.secwho__sub  { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+
+.seccount { display: flex; flex-direction: column; gap: 1px; }
+.seccount__n   { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+.seccount__n--zero { color: var(--text-light); font-weight: 600; }
+.seccount__sub { font-size: .72rem; color: var(--text-muted); }
+
+.secseatcell__n   { font-size: .85rem; white-space: nowrap; }
+.secseatcell__n b { font-size: 1.05rem; font-weight: 700; }
+.secseatcell__n span { color: var(--text-muted); }
+.secseatcell .secseats { margin-top: 6px; max-width: 140px; }
+
+.secstatuscell { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.secchiptag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px;
+  background: #fef3c7; color: #92400e;
+  font-size: .7rem; font-weight: 600; white-space: nowrap;
+}
+
+.seccol-name    { width: 180px; }
+.seccol-teacher { width: 190px; }
+.seccol-seats   { width: 160px; }
+.seccol-status  { width: 130px; }
+.seccol-num     { width: 110px; }
+
+/* ── The new-section preview ───────────────────────────────────────────────── */
+.secpreview {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  padding:       12px 14px;
+  background:    var(--bg);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size:     .85rem;
+  color:         var(--text-muted);
+  line-height:   1.5;
+}
+.secpreview svg { color: var(--primary); flex-shrink: 0; }
+.secpreview b   { color: var(--text); }
+
+/* ── What the shuffle would work with ──────────────────────────────────────── */
+.secplan {
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow:      hidden;
+}
+.secplan__row {
+  display:     grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap:         12px;
+  padding:     10px 14px;
+  font-size:   .84rem;
+}
+.secplan__row + .secplan__row { border-top: 1px solid var(--border); }
+.secplan__row b    { font-weight: 700; }
+.secplan__row span { color: var(--text-muted); white-space: nowrap; }
+.secplan__row .secseats { margin-top: 0; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sectop { align-items: flex-start; }
+  .secstatuscell { flex-direction: row; align-items: center; flex-wrap: wrap; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ONE SECTION — the detail page
+   ───────────────────────────────────────────────────────────────────────────
+   Admin → Classes → a class → a section. The bottom of the academic tree, and
+   the only page where a section's three parts meet: the teachers in front of
+   it, the subjects taught in it and the students sitting in it. Built on the
+   same listpg frame, so it borrows .lstat, .ltools, .ltable and .lpanel and
+   adds only the panels those do not cover.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The actions beside the crumb — where to go back to, and the one edit that
+   belongs to the section itself rather than to any panel. */
+.sectop__acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── The identity header ───────────────────────────────────────────────────
+   A detail page names one record, so there is no spot drawing and no epigraph:
+   the record IS the header. */
+.sdhero { display: flex; align-items: center; gap: 16px; }
+.sdhero__id { min-width: 0; }
+.sdhero__id h1 {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2;
+}
+.sdmeta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 6px; font-size: .85rem; color: var(--text-muted);
+}
+.sdmeta__link { color: var(--primary); font-weight: 600; text-decoration: none; }
+.sdmeta__link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Panels ────────────────────────────────────────────────────────────────
+   Teachers and subjects side by side: they are read together when a section is
+   being set up, and neither fills a row on its own. */
+.sdgrid {
+  display:               grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap:                   18px;
+  align-items:           start;
+}
+.sdpanel { display: flex; flex-direction: column; }
+
+.sdpanel__head {
+  display:       flex;
+  align-items:   flex-start;
+  justify-content: space-between;
+  gap:           14px;
+  flex-wrap:     wrap;
+  padding:       18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sdpanel__head h2 { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.sdpanel__head p  { font-size: .82rem; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+.sdpanel__body    { padding: 8px 20px 16px; }
+/* The subject board draws its own rows edge to edge. */
+.sdpanel__body--flush { padding: 0; }
+.sdcount {
+  font-size: .8rem; font-weight: 600; color: var(--primary);
+  background: #eef2ff; border-radius: 999px; padding: 1px 9px;
+}
+
+/* ── A teaching post ───────────────────────────────────────────────────────
+   An empty post is the more important state — a section without a class
+   teacher is the commonest thing wrong with one — so it is drawn as an
+   invitation, not as a blank line. */
+.sdslot {
+  display:     flex;
+  align-items: center;
+  gap:         12px;
+  padding:     14px 0;
+}
+.sdslot + .sdslot { border-top: 1px dashed var(--border); }
+.sdslot__avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; font-weight: 700; flex-shrink: 0;
+  background: var(--bg); color: var(--text-light);
+  border: 1px dashed var(--border);
+}
+.sdslot:not(.sdslot--empty) .sdslot__avatar { border-style: solid; border-color: transparent; }
+.sdslot__body  { flex: 1; min-width: 0; }
+.sdslot__label { font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.sdslot__name  { font-size: .92rem; font-weight: 600; margin-top: 3px; }
+.sdslot__sub   {
+  font-size: .78rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Subjects and who takes them ───────────────────────────────────────────
+   Grouped by type, because that is the order a timetable is built in. A
+   subject with nobody against it is shown rather than hidden — that is the gap
+   worth filling. */
+.sdsubjects__group + .sdsubjects__group { border-top: 1px solid var(--border); }
+.sdtype {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 20px;
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.sdtype span {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px;
+  padding: 0 7px; font-size: .68rem; color: var(--text-muted);
+}
+.sdtype--indigo { color: var(--primary); }
+.sdtype--green  { color: #047857; }
+.sdtype--amber  { color: #b45309; }
+
+.sdsubject {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+  padding:     11px 20px;
+}
+.sdsubject + .sdsubject { border-top: 1px solid var(--border); }
+.sdsubject__id   { flex: 0 0 40%; min-width: 0; }
+.sdsubject__name { font-size: .87rem; font-weight: 600; }
+.sdsubject__code { font-size: .72rem; color: var(--text-muted); margin-top: 1px; }
+.sdsubject__teachers { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+
+.sdteacher {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+  padding: 3px 6px 3px 10px; font-size: .78rem;
+}
+.sdteacher button {
+  display: flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; padding: 0; border: none; border-radius: 50%;
+  background: none; color: var(--text-light); cursor: pointer;
+}
+.sdteacher button:hover { background: #fee2e2; color: var(--danger); }
+.sdteacher--none {
+  background: #fffbeb; border-color: #fde68a; color: #92400e; padding: 3px 10px; font-weight: 600;
+}
+
+/* ── The roster ────────────────────────────────────────────────────────────── */
+.sdroll {
+  min-width: 46px;
+  padding: 3px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+.sdroll:hover { border-color: var(--primary); color: var(--primary); }
+.sdroll--set  { border-style: solid; font-weight: 700; color: var(--text); }
+
+.sdwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.sdwho__avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .78rem; font-weight: 700;
+}
+.sdwho__name { font-size: .88rem; font-weight: 600; line-height: 1.3; }
+.sdwho__sub  {
+  font-size: .76rem; color: var(--text-muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;
+}
+
+.sdcol-roll  { width: 90px; }
+.sdcol-name  { width: 260px; }
+.sdcol-small { width: 110px; }
+
+/* ── Group chat ────────────────────────────────────────────────────────────── */
+.sdchat__head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.sdchat__head h2 { font-size: 1rem; font-weight: 700; }
+.sdchat__head p  { font-size: .83rem; color: var(--text-muted); margin-top: 5px; line-height: 1.55; max-width: 46ch; }
+.sdchat__head > div { flex: 1; min-width: 180px; }
+.sdchat__members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+
+/* ── What still needs doing ────────────────────────────────────────────────
+   In the order it should be done: somebody in front of the section, then its
+   subjects covered, then roll numbers once the students are in. */
+.sdtodo { display: flex; gap: 16px; }
+.sdtodo__list { list-style: none; margin: 10px 0 0; padding: 0; }
+.sdtodo__list li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; font-size: .85rem;
+}
+.sdtodo__list li + li { border-top: 1px dashed var(--border); }
+.sdtodo__list svg  { color: var(--warning); flex-shrink: 0; }
+.sdtodo__list span { flex: 1; min-width: 0; }
+.sdtodo__list button {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: .8rem; font-weight: 600; color: var(--primary);
+  text-decoration: underline; text-underline-offset: 3px; flex-shrink: 0;
+}
+
+/* ── The section pickers in the assign-subject dialog ──────────────────────── */
+.sdpicks { display: flex; flex-wrap: wrap; gap: 8px; }
+.sdpick {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.sdpick:hover  { border-color: var(--primary); color: var(--primary); }
+.sdpick--on    { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+.sdpick--on:hover { color: var(--text-on-primary); }
+
+/* ── The student picker ────────────────────────────────────────────────────── */
+.sdpool {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden auto;
+  max-height: 340px;
+}
+.sdpool__row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.sdpool__row + .sdpool__row { border-top: 1px solid var(--border); }
+.sdpool__row input { accent-color: var(--primary); flex-shrink: 0; }
+.sdpool__row.is-picked  { background: #eef2ff; }
+.sdpool__row.is-blocked { opacity: .55; cursor: not-allowed; }
+.sdpool__name { font-size: .88rem; font-weight: 600; }
+.sdpool__sub  {
+  font-size: .75rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sdpool__tag  { font-size: .72rem; color: var(--warning); flex-shrink: 0; }
+.sdpool__tag--muted { color: var(--text-muted); }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .sdgrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .sdhero__id h1 { font-size: 1.35rem; }
+  .sdpanel__head { padding: 14px; }
+  .sdpanel__body { padding: 4px 14px 12px; }
+  .sdsubject, .sdtype { padding-left: 14px; padding-right: 14px; }
+  .sdsubject { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .sdsubject__id { flex: none; }
+}

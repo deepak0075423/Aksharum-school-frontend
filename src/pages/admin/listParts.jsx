@@ -79,9 +79,22 @@ export function Avatar({ name, src, size = 38, tone = 'indigo' }) {
 
 // ── Page frame ───────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ here }) => (
+/**
+ * Dashboard › … › here.
+ *
+ * `trail` carries the steps in between for a page that sits under another one —
+ * a class's sections are reached through Classes, and the crumb has to be able
+ * to say so.
+ */
+export const Crumbs = ({ here, trail = [] }) => (
   <div className="breadcrumb">
     <Link to="/admin/dashboard">Dashboard</Link>
+    {trail.map((step) => (
+      <React.Fragment key={step.to}>
+        <span aria-hidden>›</span>
+        <Link to={step.to}>{step.label}</Link>
+      </React.Fragment>
+    ))}
     <span aria-hidden>›</span>
     <span>{here}</span>
   </div>

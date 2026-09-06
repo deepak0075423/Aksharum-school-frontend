@@ -1,43 +1,50 @@
-import React, { useState } from 'react';
+/**
+ * Admin → Classes → a class → one section.
+ *
+ * The bottom of the academic tree, and the only page where the three things a
+ * section is made of meet: the teachers in front of it, the subjects taught in
+ * it, and the students sitting in it. Laid out in that order, on the same frame
+ * as the lists above it (listParts.jsx) — a compact identity header, four
+ * tiles, the panels, then what still needs doing.
+ *
+ * The panels are display only (sectionDetailParts.jsx); every dialog stays here,
+ * because each one is wired to a fetch and a mutation.
+ */
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Spinner, Confirm } from '../../components/ui/index';
+import { useAuth } from '../../contexts/AuthContext';
+import { Alert, Badge, Button, Confirm, Modal, Spinner } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
 import SectionCapacityModal from '../../components/SectionCapacityModal';
+import {
+  Crumbs, ListStats, ListStat, ListTable, ListFooter, SearchField,
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, PageFoot,
+} from './listParts';
+import { SectionChip, StatusBadge, fillOf } from './sectionParts';
+import {
+  Blank, ChatPanel, RollButton, SectionMeta, SectionSetupPanel, StudentIdentity,
+  SubjectBoard, TeacherSlot, TYPE_LABEL, TYPE_ORDER,
+} from './sectionDetailParts';
 
-const TYPE_ORDER  = ['theory', 'practical', 'elective'];
-const TYPE_LABEL  = { theory: 'Theory', practical: 'Practical', elective: 'Elective' };
-const TYPE_COLOR  = { theory: 'var(--primary)', practical: 'var(--success)', elective: 'var(--warning)' };
+const ROLL_FILTERS = [
+  { value: '',     label: 'All students' },
+  { value: 'with', label: 'With a roll number' },
+  { value: 'none', label: 'Without a roll number' },
+];
 
-function TeacherCard({ label, teacher, onAssign, badgeVariant = 'success' }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0',
-      borderBottom: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div className="avatar avatar-sm" style={{ background: badgeVariant === 'warning' ? 'var(--warning)' : 'var(--primary)' }}>
-          {teacher ? teacher.name?.[0] : '?'}
-        </div>
-        <div>
-          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
-          {teacher
-            ? <>
-                <div style={{ fontWeight: 600 }}>{teacher.name}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{teacher.email}</div>
-              </>
-            : <div style={{ color: 'var(--text-muted)', fontSize: '.87rem' }}>Not assigned</div>
-          }
-        </div>
-      </div>
-      <button className="btn btn-secondary btn-sm" onClick={onAssign}>
-        {teacher ? 'Change' : 'Assign'}
-      </button>
-    </div>
-  );
-}
+const STATUSES = [
+  { value: '',         label: 'All status' },
+  { value: 'active',   label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
 
 export default function SectionDetail() {
   const { id } = useParams();
+  const { user: me } = useAuth();
+
   const { data: section, loading: loadSec, refetch: refetchSec } = useFetch(() => api.getSectionDetail(id), [id]);
   const { data: sst,     loading: loadSST, refetch: refetchSST } = useFetch(() => api.getSectionSubjectTeachers(id), [id]);
   const { data: subjects }    = useFetch(api.getSubjects);
@@ -78,11 +85,42 @@ export default function SectionDetail() {
   // which is the only one the old single-section dialog could ever reach.
   const [subjectSections, setSubjectSections] = useState([]);
 
+  const [unassignConfirm, setUnassignConfirm] = useState(null);
+  const [unassigning, setUnassigning]         = useState(false);
+
+  // Student enrollment — the picker is multi-select, so it holds a set of
+  // chosen ids and enrols them in one call.
+  const [studentModal, setStudentModal]         = useState(false);
+  const [studentSearch, setStudentSearch]       = useState('');
+  const [pool, setPool]                         = useState(null);   // { students, total, truncated, seats }
+  const [poolLoading, setPoolLoading]           = useState(false);
+  const [picked, setPicked]                     = useState([]);     // student ids, in click order
+  const [showTaken, setShowTaken]               = useState(false);  // reveal students another section holds
+  const [enrolling, setEnrolling]               = useState(false);
+  const [removeStudentConfirm, setRemoveStudentConfirm] = useState(null);
+  const [removingStudent, setRemovingStudent]   = useState(false);
+  const studentSearchTimer = React.useRef(null);
+
+  // The roster's own controls: it is the longest thing on the page, and in a
+  // full section it is 40 rows.
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterTerm,   setRosterTerm]   = useState('');
+  const [rollFilter,   setRollFilter]   = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page,  setPage]  = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setRosterTerm(rosterSearch.trim().toLowerCase()); setPage(1); }, 250);
+    return () => clearTimeout(t);
+  }, [rosterSearch]);
+
+  // ── Actions ────────────────────────────────────────────────────────────────
   const openTeacherModal = (role) => {
     setTeacherRole(role);
     setTeacherErr('');
     setSelectedTeacher(
-      role === 'class' ? (section?.classTeacher?._id || '') : (section?.substituteTeacher?._id || '')
+      role === 'class' ? (section?.classTeacher?._id || '') : (section?.substituteTeacher?._id || ''),
     );
     setTeacherModal(true);
   };
@@ -175,22 +213,6 @@ export default function SectionDetail() {
     finally { setSavingSubject(false); }
   };
 
-  const [unassignConfirm, setUnassignConfirm] = useState(null); // { subjectId, teacherId, teacherName, subjectName }
-  const [unassigning, setUnassigning]         = useState(false);
-
-  // Student enrollment — the picker is multi-select, so it holds a set of
-  // chosen ids and enrols them in one call.
-  const [studentModal, setStudentModal]         = useState(false);
-  const [studentSearch, setStudentSearch]       = useState('');
-  const [pool, setPool]                         = useState(null);   // { students, total, truncated, seats }
-  const [poolLoading, setPoolLoading]           = useState(false);
-  const [picked, setPicked]                     = useState([]);     // student ids, in click order
-  const [showTaken, setShowTaken]               = useState(false);  // reveal students another section holds
-  const [enrolling, setEnrolling]               = useState(false);
-  const [removeStudentConfirm, setRemoveStudentConfirm] = useState(null);
-  const [removingStudent, setRemovingStudent]   = useState(false);
-  const studentSearchTimer = React.useRef(null);
-
   const handleUnassignTeacher = async () => {
     setUnassigning(true);
     try {
@@ -232,9 +254,9 @@ export default function SectionDetail() {
   };
 
   const togglePick = (studentId) => {
-    setPicked(prev => prev.includes(studentId)
-      ? prev.filter(x => x !== studentId)
-      : [...prev, studentId]);
+    setPicked((prev) => (prev.includes(studentId)
+      ? prev.filter((x) => x !== studentId)
+      : [...prev, studentId]));
   };
 
   const handleEnrollPicked = async () => {
@@ -250,7 +272,7 @@ export default function SectionDetail() {
       }
       // Partial success is the normal case for a batch — say what did not go in
       // rather than closing on a silent half-result.
-      (d?.failed || []).forEach(f => toast.error(`${f.name}: ${f.reason}`));
+      (d?.failed || []).forEach((f) => toast.error(`${f.name}: ${f.reason}`));
       if (d?.enrolled?.length) {
         setStudentModal(false);
         setPicked([]);
@@ -274,23 +296,28 @@ export default function SectionDetail() {
     finally { setRemovingStudent(false); }
   };
 
-  // Group subjects by type
-  const groupedSST = (() => {
+  // ── Derived ────────────────────────────────────────────────────────────────
+  // Subjects grouped by type, each with everyone who takes it here.
+  const groupedSST = useMemo(() => {
     if (!sst?.length) return [];
-    const subjectMap = {};
-    sst.forEach(row => {
+    const bySubject = {};
+    sst.forEach((row) => {
       const sid = row.subject?._id;
-      if (!subjectMap[sid]) subjectMap[sid] = { subject: row.subject, teachers: [] };
-      if (row.teacher) subjectMap[sid].teachers.push(row.teacher);
+      if (!bySubject[sid]) bySubject[sid] = { subject: row.subject, teachers: [] };
+      if (row.teacher) bySubject[sid].teachers.push(row.teacher);
     });
-    const typeMap = {};
-    Object.values(subjectMap).forEach(entry => {
+    const byType = {};
+    Object.values(bySubject).forEach((entry) => {
       const type = entry.subject?.type || 'theory';
-      if (!typeMap[type]) typeMap[type] = [];
-      typeMap[type].push(entry);
+      (byType[type] = byType[type] || []).push(entry);
     });
-    return TYPE_ORDER.filter(t => typeMap[t]).map(t => ({ type: t, rows: typeMap[t] }));
-  })();
+    return TYPE_ORDER.filter((t) => byType[t]).map((t) => ({ type: t, rows: byType[t] }));
+  }, [sst]);
+
+  const subjectsTaught = useMemo(
+    () => new Set((sst || []).map((r) => r.subject?._id).filter(Boolean)).size,
+    [sst],
+  );
 
   const teachers = teacherOpts?.teachers || [];
   // useFetch falls back to the whole envelope when data is null — a real group
@@ -304,14 +331,14 @@ export default function SectionDetail() {
     ? section?.substituteTeacher?._id
     : section?.classTeacher?._id;
   const teacherChoices = teachers
-    .filter(t => String(t._id) !== String(counterpartId || ''))
-    .map(t => ({ ...t, blocked: teacherRole === 'class' && !!t.classTeacherOf }));
+    .filter((t) => String(t._id) !== String(counterpartId || ''))
+    .map((t) => ({ ...t, blocked: teacherRole === 'class' && !!t.classTeacherOf }));
 
-  const selectedSubject = (subjects || []).find(s => s._id === subjectForm.subject);
+  const selectedSubject = (subjects || []).find((s) => s._id === subjectForm.subject);
   const alreadyAssigned = new Set(
-    (sst || []).filter(r => r.subject?._id === subjectForm.subject).map(r => r.teacher?._id).filter(Boolean)
+    (sst || []).filter((r) => r.subject?._id === subjectForm.subject).map((r) => r.teacher?._id).filter(Boolean),
   );
-  const subjectTeachers = (selectedSubject?.teachers || []).filter(t => !alreadyAssigned.has(t._id));
+  const subjectTeachers = (selectedSubject?.teachers || []).filter((t) => !alreadyAssigned.has(t._id));
 
   /**
    * "Anita Sharma (Maths · PGT) — Maths 3 · Science 2 · total 5"
@@ -320,8 +347,7 @@ export default function SectionDetail() {
    * what separate two teachers with the same name; the load is what decides
    * between them once you know which one you mean. The subject being assigned
    * comes first among the counts, so the number that matters for this decision
-   * is the one right after the dash. A teacher with nothing yet is labelled as
-   * such rather than left looking the same as a loaded one.
+   * is the one right after the dash.
    */
   const teacherIdentity = (teacher) => {
     const bits = [teacher.department, teacher.designation].filter(Boolean);
@@ -331,206 +357,280 @@ export default function SectionDetail() {
     const who  = teacherIdentity(teacher);
     const load = teacherOpts?.load?.[teacher._id];
     if (!load?.bySubject?.length) return `${who} — no classes yet`;
-    const here  = load.bySubject.filter(x => x.subject === subjectForm.subject);
-    const other = load.bySubject.filter(x => x.subject !== subjectForm.subject);
-    const parts = [...here, ...other].map(x => `${x.subjectName} ${x.sections}`);
+    const here  = load.bySubject.filter((x) => x.subject === subjectForm.subject);
+    const other = load.bySubject.filter((x) => x.subject !== subjectForm.subject);
+    const parts = [...here, ...other].map((x) => `${x.subjectName} ${x.sections}`);
     return `${who} — ${parts.join(' · ')} · total ${load.total}`;
   };
-  const enrolled = section?.enrolledStudents || [];
+
+  const enrolled = useMemo(() => section?.enrolledStudents || [], [section]);
   const rollsAssigned = !!section?.rollNumbersAssignedAt;
+  const withRoll = enrolled.filter((s) => s.rollNumber).length;
+
+  // ── The roster ─────────────────────────────────────────────────────────────
+  const roster = useMemo(() => enrolled.filter((s) => {
+    if (rollFilter === 'with' && !s.rollNumber) return false;
+    if (rollFilter === 'none' && s.rollNumber)  return false;
+    if (statusFilter === 'active'   && s.isActive === false) return false;
+    if (statusFilter === 'inactive' && s.isActive !== false) return false;
+    if (rosterTerm && !`${s.name} ${s.email || ''} ${s.admissionNumber || ''}`.toLowerCase().includes(rosterTerm)) return false;
+    return true;
+  }), [enrolled, rollFilter, statusFilter, rosterTerm]);
+
+  const pages = Math.max(1, Math.ceil(roster.length / limit));
+  const start = (Math.min(page, pages) - 1) * limit;
+  const shown = roster.slice(start, start + limit);
+  const rosterFiltered = !!rosterTerm || !!rollFilter || !!statusFilter;
+  const resetRoster = () => { setRosterSearch(''); setRosterTerm(''); setRollFilter(''); setStatusFilter(''); setPage(1); };
 
   // ── Student picker, derived ────────────────────────────────────────────────
   const candidates     = pool?.students || [];
-  const freeCandidates = candidates.filter(c => c.assignable);
+  const freeCandidates = candidates.filter((c) => c.assignable);
   const takenCount     = candidates.length - freeCandidates.length;
   // Students another section holds are hidden by default — they cannot be
   // picked, and burying the real choices behind them helps nobody.
   const visibleCandidates = showTaken ? candidates : freeCandidates;
-  const allFreePicked  = freeCandidates.length > 0 && freeCandidates.every(c => picked.includes(c._id));
-  const toggleSelectAll = () =>
-    setPicked(allFreePicked ? [] : freeCandidates.map(c => c._id));
+  const allFreePicked  = freeCandidates.length > 0 && freeCandidates.every((c) => picked.includes(c._id));
+  const toggleSelectAll = () => setPicked(allFreePicked ? [] : freeCandidates.map((c) => c._id));
   // null when the section has no capacity set, which the server reads as unlimited
   const seatsFree    = pool?.seats?.free ?? null;
   const overCapacity = seatsFree !== null && picked.length > seatsFree;
 
-  if (loadSec) return <div className="loading-page"><Spinner /></div>;
+  if (loadSec && !section) return <div className="loading-page"><Spinner /></div>;
+
+  if (!section) {
+    return (
+      <div className="page listpg">
+        <Crumbs here="Section" trail={[{ to: '/admin/classes', label: 'Classes' }]} />
+        <Alert variant="danger">This section could not be found.</Alert>
+        <div><Link to="/admin/classes" className="btn btn-secondary">Back to Classes</Link></div>
+      </div>
+    );
+  }
+
+  const fill = fillOf({ ...section, studentCount: enrolled.length });
+
+  const columns = [
+    {
+      key: 'roll',
+      className: 'sdcol-roll',
+      label: 'Roll No',
+      render: (s) => <RollButton student={s} onEdit={(st) => setRollEdit({ _id: st._id, name: st.name, value: st.rollNumber || '' })} />,
+    },
+    { key: 'student', className: 'sdcol-name', label: 'Student', render: (s) => <StudentIdentity student={s} /> },
+    { key: 'gender',  className: 'sdcol-small', label: 'Gender',  render: (s) => s.gender || <Blank /> },
+    { key: 'adm',     className: 'sdcol-small', label: 'Adm. No', render: (s) => s.admissionNumber || <Blank /> },
+    {
+      key: 'status',
+      className: 'sdcol-small',
+      label: 'Status',
+      render: (s) => <Badge variant={s.isActive === false ? 'muted' : 'success'}>{s.isActive === false ? 'Inactive' : 'Active'}</Badge>,
+    },
+    {
+      key: 'actions',
+      className: 'ltable__acts',
+      label: 'Actions',
+      render: (s) => (
+        <RowActions>
+          <IconAction icon="idCard" label="Edit roll number"
+            onClick={() => setRollEdit({ _id: s._id, name: s.name, value: s.rollNumber || '' })} />
+          <RowMenu>
+            <MenuItem icon="user" to={`/admin/students?search=${encodeURIComponent(s.name)}`}>Open in Students</MenuItem>
+            <MenuSep />
+            <MenuItem icon="logOut" danger onClick={() => setRemoveStudentConfirm(s)}>Remove from section</MenuItem>
+          </RowMenu>
+        </RowActions>
+      ),
+    },
+  ];
 
   return (
-    <div className="page">
-      <div className="breadcrumb" style={{ marginBottom: 12, fontSize: '.85rem', color: 'var(--text-muted)' }}>
-        <Link to="/admin/classes" style={{ color: 'var(--primary)' }}>Classes</Link>
-        <span style={{ margin: '0 6px' }}>›</span>
-        <span>Section {section?.sectionName}</span>
-      </div>
-
-      <PageHeader title={`Section ${section?.sectionName || ''}`}
-        subtitle={`${section?.currentCount ?? 0} / ${section?.maxStudents ?? 40} students enrolled`}
-        action={<Button variant="secondary" onClick={() => setCapModal(true)}>Edit capacity</Button>} />
-
-      {/* ── Teachers card ─────────────────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <h3 style={{ margin: 0 }}>Teachers</h3>
-        </div>
-        <div className="card-body" style={{ paddingBottom: 4 }}>
-          <TeacherCard
-            label="Class Teacher"
-            teacher={section?.classTeacher}
-            onAssign={() => openTeacherModal('class')}
-          />
-          <TeacherCard
-            label="Vice Class Teacher"
-            teacher={section?.substituteTeacher}
-            onAssign={() => openTeacherModal('vice')}
-            badgeVariant="warning"
-          />
+    <div className="page listpg">
+      <div className="sectop">
+        <Crumbs
+          here={`Section ${section.sectionName}`}
+          trail={[
+            { to: '/admin/classes', label: 'Classes' },
+            ...(section.className ? [{ to: `/admin/classes/${section.class}`, label: section.className }] : []),
+          ]}
+        />
+        <div className="sectop__acts">
+          <Link to={`/admin/classes/${section.class}`} className="btn btn-secondary btn-sm">
+            <Icon name="chevronLeft" size={14} /> Back to {section.className || 'class'}
+          </Link>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCapModal(true)}>
+            <Icon name="sliders" size={14} /> Edit capacity
+          </button>
         </div>
       </div>
 
-      {/* ── Section teacher group chat ────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Teacher Group Chat</h3>
-          <Button variant="secondary" onClick={handleSyncGroup} loading={syncingGroup}>
-            {group ? 'Sync members' : 'Create group'}
-          </Button>
+      {/* A detail page names one record, so the header is the record itself —
+          no spot drawing, no quotation. */}
+      <header className="sdhero">
+        <SectionChip sec={section} size={54} />
+        <div className="sdhero__id">
+          <h1>Section {section.sectionName} <StatusBadge status={section.status} /></h1>
+          <SectionMeta section={section} />
         </div>
-        <div className="card-body">
-          {group ? (
+      </header>
+
+      <ListStats>
+        <ListStat icon="student" tone="indigo" value={enrolled.length} label="Enrolled Students"
+          caption={(
             <>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>💬 {group.name}</div>
-              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 10 }}>
-                Class teacher, vice class teacher and every subject teacher of this section.
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {(group.members || []).map(m => (
-                  <span key={m._id} style={{
-                    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4,
-                    padding: '2px 8px', fontSize: '.78rem',
-                  }}>
-                    {m.name}{m.memberRole === 'admin' ? ' (owner)' : ''}
-                  </span>
-                ))}
-              </div>
+              of {section.maxStudents ?? 0} seats · {fill.pct}% full
+              <span className="secmeter" aria-hidden><span style={{ width: `${fill.pct}%` }} /></span>
             </>
-          ) : (
-            <p style={{ color: 'var(--text-muted)', fontSize: '.88rem', margin: 0 }}>
-              No group yet. It is created automatically when teachers are assigned — use “Create group” to do it now.
+          )} />
+        <ListStat icon="teacher" tone="green" value={section.classTeacher ? 1 : 0} label="Class Teacher"
+          caption={section.classTeacher ? section.classTeacher.name : 'Nobody assigned yet'} />
+        <ListStat icon="users" tone="amber" value={sst?.length || 0} label="Subject Teachers"
+          caption={subjectsTaught ? `Across ${subjectsTaught} subject${subjectsTaught === 1 ? '' : 's'}` : 'None assigned'} />
+        <ListStat icon="book" tone="blue" value={subjectsTaught} label="Subjects Taught"
+          caption={section.classSubjectCount
+            ? `of ${section.classSubjectCount} on ${section.className || 'the class'}`
+            : 'The class has no subjects yet'} />
+      </ListStats>
+
+      {section.classStatus && section.classStatus !== 'active' && (
+        <Alert variant="info">
+          {section.className} is {section.classStatus}. This section is kept exactly as it is and stays out
+          of the active class list until the class is activated again.
+        </Alert>
+      )}
+
+      <div className="sdgrid">
+        {/* ── Teachers ───────────────────────────────────────────────────── */}
+        <section className="card sdpanel">
+          <div className="sdpanel__head">
+            <div>
+              <h2>Teachers</h2>
+              <p>Who leads this section, and who stands in.</p>
+            </div>
+          </div>
+          <div className="sdpanel__body">
+            <TeacherSlot
+              label="Class teacher"
+              hint="Runs the section — attendance, the roster and the parents."
+              teacher={section.classTeacher}
+              tone="indigo"
+              onAssign={() => openTeacherModal('class')}
+            />
+            <TeacherSlot
+              label="Vice class teacher"
+              hint="Stands in when the class teacher is away. Optional."
+              teacher={section.substituteTeacher}
+              tone="amber"
+              onAssign={() => openTeacherModal('vice')}
+            />
+          </div>
+        </section>
+
+        {/* ── Subjects ───────────────────────────────────────────────────── */}
+        <section className="card sdpanel">
+          <div className="sdpanel__head">
+            <div>
+              <h2>Subjects &amp; subject teachers</h2>
+              <p>
+                {section.classSubjectCount
+                  ? `${subjectsTaught} of ${section.classSubjectCount} subjects on ${section.className} are taught here.`
+                  : 'Assign the class its subjects first, on the Subjects page.'}
+              </p>
+            </div>
+            <Button onClick={openSubjectModal}><Icon name="plus" size={15} /> Assign Subject</Button>
+          </div>
+          <div className="sdpanel__body sdpanel__body--flush">
+            <SubjectBoard
+              groups={groupedSST}
+              loading={loadSST}
+              onAssign={openSubjectModal}
+              onUnassign={(subject, teacher) => setUnassignConfirm({
+                subjectId: subject._id, teacherId: teacher._id,
+                teacherName: teacher.name, subjectName: subject.subjectName,
+              })}
+            />
+          </div>
+        </section>
+      </div>
+
+      {/* ── Enrolled students ────────────────────────────────────────────── */}
+      <section className="card">
+        <div className="sdpanel__head">
+          <div>
+            <h2>Enrolled students <span className="sdcount">{enrolled.length}</span></h2>
+            <p>
+              {rollsAssigned
+                ? `Roll numbers were given out on ${new Date(section.rollNumbersAssignedAt).toLocaleDateString()} — edit any of them below.`
+                : enrolled.length
+                  ? `${withRoll} of ${enrolled.length} have a roll number.`
+                  : 'Nobody is in this section yet.'}
             </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Subjects grouped by type ──────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Subject Teachers</h3>
-          <Button onClick={openSubjectModal}>+ Assign Subject</Button>
-        </div>
-        <div className="card-body" style={{ padding: loadSST ? 32 : 0 }}>
-          {loadSST
-            ? <div style={{ display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : !sst?.length
-              ? <div style={{ padding: '24px 20px', color: 'var(--text-muted)', fontSize: '.9rem' }}>No subjects assigned yet.</div>
-              : groupedSST.map(({ type, rows }) => (
-                <div key={type}>
-                  <div style={{
-                    padding: '8px 20px', fontSize: '.75rem', fontWeight: 700, letterSpacing: '.05em',
-                    textTransform: 'uppercase', color: TYPE_COLOR[type],
-                    background: 'var(--bg)', borderBottom: '1px solid var(--border)',
-                  }}>
-                    {TYPE_LABEL[type]} ({rows.length})
-                  </div>
-                  <Table
-                    columns={[
-                      { key: 'subject',  label: 'Subject',  render: r => <strong>{r.subject?.subjectName || '—'}</strong> },
-                      { key: 'code',     label: 'Code',     render: r => r.subject?.subjectCode || '—' },
-                      { key: 'teachers', label: 'Teachers', render: r => r.teachers.length
-                        ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {r.teachers.map(t => (
-                              <span key={t._id} style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
-                                background: 'var(--bg)', border: '1px solid var(--border)',
-                                borderRadius: 4, padding: '2px 6px 2px 8px', fontSize: '.78rem',
-                              }}>
-                                {t.name}
-                                <button
-                                  onClick={() => setUnassignConfirm({ subjectId: r.subject._id, teacherId: t._id, teacherName: t.name, subjectName: r.subject.subjectName })}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, lineHeight: 1, fontSize: '.85rem' }}
-                                  title="Unassign teacher"
-                                >×</button>
-                              </span>
-                            ))}
-                          </div>
-                        : <span style={{ color: 'var(--text-muted)' }}>—</span>
-                      },
-                    ]}
-                    data={rows}
-                    emptyTitle=""
-                  />
-                </div>
-              ))
-          }
-        </div>
-      </div>
-
-      {/* ── Enrolled Students ─────────────────────────────────────────────── */}
-      <div className="card">
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Enrolled Students
-            <span style={{ marginLeft: 10, fontSize: '.85rem', fontWeight: 400, color: 'var(--text-muted)' }}>
-              ({enrolled.length})
-            </span>
-          </h3>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {rollsAssigned ? (
-              <span style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-                ✓ Roll numbers assigned {new Date(section.rollNumbersAssignedAt).toLocaleDateString()} — edit individually below
-              </span>
-            ) : (
+          </div>
+          <div className="ltools__acts">
+            {!rollsAssigned && (
               <Button variant="secondary" onClick={() => setAssignConfirm(true)} disabled={!enrolled.length}>
-                Assign Roll Numbers
+                <Icon name="idCard" size={16} /> Assign Roll Numbers
               </Button>
             )}
-            <Button onClick={openStudentModal}>+ Assign Students</Button>
+            <Button onClick={openStudentModal}><Icon name="userPlus" size={16} /> Add Students</Button>
           </div>
         </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <Table
-            columns={[
-              { key: 'rollNumber', label: 'Roll No', render: r => (
-                <button
-                  onClick={() => setRollEdit({ _id: r._id, name: r.name, value: r.rollNumber || '' })}
-                  title="Click to edit roll number"
-                  style={{
-                    background: 'none', border: '1px dashed var(--border)', borderRadius: 4,
-                    padding: '2px 10px', cursor: 'pointer', fontWeight: r.rollNumber ? 600 : 400,
-                    color: r.rollNumber ? 'var(--text)' : 'var(--text-muted)', minWidth: 46,
-                  }}>
-                  {r.rollNumber || 'Set'}
-                </button>
-              )},
-              { key: 'name', label: 'Student', render: r => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div className="avatar avatar-sm" style={{ background: 'var(--success)' }}>{r.name?.[0]}</div>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{r.name}</div>
-                    <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.email}</div>
-                  </div>
-                </div>
-              )},
-              { key: 'gender',     label: 'Gender',  render: r => r.gender     || '—' },
-              { key: 'admNo',      label: 'Adm. No', render: r => r.admissionNumber || '—' },
-              { key: 'actions',    label: '',        render: r => (
-                <button className="btn btn-danger btn-sm" onClick={() => setRemoveStudentConfirm(r)}>Remove</button>
-              )},
-            ]}
-            data={enrolled}
-            emptyIcon="👨‍🎓"
-            emptyTitle="No students enrolled in this section"
+
+        {enrolled.length > 0 && (
+          <div className="ltools">
+            <SearchField value={rosterSearch} onChange={setRosterSearch}
+              placeholder="Search this section by name, email or admission number…" />
+            <select className={`form-control lsel${rollFilter ? ' lfsel--on' : ''}`} value={rollFilter}
+              onChange={(e) => { setRollFilter(e.target.value); setPage(1); }} aria-label="Roll number">
+              {ROLL_FILTERS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select className={`form-control lsel${statusFilter ? ' lfsel--on' : ''}`} value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} aria-label="Account status">
+              {STATUSES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {rosterFiltered && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={resetRoster}>
+                <Icon name="refresh" size={14} /> Reset
+              </button>
+            )}
+          </div>
+        )}
+
+        <ListTable
+          columns={columns}
+          rows={shown}
+          startIndex={start}
+          emptyIcon={rosterFiltered ? '🔍' : '🪑'}
+          emptyTitle={rosterFiltered ? 'No students match' : 'Nobody is in this section yet'}
+          emptyMessage={rosterFiltered
+            ? 'Try another search term or filter.'
+            : 'Add students admitted to this class, or shuffle the class to spread them across its sections.'}
+          emptyAction={rosterFiltered
+            ? <Button variant="secondary" onClick={resetRoster}>Clear filters</Button>
+            : <Button onClick={openStudentModal}>Add students</Button>}
+        />
+
+        {enrolled.length > 0 && (
+          <ListFooter
+            page={Math.min(page, pages)} pages={pages} total={roster.length}
+            limit={limit} count={shown.length} noun="student"
+            onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
           />
-        </div>
+        )}
+      </section>
+
+      <div className="lbottom">
+        <SectionSetupPanel
+          section={section}
+          subjectsTaught={subjectsTaught}
+          onAssignTeacher={() => openTeacherModal('class')}
+          onAssignSubject={openSubjectModal}
+          onAssignRolls={() => setAssignConfirm(true)}
+        />
+        <ChatPanel group={group} syncing={syncingGroup} onSync={handleSyncGroup} />
       </div>
+
+      <PageFoot schoolName={me?.school?.name} />
 
       {/* ── Assign Teacher Modal ─────────────────────────────────────────── */}
       <Modal open={teacherModal} onClose={() => setTeacherModal(false)}
@@ -540,28 +640,23 @@ export default function SectionDetail() {
           <Button form="teacher-assign-form" type="submit" loading={savingTeacher}>Save</Button>
         </>}>
         <form id="teacher-assign-form" onSubmit={handleAssignTeacher}>
-          {teacherErr && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c',
-              borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: '.85rem', marginBottom: 14 }}>
-              {teacherErr}
-            </div>
-          )}
-          <div className="form-group">
-            <label className="form-label">Select Teacher</label>
+          {teacherErr && <div style={{ marginBottom: 14 }}><Alert variant="danger">{teacherErr}</Alert></div>}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Select teacher</label>
             <select className={`form-control${teacherErr ? ' error' : ''}`} value={selectedTeacher}
-              onChange={e => { setTeacherErr(''); setSelectedTeacher(e.target.value); }}>
+              onChange={(e) => { setTeacherErr(''); setSelectedTeacher(e.target.value); }}>
               <option value="">— None / Remove —</option>
-              {teacherChoices.map(t => (
+              {teacherChoices.map((t) => (
                 <option key={t._id} value={t._id} disabled={t.blocked}>
                   {t.name}{t.classTeacherOf ? ` — class teacher of ${t.classTeacherOf}` : ''}
                 </option>
               ))}
             </select>
-            <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: 6 }}>
+            <div className="form-hint">
               {teacherRole === 'class'
                 ? 'A teacher can be class teacher of only one class. Teachers already leading a class are greyed out.'
                 : 'A vice class teacher may also be a class teacher elsewhere, and may be vice class teacher of several sections — only this section’s class teacher is excluded.'}
-            </p>
+            </div>
           </div>
         </form>
       </Modal>
@@ -574,13 +669,13 @@ export default function SectionDetail() {
         loading={unassigning}
         title="Unassign Teacher"
         message={unassignConfirm
-          ? `Are you sure you want to remove ${unassignConfirm.teacherName} from teaching ${unassignConfirm.subjectName} in this section?`
+          ? `Remove ${unassignConfirm.teacherName} from teaching ${unassignConfirm.subjectName} in this section? The teacher and the subject are both untouched everywhere else.`
           : ''}
       />
 
       <SectionCapacityModal
         open={capModal}
-        section={section}
+        section={{ ...section, studentCount: enrolled.length }}
         onClose={() => setCapModal(false)}
         onSaved={() => { refetchSec(); refetchOpts(); }}
       />
@@ -597,9 +692,9 @@ export default function SectionDetail() {
           <div className="form-group">
             <label className="form-label required">Subject</label>
             <select className="form-control" required value={subjectForm.subject}
-              onChange={e => setSubjectForm(f => ({ ...f, subject: e.target.value, teacher: '' }))}>
+              onChange={(e) => setSubjectForm((f) => ({ ...f, subject: e.target.value, teacher: '' }))}>
               <option value="">— Choose subject —</option>
-              {(subjects || []).map(s => (
+              {(subjects || []).map((s) => (
                 <option key={s._id} value={s._id}>
                   {s.subjectName}{s.subjectCode ? ` (${s.subjectCode})` : ''} — {TYPE_LABEL[s.type] || s.type}
                 </option>
@@ -609,18 +704,21 @@ export default function SectionDetail() {
           <div className="form-group">
             <label className="form-label required">Teacher</label>
             {subjectForm.subject && subjectTeachers.length === 0
-              ? <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginTop: 6 }}>
-                  No teachers assigned to this subject. Assign teachers from the Subjects page first.
-                </p>
-              : <select className="form-control" required value={subjectForm.teacher}
-                  onChange={e => setSubjectForm(f => ({ ...f, teacher: e.target.value }))}
+              ? (
+                <Alert variant="info">
+                  No teachers are attached to this subject yet. Add them on the Subjects page first.
+                </Alert>
+              )
+              : (
+                <select className="form-control" required value={subjectForm.teacher}
+                  onChange={(e) => setSubjectForm((f) => ({ ...f, teacher: e.target.value }))}
                   disabled={!subjectForm.subject}>
                   <option value="">— Choose teacher —</option>
-                  {subjectTeachers.map(t => (
+                  {subjectTeachers.map((t) => (
                     <option key={t._id} value={t._id}>{teacherLabel(t)}</option>
                   ))}
                 </select>
-            }
+              )}
           </div>
 
           {/* Sections of this class. Ticking several writes the subject to all
@@ -628,35 +726,29 @@ export default function SectionDetail() {
               Hindi goes to A, B, C and D identically. */}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label required">Sections</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="sdpicks">
               {(classDetail?.sections || []).map((sec) => {
                 const sid = String(sec._id);
                 const on  = subjectSections.includes(sid);
                 return (
                   <button key={sid} type="button" onClick={() => toggleSubjectSection(sid)}
-                    style={{
-                      border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
-                      background: on ? 'var(--primary)' : 'var(--bg-card)',
-                      color: on ? 'var(--text-on-primary)' : 'var(--text)',
-                      borderRadius: 99, padding: '5px 14px', fontSize: '.82rem', fontWeight: 600,
-                      cursor: 'pointer',
-                    }}>
+                    className={`sdpick${on ? ' sdpick--on' : ''}`} aria-pressed={on}>
                     {sec.sectionName}{sid === String(id) ? ' · this one' : ''}
                   </button>
                 );
               })}
             </div>
-            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.6 }}>
+            <div className="form-hint">
               {subjectSections.length > 1
                 ? `This teacher takes this subject in ${subjectSections.length} sections. Any section that already has this exact pairing is left alone.`
                 : 'Tick more sections to assign the same subject and teacher to all of them at once.'}
-            </p>
+            </div>
           </div>
         </form>
       </Modal>
 
       {/* ── Assign Students Modal ────────────────────────────────────────── */}
-      <Modal open={studentModal} onClose={() => setStudentModal(false)} title="Assign Students to Section" maxWidth={620}
+      <Modal open={studentModal} onClose={() => setStudentModal(false)} title="Add Students to Section" maxWidth={620}
         footer={<>
           <span style={{ flex: 1, alignSelf: 'center', fontSize: '.82rem', color: 'var(--text-muted)' }}>
             {picked.length ? `${picked.length} selected` : 'Select one or more students'}
@@ -669,7 +761,7 @@ export default function SectionDetail() {
         <div className="form-group" style={{ marginBottom: 10 }}>
           <label className="form-label">Search by name or email</label>
           <input className="form-control" placeholder="Type to search — or pick from the list below…"
-            value={studentSearch} onChange={e => handleStudentSearch(e.target.value)} autoFocus />
+            value={studentSearch} onChange={(e) => handleStudentSearch(e.target.value)} autoFocus />
         </div>
 
         {/* Seats left, so a batch bigger than the section is caught before saving */}
@@ -704,40 +796,32 @@ export default function SectionDetail() {
               </span>
             </div>
 
-            <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' }}>
-              {visibleCandidates.map(st => {
-                const checked  = picked.includes(st._id);
-                const blocked  = !st.assignable;
+            <div className="sdpool">
+              {visibleCandidates.map((st) => {
+                const checked = picked.includes(st._id);
+                const blocked = !st.assignable;
                 return (
-                  <label key={st._id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                      borderBottom: '1px solid var(--border)',
-                      cursor: blocked ? 'not-allowed' : 'pointer',
-                      background: checked ? '#eef2ff' : 'transparent',
-                      opacity: blocked ? .55 : 1,
-                    }}>
+                  <label key={st._id} className={`sdpool__row${checked ? ' is-picked' : ''}${blocked ? ' is-blocked' : ''}`}>
                     <input type="checkbox" checked={checked} disabled={blocked}
-                      onChange={() => togglePick(st._id)} style={{ flexShrink: 0 }} />
+                      onChange={() => togglePick(st._id)} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '.88rem' }}>{st.name}</div>
-                      <div style={{ fontSize: '.75rem', color: 'var(--text-muted)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div className="sdpool__name">{st.name}</div>
+                      <div className="sdpool__sub">
                         {st.email}{st.admissionNumber ? ` · Adm. ${st.admissionNumber}` : ''}
                       </div>
                     </div>
                     {blocked
-                      ? <span style={{ fontSize: '.72rem', color: 'var(--warning)', flexShrink: 0 }}>{st.enrolledIn}</span>
+                      ? <span className="sdpool__tag">{st.enrolledIn}</span>
                       : st.sameClass
                         ? <Badge variant="success">This class</Badge>
-                        : <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>No section</span>}
+                        : <span className="sdpool__tag sdpool__tag--muted">No section</span>}
                   </label>
                 );
               })}
             </div>
 
             {takenCount > 0 && (
-              <button type="button" onClick={() => setShowTaken(v => !v)}
+              <button type="button" onClick={() => setShowTaken((v) => !v)}
                 style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer',
                   padding: '8px 0 0', fontSize: '.78rem' }}>
                 {showTaken
@@ -765,20 +849,21 @@ export default function SectionDetail() {
       />
 
       {/* ── Edit single roll number ──────────────────────────────────────── */}
-      <Modal open={!!rollEdit} onClose={() => setRollEdit(null)} title="Update Roll Number"
+      <Modal open={!!rollEdit} onClose={() => setRollEdit(null)} title="Update Roll Number" maxWidth={420}
         footer={<>
           <Button variant="secondary" onClick={() => setRollEdit(null)}>Cancel</Button>
           <Button form="roll-form" type="submit" loading={savingRoll}>Save</Button>
         </>}>
         <form id="roll-form" onSubmit={handleSaveRoll}>
-          <div className="form-group">
+          <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Roll number for <strong>{rollEdit?.name}</strong></label>
             <input className="form-control" autoFocus value={rollEdit?.value || ''}
-              onChange={e => setRollEdit(r => ({ ...r, value: e.target.value }))}
+              onChange={(e) => setRollEdit((r) => ({ ...r, value: e.target.value }))}
               placeholder="e.g. 12" />
-            <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-              Must be unique within this section. Leave blank to clear it. The change also updates the student's record.
-            </p>
+            <div className="form-hint">
+              Must be unique within this section. Leave blank to clear it. The change also updates the
+              student&rsquo;s own record.
+            </div>
           </div>
         </form>
       </Modal>
@@ -790,7 +875,9 @@ export default function SectionDetail() {
         onConfirm={handleRemoveStudent}
         loading={removingStudent}
         title="Remove Student"
-        message={removeStudentConfirm ? `Remove ${removeStudentConfirm.name} from this section?` : ''}
+        message={removeStudentConfirm
+          ? `Remove ${removeStudentConfirm.name} from Section ${section.sectionName}? They stay admitted to the school and can be placed in another section.`
+          : ''}
       />
     </div>
   );

@@ -12,14 +12,16 @@ import { Modal, Button } from './ui/index';
  * importer both check before seating another student, so it is worth an explicit
  * dialog rather than an inline field that can be nudged by accident.
  *
- * `section` needs `_id`, `sectionName` and `currentCount`.
+ * `section` needs `_id`, `sectionName` and a student count — `studentCount`
+ * (the length of the section's enrolled list, which the class detail endpoint
+ * now returns) in preference to the cached `currentCount` beside it.
  */
 export default function SectionCapacityModal({ open, section, onClose, onSaved }) {
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const enrolled = section?.currentCount ?? 0;
+  const enrolled = section?.studentCount ?? section?.currentCount ?? 0;
 
   useEffect(() => {
     if (!open) return;

@@ -44,8 +44,13 @@ export default function Students() {
   // hooks/useFocusHighlight.js.
   const [params] = useSearchParams();
   const [search, setSearch]   = useState(() => params.get('search') || '');
-  const [filters, setFilters] = useState(EMPTY);
-  const [showFilters, setShowFilters] = useState(false);
+  // ?classId= / ?sectionId= arrive from a class's Sections page, so "Students"
+  // there lands on this list already narrowed to that class rather than on all
+  // 400 of them. The panel opens with them, or the filter would be invisible.
+  const urlClass   = params.get('classId')   || '';
+  const urlSection = params.get('sectionId') || '';
+  const [filters, setFilters] = useState(() => ({ ...EMPTY, classId: urlClass, sectionId: urlSection }));
+  const [showFilters, setShowFilters] = useState(() => !!(urlClass || urlSection));
 
   const [del, setDel]         = useState(null);
   const [delLoad, setDL]      = useState(false);
