@@ -1,89 +1,224 @@
-import React from 'react';
+/**
+ * Employee Directory → Organization Structure.
+ *
+ * Two structures, one call, and they are not the same thing: the REPORTING tree
+ * built from the reporting manager on each profile, and the department →
+ * designation grouping every school has whether or not anyone has set a
+ * reporting line. The page shows both and says which is which.
+ *
+ * Nothing is edited here — the reporting manager, the department and the
+ * designation are all set on an employee's Employment tab, and this is the view
+ * of what they add up to.
+ */
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getOrgStructure } from '../../api/employeeDirectory.api';
-import { PageHeader, Empty, Alert, Badge } from '../../components/ui/index';
-import { SkeletonRows, ErrorState, Avatar, useDirectoryBase, STATUS_TONE, STATUS_LABEL } from './parts';
-
-// Two views of the same staff: the reporting tree when reporting managers have
-// been set, and the department → designation grouping the ERP always has.
-
-function Node({ n, base, depth = 0 }) {
-  return (
-    <div style={{ marginLeft: depth ? 22 : 0, borderLeft: depth ? '2px solid var(--border)' : 'none', paddingLeft: depth ? 14 : 0 }}>
-      <Link to={`${base}/employees/${n._id}`}
-        style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', textDecoration: 'none', color: 'inherit' }}>
-        <Avatar name={n.name} src={n.profileImage} size={32} />
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{n.name}</span>
-          <span className="text-muted text-sm" style={{ display: 'block' }}>
-            {[n.designation, n.department].filter(Boolean).join(' · ') || 'No designation'}
-          </span>
-        </span>
-        <Badge variant={STATUS_TONE[n.employmentStatus]}>{STATUS_LABEL[n.employmentStatus]}</Badge>
-      </Link>
-      {n.children.map((c) => <Node key={c._id} n={c} base={base} depth={depth + 1} />)}
-    </div>
-  );
-}
+import { getOrgStructure, downloadReport } from '../../api/employeeDirectory.api';
+import { useAuth } from '../../contexts/AuthContext';
+import { Alert, Empty } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import { ErrorState, SkeletonRows, useDirectoryBase } from './parts';
+import { Crumbs, PageTop, SearchBox, StatTile } from './employeeParts';
+import {
+  DepartmentBreakdown, DepartmentChart, DesignationBreakdown, Legend, ReportingTree,
+  UNASSIGNED, byDesignation, coverageOf, filterTree, flatten, heldDesignations,
+} from './orgParts';
 
 export default function OrgStructure() {
   const { base } = useDirectoryBase();
+  const { user } = useAuth();
   const { data, loading, error, refetch } = useFetch(getOrgStructure, []);
 
-  if (loading) return <div className="page"><PageHeader title="Organization Structure" /><SkeletonRows rows={8} cols={2} /></div>;
-  if (error)   return <div className="page"><PageHeader title="Organization Structure" /><ErrorState error={error} onRetry={refetch} /></div>;
+  const [view,   setView]   = useState('chart');   // chart | reporting
+  const [rail,   setRail]   = useState('department');
+  const [search, setSearch] = useState('');
+  const [open,   setOpen]   = useState('');
+  const [exporting, setExporting] = useState(false);
 
-  const tree = data?.tree || [];
-  const byDep = data?.byDepartment || [];
+  const tree  = useMemo(() => data?.tree || [], [data]);
+  const byDep = useMemo(() => data?.byDepartment || [], [data]);
+  const byDes = useMemo(() => byDesignation(byDep), [byDep]);
+
+  const people   = useMemo(() => flatten(tree), [tree]);
+  const coverage = useMemo(() => coverageOf(tree), [tree]);
+  const withStaff = byDep.filter((d) => d.department !== UNASSIGNED);
+
+  // A reporting tree with no lines set is one flat list of everybody, which is
+  // true but not a structure — so the department chart leads until there is one.
+  useEffect(() => {
+    if (data && data.hasReportingLines) setView('reporting');
+  }, [data]);
+
+  const term = search.trim().toLowerCase();
+  const shownTree = useMemo(() => filterTree(tree, term), [tree, term]);
+  const shownDeps = useMemo(() => {
+    if (!term) return byDep;
+    return byDep
+      .map((d) => {
+        const designations = d.designations
+          .map((g) => ({ ...g, members: g.members.filter((m) => m.name.toLowerCase().includes(term)) }))
+          .filter((g) => g.members.length);
+        return designations.length
+          ? { ...d, designations, total: designations.reduce((n, g) => n + g.members.length, 0) }
+          : null;
+      })
+      .filter(Boolean);
+  }, [byDep, term]);
+
+  const exportRail = async () => {
+    setExporting(true);
+    toast.loading('Building the spreadsheet…', { id: 'orgexp' });
+    try {
+      // The report that matches what the rail is showing, so the file and the
+      // screen agree.
+      await downloadReport(rail === 'department' ? 'by-department' : 'by-designation', 'xlsx');
+      toast.success('Downloaded', { id: 'orgexp' });
+    } catch (e) {
+      toast.error(e?.message || 'Could not build the file', { id: 'orgexp' });
+    } finally { setExporting(false); }
+  };
+
+  if (loading) {
+    return (
+      <div className="page edl">
+        <Crumbs base={base} here="Organization Structure" />
+        <PageTop title="Organization Structure" subtitle="Built from the reporting lines, departments and designations already on the employee records." />
+        <SkeletonRows rows={8} cols={2} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page edl">
+        <Crumbs base={base} here="Organization Structure" />
+        <PageTop title="Organization Structure" />
+        <ErrorState error={error} onRetry={refetch} />
+      </div>
+    );
+  }
+
+  if (!people.length) {
+    return (
+      <div className="page edl">
+        <Crumbs base={base} here="Organization Structure" />
+        <PageTop title="Organization Structure" />
+        <Empty icon="🏗️" title="No employees yet"
+          message="The structure is drawn from employee records — it appears as soon as there are some." />
+      </div>
+    );
+  }
 
   return (
-    <div className="page">
-      <PageHeader title="Organization Structure" subtitle="Built from the reporting lines, departments and designations already on the employee records" />
+    <div className="page edl">
+      <Crumbs base={base} here="Organization Structure" />
+
+      <PageTop
+        title="Organization Structure"
+        subtitle="Your school's shape, drawn from the reporting lines, departments and designations already on the employee records.">
+        <button type="button" className="btn btn-secondary" onClick={exportRail} disabled={exporting}>
+          <Icon name="download" size={16} /> Export {rail === 'department' ? 'departments' : 'designations'}
+        </button>
+        <Link className="btn btn-secondary" to={`${base}/employees`}>
+          <Icon name="users" size={16} /> All employees
+        </Link>
+      </PageTop>
+
+      <div className="edl-stats">
+        <StatTile icon={<Icon name="users" size={22} />} tone="indigo" value={people.length}
+          label="Employees" caption="On the books today" />
+        <StatTile icon={<Icon name="building" size={22} />} tone="blue" value={withStaff.length}
+          label="Departments" caption={`${byDep.length - withStaff.length ? 'Plus the unassigned' : 'All staff placed'}`} />
+        <StatTile icon={<Icon name="badge" size={22} />} tone="purple" value={heldDesignations(byDep)}
+          label="Designations" caption="Held across the school" />
+        <StatTile icon={<Icon name="activity" size={22} />} tone={coverage.pct ? 'green' : 'amber'}
+          value={`${coverage.pct}%`} label="Reporting coverage"
+          captionTone={coverage.pct ? undefined : 'down'}
+          caption={coverage.pct
+            ? `${coverage.mapped} of ${coverage.total} report to someone`
+            : 'No reporting lines set yet'} />
+      </div>
 
       {!data?.hasReportingLines && (
         <Alert variant="info">
-          No reporting manager has been set yet, so everyone sits at the top level.
-          Set one on an employee's <strong>Employment</strong> tab to build the tree.
+          No reporting manager has been set on anybody yet, so there is no chain to draw — everyone sits
+          at the top. Set one on an employee&rsquo;s <b>Employment</b> tab and the tree builds itself.
         </Alert>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16, marginTop: 16 }}>
-        <div className="card">
-          <div className="card-header"><h2>Reporting Structure</h2></div>
-          <div className="card-body">
-            {tree.length === 0
-              ? <Empty icon="🏗️" title="No employees found." />
-              : tree.map((n) => <Node key={n._id} n={n} base={base} />)}
+      <div className="orggrid">
+        <section className="card edl-card-wrap">
+          <div className="orgtabs">
+            <button type="button" className={`orgtab${view === 'chart' ? ' is-on' : ''}`}
+              aria-pressed={view === 'chart'} onClick={() => setView('chart')}>
+              <Icon name="grid" size={16} /> Department chart
+            </button>
+            <button type="button" className={`orgtab${view === 'reporting' ? ' is-on' : ''}`}
+              aria-pressed={view === 'reporting'} onClick={() => setView('reporting')}>
+              <Icon name="layers" size={16} /> Reporting lines
+              {!data?.hasReportingLines && <em>not set</em>}
+            </button>
+            <div className="orgtabs__search">
+              <SearchBox value={search} onChange={setSearch} placeholder="Find an employee…" />
+            </div>
           </div>
-        </div>
 
-        <div className="card">
-          <div className="card-header"><h2>By Department &amp; Designation</h2></div>
-          <div className="card-body">
-            {byDep.length === 0
-              ? <Empty icon="🏢" title="No departments yet" />
-              : byDep.map((d) => (
-                <div key={d.department} style={{ marginBottom: 18 }}>
-                  <div style={{ fontWeight: 700, fontSize: '.92rem', marginBottom: 6 }}>
-                    {d.department} <span className="text-muted" style={{ fontWeight: 400 }}>({d.total})</span>
-                  </div>
-                  {d.designations.map((g) => (
-                    <div key={g.designation} style={{ marginLeft: 14, borderLeft: '2px solid var(--border)', paddingLeft: 12, marginBottom: 8 }}>
-                      <div className="text-sm" style={{ fontWeight: 600 }}>{g.designation}</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                        {g.members.map((m) => (
-                          <Link key={m._id} to={`${base}/employees/${m._id}`} className="badge badge-muted" style={{ textDecoration: 'none' }}>
-                            {m.name}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
+          <div className="orgbody">
+            {view === 'chart'
+              ? (
+                shownDeps.length === 0
+                  ? <Empty icon="🔍" title="Nobody matches" message="Try another name." />
+                  : (
+                    <>
+                      <DepartmentChart
+                        school={{ name: user?.school?.name || 'This school', total: people.length }}
+                        departments={shownDeps}
+                        base={base}
+                      />
+                      <Legend />
+                    </>
+                  )
+              )
+              : (
+                shownTree.length === 0
+                  ? <Empty icon="🔍" title="Nobody matches" message="Try another name." />
+                  : (
+                    <>
+                      {term && (
+                        <p className="orghint">
+                          Showing the people who match and the managers above them, so the chain stays readable.
+                        </p>
+                      )}
+                      <ReportingTree tree={shownTree} base={base} />
+                    </>
+                  )
+              )}
           </div>
-        </div>
+        </section>
+
+        <aside className="card orgrail">
+          <header className="orgrail__head">
+            <h2>Breakdown</h2>
+            <div className="orgrail__switch" role="group" aria-label="Group by">
+              <button type="button" className={rail === 'department' ? 'is-on' : ''}
+                aria-pressed={rail === 'department'} onClick={() => { setRail('department'); setOpen(''); }}>
+                By department
+              </button>
+              <button type="button" className={rail === 'designation' ? 'is-on' : ''}
+                aria-pressed={rail === 'designation'} onClick={() => { setRail('designation'); setOpen(''); }}>
+                By designation
+              </button>
+            </div>
+          </header>
+          <div className="orgrail__body">
+            {rail === 'department'
+              ? <DepartmentBreakdown rows={byDep} base={base} open={open}
+                  onToggle={(n) => setOpen(open === n ? '' : n)} />
+              : <DesignationBreakdown rows={byDes} base={base} open={open}
+                  onToggle={(n) => setOpen(open === n ? '' : n)} />}
+          </div>
+        </aside>
       </div>
     </div>
   );
