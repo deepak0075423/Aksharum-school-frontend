@@ -94,6 +94,19 @@ export default function Students() {
     : classes.flatMap((c) => c.sections || []);
 
   const rows      = data?.data || [];
+
+  // ?edit=<id> opens the wizard on that student once the row it names is on the
+  // page. Student Analytics sends people here to edit — the seven-step form
+  // lives with the row shape it was built for, and keeping one copy of it is
+  // what stops the two drifting. The name travels with the id so the row is
+  // actually in the list to be found.
+  const urlEdit = params.get('edit') || '';
+  const [editHandled, setEditHandled] = useState(false);
+  useEffect(() => {
+    if (!urlEdit || editHandled || !rows.length) return;
+    const hit = rows.find((r) => String(r._id) === String(urlEdit));
+    if (hit) { setEditing(hit); setFormOpen(true); setEditHandled(true); }
+  }, [urlEdit, editHandled, rows]);
   const stats     = data?.stats || {};
   const selection = useSelection(rows, queryKey);
 
