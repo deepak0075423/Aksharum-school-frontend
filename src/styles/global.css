@@ -5125,3 +5125,165 @@ button.lstat:hover, a.lstat:hover {
 
 @media (max-width: 1100px) { .repchart--wide { grid-column: 1 / -1; } }
 @media (max-width: 768px)  { .repchart__head, .repchart__body { padding-left: 14px; padding-right: 14px; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — DEPARTMENTS
+   ───────────────────────────────────────────────────────────────────────────
+   The same .edl-* frame as the rest of the module; only what a department has
+   and an employee does not lives here. A department is a GROUPING, not a
+   record — it has no row of its own anywhere — so the card leads with how many
+   people are in it and what kind of staff they are.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.depgrid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap:                   16px;
+}
+
+/* ── The card ──────────────────────────────────────────────────────────────── */
+.depcard {
+  display:        flex;
+  flex-direction: column;
+  background:     var(--bg-card);
+  border:         1px solid var(--border);
+  border-radius:  var(--radius-xl);
+  padding:        16px 18px 14px;
+  transition:     border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.depcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
+/* "Unassigned" is the gap rather than a department, and is drawn as one. */
+.depcard--gap { background: #fffbeb; border-color: #fde68a; }
+.depcard--gap:hover { border-color: #fcd34d; }
+
+.depcard__head { display: flex; align-items: flex-start; gap: 12px; }
+.depcard__mark {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.depcard__id { flex: 1; min-width: 0; }
+.depcard__id h3 {
+  font-size: 1rem; font-weight: 700; line-height: 1.3;
+  overflow-wrap: anywhere; margin-bottom: 5px;
+}
+.depcard__total { text-align: right; flex-shrink: 0; }
+.depcard__total b     { display: block; font-size: 1.35rem; font-weight: 700; line-height: 1; }
+.depcard__total small { font-size: .7rem; color: var(--text-muted); }
+
+/* ── Type ──────────────────────────────────────────────────────────────────
+   Derived from who is in it, never stored — so it is a chip, not a field. */
+.deptype {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: .72rem; font-weight: 600; white-space: nowrap;
+}
+.deptype--indigo { background: #eef2ff; color: #4f46e5; }
+.deptype--teal   { background: #ccfbf1; color: #0d9488; }
+.deptype--purple { background: #f3e8ff; color: #7c3aed; }
+.deptype--amber  { background: #fef3c7; color: #92400e; }
+
+/* ── Staff mix ─────────────────────────────────────────────────────────────
+   Two identities, so two hues — validated as a categorical pair (see MIX in
+   departmentParts.jsx). The 2px gap is the surface showing through, which is
+   what separates two fills without introducing a third colour; both segments
+   carry a label and a count, so colour is never the only channel. */
+.depmix { margin-top: 14px; }
+.depmix__bar {
+  display: flex; gap: 2px; height: 8px;
+  border-radius: 999px; overflow: hidden;
+  background: var(--bg);
+}
+.depmix__bar > span:first-child { border-radius: 999px 0 0 999px; }
+.depmix__bar > span:last-child  { border-radius: 0 999px 999px 0; }
+.depmix__bar > span:only-child  { border-radius: 999px; }
+.depmix__key {
+  display: flex; flex-wrap: wrap; gap: 4px 16px;
+  list-style: none; margin: 8px 0 0; padding: 0;
+  font-size: .76rem; color: var(--text-muted);
+}
+.depmix__key li { display: flex; align-items: center; gap: 6px; }
+.depmix__key i  { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.depmix__key b  { color: var(--text); font-weight: 700; }
+.depmix__none   { font-size: .78rem; color: var(--text-muted); margin-top: 14px; }
+
+.depcard__facts {
+  display: flex; gap: 22px;
+  margin: 14px 0 0; padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.depcard__facts dt { font-size: .72rem; color: var(--text-muted); }
+.depcard__facts dd { font-size: .95rem; font-weight: 700; margin: 2px 0 0; }
+.depcard__chips { margin-top: 12px; }
+
+.depcard__note {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-top: 12px; padding: 9px 11px;
+  background: #fff; border: 1px solid #fde68a; border-radius: var(--radius);
+  font-size: .75rem; line-height: 1.5; color: #92400e;
+}
+.depcard__note svg { flex-shrink: 0; margin-top: 2px; }
+
+.depcard__foot {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── The people in it ──────────────────────────────────────────────────────── */
+.depmembers {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.depmember {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 2px;
+  text-decoration: none; color: inherit;
+  border-bottom: 1px solid var(--border);
+}
+.depmember:last-child { border-bottom: none; }
+.depmember:hover { color: var(--primary); }
+.depmember__name { flex: 1; min-width: 0; font-size: .85rem; font-weight: 500; }
+.depmember__role {
+  font-size: .75rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;
+}
+.depmember svg { color: var(--text-light); flex-shrink: 0; }
+
+/* ── The table view ────────────────────────────────────────────────────────── */
+.depname { display: flex; align-items: center; gap: 8px; }
+.depname svg { color: var(--text-light); flex-shrink: 0; }
+.depcol-num  { width: 46px; color: var(--text-muted); font-size: .82rem; }
+.depcol-type { width: 128px; }
+.depcol-mix  { width: 190px; }
+.depcol-n    { width: 80px; }
+.depcol-mix .depmix { margin-top: 0; }
+.deprow--gap td { background: #fffbeb; }
+.deprow--members td { background: var(--bg); padding: 0 16px 12px; }
+.deprow--members .depmembers { margin-top: 0; border-top: none; max-height: 300px; }
+
+/* ── How a department comes into being ─────────────────────────────────────── */
+.depabout {
+  display:       flex;
+  gap:           16px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       20px 22px;
+}
+.depabout__mark {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  background: #eef2ff; color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+}
+.depabout__body h2 { font-size: 1rem; font-weight: 700; }
+.depabout__body p  { font-size: .85rem; color: var(--text-muted); margin: 8px 0 14px; line-height: 1.6; max-width: 78ch; }
+.depabout__acts    { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .depgrid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .depabout { flex-direction: column; gap: 12px; padding: 16px; }
+  .depcard__foot .btn { flex: 1; justify-content: center; }
+}

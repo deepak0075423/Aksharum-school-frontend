@@ -299,15 +299,17 @@ export const MenuSep = () => <div className="edl-menu__sep" />;
 
 // ── Footer ───────────────────────────────────────────────────────────────────
 
-export const ListFoot = ({ page, pages, total, limit, count, onPage, onLimit, sizes }) => {
+export const ListFoot = ({ page, pages, total, limit, count, onPage, onLimit, sizes, noun = 'employee' }) => {
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to   = (page - 1) * limit + count;
   return (
     <div className="edl-foot">
       <span className="edl-foot__count">
+        {/* `noun` only ever renames what is being counted — every existing
+            caller keeps the "employee" it was written with. */}
         {total === 0
-          ? 'No employees to show'
-          : `Showing ${from} to ${to} of ${total} employee${total === 1 ? '' : 's'}`}
+          ? `No ${noun}s to show`
+          : `Showing ${from} to ${to} of ${total} ${noun}${total === 1 ? '' : 's'}`}
       </span>
       <div className="edl-foot__right">
         {pages > 1 && (
@@ -323,7 +325,7 @@ export const ListFoot = ({ page, pages, total, limit, count, onPage, onLimit, si
           </div>
         )}
         <label className="edl-foot__size">
-          <select className="form-control" value={limit} aria-label="Employees per page"
+          <select className="form-control" value={limit} aria-label={`${noun}s per page`}
             onChange={(ev) => onLimit(Number(ev.target.value))}>
             {sizes.map((n) => <option key={n} value={n}>{n} / page</option>)}
           </select>
