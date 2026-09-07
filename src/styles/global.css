@@ -5711,3 +5711,352 @@ button.lstat:hover, a.lstat:hover {
   .orgbranch { max-width: none; }
   .orgnode__sub { max-width: 180px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — PROFILE VERIFICATION
+   ───────────────────────────────────────────────────────────────────────────
+   A queue, not a report. Everything here serves one action — open the
+   evidence, then sign the section off — so the evidence and the button that
+   depends on it sit on the same row. Reuses the .org* grid, tabs and rail.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The ring ──────────────────────────────────────────────────────────────
+   Three shares of one whole, drawn rather than charted. The status hues sit
+   under 3:1 against the page, so every arc is named and counted beside it —
+   colour is never the only channel. */
+.verring { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.verring svg { flex-shrink: 0; }
+.verring__key { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 150px; }
+.verring__key li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; font-size: .8rem; color: var(--text-muted);
+}
+.verring__key li + li { border-top: 1px dashed var(--border); }
+.verring__key i { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.verring__key span { flex: 1; }
+.verring__key b { color: var(--text); font-weight: 700; }
+
+/* ── The section rail ──────────────────────────────────────────────────────── */
+.verrail__title {
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted); margin: 22px 0 4px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.verrail__hint { font-size: .78rem; color: var(--text-muted); margin-bottom: 10px; }
+
+.versections { list-style: none; margin: 0; padding: 0; }
+.versections li + li { margin-top: 4px; }
+.versections button {
+  display:     grid;
+  grid-template-columns: minmax(0, 1fr) 70px 34px;
+  align-items: center;
+  gap:         10px;
+  width:       100%;
+  padding:     8px 10px;
+  border:      1px solid transparent;
+  border-radius: var(--radius);
+  background:  none;
+  font:        inherit;
+  text-align:  left;
+  cursor:      pointer;
+  transition:  background var(--transition), border-color var(--transition);
+}
+.versections button:hover { background: var(--bg); }
+.versections button.is-on { background: #eef2ff; border-color: #c7d2fe; }
+.versections__id b     { display: block; font-size: .82rem; font-weight: 600; }
+.versections__id small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 1px; }
+.versections__bar {
+  display: block; height: 6px; border-radius: 999px;
+  background: var(--border); overflow: hidden;
+}
+.versections__bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+.versections__pct { font-size: .76rem; font-weight: 700; text-align: right; }
+
+/* ── The queue table ───────────────────────────────────────────────────────── */
+.vercol-num   { width: 46px; color: var(--text-muted); font-size: .82rem; }
+.vercol-prog  { width: 170px; }
+.vercol-state { width: 130px; }
+
+.verwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.verwho__name { font-size: .88rem; font-weight: 600; color: inherit; text-decoration: none; }
+.verwho__name:hover { color: var(--primary); }
+.verwho__sub { font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+
+.verprog { display: flex; align-items: center; gap: 9px; }
+.verprog__bar {
+  flex: 1; height: 7px; border-radius: 999px;
+  background: var(--border); overflow: hidden; min-width: 70px;
+}
+.verprog__bar i { display: block; height: 100%; border-radius: 999px; background: var(--warning); }
+.verprog__bar--verified i { background: var(--success); }
+.verprog__bar--none i     { background: var(--danger); }
+.verprog__n { font-size: .78rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+
+/* ── Section chips ─────────────────────────────────────────────────────────
+   Each one carries its own label, so a state is never colour alone — and the
+   one that cannot be verified yet says why rather than looking merely pending. */
+.verchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.verchip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 999px;
+  font-size: .68rem; font-weight: 600; white-space: nowrap;
+  background: var(--bg); color: var(--text-muted); border: 1px solid var(--border);
+}
+.verchip--verified { background: #dcfce7; color: #047857; border-color: #a7f3d0; }
+.verchip--rejected { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.verchip--blocked  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
+/* ── The reviewer ──────────────────────────────────────────────────────────── */
+.verrow--review td { background: var(--bg); padding: 0 18px 16px; }
+.verreview__hint {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 0 12px;
+  font-size: .8rem; color: var(--text-muted);
+}
+.verreview__hint svg { color: var(--text-light); flex-shrink: 0; }
+
+.verrow {
+  display:     grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(200px, 2fr) 92px auto;
+  align-items: center;
+  gap:         12px;
+  padding:     11px 12px;
+  background:  var(--bg-card);
+  border:      1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.verrow + .verrow { margin-top: 8px; }
+.verrow--blocked { background: #fffbeb; border-color: #fde68a; }
+.verrow__id b     { display: block; font-size: .85rem; font-weight: 600; }
+.verrow__id small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.verrow__evidence { display: flex; flex-wrap: wrap; gap: 6px; }
+.verrow__acts     { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* Evidence: unopened is the thing to press, opened steps back. */
+.verdoc {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: var(--radius);
+  background: var(--primary); color: var(--text-on-primary);
+  border: 1px solid var(--primary);
+  font-size: .76rem; font-weight: 600; text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+.verdoc:hover  { background: var(--primary-dark); color: var(--text-on-primary); }
+.verdoc.is-seen {
+  background: var(--bg); color: var(--text-muted); border-color: var(--border);
+}
+.verdoc.is-seen svg { color: var(--success); }
+
+/* ── By section ────────────────────────────────────────────────────────────── */
+.versecgrid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap:                   14px;
+}
+.versec {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+.versec > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.versec__id b     { display: block; font-size: .9rem; font-weight: 700; }
+.versec__id small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+.versec__pct      { font-size: 1.1rem; font-weight: 700; }
+.versec__stuck {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 10px; padding: 7px 9px;
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius);
+  font-size: .74rem; color: #92400e;
+}
+.versec__toggle {
+  margin-top: 10px; padding: 0; border: none; background: none;
+  font: inherit; font-size: .78rem; font-weight: 600; color: var(--primary); cursor: pointer;
+}
+.versec__toggle:hover { text-decoration: underline; text-underline-offset: 3px; }
+.versec__list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.versec__list li + li { border-top: 1px solid var(--border); }
+.versec__list a {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; font-size: .82rem; color: inherit; text-decoration: none;
+}
+.versec__list a:hover { color: var(--primary); }
+
+/* ── Waiting on uploads ────────────────────────────────────────────────────── */
+.vermissing { list-style: none; margin: 0; padding: 0; }
+.vermissing li {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px;
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-lg);
+}
+.vermissing li + li { margin-top: 10px; }
+.vermissing__id { flex: 1 1 190px; min-width: 0; }
+.vermissing__id a     { font-size: .88rem; font-weight: 600; color: inherit; text-decoration: none; }
+.vermissing__id a:hover { color: var(--primary); }
+.vermissing__id small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+
+.verempty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 44px 16px; text-align: center;
+}
+.verempty svg  { color: var(--success); margin-bottom: 4px; }
+.verempty p    { font-size: .9rem; font-weight: 600; }
+.verempty span { font-size: .8rem; color: var(--text-muted); }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .verrow { grid-template-columns: minmax(0, 1fr); }
+  .verrow__acts { justify-content: flex-start; }
+}
+@media (max-width: 768px) {
+  .verring { justify-content: center; }
+  .versecgrid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A section already signed off: the state, with nothing to press. */
+.verrow__done {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .78rem; font-weight: 600; color: #047857;
+}
+
+/* ── The evidence, opened in place ─────────────────────────────────────────
+   Nothing on this screen navigates: the values and the scans are drawn into
+   the row itself, because a reviewer who leaves loses the queue they were
+   working through. */
+.verrow { display: block; }              /* was a grid of columns; now stacks */
+.verrow__top {
+  display:     grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap:         12px;
+}
+.verrow--open { border-color: #c7d2fe; }
+
+.verrow__open {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: var(--radius);
+  background: var(--primary); color: var(--text-on-primary);
+  border: 1px solid var(--primary);
+  font: inherit; font-size: .76rem; font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.verrow__open:hover { background: var(--primary-dark); }
+.verrow__open.is-on {
+  background: var(--bg); color: var(--text-muted); border-color: var(--border);
+}
+.verrow__open.is-on svg { color: var(--success); }
+
+.verevidence {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.verevidence--loading {
+  display: flex; align-items: center; gap: 10px;
+  font-size: .82rem; color: var(--text-muted);
+}
+.verevidence__warn {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 10px; padding: 8px 10px;
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius);
+  font-size: .78rem; color: #92400e;
+}
+
+/* The recorded values — what a field-based section actually is. */
+.verfields {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap:                   4px 20px;
+  margin:                0;
+}
+.verfields > div { display: flex; gap: 10px; padding: 6px 0; font-size: .82rem; border-bottom: 1px dashed var(--border); }
+.verfields dt { color: var(--text-muted); flex: 0 0 42%; }
+.verfields dd { margin: 0; flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+.verfields dd.is-blank { color: var(--text-light); font-weight: 400; font-style: italic; }
+
+/* The scans themselves, at a size a reviewer can actually read. */
+.verdocs {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap:                   12px;
+  margin-top:            12px;
+}
+.verdocview {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg);
+}
+.verdocview figcaption {
+  padding: 7px 11px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  font-size: .76rem; font-weight: 600;
+}
+.verdocview img {
+  display: block; width: 100%; max-height: 340px;
+  object-fit: contain; background: #fff;
+}
+.verdocview iframe { display: block; width: 100%; height: 340px; border: none; background: #fff; }
+.verdocview__none {
+  display: flex; align-items: center; gap: 7px;
+  padding: 16px 12px; font-size: .78rem; color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .verrow__top { grid-template-columns: minmax(0, 1fr); }
+  .verrow__acts { justify-content: flex-start; }
+}
+
+/* ── A document, full size over the page ───────────────────────────────────
+   Its own overlay rather than the shared .modal: this is one scan at whatever
+   size the screen allows, with no card or padding around it. The queue stays
+   mounted underneath, which is the point of reviewing in place. */
+.verdocview figcaption {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.verdocview figcaption button {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 0; border: none; background: none;
+  font: inherit; font-size: .72rem; font-weight: 600; color: var(--primary);
+  cursor: pointer;
+}
+.verdocview figcaption button:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* The image itself is the hit target — a scan is small in a card column. */
+.verdocview__hit {
+  display: block; width: 100%; padding: 0; border: none;
+  background: #fff; cursor: zoom-in;
+}
+
+.verlight {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; flex-direction: column;
+  background: rgba(15, 23, 42, .82);
+  backdrop-filter: blur(2px);
+  padding: 16px;
+}
+.verlight__bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  color: #fff; font-size: .88rem; font-weight: 600;
+  padding: 4px 6px 12px;
+}
+.verlight__bar button {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: rgba(255, 255, 255, .14); color: #fff;
+  cursor: pointer;
+}
+.verlight__bar button:hover { background: rgba(255, 255, 255, .26); }
+.verlight__stage {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.verlight__stage img {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  background: #fff; border-radius: var(--radius-lg);
+}
+.verlight__stage iframe {
+  width: 100%; height: 100%; border: none;
+  background: #fff; border-radius: var(--radius-lg);
+}
