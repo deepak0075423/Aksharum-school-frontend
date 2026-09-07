@@ -6275,3 +6275,103 @@ button.lstat:hover, a.lstat:hover {
   .ephero__acts .btn, .epmore, .epmore .btn { flex: 1; justify-content: center; }
   .eptiles { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — REPORTS
+   ───────────────────────────────────────────────────────────────────────────
+   Ten reports over one employee set. The filters are the point: the server
+   applies them to the preview AND to the download, so the table and the file
+   are the same rows. Built on the module's .edl-* frame.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The catalogue ─────────────────────────────────────────────────────────
+   Ten tabs wrap onto two rows and the page jumps a line whenever one is
+   picked, so this scrolls instead. */
+.edrtabs {
+  display:       flex;
+  gap:           4px;
+  overflow-x:    auto;
+  scrollbar-width: none;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:       6px;
+}
+.edrtabs::-webkit-scrollbar { display: none; }
+.edrtab {
+  display:     inline-flex;
+  align-items: center;
+  gap:         7px;
+  padding:     9px 14px;
+  border:      none;
+  border-radius: var(--radius);
+  background:  none;
+  font:        inherit;
+  font-size:   .84rem;
+  font-weight: 600;
+  color:       var(--text-muted);
+  white-space: nowrap;
+  cursor:      pointer;
+  transition:  background var(--transition), color var(--transition);
+}
+.edrtab:hover { background: var(--bg); color: var(--primary); }
+.edrtab.is-on { background: var(--primary); color: var(--text-on-primary); }
+.edrtab svg   { flex-shrink: 0; }
+
+/* ── What this report is ───────────────────────────────────────────────────── */
+.edrhead {
+  display:       flex;
+  align-items:   flex-start;
+  gap:           14px;
+  padding:       18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.edrhead__icon {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.edrhead > div { flex: 1; min-width: 0; }
+.edrhead h2 { font-size: 1rem; font-weight: 700; }
+.edrhead p  { font-size: .82rem; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+.edrhead__count {
+  flex-shrink: 0;
+  padding: 3px 11px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: .76rem; font-weight: 600; color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── What the export will contain ──────────────────────────────────────────
+   Stated, because filtering a table and then finding the whole school in the
+   spreadsheet is the kind of surprise that costs somebody an afternoon. */
+.edrnote {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px; padding: 9px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .78rem; line-height: 1.5; color: var(--text-muted);
+}
+.edrnote svg { color: var(--text-light); flex-shrink: 0; }
+
+/* ── The table ─────────────────────────────────────────────────────────────── */
+.edrtable__num { width: 46px; color: var(--text-muted); font-size: .82rem; }
+.edrtable th   { padding: 0; }
+.edrsort {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: 100%; padding: 11px 16px;
+  border: none; background: none;
+  font: inherit; font-size: inherit; font-weight: inherit;
+  color: inherit; text-align: left; cursor: pointer;
+  text-transform: inherit; letter-spacing: inherit;
+}
+.edrsort svg   { opacity: 0; color: var(--text-light); transition: opacity var(--transition); }
+.edrsort:hover { color: var(--primary); }
+.edrsort:hover svg { opacity: .5; }
+.edrsort.is-on { color: var(--primary); }
+.edrsort.is-on svg { opacity: 1; color: var(--primary); }
+
+@media (max-width: 768px) {
+  .edrhead { padding: 14px; }
+  .edrhead__count { order: 3; }
+}
