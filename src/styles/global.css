@@ -4592,3 +4592,120 @@ button.lstat:hover, a.lstat:hover {
   .sdsubject { flex-direction: column; align-items: flex-start; gap: 8px; }
   .sdsubject__id { flex: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUBJECTS — the list frame's extras
+   ───────────────────────────────────────────────────────────────────────────
+   Admin → Subjects is a listpg, but a subject is a catalogue entry that only
+   means something once it is used, so its widest cell is where it is taught
+   this year rather than anything about the row itself. Everything else is .l*
+   above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The identity cell ─────────────────────────────────────────────────────
+   A subject has no photograph and its neighbours look just like it, so the
+   mark is drawn from its type — theory, practical, elective — which is also
+   the thing an admin scans the column for. */
+.subwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.submark {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.subwho__name { font-size: .9rem; font-weight: 600; line-height: 1.3; }
+.subwho__sub  {
+  font-size: .75rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;
+}
+
+.subcode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .78rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px 7px;
+  color: var(--text);
+}
+
+/* ── Type ──────────────────────────────────────────────────────────────────── */
+.subtype {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px; border-radius: 999px;
+  font-size: .74rem; font-weight: 600; white-space: nowrap;
+}
+.subtype--indigo { background: #eef2ff; color: var(--primary); }
+.subtype--green  { background: #dcfce7; color: #047857; }
+.subtype--amber  { background: #fef3c7; color: #92400e; }
+
+/* ── Where it is taught ────────────────────────────────────────────────────
+   Three counts on one line, then the classes themselves — the counts answer
+   "is this set up", the names answer "where". */
+.subusage__counts {
+  display: flex; flex-wrap: wrap; gap: 4px 12px;
+  font-size: .78rem; color: var(--text-muted);
+}
+.subusage__counts b { color: var(--text); font-weight: 700; font-size: .84rem; }
+.subusage__where {
+  font-size: .73rem; color: var(--text-light); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px;
+}
+/* Not a gap — a state. */
+.subusage__none { font-size: .78rem; color: var(--text-light); }
+
+/* ── Column widths ─────────────────────────────────────────────────────────
+   Two cells hold prose and one holds three counts, so without a hint the
+   browser hands the usage column the whole table. */
+.subcol-name     { width: 220px; }
+.subcol-code     { width: 96px; }
+.subcol-type     { width: 104px; }
+.subcol-teachers { width: 180px; }
+.subcol-usage    { width: 240px; }
+.subcol-status   { width: 104px; }
+
+/* ── The teacher picker in the form ────────────────────────────────────────
+   A name and an email are not enough to tell two Priya Sharmas apart, so each
+   row carries the department and designation that do. */
+.subpool {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.subpool__row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.subpool__row + .subpool__row { border-top: 1px solid var(--border); }
+.subpool__row:hover     { background: var(--bg); }
+.subpool__row.is-picked { background: #eef2ff; }
+.subpool__row input     { width: 15px; height: 15px; margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+.subpool__name  { font-size: .87rem; font-weight: 600; }
+.subpool__name span { font-size: .72rem; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
+.subpool__mail  { font-size: .76rem; color: var(--text-muted); word-break: break-all; }
+.subpool__tags  { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.subpool__empty { font-size: .8rem; color: var(--text-muted); padding: 12px 14px; margin: 0; }
+
+/* ── Next steps ────────────────────────────────────────────────────────────
+   Each line is a real destination, so the panel reads as a route through the
+   setup rather than as advice. */
+.subnext { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.subnext a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  font-size: .85rem; font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+.subnext a:hover { background: #eef2ff; color: var(--primary); }
+.subnext a svg:first-child { color: var(--text-light); flex-shrink: 0; }
+.subnext a:hover svg { color: var(--primary); }
+.subnext a svg:last-child { margin-left: auto; flex-shrink: 0; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .subwho__sub, .subusage__where { max-width: 180px; }
+}
