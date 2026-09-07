@@ -258,12 +258,15 @@ export const deleteDocumentCategory   = (id)     => api.delete(`/admin/document-
 
 // Holidays
 export const getHolidayTypes        = ()         => api.get('/admin/holiday-types');
-export const updateHolidayTypes     = (holidayTypes) => api.put('/admin/holiday-types', { holidayTypes });
+export const updateHolidayTypes     = (holidayTypes, renames) => api.put('/admin/holiday-types', { holidayTypes, renames });
 export const getHolidays            = ()         => api.get('/admin/holidays');
 export const getMyHolidays          = ()         => api.get('/admin/holidays/mine');
 export const createHoliday          = (data)     => api.post('/admin/holidays', data);
 export const updateHoliday          = (id, data) => api.put(`/admin/holidays/${id}`, data);
 export const deleteHoliday          = (id)       => api.delete(`/admin/holidays/${id}`);
+export const bulkDeleteHolidays     = (ids)      => api.post('/admin/holidays/bulk-delete', { ids });
+// Same parse as the real import, writing nothing — what it returns is what would land.
+export const previewHolidayImport   = (fd)       => api.post('/admin/holidays/import?preview=1', fd).then(r => r.data ?? r);
 export const importHolidays         = (fd)       => api.post('/admin/holidays/import', fd).then(r => r.data ?? r);
 export const exportHolidays         = ()         => api.get('/admin/holidays/export',   { responseType: 'arraybuffer' }).then(r => r.data ?? r);
 export const downloadHolidayTemplate= ()         => api.get('/admin/holidays/template', { responseType: 'arraybuffer' }).then(r => r.data ?? r);

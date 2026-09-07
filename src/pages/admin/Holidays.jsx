@@ -1,432 +1,548 @@
-import { useState, useRef } from 'react';
+/**
+ * Admin → Holidays.
+ *
+ * Built on the frame the other admin lists use (listParts.jsx): a hero, four
+ * tiles that are also the filter, one card holding the toolbar and the table,
+ * and a rail beside it. A holiday is a record like any other here — searched,
+ * filtered, paged — but it is also a date, so the calendar sits next to the
+ * list and marks the days it holds.
+ *
+ * Two sets of holidays live behind the tabs. **Mine** is what the server says
+ * applies to the person looking (school-wide holidays; class-specific ones go
+ * to those classes' students and parents, never to staff). **All** is the
+ * school's calendar, which is the one an admin manages. Both arrive in one call
+ * each, so the filtering, the counting and the pager are all local.
+ */
+import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { PageHeader, Table, Button, Modal, Confirm, Spinner, Badge } from '../../components/ui/index';
+import { useAuth } from '../../contexts/AuthContext';
+import { Alert, Button, Confirm, Empty, Spinner } from '../../components/ui/index';
+import Icon, { SchoolScene, SupportScene } from '../../components/ui/icons';
+import {
+  Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
+  RowActions, IconAction, SelectionBar, useSelection, HelpPanel, PageFoot,
+} from './listParts';
+import {
+  AppliesCell, DateCell, HolidayCell, HolidayForm, ImportDialog, MineList,
+  MonthCalendar, STATUS, TypeChip, TypesDialog, TypesPanel, UpcomingPanel,
+  dayKey, daysOf, formFrom, spanDays, statusOf, today,
+} from './holidayParts';
 
-// Types are managed per school; these only style/label the legacy slugs
-const TYPE_VARIANT = {
-  public:          'success',
-  school_specific: 'info',
-  optional:        'warning',
-  exam_break:      'danger',
-};
+const TABS = [
+  { value: 'all',      label: 'All holidays' },
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'ongoing',  label: 'On now' },
+  { value: 'past',     label: 'Past' },
+];
 
-const TYPE_LABEL = {
-  public:          'Public',
-  school_specific: 'School',
-  optional:        'Optional',
-  exam_break:      'Exam Break',
-};
-
-const EMPTY_FORM = {
-  name: '', startDate: '', endDate: '', type: '', description: '',
-  applicability: { scope: 'all', classes: [] },
-};
-
-function fmtDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function fmtDateRange(h) {
-  const s = h.startDate;
-  const e = h.endDate;
-  if (!s) return '—';
-  const sStr = fmtDate(s);
-  if (!e) return sStr;
-  const sIso = new Date(s).toISOString().slice(0, 10);
-  const eIso = new Date(e).toISOString().slice(0, 10);
-  return sIso === eIso ? sStr : `${sStr} – ${fmtDate(e)}`;
-}
-
-function durationDays(h) {
-  if (!h.startDate || !h.endDate) return 1;
-  const diff = new Date(h.endDate) - new Date(h.startDate);
-  return Math.round(diff / 86400000) + 1;
-}
-
-function isUpcoming(h) {
-  return new Date(h.endDate || h.startDate) >= new Date();
-}
-
-const myColumns = [
-  { key: 'name',  label: 'Holiday',  render: r => <strong>{r.name}</strong> },
-  { key: 'dates', label: 'Date(s)',  render: r => (
-      <div>
-        <div style={{ fontSize: '.85rem' }}>{fmtDateRange(r)}</div>
-        {durationDays(r) > 1 && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{durationDays(r)} days</div>}
-      </div>
-    )
-  },
-  { key: 'type', label: 'Type', render: r => <Badge variant={TYPE_VARIANT[r.type] || 'info'}>{TYPE_LABEL[r.type] || r.type}</Badge> },
-  { key: 'desc', label: 'Note', render: r => <span className="text-muted text-sm">{r.description || '—'}</span> },
+const SORTS = [
+  { value: 'date',    label: 'Date (soonest first)' },
+  { value: 'dateDsc', label: 'Date (latest first)' },
+  { value: 'name',    label: 'Name (A–Z)' },
+  { value: 'length',  label: 'Longest first' },
 ];
 
 export default function Holidays() {
-  const [tab, setTab] = useState('mine');
+  const { user: me } = useAuth();
 
-  const { data: myHolidays,  loading: myLoading  } = useFetch(api.getMyHolidays);
-  const { data: allHolidays, loading: allLoading, refetch } = useFetch(api.getHolidays);
-  const { data: classesData } = useFetch(api.getClasses);
-  const classes = classesData || [];
+  const { data: mineData,  loading: mineLoading }  = useFetch(api.getMyHolidays);
+  const { data: allData,   loading: allLoading, error, refetch } = useFetch(api.getHolidays);
+  const { data: typeData,  refetch: refetchTypes } = useFetch(api.getHolidayTypes);
+  const { data: classData } = useFetch(api.getClasses);
 
-  const [modal,       setModal]       = useState(false);
-  const [editItem,    setEditItem]    = useState(null);
-  const [del,         setDel]         = useState(null);
-  const [saving,      setSaving]      = useState(false);
-  const [delLoad,     setDL]          = useState(false);
-  const [form,        setForm]        = useState(EMPTY_FORM);
-  const [importing,   setImporting]   = useState(false);
-  const [importModal, setImportModal] = useState(false);
-  const fileRef = useRef();
+  const all     = useMemo(() => allData || [], [allData]);
+  const mine    = useMemo(() => mineData || [], [mineData]);
+  const types   = useMemo(() => (Array.isArray(typeData) ? typeData : []), [typeData]);
+  const classes = useMemo(() => classData || [], [classData]);
+  const classNames = useMemo(
+    () => Object.fromEntries(classes.map((c) => [String(c._id), c.className])),
+    [classes],
+  );
 
-  const openCreate = () => {
-    setForm({ ...EMPTY_FORM, type: holidayTypes[0] || '' });
-    setEditItem(null);
-    setModal('create');
-  };
+  const [view,   setView]   = useState('manage');   // manage | mine
+  const [tab,    setTab]    = useState('all');
+  const [search, setSearch] = useState('');
+  const [term,   setTerm]   = useState('');
+  const [type,   setType]   = useState('');
+  const [year,   setYear]   = useState('');
+  const [sort,   setSort]   = useState('date');
+  const [page,   setPage]   = useState(1);
+  const [limit,  setLimit]  = useState(10);
 
-  const openEdit = (h) => {
-    setForm({
-      name:        h.name,
-      startDate:   h.startDate ? new Date(h.startDate).toISOString().slice(0, 10) : '',
-      endDate:     h.endDate   ? new Date(h.endDate).toISOString().slice(0, 10)   : '',
-      type:        h.type,
-      description: h.description || '',
-      applicability: {
-        // legacy department-scoped holidays open as school-wide
-        scope:   h.applicability?.scope === 'specific_classes' ? 'specific_classes' : 'all',
-        classes: (h.applicability?.classes || []).map(c => c._id?.toString() || c.toString()),
-      },
-    });
-    setEditItem(h);
-    setModal('edit');
-  };
+  const [month, setMonth] = useState(() => { const n = new Date(); return [n.getFullYear(), n.getMonth()]; });
 
-  // Holiday types are school-managed, like teacher designations
-  const { data: typeData, refetch: refetchTypes } = useFetch(api.getHolidayTypes);
-  const holidayTypes = Array.isArray(typeData) ? typeData : [];
-  const [typeModal, setTypeModal]   = useState(false);
-  const [newType, setNewType]       = useState('');
+  const [editing, setEditing] = useState(null);     // 'new' | holiday
+  const [form,    setForm]    = useState(() => formFrom(null, []));
+  const [saving,  setSaving]  = useState(false);
+  const [formErr, setFormErr] = useState('');
+  const [del,     setDel]     = useState(null);
+  const [bulkDel, setBulkDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const [typesOpen, setTypesOpen] = useState(false);
   const [typeSaving, setTypeSaving] = useState(false);
 
-  const saveTypes = async (list) => {
-    setTypeSaving(true);
-    try { await api.updateHolidayTypes(list); refetchTypes(); }
-    catch (err) { toast.error(err.message); }
-    finally { setTypeSaving(false); }
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [file, setFile] = useState(null);
+
+  // A request per keystroke is a request per keystroke; wait for a pause.
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search.trim()); setPage(1); }, 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const source = view === 'mine' ? mine : all;
+  const loading = view === 'mine' ? mineLoading : allLoading;
+
+  // ── Counts ─────────────────────────────────────────────────────────────────
+  const counts = useMemo(() => {
+    const c = { total: source.length, upcoming: 0, ongoing: 0, past: 0, days: 0, scoped: 0 };
+    source.forEach((h) => {
+      c[statusOf(h)] += 1;
+      c.days += spanDays(h);
+      if ((h.applicability?.scope || 'all') === 'specific_classes') c.scoped += 1;
+    });
+    return c;
+  }, [source]);
+
+  const typeCounts = useMemo(() => {
+    const c = {};
+    all.forEach((h) => { c[h.type] = (c[h.type] || 0) + 1; });
+    return c;
+  }, [all]);
+
+  // The years actually present on the holidays, so the filter never offers a
+  // year that would empty the table.
+  const years = useMemo(() => {
+    const seen = new Map();
+    all.forEach((h) => {
+      const y = h.academicYear;
+      if (y?._id) seen.set(String(y._id), y.yearName || y.label || y.year || 'Year');
+    });
+    return [...seen].map(([id, name]) => ({ id, name }));
+  }, [all]);
+  const hasUnassignedYear = useMemo(() => all.some((h) => !h.academicYear), [all]);
+
+  // ── The list ───────────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const q = term.toLowerCase();
+    let rows = source.filter((h) => {
+      if (tab !== 'all' && statusOf(h) !== tab) return false;
+      if (type && h.type !== type) return false;
+      if (year) {
+        const id = h.academicYear?._id ? String(h.academicYear._id) : '';
+        if (year === 'none' ? id : id !== year) return false;
+      }
+      if (!q) return true;
+      return [h.name, h.description, h.type].filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+    rows = [...rows].sort((a, b) => {
+      if (sort === 'name')   return a.name.localeCompare(b.name);
+      if (sort === 'length') return spanDays(b) - spanDays(a);
+      const cmp = dayKey(a.startDate).localeCompare(dayKey(b.startDate));
+      return sort === 'dateDsc' ? -cmp : cmp;
+    });
+    return rows;
+  }, [source, tab, type, year, term, sort]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / limit));
+  const start = (Math.min(page, pages) - 1) * limit;
+  const shown = filtered.slice(start, start + limit);
+  const anyFilter = !!term || tab !== 'all' || !!type || !!year;
+
+  const queryKey = `${view}|${tab}|${type}|${year}|${term}|${sort}|${page}|${limit}`;
+  const selection = useSelection(shown, queryKey);
+
+  // The calendar always shows the whole school's calendar for the open month —
+  // it is a calendar, not a copy of the filtered table.
+  const byDay = useMemo(() => {
+    const map = {};
+    source.forEach((h) => daysOf(h).forEach((d) => { (map[d] ||= []).push(h); }));
+    return map;
+  }, [source]);
+
+  const upcoming = useMemo(
+    () => source.filter((h) => statusOf(h) !== 'past')
+      .sort((a, b) => dayKey(a.startDate).localeCompare(dayKey(b.startDate)))
+      .slice(0, 5),
+    [source],
+  );
+  const next30 = useMemo(() => {
+    const t = today();
+    const limitKey = new Date(Date.parse(`${t}T00:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10);
+    return source.filter((h) => {
+      const s = dayKey(h.startDate);
+      const e = dayKey(h.endDate) || s;
+      return e >= t && s <= limitKey;
+    }).length;
+  }, [source]);
+
+  const pick = (value) => { setTab(value); setPage(1); };
+  const clearAll = () => {
+    setTab('all'); setSearch(''); setTerm(''); setType(''); setYear(''); setPage(1);
   };
 
-  const addType = async (e) => {
+  // ── Create / edit ──────────────────────────────────────────────────────────
+  const openNew = () => { setFormErr(''); setForm(formFrom(null, types)); setEditing('new'); };
+  const openEdit = (h) => { setFormErr(''); setForm(formFrom(h, types)); setEditing(h); };
+
+  const save = async (e) => {
     e.preventDefault();
-    const name = newType.trim();
-    if (!name) return;
-    if (holidayTypes.some(t => t.toLowerCase() === name.toLowerCase())) return toast.error('Already exists');
-    await saveTypes([...holidayTypes, name]);
-    setNewType('');
-  };
+    const end = form.mode === 'single' ? form.startDate : (form.endDate || form.startDate);
+    if (!form.name.trim())  return setFormErr('Give the holiday a name.');
+    if (!form.startDate)    return setFormErr('Pick a date.');
+    if (!form.type)         return setFormErr('Choose a holiday type.');
+    if (end < form.startDate) return setFormErr('The last day cannot be before the first.');
+    if (form.scope === 'specific_classes' && !form.classes.length)
+      return setFormErr('Choose at least one class, or set it to the whole school.');
 
-  const removeType = async (name) => {
-    if (holidayTypes.length <= 1) return toast.error('Keep at least one holiday type');
-    await saveTypes(holidayTypes.filter(t => t !== name));
-  };
-
-  const setApply = (patch) =>
-    setForm(f => ({ ...f, applicability: { ...f.applicability, ...patch } }));
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim())    return toast.error('Holiday name is required');
-    if (!form.startDate)      return toast.error('Start date is required');
-    if (!form.type)           return toast.error('Holiday type is required');
-    if (!form.endDate)        return toast.error('End date is required');
-    if (form.endDate < form.startDate) return toast.error('End date must be on or after start date');
-    if (form.applicability.scope === 'specific_classes' && !form.applicability.classes.length)
-      return toast.error('Select at least one class');
+    const body = {
+      name: form.name.trim(),
+      startDate: form.startDate,
+      endDate: end,
+      type: form.type,
+      description: form.description.trim(),
+      applicability: { scope: form.scope, classes: form.scope === 'specific_classes' ? form.classes : [] },
+    };
 
     setSaving(true);
     try {
-      if (modal === 'edit') {
-        await api.updateHoliday(editItem._id, form);
-        toast.success('Holiday updated');
+      if (editing === 'new') {
+        await api.createHoliday({ ...body, notify: form.notify });
+        toast.success(form.notify ? 'Holiday added — everyone notified' : 'Holiday added');
       } else {
-        await api.createHoliday(form);
-        toast.success('Holiday added — notifications sent');
+        await api.updateHoliday(editing._id, body);
+        toast.success('Holiday updated');
       }
-      setModal(false);
+      setEditing(null);
+      refetch();
+    } catch (err) {
+      setFormErr(err.response?.data?.message || err.message);
+    } finally { setSaving(false); }
+  };
+
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteHoliday(del._id);
+      toast.success(`“${del.name}” deleted`);
+      setDel(null);
       refetch();
     } catch (err) { toast.error(err.response?.data?.message || err.message); }
-    finally { setSaving(false); }
+    finally { setDeleting(false); }
   };
 
-  const handleDelete = async () => {
-    setDL(true);
-    try { await api.deleteHoliday(del._id); toast.success('Deleted'); setDel(null); refetch(); }
-    catch (err) { toast.error(err.response?.data?.message || err.message); }
-    finally { setDL(false); }
-  };
-
-  const handleExport = async () => {
+  const removeSelected = async () => {
+    setDeleting(true);
     try {
-      const res = await api.exportHolidays();
+      const res = await api.bulkDeleteHolidays(selection.ids);
+      const n = res?.deleted ?? selection.ids.length;
+      toast.success(`${n} holiday${n === 1 ? '' : 's'} deleted`);
+      setBulkDel(false);
+      selection.clear();
+      refetch();
+    } catch (err) { toast.error(err.response?.data?.message || err.message); }
+    finally { setDeleting(false); }
+  };
+
+  // ── Types ──────────────────────────────────────────────────────────────────
+  const saveTypes = async (list, renames) => {
+    setTypeSaving(true);
+    try {
+      await api.updateHolidayTypes(list, renames);
+      refetchTypes();
+      if (renames?.length) refetch();     // holidays were carried to the new name
+      toast.success('Holiday types saved');
+    } catch (err) {
+      // Refused because holidays still wear a type being removed — the server
+      // says how many, which is the only useful thing to show.
+      toast.error(err.response?.data?.message || err.message);
+    } finally { setTypeSaving(false); }
+  };
+
+  // ── Import / export ────────────────────────────────────────────────────────
+  const grabFile = async (blobPromise, filename) => {
+    try {
+      const res = await blobPromise;
       const url = URL.createObjectURL(new Blob([res]));
-      const a = document.createElement('a'); a.href = url; a.download = 'holidays.xlsx'; a.click();
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
     } catch (err) { toast.error(err.message); }
   };
 
-  const handleTemplate = async () => {
+  const onImportFile = async (f) => {
+    setFile(f);
+    setPreview(null);
+    setImportBusy(true);
     try {
-      const res = await api.downloadHolidayTemplate();
-      const url = URL.createObjectURL(new Blob([res]));
-      const a = document.createElement('a'); a.href = url; a.download = 'holiday_template.xlsx'; a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) { toast.error(err.message); }
+      const fd = new FormData();
+      fd.append('csvFile', f);
+      setPreview(await api.previewHolidayImport(fd));
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message);
+      setFile(null);
+    } finally { setImportBusy(false); }
   };
 
-  const handleImportFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    e.target.value = '';
-    setImporting(true);
+  const confirmImport = async () => {
+    setImportBusy(true);
     try {
       const fd = new FormData();
       fd.append('csvFile', file);
       const res = await api.importHolidays(fd);
       toast.success(`Imported ${res.imported ?? 0} holidays`);
-      if (res.errors?.length) toast.error(`${res.errors.length} rows had errors`);
-      setImportModal(false);
+      setImportOpen(false); setFile(null); setPreview(null);
       refetch();
     } catch (err) { toast.error(err.response?.data?.message || err.message); }
-    finally { setImporting(false); }
+    finally { setImportBusy(false); }
   };
 
-  const myData  = myHolidays  || [];
-  const allData = allHolidays || [];
-  const myUpcoming  = myData.filter(isUpcoming).length;
-  const allUpcoming = allData.filter(isUpcoming).length;
+  const closeImport = () => { setImportOpen(false); setFile(null); setPreview(null); };
 
-  const manageColumns = [
-    { key: 'name',          label: 'Holiday',       render: r => <strong>{r.name}</strong> },
-    { key: 'dates',         label: 'Date(s)',        render: r => (
-        <div>
-          <div style={{ fontSize: '.85rem' }}>{fmtDateRange(r)}</div>
-          {durationDays(r) > 1 && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{durationDays(r)} days</div>}
-        </div>
-      )
+  // ── Columns ────────────────────────────────────────────────────────────────
+  const columns = [
+    { key: 'name',  className: 'holcol-name',  label: 'Holiday',  render: (r) => <HolidayCell h={r} /> },
+    { key: 'dates', className: 'holcol-dates', label: 'Date(s)',  render: (r) => <DateCell h={r} /> },
+    { key: 'type',  className: 'holcol-type',  label: 'Type',     render: (r) => <TypeChip type={r.type} types={types} /> },
+    {
+      key: 'applies',
+      className: 'holcol-app',
+      label: 'Applies to',
+      render: (r) => <AppliesCell h={r} classNames={classNames} />,
     },
-    { key: 'type',          label: 'Type',           render: r => <Badge variant={TYPE_VARIANT[r.type] || 'info'}>{TYPE_LABEL[r.type] || r.type}</Badge> },
-    { key: 'applicability', label: 'Applicability',  render: r => {
-        const scope = r.applicability?.scope || 'all';
-        if (scope === 'all') return <Badge variant="info">All</Badge>;
-        if (scope === 'specific_classes') {
-          const cnt = r.applicability?.classes?.length || 0;
-          return <Badge variant="warning">{cnt} Class{cnt !== 1 ? 'es' : ''}</Badge>;
-        }
-        return <Badge variant="info">All</Badge>;
-      }
+    {
+      key: 'status',
+      className: 'holcol-status',
+      label: 'Status',
+      render: (r) => {
+        const s = STATUS[statusOf(r)];
+        return <span className={`holstatus is-${statusOf(r)}`}>{s.label}</span>;
+      },
     },
-    { key: 'description',   label: 'Description',   render: r => <span className="text-muted text-sm">{r.description || '—'}</span> },
-    { key: 'actions',       label: '',              render: r => (
-        <div className="actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>
-          <button className="btn btn-danger btn-sm"    onClick={() => setDel(r)}>Delete</button>
-        </div>
-      )
+    {
+      key: 'actions',
+      className: 'ltable__acts',
+      label: 'Actions',
+      render: (r) => (
+        <RowActions>
+          <IconAction icon="pencil" label="Edit holiday" variant="edit" onClick={() => openEdit(r)} />
+          <IconAction icon="trash" label="Delete holiday" variant="danger" onClick={() => setDel(r)} />
+        </RowActions>
+      ),
     },
   ];
 
+  if (loading && !source.length) return <div className="loading-page"><Spinner /></div>;
+
   return (
-    <div className="page">
-      <PageHeader
+    <div className="page listpg holpg">
+      <Crumbs here="Holidays" />
+
+      <ListHero
         title="Holidays"
-        subtitle={tab === 'mine'
-          ? `${myData.length} holidays · ${myUpcoming} upcoming`
-          : `${allData.length} total · ${allUpcoming} upcoming`
-        }
-        action={
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {tab === 'manage' && <Button variant="secondary" onClick={() => setTypeModal(true)}>⚙️ Holiday Types</Button>}
-            {tab === 'manage' && <Button variant="secondary" onClick={() => setImportModal(true)}>⬆ Import</Button>}
-            <Button variant="secondary" onClick={handleExport}>⬇ Export</Button>
-            {tab === 'manage' && <Button onClick={openCreate}>+ Add Holiday</Button>}
-          </div>
-        }
+        subtitle="The school's calendar of days off — public holidays, festivals, breaks and one-off closures."
+        quote="Everyone plans around this list: it reaches students, parents and staff the moment a holiday is added."
+        scene={SchoolScene}
       />
 
-      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
-        onChange={handleImportFile} />
+      <ListStats>
+        <ListStat icon="calendar" tone="indigo" value={counts.total} label="Holidays"
+          caption={counts.days ? `${counts.days} days off in total` : 'Nothing on the calendar yet'}
+          on={tab === 'all'} onClick={() => pick('all')} />
+        <ListStat icon="sunrise" tone="green" value={counts.upcoming} label="Upcoming"
+          caption={next30 ? `${next30} in the next 30 days` : 'None in the next 30 days'}
+          on={tab === 'upcoming'} onClick={() => pick('upcoming')} />
+        <ListStat icon="clock" tone="amber" value={counts.past} label="Past"
+          caption="Already been this year" on={tab === 'past'} onClick={() => pick('past')} />
+        <ListStat icon="users" tone="purple" value={counts.scoped} label="Class-specific"
+          caption={counts.scoped ? 'Not school-wide' : 'Every holiday is school-wide'} />
+      </ListStats>
 
-      <div className="tabs" style={{ marginBottom: '1rem' }}>
-        <button className={`tab${tab === 'mine' ? ' active' : ''}`} onClick={() => setTab('mine')}>
-          My Holidays
-        </button>
-        <button className={`tab${tab === 'manage' ? ' active' : ''}`} onClick={() => setTab('manage')}>
-          Manage All Holidays
-        </button>
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      <div className="holgrid">
+        <section className="card">
+          <div className="ltabs">
+            <button type="button" className={`ltab${view === 'manage' ? ' is-on' : ''}`}
+              aria-pressed={view === 'manage'}
+              onClick={() => { setView('manage'); clearAll(); }}>
+              School calendar ({all.length})
+            </button>
+            <button type="button" className={`ltab${view === 'mine' ? ' is-on' : ''}`}
+              aria-pressed={view === 'mine'}
+              onClick={() => { setView('mine'); clearAll(); }}>
+              Applies to me ({mine.length})
+            </button>
+          </div>
+
+          {view === 'mine' ? (
+            <div className="holminewrap">
+              <p className="holhint">
+                <Icon name="alert" size={13} />
+                What you would see as a member of staff. Class-specific holidays go to those
+                classes&rsquo; students and parents, so they are not listed here.
+              </p>
+              {mineLoading
+                ? <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
+                : mine.length
+                  ? <MineList holidays={mine} types={types} />
+                  : (
+                    <Empty icon="🗓️" title="No holidays apply to you yet"
+                      message="School-wide holidays on the calendar will show up here."
+                      action={<Button onClick={() => setView('manage')}>See the school calendar</Button>} />
+                  )}
+            </div>
+          ) : (
+            <>
+              <div className="ltabs ltabs--sub">
+                {TABS.map((t) => (
+                  <button key={t.value} type="button" aria-pressed={tab === t.value}
+                    className={`ltab${tab === t.value ? ' is-on' : ''}`} onClick={() => pick(t.value)}>
+                    {t.label} ({t.value === 'all' ? counts.total : counts[t.value]})
+                  </button>
+                ))}
+              </div>
+
+              <div className="ltools">
+                <SearchField value={search} onChange={setSearch} placeholder="Search holidays…" />
+
+                <select className={`form-control lsel${type ? ' lfsel--on' : ''}`} value={type}
+                  onChange={(e) => { setType(e.target.value); setPage(1); }} aria-label="Filter by type">
+                  <option value="">All types</option>
+                  {types.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+
+                {/* Only offered when there is more than one year to choose
+                    between — a filter with one option filters nothing. */}
+                {(years.length > 1 || (years.length === 1 && hasUnassignedYear)) && (
+                  <select className={`form-control lsel${year ? ' lfsel--on' : ''}`} value={year}
+                    onChange={(e) => { setYear(e.target.value); setPage(1); }} aria-label="Filter by academic year">
+                    <option value="">All years</option>
+                    {years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
+                    {hasUnassignedYear && <option value="none">No year set</option>}
+                  </select>
+                )}
+
+                <select className={`form-control lsel${sort !== 'date' ? ' lfsel--on' : ''}`} value={sort}
+                  onChange={(e) => { setSort(e.target.value); setPage(1); }} aria-label="Sort holidays">
+                  {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
+                </select>
+
+                <span className="ltools__sep" />
+
+                <div className="ltools__acts">
+                  <Button variant="secondary" onClick={() => setTypesOpen(true)}>
+                    <Icon name="layers" size={16} /> Types
+                  </Button>
+                  <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                    <Icon name="upload" size={16} /> Import
+                  </Button>
+                  <Button variant="secondary" disabled={!all.length}
+                    onClick={() => grabFile(api.exportHolidays(), 'holidays.xlsx')}>
+                    <Icon name="download" size={16} /> Export
+                  </Button>
+                  <Button onClick={openNew}>
+                    <Icon name="plus" size={16} /> Add Holiday
+                  </Button>
+                </div>
+              </div>
+
+              <SelectionBar count={selection.ids.length} noun="holiday" onClear={selection.clear}>
+                <Button variant="danger" size="sm" onClick={() => setBulkDel(true)}>
+                  <Icon name="trash" size={15} /> Delete
+                </Button>
+              </SelectionBar>
+
+              <ListTable
+                columns={columns}
+                rows={shown}
+                loading={loading}
+                selection={selection}
+                startIndex={start}
+                emptyIcon={anyFilter ? '🔍' : '🗓️'}
+                emptyTitle={anyFilter ? 'No holidays match these filters' : 'No holidays yet'}
+                emptyMessage={anyFilter
+                  ? 'Try another tab, type or search term.'
+                  : 'Add the school’s days off, or import a year’s calendar from a spreadsheet.'}
+                emptyAction={anyFilter
+                  ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+                  : <Button onClick={openNew}>+ Add Holiday</Button>}
+              />
+
+              <ListFooter
+                page={Math.min(page, pages)} pages={pages} total={filtered.length}
+                limit={limit} count={shown.length} noun="holiday"
+                onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
+              />
+            </>
+          )}
+        </section>
+
+        <aside className="holside">
+          <MonthCalendar
+            title={view === 'mine' ? 'Your calendar' : 'School calendar'}
+            month={month} onMonth={setMonth} byDay={byDay} types={types}
+            onPick={view === 'manage' ? openEdit : undefined}
+          />
+          <UpcomingPanel holidays={upcoming} types={types}
+            onPick={view === 'manage' ? openEdit : undefined} />
+          {view === 'manage' && (
+            <TypesPanel types={types} counts={typeCounts} onManage={() => setTypesOpen(true)} />
+          )}
+        </aside>
       </div>
 
-      {tab === 'mine' && (
-        <div className="card">
-          <div className="card-body" style={{ padding: 0 }}>
-            {myLoading
-              ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              : <Table columns={myColumns} data={myData} emptyIcon="🎉" emptyTitle="No holidays for you" />
-            }
-          </div>
-        </div>
-      )}
+      <div className="lbottom">
+        <HelpPanel scene={SupportScene}
+          text="A new holiday notifies everyone it applies to as soon as it is saved — editing one does not, so fix a wrong date before people plan around it. A holiday type cannot be deleted while holidays still use it; rename it and they come with it." />
+      </div>
 
-      {tab === 'manage' && (
-        <div className="card">
-          <div className="card-body" style={{ padding: 0 }}>
-            {allLoading
-              ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              : <Table columns={manageColumns} data={allData} emptyIcon="🎉" emptyTitle="No holidays configured"
-                  emptySubtitle="Add holidays manually or import from an Excel file." />
-            }
-          </div>
-        </div>
-      )}
+      <PageFoot schoolName={me?.school?.name} />
 
-      {/* Import modal */}
-      <Modal open={importModal} onClose={() => setImportModal(false)} title="Import Holidays"
-        footer={<Button variant="secondary" onClick={() => setImportModal(false)}>Close</Button>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <p className="text-muted" style={{ margin: 0, fontSize: '.9rem' }}>
-            Download the template, fill in your holidays, then upload the completed file.
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '1.4rem' }}>📄</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: '.88rem' }}>Holiday Import Template</div>
-              <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>Excel file with required columns</div>
-            </div>
-            <Button variant="secondary" onClick={handleTemplate}>⬇ Download</Button>
-          </div>
-          <div
-            onClick={() => !importing && fileRef.current?.click()}
-            style={{
-              border: '2px dashed var(--border)', borderRadius: 8, padding: '28px 20px',
-              textAlign: 'center', cursor: importing ? 'default' : 'pointer',
-              background: 'var(--surface)', transition: 'border-color .15s',
-            }}
-            onMouseEnter={e => { if (!importing) e.currentTarget.style.borderColor = 'var(--primary)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-          >
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>⬆️</div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              {importing ? 'Importing…' : 'Click to upload file'}
-            </div>
-            <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Supports .xlsx, .xls, .csv</div>
-            {importing && <div style={{ marginTop: 10 }}><Spinner size="sm" /></div>}
-          </div>
-        </div>
-      </Modal>
+      {/* ── Overlays ─────────────────────────────────────────────────────────── */}
+      <HolidayForm
+        open={!!editing}
+        holiday={editing === 'new' ? null : editing}
+        form={form} setForm={setForm}
+        types={types} classes={classes} holidays={all}
+        saving={saving} error={formErr}
+        onClose={() => { setEditing(null); setFormErr(''); }}
+        onSave={save}
+      />
 
-      {/* Create / Edit modal */}
-      <Modal open={!!modal} onClose={() => setModal(false)}
-        title={modal === 'edit' ? 'Edit Holiday' : 'Add Holiday'}
-        footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="holiday-form" type="submit" loading={saving}>
-            {modal === 'edit' ? 'Save Changes' : 'Add'}
-          </Button>
-        </>}>
-        <form id="holiday-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label required">Holiday Name</label>
-            <input className="form-control" required autoFocus
-              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Diwali" />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="form-group">
-              <label className="form-label required">Start Date</label>
-              <input type="date" className="form-control" required
-                value={form.startDate}
-                onChange={e => setForm(f => ({ ...f, startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">End Date</label>
-              <input type="date" className="form-control" required
-                value={form.endDate} min={form.startDate}
-                onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Type</label>
-            <select className="form-control" value={form.type}
-              onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option value="">— Select —</option>
-              {holidayTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Applicability</label>
-            <select className="form-control" value={form.applicability.scope}
-              onChange={e => setApply({ scope: e.target.value, classes: [] })}>
-              <option value="all">All (Teachers, Students &amp; Parents)</option>
-              <option value="specific_classes">Specific Classes</option>
-            </select>
-          </div>
-          {form.applicability.scope === 'specific_classes' && (
-            <div className="form-group">
-              <label className="form-label">Select Classes</label>
-              {classes.length === 0 ? (
-                <p className="text-muted text-sm">No classes available.</p>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, maxHeight: 160, overflowY: 'auto' }}>
-                  {classes.map(cls => (
-                    <label key={cls._id} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '.88rem' }}>
-                      <input type="checkbox"
-                        checked={form.applicability.classes.includes(cls._id)}
-                        onChange={e => {
-                          const ids = form.applicability.classes;
-                          setApply({ classes: e.target.checked ? [...ids, cls._id] : ids.filter(id => id !== cls._id) });
-                        }}
-                      />
-                      {cls.className}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="form-group">
-            <label className="form-label">Description</label>
-            <textarea className="form-control" rows={2}
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Optional notes about this holiday" />
-          </div>
-        </form>
-      </Modal>
+      <TypesDialog
+        open={typesOpen}
+        types={types}
+        counts={typeCounts}
+        saving={typeSaving}
+        onClose={() => setTypesOpen(false)}
+        onSave={saveTypes}
+      />
 
-      {/* ── Manage Holiday Types ─────────────────────────────────────────── */}
-      <Modal open={typeModal} onClose={() => setTypeModal(false)} title="Manage Holiday Types">
-        <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-          These options appear in the Type dropdown when adding or editing a holiday.
-        </p>
-        <form onSubmit={addType} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <input className="form-control" placeholder="e.g. Regional Festival"
-            value={newType} onChange={e => setNewType(e.target.value)} />
-          <Button type="submit" loading={typeSaving}>Add</Button>
-        </form>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
-          {holidayTypes.map(t => (
-            <div key={t} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-              <span style={{ fontSize: '.9rem' }}>{t}</span>
-              <button className="btn btn-danger btn-sm" disabled={typeSaving} onClick={() => removeType(t)}>✕</button>
-            </div>
-          ))}
-        </div>
-      </Modal>
+      <ImportDialog
+        open={importOpen}
+        busy={importBusy}
+        preview={preview}
+        fileName={file?.name}
+        onClose={closeImport}
+        onTemplate={() => grabFile(api.downloadHolidayTemplate(), 'holiday_template.xlsx')}
+        onFile={onImportFile}
+        onConfirm={confirmImport}
+      />
 
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
-        loading={delLoad} title="Delete Holiday"
-        message={`Delete "${del?.name}"? This cannot be undone.`} />
+      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove}
+        loading={deleting} title="Delete holiday"
+        message={`Delete “${del?.name}”? It disappears from everyone's calendar. This cannot be undone.`} />
+
+      <Confirm open={bulkDel} onClose={() => setBulkDel(false)} onConfirm={removeSelected}
+        loading={deleting} title="Delete holidays"
+        message={`Delete ${selection.ids.length} holiday${selection.ids.length === 1 ? '' : 's'}? They disappear from everyone's calendar. This cannot be undone.`} />
     </div>
   );
 }
