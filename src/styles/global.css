@@ -6060,3 +6060,218 @@ button.lstat:hover, a.lstat:hover {
   width: 100%; height: 100%; border: none;
   background: #fff; border-radius: var(--radius-lg);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — ONE EMPLOYEE, ADMINISTRATIVELY
+   ───────────────────────────────────────────────────────────────────────────
+   The tabbed profile a school admin — or a teacher whose designation grants
+   admin on this module — opens. A colleague without that access gets the
+   compact profile and never reaches any of this.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.eppg { display: flex; flex-direction: column; gap: 18px; }
+.page.eppg .breadcrumb { margin-bottom: -4px; }
+
+/* ── The identity band ─────────────────────────────────────────────────────
+   Who, what they do, whether the account is live — and the actions beside it
+   rather than at the bottom of a menu. */
+.ephero {
+  display:       flex;
+  align-items:   center;
+  gap:           20px;
+  flex-wrap:     wrap;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       20px 22px;
+}
+.ephero__id { flex: 1 1 260px; min-width: 0; }
+.ephero__id h1 {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2;
+}
+.ephero__meta { font-size: .86rem; color: var(--text-muted); margin-top: 6px; }
+.ephero__contact {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-top: 8px; font-size: .82rem; color: var(--text-muted);
+}
+.ephero__contact span { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.ephero__contact svg  { color: var(--text-light); flex-shrink: 0; }
+.ephero__acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* The overflow menu on the header. */
+.epmore { position: relative; }
+.epmore__panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  min-width: 210px; padding: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.epmore__item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 10px;
+  border: none; border-radius: 8px; background: none;
+  font: inherit; font-size: .85rem; color: var(--text);
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.epmore__item:hover { background: var(--bg); color: var(--text); }
+.epmore__item svg   { color: var(--text-light); flex-shrink: 0; }
+.epmore__item.is-danger,
+.epmore__item.is-danger svg { color: var(--danger); }
+.epmore__item.is-danger:hover { background: #fef2f2; }
+.epmore__sep { height: 1px; background: var(--border); margin: 5px 6px; }
+
+/* ── The four facts that identify an employment ────────────────────────────── */
+.eptiles {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap:                   16px;
+}
+.eptile {
+  display:       flex;
+  align-items:   center;
+  gap:           14px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:       16px 18px;
+  min-width:     0;
+}
+.eptile__icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.eptile small { display: block; font-size: .74rem; color: var(--text-muted); }
+.eptile b     { display: block; font-size: .95rem; font-weight: 700; margin-top: 3px; overflow-wrap: anywhere; }
+
+/* ── The tab strip ─────────────────────────────────────────────────────────
+   Fourteen tabs wrap onto two rows and the page jumps a line whenever one is
+   picked, so this scrolls instead. */
+.eptabs {
+  display:       flex;
+  gap:           4px;
+  overflow-x:    auto;
+  scrollbar-width: none;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:       6px;
+}
+.eptabs::-webkit-scrollbar { display: none; }
+.eptab {
+  display:     inline-flex;
+  align-items: center;
+  gap:         7px;
+  padding:     9px 14px;
+  border:      none;
+  border-radius: var(--radius);
+  background:  none;
+  font:        inherit;
+  font-size:   .84rem;
+  font-weight: 600;
+  color:       var(--text-muted);
+  white-space: nowrap;
+  cursor:      pointer;
+  transition:  background var(--transition), color var(--transition);
+}
+.eptab:hover  { background: var(--bg); color: var(--primary); }
+.eptab.is-on  { background: var(--primary); color: var(--text-on-primary); }
+.eptab svg    { flex-shrink: 0; }
+
+/* ── The overview ──────────────────────────────────────────────────────────── */
+.epgrid {
+  display:               grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap:                   18px;
+  align-items:           start;
+}
+.epgrid__main, .epgrid__side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+.epcard__head {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  padding:       15px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.epcard__head h2 { flex: 1; font-size: .95rem; font-weight: 700; }
+.epcard__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.epcard__body { padding: 16px 18px; }
+
+.epfacts { margin: 0; }
+.epfacts > div {
+  display: flex; gap: 16px; align-items: baseline;
+  padding: 9px 0; font-size: .85rem;
+}
+.epfacts > div + div { border-top: 1px dashed var(--border); }
+.epfacts dt { flex: 0 0 40%; color: var(--text-muted); }
+.epfacts dd { flex: 1; min-width: 0; margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+
+/* ── Completion ────────────────────────────────────────────────────────────
+   The percentage says whether it is finished; the list says finish WHAT, which
+   is the only reason this card is opened. */
+.epcomp__pct { font-size: 1.15rem; font-weight: 700; color: var(--primary); }
+.epcomp__bar {
+  height: 8px; border-radius: 999px; background: var(--border); overflow: hidden;
+}
+.epcomp__bar i { display: block; height: 100%; border-radius: 999px; background: var(--success); }
+.epcomp__sub   { font-size: .76rem; color: var(--text-muted); margin-top: 8px; }
+
+.epcomp__list { list-style: none; margin: 14px 0 0; padding: 0; }
+.epcomp__list li {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 0; font-size: .83rem;
+}
+.epcomp__list li + li { border-top: 1px dashed var(--border); }
+.epcomp__list li > span { flex: 1; min-width: 0; }
+.epcomp__list b     { display: block; font-weight: 600; }
+.epcomp__list small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.epcomp__list li.is-done svg { color: var(--success); flex-shrink: 0; margin-top: 1px; }
+.epcomp__list li.is-open svg { color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+.epcomp__list button {
+  flex-shrink: 0; padding: 0; border: none; background: none;
+  font: inherit; font-size: .78rem; font-weight: 600; color: var(--primary); cursor: pointer;
+}
+.epcomp__list button:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Photograph ────────────────────────────────────────────────────────────── */
+.epphoto { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.epphoto__hit { padding: 0; border: none; background: none; cursor: zoom-in; }
+.epphoto b     { font-size: .92rem; font-weight: 700; margin-top: 10px; }
+.epphoto small { font-size: .78rem; color: var(--text-muted); }
+.epphoto__none { font-size: .76rem; color: var(--text-light); margin-top: 6px; }
+
+/* ── Quick actions ─────────────────────────────────────────────────────────── */
+.epquick { display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.epquick a, .epquick button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card);
+  font: inherit; font-size: .85rem; font-weight: 500; color: var(--text);
+  text-align: left; text-decoration: none; cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.epquick a:hover, .epquick button:hover:not(:disabled) {
+  border-color: var(--primary); color: var(--primary); background: #eef2ff;
+}
+.epquick svg { color: var(--text-light); flex-shrink: 0; }
+.epquick a:hover svg, .epquick button:hover:not(:disabled) svg { color: var(--primary); }
+.epquick button.is-danger, .epquick button.is-danger svg { color: var(--danger); }
+.epquick button.is-danger:hover { background: #fef2f2; border-color: var(--danger); color: var(--danger); }
+.epquick button:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) { .epgrid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 768px) {
+  .ephero { padding: 16px; gap: 14px; }
+  .ephero__id h1 { font-size: 1.3rem; }
+  .ephero__acts { width: 100%; }
+  .ephero__acts .btn, .epmore, .epmore .btn { flex: 1; justify-content: center; }
+  .eptiles { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}

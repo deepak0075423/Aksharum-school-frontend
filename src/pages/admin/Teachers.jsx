@@ -102,6 +102,19 @@ export default function Teachers() {
   const designations = Array.isArray(desigData) ? desigData : [];
 
   const rows      = data?.data || [];
+
+  // ?edit=<id> opens the wizard on that teacher once the row it names is in the
+  // list. The Employee Directory's profile sends people here to edit — the
+  // seven-step form lives with the row shape it was built for, and keeping one
+  // copy of it is what stops the two drifting. The search term travels with the
+  // id so the row is actually on the page to be found.
+  const urlEdit = params.get('edit') || '';
+  const [editHandled, setEditHandled] = useState(false);
+  useEffect(() => {
+    if (!urlEdit || editHandled || !rows.length) return;
+    const hit = rows.find((r) => String(r._id) === String(urlEdit));
+    if (hit) { setEditUser(hit); setEditHandled(true); }
+  }, [urlEdit, editHandled, rows]);
   const stats     = data?.stats || {};
   const options   = data?.options || {};
   const selection = useSelection(rows, queryKey);

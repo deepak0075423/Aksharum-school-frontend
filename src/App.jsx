@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ModulesProvider } from './contexts/ModulesContext';
 import AppLayout from './components/layout/AppLayout';
+import ModuleGuard from './components/ModuleGuard';
 import AdminAreaGuard from './components/AdminAreaGuard';
 import ModuleNav, {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
@@ -645,9 +646,11 @@ export default function App() {
             <Route path="notifications"    element={<SharedNotifications />} />
           </Route>
 
-          {/* Chat (all authenticated roles) */}
+          {/* Chat — every authenticated role, but only while the school runs
+              the module. Hiding the sidebar link was never a guard: the URL
+              still worked. */}
           <Route path="/chat" element={
-            <Protected><AppLayout /></Protected>
+            <Protected><ModuleGuard module="chat"><AppLayout /></ModuleGuard></Protected>
           }>
             <Route index element={<Chat />} />
           </Route>

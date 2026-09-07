@@ -4,50 +4,24 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/employeeDirectory.api';
 import { PageHeader, Badge, Button, Empty, Spinner, Modal, Select } from '../../components/ui/index';
+import { toggleTeacher } from '../../api/admin.api';
+import TeacherDependencyDialog from '../../components/TeacherDependencyDialog';
 import {
-  Avatar, KV, Section, Restricted, Meter, Chips, ErrorState, Skeleton, Blank,
+  Avatar, KV, Section, Restricted, Meter, Chips, ErrorState, Skeleton,
   Field, Block, MailIcon, PhoneIcon, PinIcon, CalendarIcon, UserIcon,
   BuildingIcon, BookIcon, BadgeIcon,
   fmtDate, fileUrl, STATUS_TONE, STATUS_LABEL, VERIFY_TONE, useDirectoryBase,
 } from './parts';
+import {
+  Completion, Crumbs, FactCard, PhotoCard, PhotoLightbox, ProfileHeader, ProfileTabs,
+  QuickActions, SummaryTiles,
+} from './employeeProfileParts';
 
 // The tabs a viewer sees are decided by the payload: a block the caller may not
 // read is not present in the response at all, so there is nothing to hide here.
 
 const ROLE_TONE = { class_teacher: 'primary', vice_class_teacher: 'info', subject_teacher: 'muted' };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Compact profile — a teacher looking up a colleague.
-//
-//  Everything the payload carries for this tier fits on one screen, so there
-//  are no tabs and nothing to scroll past: an identity band and a grid of the
-//  facts a colleague actually needs. The restricted blocks are not hidden here,
-//  they were never sent (see projectRow / visibilityFor on the server).
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-//  Compact profile — a teacher looking up a colleague.
-//
-//  Everything the payload carries for this tier fits on one screen, so there
-//  are no tabs and nothing to scroll past: an identity band and a grid of the
-//  facts a colleague actually needs. The restricted blocks are not hidden here,
-//  they were never sent (see projectRow / visibilityFor on the server).
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-//  Compact profile — a teacher looking up a colleague.
-//
-//  Everything the payload carries for this tier fits on one screen, so there
-//  are no tabs and nothing to scroll past: an identity band and a grid of the
-//  facts a colleague actually needs. The restricted blocks are not hidden here,
-//  they were never sent (see projectRow / visibilityFor on the server).
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-//  Compact profile — a teacher looking up a colleague.
-//
-//  Everything the payload carries for this tier fits on one screen, so there
-//  are no tabs and nothing to scroll past: an identity band and a grid of the
-//  facts a colleague actually needs. The restricted blocks are not hidden here,
-//  they were never sent (see projectRow / visibilityFor on the server).
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Compact profile — a teacher looking up a colleague.
@@ -153,6 +127,9 @@ export default function EmployeeProfile() {
   const navigate = useNavigate();
   const { base } = useDirectoryBase();
   const [tab, setTab] = useState('overview');
+  const [photo, setPhoto] = useState('');          // the photograph, opened over the page
+  const [depTarget, setDepTarget] = useState(null); // deactivation, via the dependency check
+  const [toggling, setToggling] = useState(false);
 
   const { data, loading, error, refetch } = useFetch(() => api.getEmployee(id), [id]);
 
@@ -198,85 +175,64 @@ export default function EmployeeProfile() {
     return <CompactProfile data={data} base={base} navigate={navigate} />;
   }
 
+  // A tab is offered only when its block was sent. Access was decided on the
+  // server (visibilityFor) — this just draws what came back.
   const TABS = [
-    { key: 'overview',      label: 'Overview' },
-    { key: 'personal',      label: 'Personal',          show: true },
-    { key: 'contact',       label: 'Contact',           show: true },
-    { key: 'employment',    label: 'Employment' },
-    { key: 'education',     label: 'Education' },
-    { key: 'assignments',   label: 'Subjects & Classes' },
-    { key: 'responsibilities', label: 'Responsibilities' },
-    { key: 'timetable',     label: 'Timetable',  show: modules.timetable },
-    { key: 'attendance',    label: 'Attendance', show: modules.attendance && vis.attendance },
-    { key: 'leave',         label: 'Leave',      show: modules.leave && vis.leave },
-    { key: 'documents',     label: 'Documents',  show: vis.documents },
-    { key: 'governmentIds', label: 'Government IDs', show: vis.governmentId },
-    { key: 'bank',          label: 'Bank / Payroll', show: vis.bank || vis.payroll },
-    { key: 'verification',  label: 'Verification' },
+    { key: 'overview',      label: 'Overview',          icon: 'grid' },
+    { key: 'personal',      label: 'Personal',          icon: 'user' },
+    { key: 'contact',       label: 'Contact',           icon: 'phone' },
+    { key: 'employment',    label: 'Employment',        icon: 'badge' },
+    { key: 'education',     label: 'Education',         icon: 'bookOpen' },
+    { key: 'assignments',   label: 'Subjects & Classes', icon: 'book' },
+    { key: 'responsibilities', label: 'Responsibilities', icon: 'clipboard' },
+    { key: 'timetable',     label: 'Timetable',  icon: 'clock',       show: modules.timetable },
+    { key: 'attendance',    label: 'Attendance', icon: 'checkSquare', show: modules.attendance && vis.attendance },
+    { key: 'leave',         label: 'Leave',      icon: 'umbrella',    show: modules.leave && vis.leave },
+    { key: 'documents',     label: 'Documents',  icon: 'files',       show: vis.documents },
+    { key: 'governmentIds', label: 'Government IDs', icon: 'idCard',  show: vis.governmentId },
+    { key: 'bank',          label: 'Bank / Payroll', icon: 'banknote', show: vis.bank || vis.payroll },
+    { key: 'verification',  label: 'Verification',  icon: 'checkCircle' },
   ].filter((t) => t.show !== false);
 
+  // Editing an employee is the seven-step wizard, which lives on Teachers with
+  // the row shape it was built for. Sending the admin there with the person
+  // already found is the honest way in — this page does not keep a second copy
+  // of that form.
+  const editRecord = () => navigate(
+    `/admin/teachers?search=${encodeURIComponent(o.name)}&edit=${encodeURIComponent(id)}`,
+  );
+
+  // Deactivating goes through the dependency check, exactly as it does on the
+  // Teachers list: a class teacher or a timetable holder cannot simply vanish.
+  // Activating has nothing to check.
+  const toggleAccount = async () => {
+    const active = o.employmentStatus !== 'inactive' && o.isActive !== false;
+    if (active) { setDepTarget({ _id: id, name: o.name, isActive: true }); return; }
+    setToggling(true);
+    try {
+      await toggleTeacher(id);
+      toast.success(`${o.name} activated`);
+      refetch();
+    } catch (err) { toast.error(err.message || 'Could not update the account'); }
+    finally { setToggling(false); }
+  };
+
   return (
-    <div className="page">
-      <PageHeader
-        title={o.name}
-        subtitle={[o.designation, o.department].filter(Boolean).join(' · ') || 'Employee profile'}
-        action={<Button variant="secondary" onClick={() => navigate(`${base}/employees`)}>← Back to directory</Button>}
-      />
+    <div className="page eppg">
+      <Crumbs base={base} name={o.name} />
 
-      {/* ── Identity card ───────────────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body" style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Avatar name={o.name} src={o.profileImage} size={72} />
-          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 700 }}>{o.name}</h2>
-              <Badge variant={STATUS_TONE[o.employmentStatus]}>{STATUS_LABEL[o.employmentStatus]}</Badge>
-              {viewer.isSelf && <Badge variant="info">This is you</Badge>}
-            </div>
-            <div className="text-muted text-sm" style={{ marginTop: 4 }}>
-              {o.employeeId && <span style={{ fontFamily: 'ui-monospace,monospace' }}>{o.employeeId}</span>}
-              {o.designation && <> · {o.designation}</>}
-              {o.department && <> · {o.department}</>}
-            </div>
-            <div className="text-sm" style={{ marginTop: 6, wordBreak: 'break-all' }}>
-              ✉️ {o.officialEmail} {o.officialPhone && <>· 📞 {o.officialPhone}</>}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {modules.chat && !viewer.isSelf && <Link className="btn btn-secondary btn-sm" to="/chat">💬 Chat</Link>}
-            <a className="btn btn-secondary btn-sm" href={`mailto:${o.officialEmail}`}>✉️ Email</a>
-            {o.officialPhone && <a className="btn btn-secondary btn-sm" href={`tel:${o.officialPhone.replace(/\s/g, '')}`}>📞 Call</a>}
-          </div>
-        </div>
-        {data.profileCompletion && (
-          <div className="card-footer" style={{ display: 'block' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', marginBottom: 5 }}>
-              <span className="text-muted">Profile completion</span>
-              <strong>{data.profileCompletion.percent}%</strong>
-            </div>
-            <Meter value={data.profileCompletion.percent} />
-            {data.profileCompletion.missing.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                <span className="text-muted text-sm">Missing:</span>
-                {data.profileCompletion.missing.slice(0, 8).map((m) => (
-                  <span key={m.key} className="badge badge-warning">{m.label}</span>
-                ))}
-                {data.profileCompletion.missing.length > 8 && (
-                  <span className="badge badge-muted">+{data.profileCompletion.missing.length - 8} more</span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <ProfileHeader o={o} base={base} modules={modules}
+        onEdit={editRecord} onToggle={toggleAccount} toggling={toggling} />
 
-      <div className="tabs" style={{ flexWrap: 'wrap' }}>
-        {TABS.map((t) => (
-          <button key={t.key} className={`tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>{t.label}</button>
-        ))}
-      </div>
+      <SummaryTiles o={o} />
 
-      {tab === 'overview' && <Overview data={data} base={base} />}
+      <ProfileTabs tabs={TABS} active={tab} onPick={setTab} />
+
+      {tab === 'overview' && (
+        <Overview data={data} base={base} modules={modules} onGo={setTab}
+          onEdit={editRecord} onToggle={toggleAccount} toggling={toggling}
+          onPhoto={() => setPhoto(fileUrl(o.profileImage))} />
+      )}
       {tab === 'personal'      && (vis.personal ? <Personal p={data.personal} /> : <Restricted what="personal information" />)}
       {tab === 'contact'       && (vis.contact ? <Contact c={data.contact} /> : <ContactLimited o={o} />)}
       {tab === 'employment'    && <Employment data={data} id={id} onSaved={refetch} base={base} />}
@@ -290,33 +246,73 @@ export default function EmployeeProfile() {
       {tab === 'governmentIds' && (vis.governmentId ? <GovernmentIds g={data.governmentIds} id={id} canReveal={viewer.canReveal} /> : <Restricted what="government ID information" />)}
       {tab === 'bank'          && <BankPayroll data={data} id={id} />}
       {tab === 'verification'  && <Verification list={data.verification} id={id} isAdmin={viewer.isAdmin} onChanged={refetch} />}
+
+      <PhotoLightbox src={photo} name={o.name} onClose={() => setPhoto('')} />
+
+      <TeacherDependencyDialog
+        open={!!depTarget}
+        teacher={depTarget}
+        action="deactivate"
+        onClose={() => setDepTarget(null)}
+        onDone={() => { setDepTarget(null); refetch(); }}
+      />
     </div>
   );
 }
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-const Overview = ({ data, base }) => {
+/**
+ * The overview: what an administrator reads before opening anything else.
+ *
+ * The record on the left, and on the right the three things they act on — how
+ * complete the file is, who this is, and what can be done to the account. The
+ * completion card is the useful one: it names what is missing and opens the tab
+ * that fixes it, rather than showing a percentage nobody can act on.
+ */
+const Overview = ({ data, base, modules, onGo, onEdit, onToggle, toggling, onPhoto }) => {
   const o = data.overview || {};
   return (
-    <Section title="Overview">
-      <KV label="Full Name" value={o.name} />
-      <KV label="Employee ID" value={o.employeeId} mono />
-      <KV label="Teacher ID" value={o.teacherId || o.employeeId} mono />
-      <KV label="Designation" value={o.designation} />
-      <KV label="Department" value={o.department} />
-      <KV label="Employee Type" value={o.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'} />
-      <KV label="Employment Status" value={<Badge variant={STATUS_TONE[o.employmentStatus]}>{STATUS_LABEL[o.employmentStatus]}</Badge>} />
-      <KV label="Date of Joining" value={fmtDate(o.joiningDate)} />
-      <KV label="Official Email" value={o.officialEmail} />
-      <KV label="Official Mobile" value={o.officialPhone} />
-      <KV label="Subjects" value={<Chips items={o.subjects} />} />
-      <KV label="Classes & Sections" value={<Chips items={(o.classes || []).map((c) => c.label)} />} />
-      <KV label="Class Teacher of" value={<Chips items={o.classTeacherOf} empty="Not a class teacher" />} />
-      <KV label="Reporting Manager" value={o.reportingManager
-        ? <Link to={`${base}/employees/${o.reportingManager._id}`}>{o.reportingManager.name}{o.reportingManager.designation ? ` · ${o.reportingManager.designation}` : ''}</Link>
-        : ''} />
-    </Section>
+    <div className="epgrid">
+      <div className="epgrid__main">
+        <FactCard icon="user" tone="indigo" title="Basic information" rows={[
+          ['Full name', o.name],
+          ['Employee ID', o.employeeId],
+          ['Designation', o.designation],
+          ['Department', o.department],
+          ['Employee type', o.staffType === 'teaching' ? 'Teaching staff' : o.staffType ? 'Non-teaching staff' : ''],
+          ['Employment status', <Badge variant={STATUS_TONE[o.employmentStatus] || 'muted'}>
+            {STATUS_LABEL[o.employmentStatus] || 'Unknown'}
+          </Badge>],
+          ['Date of joining', o.joiningDate ? fmtDate(o.joiningDate) : ''],
+          ['Official email', o.officialEmail],
+          ['Official mobile', o.officialPhone],
+          ['Reporting manager', o.reportingManager
+            ? <Link to={`${base}/employees/${o.reportingManager._id}`}>
+                {o.reportingManager.name}
+                {o.reportingManager.designation ? ` · ${o.reportingManager.designation}` : ''}
+              </Link>
+            : ''],
+        ]} />
+
+        <FactCard icon="book" tone="blue" title="Teaching load" rows={[
+          ['Subjects', o.subjects?.length ? <Chips items={o.subjects} /> : ''],
+          ['Classes & sections', o.classes?.length
+            ? <Chips items={(o.classes || []).map((c) => c.label)} /> : ''],
+          ['Class teacher of', o.classTeacherOf?.length
+            ? <Chips items={o.classTeacherOf} /> : ''],
+          ['Responsibilities', data.responsibilities?.length
+            ? <Chips items={data.responsibilities.map((r) => r.title || r.type)} /> : ''],
+        ]} />
+      </div>
+
+      <aside className="epgrid__side">
+        <Completion completion={data.profileCompletion} onGo={onGo} />
+        <PhotoCard o={o} onOpen={onPhoto} />
+        <QuickActions o={o} base={base} modules={modules}
+          onEdit={onEdit} onToggle={onToggle} toggling={toggling} />
+      </aside>
+    </div>
   );
 };
 

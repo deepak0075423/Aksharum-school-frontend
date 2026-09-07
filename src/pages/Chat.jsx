@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as chatApi from '../api/chat.api';
 import { useAuth } from '../contexts/AuthContext';
@@ -510,6 +511,28 @@ export default function Chat() {
       toast.error(err?.message || 'Cannot start chat');
     }
   };
+
+  /**
+   * `/chat?user=<id>` opens that person's conversation directly.
+   *
+   * The Employee Directory sends an administrator here from a profile, and
+   * "message them" has to mean their thread rather than the chat screen at
+   * large. The direct chat is created if it does not exist yet — the endpoint
+   * is idempotent and enforces who may message whom, so a refusal surfaces as
+   * its own reason. The parameter is dropped afterwards so a reload does not
+   * reopen it.
+   */
+  const [urlParams, setUrlParams] = useSearchParams();
+  const deepLinked = useRef('');
+  useEffect(() => {
+    const target = urlParams.get('user');
+    if (!target || deepLinked.current === target) return;
+    deepLinked.current = target;
+    handleStartChat(target).finally(() => {
+      setUrlParams((p) => { p.delete('user'); return p; }, { replace: true });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlParams]);
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();

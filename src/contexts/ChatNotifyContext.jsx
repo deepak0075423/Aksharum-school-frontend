@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { useModules } from './ModulesContext';
 import { getChats } from '../api/chat.api';
 import { connectSocket, getSocket } from '../socket';
 import { notificationIconUrl } from '../utils/branding';
@@ -23,6 +24,12 @@ const REFRESH_DEBOUNCE_MS = 400;  // coalesce bursts of socket events into one f
  */
 export function ChatNotifyProvider({ children }) {
   const { user } = useAuth();
+  // A school without chat has no unread badge to keep and no messages to
+  // notify about — and now that /api/chat is gated, seeding the badge would
+  // just be a 403 on every login. `ready` matters: isEnabled fails open while
+  // the module map loads, so this only settles once it has landed.
+  const { isEnabled, ready } = useModules();
+  const chatOn = !ready || isEnabled('chat');
   const location = useLocation();
   const [unreadTotal, setUnreadTotal] = useState(0);
 
@@ -98,7 +105,7 @@ export function ChatNotifyProvider({ children }) {
 
   // Socket-driven awareness while logged in — no polling, no heartbeat.
   useEffect(() => {
-    if (!user) {
+    if (!user || !chatOn) {
       setUnreadTotal(0);
       prevRef.current = {};
       firstRef.current = true;
@@ -133,7 +140,7 @@ export function ChatNotifyProvider({ children }) {
       sock.off('chat:group_updated', onChange);
       sock.off('connect',            onReconnect);
     };
-  }, [user, refresh, scheduleRefresh]);
+  }, [user, chatOn, refresh, scheduleRefresh]);
 
   return (
     <ChatNotifyContext.Provider value={{ unreadTotal, refresh }}>
