@@ -1,13 +1,39 @@
-import { useState, useEffect, useRef } from 'react';
+/**
+ * Admin → School Settings.
+ *
+ * Seven unrelated settings screens share this route: the school's profile, the
+ * two numbering formats, the working week, the mail server, the payment gateway
+ * and the receipt designs. They used to be one 3,000-pixel column; they are now
+ * sections of one page, switched by the nav under the header.
+ *
+ * The sections are NOT separate pages — every panel stays mounted, so switching
+ * away and back never loses half-typed input.
+ *
+ * Saving is deliberately not one button. The profile, the formats and the
+ * working week are one record and one request, so the header's Save covers all
+ * three and says when something is waiting on it. The mail server, the gateway
+ * and the receipt designs are separate records with their own validation and
+ * their own credentials, so each keeps its own Save — and each panel says so.
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings, testSmtpSettings, previewAdmissionNumber, previewEmployeeId } from '../../api/admin.api';
+import {
+  getSchoolSettings, updateSchoolSettings, getSmtpSettings, updateSmtpSettings,
+  testSmtpSettings, previewAdmissionNumber, previewEmployeeId,
+} from '../../api/admin.api';
 import PaymentGatewayCard from '../../components/settings/PaymentGatewayCard';
 import ReceiptDesignCard from '../../components/settings/ReceiptDesignCard';
 import { useModules } from '../../contexts/ModulesContext';
-import { PageHeader, Button, Spinner } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
+import { Alert, Button, Spinner } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
 import { isEmail, isPhone, isURL } from '../../utils/validators';
 import { schoolLogoUrl } from '../../utils/branding';
+import { Crumbs, PageFoot } from './listParts';
+import {
+  Check, FormatBuilder, Legend, LogoField, Panel, Radio, SaturdayPreview,
+  SaveBar, SectionSave, SelfSaveNote, SettingsNav,
+} from './settingsParts';
 
 const EMPTY_SMTP = {
   enabled: false, host: '', port: 587, secure: false,
@@ -18,51 +44,82 @@ const EMPTY = {
   code: '', email: '', phone: '', website: '',
   admissionNumberFormat: '{INITIALS}{YYYY}{####}',
   employeeIdFormat: '{INITIALS}{####}',
-  leaveSettings: {
-    saturdayWorking: true,
-    saturdayMode: 'all',
-    saturdayHalfDay: false,
-  },
+  leaveSettings: { saturdayWorking: true, saturdayMode: 'all', saturdayHalfDay: false },
 };
 
+// {SEQ} is accepted by both formatters (see utils/admissionNumber.js) and the
+// server's own error message names it, but no screen ever offered it.
+const ADMISSION_TOKENS = ['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{MM}', '{DD}', '{CLASS}', '{CLASSNO}', '{####}', '{SEQ}'];
+const EMPLOYEE_TOKENS  = ['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{MM}', '{DD}', '{####}', '{SEQ}'];
+
+const ADMISSION_LEGEND = [
+  ['{INITIALS}', 'First letter of each word in the school name'],
+  ['{CODE}',     'The school code set above'],
+  ['{YYYY}',     'Academic year start, 4 digits'],
+  ['{YY}',       'Academic year start, 2 digits'],
+  ['{MM}',       'Month of admission'],
+  ['{DD}',       'Date of admission'],
+  ['{CLASS}',    'Class name without spaces — Class 5 → CLASS5'],
+  ['{CLASSNO}',  'Class number — Class 5 → 5'],
+  ['{####}',     'Running number, one digit per #'],
+  ['{SEQ}',      'Running number with no leading zeros'],
+];
+
+const EMPLOYEE_LEGEND = [
+  ['{INITIALS}', 'First letter of each word in the school name'],
+  ['{CODE}',     'The school code set above'],
+  ['{YYYY}',     'Academic year start, 4 digits'],
+  ['{YY}',       'Academic year start, 2 digits'],
+  ['{MM}',       'Month of joining'],
+  ['{DD}',       'Date of joining'],
+  ['{####}',     'Running number, one digit per #'],
+  ['{SEQ}',      'Running number with no leading zeros'],
+];
+
 export default function SchoolSettings() {
-  // Which modules this school runs — the gateway and receipt cards only offer
+  // Which modules this school runs — the gateway and receipt panels only offer
   // the ones it actually has. `ready` matters: isEnabled fails open while the
   // module list is loading, so asking it too early says yes to everything.
   const { isEnabled, ready: modulesReady } = useModules();
+  const { user, reload } = useAuth();
+
+  const [section, setSection] = useState('general');
+
   const [form,    setForm]    = useState(EMPTY);
+  const [saved,   setSaved]   = useState(EMPTY);   // what the server last confirmed
   const [name,    setName]    = useState('');
   const [logo,    setLogo]    = useState('');
   const [preview, setPreview] = useState(null);
   const [removeLogo, setRemoveLogo] = useState(false);
   const [admPreview, setAdmPreview] = useState(null);   // { samples[], next } | { error }
-  const admTimer = useRef(null);
   const [empPreview, setEmpPreview] = useState(null);
+  const admTimer = useRef(null);
   const empTimer = useRef(null);
+  const logoRef  = useRef();
+
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [errors,  setErrors]  = useState({});
+
   const [smtp,        setSmtp]        = useState(EMPTY_SMTP);
   const [smtpSaving,  setSmtpSaving]  = useState(false);
   const [smtpTesting, setSmtpTesting] = useState(false);
-  const { user, reload } = useAuth();
-  const logoRef = useRef();
 
   useEffect(() => {
     getSmtpSettings()
-      .then(res => {
+      .then((res) => {
         const d = res.data?.data ?? res.data ?? res;
         setSmtp({ ...EMPTY_SMTP, ...d, pass: '' });
       })
       .catch(() => {});
     getSchoolSettings()
-      .then(res => {
+      .then((res) => {
         const d = res.data?.data ?? res.data;
         setName(d.name || '');
         setLogo(d.logo || '');
-        setForm({
+        const next = {
           admissionNumberFormat: d.admissionNumberFormat || '{INITIALS}{YYYY}{####}',
-          employeeIdFormat: d.employeeIdFormat || '{INITIALS}{####}',
+          employeeIdFormat:      d.employeeIdFormat      || '{INITIALS}{####}',
           code:    d.code    || '',
           email:   d.email   || '',
           phone:   d.phone   || '',
@@ -72,11 +129,28 @@ export default function SchoolSettings() {
             saturdayMode:    d.leaveSettings?.saturdayMode    || 'all',
             saturdayHalfDay: !!d.leaveSettings?.saturdayHalfDay,
           },
-        });
+        };
+        setForm(next);
+        setSaved(next);
       })
       .catch(() => toast.error('Failed to load school settings'))
       .finally(() => setLoading(false));
   }, []);
+
+  // ── The one record this page's Save covers ─────────────────────────────────
+  const logoChanged = !!preview || removeLogo;
+  const dirty = logoChanged || JSON.stringify(form) !== JSON.stringify(saved);
+
+  const discard = () => {
+    setForm(saved);
+    setErrors({});
+    setPreview(null);
+    setRemoveLogo(false);
+    if (logoRef.current) logoRef.current.value = '';
+  };
+
+  const set   = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const setLS = (key, val) => setForm((f) => ({ ...f, leaveSettings: { ...f.leaveSettings, [key]: val } }));
 
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
@@ -93,40 +167,86 @@ export default function SchoolSettings() {
     if (logoRef.current) logoRef.current.value = '';
   };
 
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
-
-  // Ask the server what the next number would look like for this format
-  const previewAdmission = (format) => {
+  // ── Live previews: ask the server what the next number would look like ─────
+  useEffect(() => {
+    const format = form.admissionNumberFormat;
     clearTimeout(admTimer.current);
-    if (!format?.trim()) { setAdmPreview(null); return; }
+    if (!format?.trim()) { setAdmPreview(null); return undefined; }
     admTimer.current = setTimeout(async () => {
-      try {
-        const res = await previewAdmissionNumber(format.trim());
-        setAdmPreview(res?.data || res);
-      } catch (err) { setAdmPreview({ error: err.message }); }
+      try { setAdmPreview((await previewAdmissionNumber(format.trim()))?.data || null); }
+      catch (err) { setAdmPreview({ error: err.message }); }
     }, 400);
-  };
+    return () => clearTimeout(admTimer.current);
+  }, [form.admissionNumberFormat]);
 
-  useEffect(() => { previewAdmission(form.admissionNumberFormat); }, [form.admissionNumberFormat]);
-
-  // Same live preview for the (separate) employee ID format
-  const previewEmployee = (format) => {
+  useEffect(() => {
+    const format = form.employeeIdFormat;
     clearTimeout(empTimer.current);
-    if (!format?.trim()) { setEmpPreview(null); return; }
+    if (!format?.trim()) { setEmpPreview(null); return undefined; }
     empTimer.current = setTimeout(async () => {
-      try {
-        const res = await previewEmployeeId(format.trim());
-        setEmpPreview(res?.data || res);
-      } catch (err) { setEmpPreview({ error: err.message }); }
+      try { setEmpPreview((await previewEmployeeId(format.trim()))?.data || null); }
+      catch (err) { setEmpPreview({ error: err.message }); }
     }, 400);
+    return () => clearTimeout(empTimer.current);
+  }, [form.employeeIdFormat]);
+
+  // ── Save ───────────────────────────────────────────────────────────────────
+  const validate = () => {
+    const e = {};
+    if (form.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim()))
+      e.code = 'Code must be 2–20 letters, numbers, hyphens or underscores';
+    if (form.email && !isEmail(form.email)) e.email = 'Enter a valid email address';
+    if (form.phone && !isPhone(form.phone)) e.phone = 'Enter a valid phone number';
+    if (form.website && !isURL(form.website)) e.website = 'The website must start with http:// or https://';
+    return e;
   };
 
-  useEffect(() => { previewEmployee(form.employeeIdFormat); }, [form.employeeIdFormat]);
-  const setLS = (key, val) => setForm(f => ({
-    ...f,
-    leaveSettings: { ...f.leaveSettings, [key]: val },
-  }));
-  const setSmtpF = (key, val) => setSmtp(s => ({ ...s, [key]: val }));
+  // Which section a field belongs to, so a validation failure can send the
+  // admin to the panel holding it rather than to a message about a box they
+  // cannot see.
+  const SECTION_OF = { code: 'general', email: 'general', phone: 'general', website: 'general' };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length) {
+      const first = Object.keys(errs)[0];
+      setSection(SECTION_OF[first] || 'general');
+      toast.error(errs[first]);
+      return;
+    }
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('code',    form.code);
+      fd.append('email',   form.email);
+      fd.append('phone',   form.phone);
+      fd.append('website', form.website);
+      fd.append('admissionNumberFormat', form.admissionNumberFormat || '');
+      fd.append('employeeIdFormat',      form.employeeIdFormat || '');
+      fd.append('leaveSettings', JSON.stringify(form.leaveSettings));
+      if (logoRef.current?.files?.[0]) fd.append('logo', logoRef.current.files[0]);
+      else if (removeLogo) fd.append('removeLogo', 'true');
+
+      const res = await updateSchoolSettings(fd);
+      const d   = res.data?.data ?? res.data;
+      setLogo(d.logo || '');
+      setPreview(null);
+      setRemoveLogo(false);
+      if (logoRef.current) logoRef.current.value = '';
+      setSaved(form);
+      reload();   // refresh user.school so the sidebar logo/name update immediately
+      toast.success('School settings saved');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── SMTP: its own record, its own save ─────────────────────────────────────
+  const setSmtpF = (key, val) => setSmtp((s) => ({ ...s, [key]: val }));
 
   const handleSmtpSave = async () => {
     if (smtp.enabled && (!smtp.host.trim() || !smtp.user.trim()))
@@ -141,20 +261,14 @@ export default function SchoolSettings() {
     setSmtpSaving(true);
     try {
       await updateSmtpSettings({
-        enabled:   smtp.enabled,
-        host:      smtp.host,
-        port:      smtp.port,
-        secure:    smtp.secure,
-        user:      smtp.user,
-        pass:      smtp.pass,           // blank = keep existing
-        fromName:  smtp.fromName,
-        fromEmail: smtp.fromEmail,
+        enabled: smtp.enabled, host: smtp.host, port: smtp.port, secure: smtp.secure,
+        user: smtp.user, pass: smtp.pass /* blank = keep existing */,
+        fromName: smtp.fromName, fromEmail: smtp.fromEmail,
       });
-      if (smtp.pass) setSmtp(s => ({ ...s, pass: '', hasPassword: true }));
+      if (smtp.pass) setSmtp((s) => ({ ...s, pass: '', hasPassword: true }));
       toast.success('SMTP settings saved');
-    } catch (err) {
-      toast.error(err?.message || 'Failed to save SMTP settings');
-    } finally { setSmtpSaving(false); }
+    } catch (err) { toast.error(err?.message || 'Failed to save SMTP settings'); }
+    finally { setSmtpSaving(false); }
   };
 
   const handleSmtpTest = async () => {
@@ -163,480 +277,300 @@ export default function SchoolSettings() {
       const res = await testSmtpSettings(user?.email);
       const d = res.data ?? res;
       toast.success(`Test email sent to ${d?.to || user?.email}`);
-    } catch (err) {
-      toast.error(err?.message || 'Test email failed');
-    } finally { setSmtpTesting(false); }
+    } catch (err) { toast.error(err?.message || 'Test email failed'); }
+    finally { setSmtpTesting(false); }
   };
 
-  const validateForm = () => {
-    const e = {};
-    if (form.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim()))
-      e.code = 'Code must be 2-20 letters, numbers, hyphens or underscores';
-    if (form.email && !isEmail(form.email)) e.email = 'Please enter a valid email address';
-    if (form.phone && !isPhone(form.phone)) e.phone = 'Please enter a valid phone number';
-    if (form.website && !isURL(form.website)) e.website = 'Website must be a valid URL starting with http:// or https://';
-    return e;
-  };
+  // ── Sections ───────────────────────────────────────────────────────────────
+  // Payments and receipts only exist for a school that charges for something.
+  const money = modulesReady && (isEnabled('fees') || isEnabled('library'));
 
-  const fieldError = (key) => errors[key]
-    ? <span style={{ color: 'var(--danger, #dc2626)', fontSize: '.78rem', marginTop: 4, display: 'block' }}>{errors[key]}</span>
-    : null;
+  const tabs = useMemo(() => [
+    { key: 'general',  label: 'General',      icon: 'building' },
+    { key: 'identity', label: 'Numbering',    icon: 'idCard' },
+    { key: 'days',     label: 'Working Days', icon: 'calendarDays' },
+    { key: 'mail',     label: 'Email',        icon: 'mail' },
+    ...(money ? [
+      { key: 'payments', label: 'Payments', icon: 'creditCard' },
+      { key: 'receipts', label: 'Receipts', icon: 'files' },
+    ] : []),
+  ], [money]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const errs = validateForm();
-    setErrors(errs);
-    if (Object.keys(errs).length) return toast.error(Object.values(errs)[0]);
-    setSaving(true);
-    try {
-      const fd = new FormData();
-      fd.append('code',    form.code);
-      fd.append('email',   form.email);
-      fd.append('phone',   form.phone);
-      fd.append('website', form.website);
-      fd.append('admissionNumberFormat', form.admissionNumberFormat || '');
-      fd.append('employeeIdFormat', form.employeeIdFormat || '');
-      fd.append('leaveSettings', JSON.stringify(form.leaveSettings));
-      if (logoRef.current?.files?.[0]) fd.append('logo', logoRef.current.files[0]);
-      else if (removeLogo) fd.append('removeLogo', 'true');
-      const res = await updateSchoolSettings(fd);
-      const d   = res.data?.data ?? res.data;
-      setLogo(d.logo || '');
-      setPreview(null);
-      setRemoveLogo(false);
-      if (logoRef.current) logoRef.current.value = '';
-      reload();   // refresh user.school so the sidebar logo/name update immediately
-      toast.success('Settings saved');
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // A section that disappears when the module list lands must not leave the
+  // page showing nothing.
+  useEffect(() => {
+    if (!tabs.some((t) => t.key === section)) setSection('general');
+  }, [tabs, section]);
 
-  if (loading) return (
-    <div className="page">
-      <div style={{ padding: 64, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-    </div>
-  );
+  const err  = (key) => (errors[key] ? <div className="form-error">{errors[key]}</div> : null);
+  // `hidden` rather than unmounting: a panel that is switched away from keeps
+  // whatever was typed into it.
+  const hide = (key) => (section === key ? undefined : true);
+
+  if (loading) return <div className="loading-page"><Spinner /></div>;
 
   const { saturdayWorking, saturdayMode, saturdayHalfDay } = form.leaveSettings;
   const logoSrc = preview || (removeLogo ? null : schoolLogoUrl({ logo }));
 
   return (
-    <div className="page">
-      <PageHeader title="School Settings" subtitle="Update your school profile and working-day configuration" />
+    <div className="page listpg setpg">
+      <Crumbs here="School Settings" />
 
-      <form onSubmit={handleSubmit} style={{ maxWidth: 680 }}>
+      <header className="sethero">
+        <div className="sethero__id">
+          <h1>School Settings</h1>
+          <p>Your school&rsquo;s profile, how it numbers people, the week it works, and how it takes money.</p>
+        </div>
+        <SaveBar dirty={dirty} saving={saving} onSave={handleSubmit} onReset={discard} />
+      </header>
 
-        {/* ── School Profile ── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><strong>School Profile</strong></div>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SettingsNav tabs={tabs} active={section} onPick={setSection} />
 
-            {/* Logo */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Logo</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                {logoSrc ? (
-                  <img src={logoSrc} alt="logo" style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', padding: 4 }} />
-                ) : (
-                  <div style={{ width: 72, height: 72, borderRadius: 8, border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏫</div>
-                )}
-                <div>
-                  <input ref={logoRef} type="file" accept="image/*" className="form-control" style={{ maxWidth: 300 }} onChange={handleLogoChange} />
-                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>JPG, PNG, SVG — max 5 MB</div>
-                  {(logo || preview) && !removeLogo && (
-                    <button type="button" className="btn btn-danger btn-sm" style={{ marginTop: 8 }}
-                      onClick={handleLogoRemove}>
-                      Remove logo
-                    </button>
-                  )}
-                  {removeLogo && (
-                    <div style={{ marginTop: 8, fontSize: '.78rem', color: 'var(--danger)' }}>
-                      Logo will be removed when you save.{' '}
-                      <button type="button" onClick={() => setRemoveLogo(false)}
-                        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}>
-                        Undo
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+      {/* One form across the first three sections: they are one record and one
+          request. The panels stay mounted so nothing typed is lost on a switch. */}
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="setgrid" hidden={hide('general')}>
+          <Panel icon="school" tone="indigo" title="School profile"
+            desc="What appears on the sidebar, on emails and at the top of every receipt.">
+            <LogoField
+              src={logoSrc}
+              inputRef={logoRef}
+              onPick={handleLogoChange}
+              onRemove={handleLogoRemove}
+              removePending={removeLogo}
+              onUndo={() => setRemoveLogo(false)}
+            />
 
-            {/* Name (read-only) */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">School Name</label>
-              <input className="form-control" value={name} disabled style={{ background: 'var(--bg-muted)', cursor: 'not-allowed' }} />
-              <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Only a super-admin can change the school name.</span>
+            <div className="form-group">
+              <label className="form-label">School name</label>
+              <input className="form-control" value={name} disabled />
+              <div className="form-hint">Only a super-admin can change the school name.</div>
             </div>
 
             <div className="form-row form-row-2">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">School Code</label>
-                <input className={`form-control${errors.code ? ' error' : ''}`} value={form.code} onChange={e => set('code', e.target.value)} placeholder="e.g. SCH001" />
-                {fieldError('code')}
+              <div className="form-group">
+                <label className="form-label">School code</label>
+                <input className={`form-control${errors.code ? ' error' : ''}`} value={form.code}
+                  onChange={(e) => set('code', e.target.value)} placeholder="SCH001" />
+                {err('code')}
+                <div className="form-hint">Used by the <span className="setmono">{'{CODE}'}</span> token in numbering.</div>
               </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
+              <div className="form-group">
                 <label className="form-label">Phone</label>
-                <input className={`form-control${errors.phone ? ' error' : ''}`} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91 98765 43210" />
-                {fieldError('phone')}
+                <input className={`form-control${errors.phone ? ' error' : ''}`} value={form.phone}
+                  onChange={(e) => set('phone', e.target.value)} placeholder="+91 98765 43210" />
+                {err('phone')}
               </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Email</label>
-              <input type="email" className={`form-control${errors.email ? ' error' : ''}`} value={form.email} onChange={e => set('email', e.target.value)} placeholder="school@example.com" />
-              {fieldError('email')}
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input type="email" className={`form-control${errors.email ? ' error' : ''}`} value={form.email}
+                  onChange={(e) => set('email', e.target.value)} placeholder="school@example.com" />
+                {err('email')}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Website</label>
+                <input type="url" className={`form-control${errors.website ? ' error' : ''}`} value={form.website}
+                  onChange={(e) => set('website', e.target.value)} placeholder="https://www.school.edu" />
+                {err('website')}
+              </div>
             </div>
-
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Website URL</label>
-              <input type="url" className={`form-control${errors.website ? ' error' : ''}`} value={form.website} onChange={e => set('website', e.target.value)} placeholder="https://www.school.edu" />
-              {fieldError('website')}
-            </div>
-
-          </div>
+          </Panel>
         </div>
 
-        {/* ── Admission Number ── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><strong>Admission Number Format</strong></div>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', margin: 0 }}>
-              Used when a student is added without an admission number. Numbers continue from the
-              highest one already issued for the current year.
-            </p>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Format</label>
-              <input className="form-control" value={form.admissionNumberFormat}
-                onChange={e => set('admissionNumberFormat', e.target.value)}
-                placeholder="{INITIALS}{YYYY}{####}" style={{ fontFamily: 'monospace' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-              {['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{MM}', '{DD}', '{CLASS}', '{CLASSNO}', '{####}'].map(tok => (
-                <button key={tok} type="button"
-                  onClick={() => set('admissionNumberFormat', (form.admissionNumberFormat || '') + tok)}
-                  style={{
-                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 8px', cursor: 'pointer',
-                    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)',
-                  }}>
-                  {tok}
-                </button>
-              ))}
-              <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-              {[['/', '/'], ['-', '-'], [' ', 'space']].map(([sep, label]) => (
-                <button key={label} type="button"
-                  onClick={() => set('admissionNumberFormat', (form.admissionNumberFormat || '') + sep)}
-                  title={`Add "${sep}" separator`}
-                  style={{
-                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer',
-                    background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 4, color: 'var(--text-muted)',
-                  }}>
-                  {label}
-                </button>
-              ))}
-              {form.admissionNumberFormat && (
-                <button type="button" onClick={() => set('admissionNumberFormat', '')}
-                  style={{
-                    fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer', marginLeft: 'auto',
-                    background: 'none', border: 'none', color: 'var(--danger)',
-                  }}>
-                  Clear
-                </button>
+        <div className="setgrid setgrid--2" hidden={hide('identity')}>
+          <Panel icon="student" tone="blue" title="Admission numbers"
+            desc="Given to a student added without one. Numbering continues from the highest already issued.">
+            <FormatBuilder
+              id="admission-format"
+              value={form.admissionNumberFormat}
+              tokens={ADMISSION_TOKENS}
+              placeholder="{INITIALS}{YYYY}{####}"
+              preview={admPreview}
+              nextLabel="next issued"
+              onChange={(v) => set('admissionNumberFormat', v)}
+              legend={(
+                <Legend items={ADMISSION_LEGEND} footnote={
+                  <>Anything else you type — slashes, dashes, spaces — is kept as-is. The running number
+                  continues per pattern, so <span className="setmono">{'{CLASS}'}</span> numbers each class
+                  separately and <span className="setmono">{'{DD}'}</span> restarts the count each day.</>
+                } />
               )}
-            </div>
+            />
+          </Panel>
 
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
-              <code>{'{INITIALS}'}</code> first letter of each word in the school name ·{' '}
-              <code>{'{CODE}'}</code> school code ·{' '}
-              <code>{'{YYYY}'}</code> academic year start (4-digit) ·{' '}
-              <code>{'{YY}'}</code> 2-digit year ·{' '}
-              <code>{'{MM}'}</code> month of admission ·{' '}
-              <code>{'{DD}'}</code> date of admission ·{' '}
-              <code>{'{CLASS}'}</code> class name without spaces (Class 5 → CLASS5) ·{' '}
-              <code>{'{CLASSNO}'}</code> class number (Class 5 → 5) ·{' '}
-              <code>{'{####}'}</code> running number, one digit per <code>#</code>
-              <br />
-              <code>/</code>, <code>-</code>, spaces and any other characters you type are kept as-is.
-              The running number continues per pattern, so <code>{'{CLASS}'}</code> numbers each class
-              separately and <code>{'{DD}'}</code> restarts the count each day.
-            </div>
-
-            {admPreview?.error ? (
-              <div style={{ color: 'var(--danger)', fontSize: '.82rem' }}>{admPreview.error}</div>
-            ) : admPreview ? (
-              <div style={{ fontSize: '.85rem' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Preview: </span>
-                <strong style={{ fontFamily: 'monospace' }}>{admPreview.samples?.join(', ')}</strong>
-                {admPreview.sampleClass && (
-                  <span style={{ color: 'var(--text-muted)' }}> (using {admPreview.sampleClass})</span>
-                )}
-                {admPreview.next && (
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    {' '}· next issued number: <strong style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{admPreview.next}</strong>
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {/* ── Employee / Teacher ID ── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><strong>Employee / Teacher ID Format</strong></div>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', margin: 0 }}>
-              Used when a teacher is added without an ID. Kept separate from the admission-number
-              format, and numbering continues from the highest ID already issued.
-            </p>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Format</label>
-              <input className="form-control" value={form.employeeIdFormat}
-                onChange={e => set('employeeIdFormat', e.target.value)}
-                placeholder="{INITIALS}{####}" style={{ fontFamily: 'monospace' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-              {['{INITIALS}', '{CODE}', '{YYYY}', '{YY}', '{MM}', '{DD}', '{####}'].map(tok => (
-                <button key={tok} type="button"
-                  onClick={() => set('employeeIdFormat', (form.employeeIdFormat || '') + tok)}
-                  style={{
-                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 8px', cursor: 'pointer',
-                    background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)',
-                  }}>
-                  {tok}
-                </button>
-              ))}
-              <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-              {[['/', '/'], ['-', '-'], [' ', 'space']].map(([sep, label]) => (
-                <button key={label} type="button"
-                  onClick={() => set('employeeIdFormat', (form.employeeIdFormat || '') + sep)}
-                  title={`Add "${sep}" separator`}
-                  style={{
-                    fontFamily: 'monospace', fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer',
-                    background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: 4, color: 'var(--text-muted)',
-                  }}>
-                  {label}
-                </button>
-              ))}
-              {form.employeeIdFormat && (
-                <button type="button" onClick={() => set('employeeIdFormat', '')}
-                  style={{
-                    fontSize: '.75rem', padding: '3px 10px', cursor: 'pointer', marginLeft: 'auto',
-                    background: 'none', border: 'none', color: 'var(--danger)',
-                  }}>
-                  Clear
-                </button>
+          <Panel icon="teacher" tone="green" title="Employee &amp; teacher IDs"
+            desc="Given to a teacher added without one. Kept separate from admission numbers.">
+            <FormatBuilder
+              id="employee-format"
+              value={form.employeeIdFormat}
+              tokens={EMPLOYEE_TOKENS}
+              placeholder="{INITIALS}{####}"
+              preview={empPreview}
+              nextLabel="next issued"
+              onChange={(v) => set('employeeIdFormat', v)}
+              legend={(
+                <Legend items={EMPLOYEE_LEGEND} footnote={
+                  <><span className="setmono">{'{CLASS}'}</span> and <span className="setmono">{'{CLASSNO}'}</span> are
+                  not available here — a teacher is not tied to a class. The running number continues per
+                  pattern, so <span className="setmono">{'{YYYY}'}</span> restarts the count each academic year.</>
+                } />
               )}
-            </div>
+            />
+          </Panel>
 
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
-              <code>{'{INITIALS}'}</code> first letter of each word in the school name ·{' '}
-              <code>{'{CODE}'}</code> school code ·{' '}
-              <code>{'{YYYY}'}</code> academic year start (4-digit) ·{' '}
-              <code>{'{YY}'}</code> 2-digit year ·{' '}
-              <code>{'{MM}'}</code> month of joining ·{' '}
-              <code>{'{DD}'}</code> date of joining ·{' '}
-              <code>{'{####}'}</code> running number, one digit per <code>#</code>
-              <br />
-              <code>/</code>, <code>-</code>, spaces and any other characters you type are kept as-is.
-              The running number continues per pattern, so <code>{'{YYYY}'}</code> restarts the count
-              each academic year and <code>{'{DD}'}</code> restarts it each day.
-              <br />
-              <code>{'{CLASS}'}</code> and <code>{'{CLASSNO}'}</code> are not available here — they
-              apply to admission numbers only, since a teacher isn't tied to a class.
-            </div>
-
-            {empPreview?.error ? (
-              <div style={{ color: 'var(--danger)', fontSize: '.82rem' }}>{empPreview.error}</div>
-            ) : empPreview ? (
-              <div style={{ fontSize: '.85rem' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Preview: </span>
-                <strong style={{ fontFamily: 'monospace' }}>{empPreview.samples?.join(', ')}</strong>
-                {empPreview.next && (
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    {' '}· next issued ID: <strong style={{ fontFamily: 'monospace', color: 'var(--text)' }}>{empPreview.next}</strong>
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
+          <SectionSave dirty={dirty} saving={saving} onSave={handleSubmit}
+            hint="Both formats are saved with the rest of your school settings." />
         </div>
 
-        {/* ── Working Day Configuration ── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><strong>Working Day Configuration</strong></div>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div className="setgrid setgrid--2" hidden={hide('days')}>
+          <Panel icon="calendarDays" tone="purple" title="The working week"
+            desc="Monday to Friday are always working days. Saturday is the one a school decides for itself.">
+            <Check
+              checked={saturdayWorking}
+              onChange={(v) => setLS('saturdayWorking', v)}
+              title="Saturday is a working day"
+              desc="Turn this off if every Saturday is a weekly off."
+            />
 
-            {/* Saturday working toggle */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={saturdayWorking}
-                onChange={e => setLS('saturdayWorking', e.target.checked)}
-                style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
-              />
-              <div>
-                <div style={{ fontWeight: 600 }}>Saturday is a working day</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Uncheck if all Saturdays are off</div>
-              </div>
-            </label>
-
-            {/* Saturday mode — shown only when saturday is working */}
             {saturdayWorking && (
-              <div className="form-group" style={{ marginBottom: 0, paddingLeft: 30 }}>
-                <label className="form-label">Which Saturdays are working?</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
-                  {[
-                    { value: 'all',   label: 'All Saturdays',         desc: 'Every Saturday is a working day' },
-                    { value: '1_3_5', label: '1st, 3rd & 5th Saturday', desc: 'Odd Saturdays of each month' },
-                    { value: '2_4',   label: '2nd & 4th Saturday',    desc: 'Even Saturdays of each month' },
-                  ].map(opt => (
-                    <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                      <input
-                        type="radio"
-                        name="saturdayMode"
-                        value={opt.value}
-                        checked={saturdayMode === opt.value}
-                        onChange={() => setLS('saturdayMode', opt.value)}
-                        style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
-                      />
-                      <div>
-                        <span style={{ fontWeight: 500 }}>{opt.label}</span>
-                        <span style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginLeft: 6 }}>— {opt.desc}</span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
+              <>
+                <div className="setsub">Which Saturdays?</div>
+                <Radio name="saturdayMode" value="all" current={saturdayMode} onChange={(v) => setLS('saturdayMode', v)}
+                  title="All Saturdays" desc="Every Saturday of the month" />
+                <Radio name="saturdayMode" value="1_3_5" current={saturdayMode} onChange={(v) => setLS('saturdayMode', v)}
+                  title="1st, 3rd & 5th Saturday" desc="The odd-numbered Saturdays of each month" />
+                <Radio name="saturdayMode" value="2_4" current={saturdayMode} onChange={(v) => setLS('saturdayMode', v)}
+                  title="2nd & 4th Saturday" desc="The even-numbered Saturdays of each month" />
 
-            {/* Saturday half day — shown only when saturday is working */}
-            {saturdayWorking && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', paddingLeft: 30 }}>
-                <input
-                  type="checkbox"
+                <div className="setsub">Length of the day</div>
+                <Check
+                  indent
                   checked={saturdayHalfDay}
-                  onChange={e => setLS('saturdayHalfDay', e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  onChange={(v) => setLS('saturdayHalfDay', v)}
+                  title="Working Saturdays are half days"
+                  desc="Counts as 0.5 of a day when leave is deducted."
                 />
-                <div>
-                  <div style={{ fontWeight: 600 }}>Working Saturdays are half days</div>
-                  <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Counts as 0.5 day when deducting leave</div>
-                </div>
-              </label>
+              </>
             )}
+          </Panel>
 
-          </div>
+          <Panel icon="eye" tone="amber" title="This month, as configured"
+            desc="The rule applied to a real month — the three options are easy to mix up.">
+            <SaturdayPreview settings={form.leaveSettings} />
+          </Panel>
+
+          <SectionSave dirty={dirty} saving={saving} onSave={handleSubmit}
+            hint="The working week is saved with the rest of your school settings." />
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button type="submit" loading={saving}>Save Settings</Button>
-        </div>
-
       </form>
 
-      {/* ── Email (SMTP) Settings ── */}
-      <div className="card" style={{ maxWidth: 680, marginTop: 20 }}>
-        <div className="card-header">
-          <strong>Email (SMTP) Settings</strong>
-          <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
-            When enabled, all emails to your students, parents and staff are sent from your school's own mailbox.
-          </div>
-        </div>
-        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── Sections that own their own record, and their own Save ─────────── */}
+      <div className="setgrid" hidden={hide('mail')}>
+        <Panel icon="mail" tone="teal" title="Email (SMTP)"
+          desc="With this on, every email to your students, parents and staff is sent from your school's own mailbox.">
+          <SelfSaveNote>
+            The mail server holds its own credentials and is saved with the button below, not with the
+            page&rsquo;s Save.
+          </SelfSaveNote>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={smtp.enabled}
-              onChange={e => setSmtpF('enabled', e.target.checked)}
-              style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
-            />
-            <div>
-              <div style={{ fontWeight: 600 }}>Use our school's SMTP server</div>
-              <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
-                When off, the platform's default mail server is used
-              </div>
-            </div>
-          </label>
+          <Check
+            checked={smtp.enabled}
+            onChange={(v) => setSmtpF('enabled', v)}
+            title="Use our school's own mail server"
+            desc="When off, the platform's default mail server sends everything."
+          />
 
           <div className="form-row form-row-2">
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">SMTP Host</label>
+            <div className="form-group">
+              <label className="form-label">SMTP host</label>
               <input className="form-control" value={smtp.host}
-                onChange={e => setSmtpF('host', e.target.value)} placeholder="smtp.gmail.com" />
+                onChange={(e) => setSmtpF('host', e.target.value)} placeholder="smtp.gmail.com" />
             </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
+            <div className="form-group">
               <label className="form-label">Port</label>
               <input type="number" className="form-control" value={smtp.port}
-                onChange={e => setSmtpF('port', e.target.value)} placeholder="587" />
+                onChange={(e) => setSmtpF('port', e.target.value)} placeholder="587" />
             </div>
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={smtp.secure}
-              onChange={e => setSmtpF('secure', e.target.checked)}
-              style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }} />
-            <span style={{ fontSize: '.85rem' }}>Use SSL/TLS (port 465). Leave off for STARTTLS (port 587).</span>
-          </label>
+          <Check
+            checked={smtp.secure}
+            onChange={(v) => setSmtpF('secure', v)}
+            title="Use SSL/TLS"
+            desc="For port 465. Leave off for STARTTLS on port 587."
+          />
 
           <div className="form-row form-row-2">
-            <div className="form-group" style={{ marginBottom: 0 }}>
+            <div className="form-group">
               <label className="form-label">Username</label>
               <input className="form-control" value={smtp.user} autoComplete="off"
-                onChange={e => setSmtpF('user', e.target.value)} placeholder="mail@yourschool.edu" />
+                onChange={(e) => setSmtpF('user', e.target.value)} placeholder="mail@yourschool.edu" />
             </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Password {smtp.hasPassword && !smtp.pass ? '(saved — leave blank to keep)' : ''}</label>
+            <div className="form-group">
+              <label className="form-label">
+                Password {smtp.hasPassword && !smtp.pass ? '— saved, leave blank to keep' : ''}
+              </label>
               <input type="password" className="form-control" value={smtp.pass} autoComplete="new-password"
-                onChange={e => setSmtpF('pass', e.target.value)}
+                onChange={(e) => setSmtpF('pass', e.target.value)}
                 placeholder={smtp.hasPassword ? '••••••••' : 'App password'} />
             </div>
           </div>
 
           <div className="form-row form-row-2">
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">From Name</label>
+            <div className="form-group">
+              <label className="form-label">From name</label>
               <input className="form-control" value={smtp.fromName}
-                onChange={e => setSmtpF('fromName', e.target.value)} placeholder={name || 'School name'} />
+                onChange={(e) => setSmtpF('fromName', e.target.value)} placeholder={name || 'School name'} />
             </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">From Email</label>
+            <div className="form-group">
+              <label className="form-label">From email</label>
               <input type="email" className="form-control" value={smtp.fromEmail}
-                onChange={e => setSmtpF('fromEmail', e.target.value)} placeholder="Defaults to username" />
+                onChange={(e) => setSmtpF('fromEmail', e.target.value)} placeholder="Defaults to the username" />
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <div className="setactions">
+            <span className="form-hint">
+              Save first, then test — the message goes to your own account, {user?.email}.
+            </span>
             <Button variant="secondary" type="button" loading={smtpTesting}
               onClick={handleSmtpTest} disabled={!smtp.enabled && !smtp.hasPassword}>
-              Send Test Email
+              <Icon name="mail" size={15} /> Send test email
             </Button>
-            <Button type="button" loading={smtpSaving} onClick={handleSmtpSave}>Save SMTP Settings</Button>
+            <Button type="button" loading={smtpSaving} onClick={handleSmtpSave}>Save mail settings</Button>
           </div>
-
-          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
-            💡 Save settings first, then use "Send Test Email" — a test message is sent to your account email ({user?.email}).
-          </div>
-        </div>
+        </Panel>
       </div>
 
-      {/* ── Payment gateway & receipts ──
-          Both live here rather than inside a module: fees and library fines
+      {/* Both live here rather than inside a module: fees and library fines
           charge through the same merchant account, and a school configures it
           once. Each card hides itself when no module needs it. */}
-      <div style={{ maxWidth: 680 }}>
-        <PaymentGatewayCard />
-      </div>
-      <div style={{ maxWidth: 1100 }}>
-        {modulesReady && (
-          <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library') }} />
-        )}
-      </div>
+      {money && (
+        <>
+          <div className="setgrid" hidden={hide('payments')}>
+            <SelfSaveNote>
+              The gateway keeps its own keys and is saved from inside the panel.
+            </SelfSaveNote>
+            <PaymentGatewayCard />
+          </div>
+
+          <div className="setgrid" hidden={hide('receipts')}>
+            <SelfSaveNote>
+              Each receipt design is saved from inside the panel, per module.
+            </SelfSaveNote>
+            <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library') }} />
+          </div>
+        </>
+      )}
+
+      {!modulesReady && (
+        <Alert variant="info">Checking which modules your school runs…</Alert>
+      )}
+
+      <PageFoot schoolName={name} />
     </div>
   );
 }

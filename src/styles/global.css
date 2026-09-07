@@ -4709,3 +4709,263 @@ button.lstat:hover, a.lstat:hover {
 @media (max-width: 768px) {
   .subwho__sub, .subusage__where { max-width: 180px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCHOOL SETTINGS
+   ───────────────────────────────────────────────────────────────────────────
+   Seven unrelated settings screens sharing one route. They are sections of one
+   page rather than one endless column, and the sections are panels — nothing
+   navigates, and every panel stays mounted so a half-typed field survives a
+   switch. Borrows .card, .form-* and the .tint-* icon tints.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* A hidden section must actually be hidden: .setgrid sets display:grid, which
+   beats the browser's own [hidden] rule. */
+.setpg [hidden] { display: none !important; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.sethero {
+  display:         flex;
+  align-items:     flex-start;
+  justify-content: space-between;
+  gap:             18px;
+  flex-wrap:       wrap;
+}
+.sethero__id h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.sethero__id p  { color: var(--text-muted); font-size: .88rem; margin-top: 6px; max-width: 62ch; }
+
+/* What is waiting on the page's own Save, and how to throw it away. */
+.setsave { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.setsave__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 999px;
+  background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+  font-size: .78rem; font-weight: 600;
+}
+
+/* ── The section switcher ──────────────────────────────────────────────────
+   Panels of this page, not links anywhere else. */
+.setnav {
+  display:       flex;
+  gap:           4px;
+  overflow-x:    auto;
+  scrollbar-width: none;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:       6px;
+}
+.setnav::-webkit-scrollbar { display: none; }
+.setnav__item {
+  display:     inline-flex;
+  align-items: center;
+  gap:         8px;
+  padding:     9px 15px;
+  border:      none;
+  border-radius: var(--radius);
+  background:  none;
+  font:        inherit;
+  font-size:   .85rem;
+  font-weight: 600;
+  color:       var(--text-muted);
+  white-space: nowrap;
+  cursor:      pointer;
+  transition:  background var(--transition), color var(--transition);
+}
+.setnav__item:hover { background: var(--bg); color: var(--primary); }
+.setnav__item.is-on { background: var(--primary); color: var(--text-on-primary); }
+.setnav__item svg   { flex-shrink: 0; }
+
+/* ── Panels ────────────────────────────────────────────────────────────────── */
+.setgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.setgrid--2 { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: start; }
+
+.setpanel__head {
+  display:       flex;
+  align-items:   flex-start;
+  gap:           14px;
+  padding:       18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.setpanel__icon {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.setpanel__id  { flex: 1; min-width: 0; }
+.setpanel__id h2 { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+.setpanel__id p  { font-size: .82rem; color: var(--text-muted); margin-top: 4px; line-height: 1.55; }
+.setpanel__act { flex-shrink: 0; }
+.setpanel__body { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+/* The panels supply their own spacing; the form groups inside must not add to it. */
+.setpanel__body .form-group { margin-bottom: 0; }
+.setpanel__body .form-row   { margin-bottom: 0; }
+
+/* Which panels this page's Save covers, and which keep their own. */
+.setnote {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.setnote svg { color: var(--text-light); flex-shrink: 0; margin-top: 2px; }
+
+.setactions {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; flex-wrap: wrap;
+}
+.setactions .form-hint { margin-right: auto; margin-top: 0; max-width: 40ch; }
+
+/* A section's own Save. It sits inside the section's grid, so it has to span
+   the whole width rather than taking a column of its own. */
+.setfoot {
+  grid-column: 1 / -1;
+  display:     flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap:         14px;
+  flex-wrap:   wrap;
+}
+.setfoot__hint {
+  margin-right: auto;
+  font-size:    .8rem;
+  color:        var(--text-muted);
+  max-width:    52ch;
+}
+
+/* ── The logo ──────────────────────────────────────────────────────────────── */
+.setlogo { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.setlogo__img {
+  width: 76px; height: 76px; flex-shrink: 0;
+  object-fit: contain; background: #fff; padding: 5px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.setlogo__img--empty {
+  display: flex; align-items: center; justify-content: center;
+  border-style: dashed; color: var(--text-light); background: var(--bg);
+}
+.setlogo__body { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+.setlogo__body .form-hint { margin-top: 0; }
+.setlogo__pending { font-size: .78rem; color: var(--danger); }
+.setlogo__pending button {
+  background: none; border: none; padding: 0 0 0 6px; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--primary);
+}
+
+/* ── Numbering ─────────────────────────────────────────────────────────────── */
+.setmono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.settokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.settoken {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:   .74rem;
+  padding:     4px 9px;
+  background:  var(--bg);
+  border:      1px solid var(--border);
+  border-radius: var(--radius);
+  color:       var(--text);
+  cursor:      pointer;
+  transition:  border-color var(--transition), color var(--transition);
+}
+.settoken:hover      { border-color: var(--primary); color: var(--primary); }
+.settoken--sep       { background: var(--bg-card); border-style: dashed; color: var(--text-muted); }
+.settokens__sep      { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
+.settokens__clear {
+  margin-left: auto; padding: 4px 8px;
+  background: none; border: none; cursor: pointer;
+  font: inherit; font-size: .75rem; font-weight: 600; color: var(--danger);
+}
+
+/* The tokens explained as a list of pairs rather than a paragraph of them. */
+.setlegend {
+  background:    var(--bg);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:       12px 14px;
+}
+.setlegend__grid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap:                   6px 18px;
+  margin:                0;
+}
+.setlegend__grid > div { display: flex; align-items: baseline; gap: 8px; font-size: .76rem; }
+.setlegend__grid dt { color: var(--primary); font-size: .74rem; flex-shrink: 0; }
+.setlegend__grid dd { color: var(--text-muted); margin: 0; line-height: 1.45; }
+.setlegend__foot {
+  font-size: .74rem; color: var(--text-muted); line-height: 1.6;
+  margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.setlegend__foot .setmono { color: var(--primary); }
+
+/* What the next number will actually be — the answer the pattern is a means to. */
+.setpreview {
+  display:       flex;
+  align-items:   flex-start;
+  gap:           10px;
+  padding:       11px 14px;
+  background:    #eef2ff;
+  border:        1px solid #c7d2fe;
+  border-radius: var(--radius-lg);
+  font-size:     .82rem;
+  line-height:   1.6;
+  color:         var(--primary-dark);
+}
+.setpreview svg { color: var(--primary); flex-shrink: 0; margin-top: 3px; }
+.setpreview b   { font-size: .85rem; }
+.setpreview span { color: var(--primary-dark); opacity: .8; }
+.setpreview--bad {
+  background: #fef2f2; border-color: #fecaca; color: #b91c1c;
+}
+.setpreview--bad svg { color: #b91c1c; }
+
+/* ── Checkboxes and radios that explain themselves ─────────────────────────── */
+.setcheck { display: flex; align-items: flex-start; gap: 11px; cursor: pointer; }
+.setcheck--in { padding-left: 12px; }
+.setcheck input {
+  width: 17px; height: 17px; margin-top: 2px; flex-shrink: 0;
+  accent-color: var(--primary); cursor: pointer;
+}
+.setcheck b     { display: block; font-size: .88rem; font-weight: 600; }
+.setcheck small { display: block; font-size: .78rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45; }
+
+.setsub {
+  font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-muted);
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+  margin-top: 2px;
+}
+
+/* ── The working week, applied to a real month ─────────────────────────────── */
+.setsat__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  font-size: .82rem; color: var(--text-muted); margin-bottom: 10px;
+}
+.setsat__head b { font-size: .9rem; color: var(--text); }
+.setsat__row { display: flex; flex-wrap: wrap; gap: 8px; }
+.setsat__day {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 56px; padding: 8px 4px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg); color: var(--text-light);
+}
+.setsat__day b     { font-size: 1rem; font-weight: 700; line-height: 1.1; }
+.setsat__day small { font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; margin-top: 3px; }
+.setsat__day.is-on { background: #dcfce7; border-color: #a7f3d0; color: #047857; }
+.setsat__note { font-size: .78rem; color: var(--text-muted); line-height: 1.6; margin-top: 12px; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sethero__id h1 { font-size: 1.4rem; }
+  .setsave { width: 100%; }
+  .setsave .btn { flex: 1; justify-content: center; }
+  .setpanel__head, .setpanel__body { padding: 14px; }
+  .setgrid--2 { grid-template-columns: minmax(0, 1fr); }
+  .setactions { justify-content: stretch; }
+  .setactions .btn { flex: 1; justify-content: center; }
+  .setfoot .btn { flex: 1; justify-content: center; }
+}
