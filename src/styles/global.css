@@ -5287,3 +5287,160 @@ button.lstat:hover, a.lstat:hover {
   .depabout { flex-direction: column; gap: 12px; padding: 16px; }
   .depcard__foot .btn { flex: 1; justify-content: center; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — DESIGNATIONS
+   ───────────────────────────────────────────────────────────────────────────
+   The people view of a designation, on the module's .edl-* frame. Two records
+   meet here — the master list an admin keeps and the name on each employee's
+   profile — so the row has to be able to say when they disagree.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dsggrid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap:                   16px;
+}
+
+/* A designation has no photograph and no number of its own, so the mark is
+   drawn from the name — enough to tell six rows apart at a glance. */
+.dsgmark {
+  border-radius:   11px;
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+
+.dsgwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.dsgwho__name { font-size: .9rem; font-weight: 600; line-height: 1.3; }
+.dsgwho__sub  {
+  font-size: .75rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;
+}
+
+/* ── State ─────────────────────────────────────────────────────────────────
+   Four different things, and "not configured" is the one worth reading: those
+   people hold a name nobody set up, so their access is the legacy default. */
+.dsgchip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: .72rem; font-weight: 600; white-space: nowrap;
+}
+.dsgchip--ok   { background: #dcfce7; color: #047857; }
+.dsgchip--idle { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+.dsgchip--off  { background: #fef3c7; color: #92400e; }
+.dsgchip--warn { background: #fee2e2; color: #b91c1c; }
+
+/* ── Module reach ──────────────────────────────────────────────────────────
+   A count, not a ratio — so a sentence rather than a bar. */
+.dsgaccess { font-size: .8rem; white-space: nowrap; }
+.dsgaccess b { font-size: .92rem; font-weight: 700; }
+.dsgaccess em {
+  display: inline-block; margin-left: 6px; padding: 1px 7px;
+  border-radius: 999px; background: #eef2ff; color: var(--primary);
+  font-size: .68rem; font-style: normal; font-weight: 600;
+}
+.dsgaccess--none { color: var(--text-light); }
+
+/* ── Who holds it ──────────────────────────────────────────────────────────── */
+.dsgfaces { display: inline-flex; align-items: center; }
+.dsgfaces__one {
+  display: block; border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-card);   /* the surface ring between overlaps */
+  transition: transform var(--transition);
+}
+.dsgfaces__one + .dsgfaces__one { margin-left: -8px; }
+.dsgfaces__one:hover { transform: translateY(-2px); z-index: 1; position: relative; }
+.dsgfaces__more {
+  margin-left: 6px; font-size: .75rem; font-weight: 600; color: var(--text-muted);
+}
+
+/* ── The card ──────────────────────────────────────────────────────────────── */
+.dsgcard {
+  display:        flex;
+  flex-direction: column;
+  background:     var(--bg-card);
+  border:         1px solid var(--border);
+  border-radius:  var(--radius-xl);
+  padding:        16px 18px 14px;
+  transition:     border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.dsgcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
+.dsgcard--warn { background: #fef2f2; border-color: #fecaca; }
+.dsgcard--off  { background: var(--bg); }
+
+.dsgcard__head { display: flex; align-items: flex-start; gap: 12px; }
+.dsgcard__id   { flex: 1; min-width: 0; }
+.dsgcard__id h3 { font-size: 1rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.dsgcard__id p  { font-size: .78rem; color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
+
+.dsgcard__facts {
+  display: flex; gap: 22px; flex-wrap: wrap;
+  margin: 14px 0 0; padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.dsgcard__facts dt { font-size: .72rem; color: var(--text-muted); }
+.dsgcard__facts dd { font-size: .95rem; font-weight: 700; margin: 2px 0 0; }
+.dsgcard__access   { font-weight: 400; }
+.dsgcard__faces    { margin-top: 12px; }
+
+.dsgcard__foot {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.dsgcard__idle { font-size: .78rem; color: var(--text-muted); }
+
+/* ── The people in it ──────────────────────────────────────────────────────── */
+.dsgmembers { margin-top: 12px; border-top: 1px solid var(--border); max-height: 260px; overflow-y: auto; }
+.dsgmember {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none; color: inherit;
+}
+.dsgmember:last-child { border-bottom: none; }
+.dsgmember:hover { color: var(--primary); }
+.dsgmember__name { flex: 1; min-width: 0; font-size: .85rem; font-weight: 500; }
+.dsgmember__sub  {
+  font-size: .75rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;
+}
+.dsgmember svg { color: var(--text-light); flex-shrink: 0; }
+
+/* ── The table ─────────────────────────────────────────────────────────────── */
+.dsgcol-num    { width: 46px; color: var(--text-muted); font-size: .82rem; }
+.dsgcol-n      { width: 96px; }
+.dsgcol-faces  { width: 130px; }
+.dsgcol-access { width: 150px; }
+.dsgcol-state  { width: 140px; }
+.dsgcol-date   { width: 120px; font-size: .82rem; color: var(--text-muted); }
+.dsgrow--warn td { background: #fef2f2; }
+.dsgrow--members td { background: var(--bg); padding: 0 16px 12px; }
+.dsgrow--members .dsgmembers { margin-top: 0; border-top: none; max-height: 300px; }
+
+/* ── Where a designation is actually edited ────────────────────────────────── */
+.dsgabout {
+  display:       flex;
+  gap:           16px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       20px 22px;
+}
+.dsgabout__mark {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  background: #eef2ff; color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+}
+.dsgabout__body h2 { font-size: 1rem; font-weight: 700; }
+.dsgabout__body p  { font-size: .85rem; color: var(--text-muted); margin: 8px 0 14px; line-height: 1.6; max-width: 82ch; }
+.dsgabout__acts    { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dsggrid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .dsgabout { flex-direction: column; gap: 12px; padding: 16px; }
+  .dsgwho__sub { max-width: 180px; }
+}
