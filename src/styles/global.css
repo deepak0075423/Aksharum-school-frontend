@@ -6375,3 +6375,227 @@ button.lstat:hover, a.lstat:hover {
   .edrhead { padding: 14px; }
   .edrhead__count { order: 3; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STUDENT ANALYTICS — the landing page
+   ───────────────────────────────────────────────────────────────────────────
+   The payload carries distributions and shortlists, not time series, so the
+   panels are part-to-whole bars and ranked lists. Colours come from the
+   module's validated palette (pages/analytics/palette.js): the ordered
+   attendance bands use its single-hue ramp, and anything with a status meaning
+   carries its label and its number beside the colour.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.anpg { display: flex; flex-direction: column; gap: 18px; }
+.page.anpg .breadcrumb { margin-bottom: -4px; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.anhero {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+}
+.anhero__id h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.anhero__id p  { color: var(--text-muted); font-size: .88rem; margin-top: 6px; max-width: 68ch; }
+.anhero__year {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.anhero__year svg   { color: var(--text-light); }
+.anhero__year small { display: block; font-size: .7rem; color: var(--text-muted); }
+.anhero__year b     { display: block; font-size: .92rem; font-weight: 700; }
+
+/* ── One selection drives the page ─────────────────────────────────────────── */
+.anfilters {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+}
+.anfilters__row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ansel { width: auto; min-width: 150px; flex-shrink: 0; }
+.ansearch { position: relative; flex: 1 1 240px; min-width: 190px; }
+.ansearch > svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.ansearch input { padding-left: 38px; padding-right: 34px; }
+.ansearch > button {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border: none; border-radius: 50%;
+  background: none; color: var(--text-light); cursor: pointer;
+}
+.ansearch > button:hover { background: var(--bg); color: var(--text); }
+.anmore--on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+.anfilters__panel {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px; margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.anfilters__panel label { display: block; font-size: .74rem; font-weight: 600; color: var(--text-muted); }
+.anfilters__panel select { margin-top: 5px; font-size: .85rem; }
+
+.anfilters__chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.anchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 11px; border-radius: 999px;
+  background: #eef2ff; color: var(--primary);
+  font-size: .76rem; font-weight: 600;
+}
+.anchip button {
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: none; border-radius: 50%;
+  background: none; color: inherit; cursor: pointer;
+}
+.anchip button:hover { background: #c7d2fe; }
+
+.anrole { font-size: .82rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+
+/* ── Tiles ─────────────────────────────────────────────────────────────────
+   A null value is "not measured", which is a different answer from 0 — an
+   unmarked register is not an empty school. */
+.antiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;
+}
+.antile {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px; min-width: 0;
+}
+.antile__icon {
+  width: 48px; height: 48px; border-radius: 13px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.antile__body  { min-width: 0; }
+.antile__value { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+.antile__value small { font-size: .95rem; font-weight: 600; margin-left: 1px; }
+.antile__none  { display: block; font-size: 1rem; font-weight: 600; color: var(--text-light); line-height: 1.6; }
+.antile__label { display: block; font-size: .86rem; font-weight: 600; margin-top: 3px; }
+.antile__cap   { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Panels ────────────────────────────────────────────────────────────────── */
+.angrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 18px; align-items: start; }
+.anpanel__head {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+}
+.anpanel__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.anpanel__head > div { flex: 1; min-width: 0; }
+.anpanel__head h2 { font-size: .95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.anpanel__head p  { font-size: .78rem; color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
+.anpanel__head a  {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  font-size: .78rem; font-weight: 600; color: var(--primary); text-decoration: none;
+}
+.anpanel__body { padding: 16px 18px; }
+.anpanel__sub  {
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted); margin: 18px 0 8px;
+}
+.anpanel__body > .anpanel__sub:first-child { margin-top: 0; }
+.anpanel__two { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 18px; }
+.anpanel__two .anpanel__sub { margin-top: 0; }
+
+/* Nothing recorded is not zero. */
+.annone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 34px 14px; text-align: center;
+}
+.annone svg  { color: var(--text-light); margin-bottom: 4px; }
+.annone p    { font-size: .88rem; font-weight: 600; }
+.annone span { font-size: .78rem; color: var(--text-muted); }
+
+/* ── Part-to-whole ─────────────────────────────────────────────────────────
+   Every segment is named and counted beside the bar, so colour is never the
+   only channel. */
+.ansplit__bar {
+  display: flex; gap: 2px; height: 12px;
+  border-radius: 999px; overflow: hidden; background: var(--bg);
+}
+.ansplit__bar > span:first-child { border-radius: 999px 0 0 999px; }
+.ansplit__bar > span:last-child  { border-radius: 0 999px 999px 0; }
+.ansplit__bar > span:only-child  { border-radius: 999px; }
+.ansplit__key {
+  display: flex; flex-wrap: wrap; gap: 6px 18px;
+  list-style: none; margin: 12px 0 0; padding: 0;
+  font-size: .78rem; color: var(--text-muted);
+}
+.ansplit__key li { display: flex; align-items: center; gap: 7px; }
+.ansplit__key i  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.ansplit__key b  { color: var(--text); font-weight: 700; }
+
+/* ── Ranked shortlists ─────────────────────────────────────────────────────── */
+.anrank { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.anrank li {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 0; font-size: .83rem;
+}
+.anrank li + li { border-top: 1px dashed var(--border); }
+.anrank a { display: flex; align-items: baseline; gap: 7px; min-width: 0; color: inherit; text-decoration: none; }
+.anrank a:hover .anrank__name { color: var(--primary); }
+.anrank__name  { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anrank__where { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
+.anrank b { flex-shrink: 0; font-weight: 700; }
+.anmuted  { font-size: .8rem; color: var(--text-muted); }
+
+.anengage { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; }
+.anengage b     { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
+.anengage span  { display: block; font-size: .82rem; font-weight: 600; margin-top: 2px; }
+.anengage small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── The roster ────────────────────────────────────────────────────────────── */
+.ancount {
+  font-size: .78rem; font-weight: 600; color: var(--primary);
+  background: #eef2ff; border-radius: 999px; padding: 1px 9px;
+}
+.anwho { display: flex; align-items: center; gap: 10px; min-width: 0; color: inherit; text-decoration: none; }
+.anwho__mark {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #ede9fe; color: var(--primary);
+  font-size: .8rem; font-weight: 700;
+}
+.anwho__name { display: block; font-size: .88rem; font-weight: 600; }
+.anwho__sub  {
+  display: block; font-size: .73rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;
+}
+.anwho:hover .anwho__name { color: var(--primary); }
+
+.anpc__top { display: flex; align-items: baseline; gap: 7px; }
+.anpc__top b     { font-size: .88rem; font-weight: 700; }
+.anpc__top small { font-size: .7rem; color: var(--text-muted); }
+.anpc__bar {
+  height: 5px; border-radius: 999px; background: var(--border);
+  overflow: hidden; margin-top: 5px; max-width: 120px;
+}
+.anpc__bar i { display: block; height: 100%; border-radius: 999px; }
+
+.anlib { font-size: .82rem; }
+.anlib b  { font-weight: 700; }
+.anlib em { font-style: normal; font-size: .74rem; margin-left: 6px; }
+
+.antable th { background: var(--bg); }
+.antable td { padding: 12px 16px; }
+.ancol-num   { width: 46px; color: var(--text-muted); font-size: .82rem; }
+.ancol-class { width: 110px; }
+.ancol-roll  { width: 76px; }
+.ancol-pc    { width: 150px; }
+.ancol-fee   { width: 130px; }
+.ancol-lib   { width: 120px; }
+.ancol-act   { width: 1%; white-space: nowrap; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .anhero__id h1 { font-size: 1.4rem; }
+  .anhero__year { width: 100%; }
+  .antiles { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .angrid  { grid-template-columns: minmax(0, 1fr); }
+  .ansel   { flex: 1 1 140px; min-width: 0; }
+  .anfilters__row .btn { flex: 1; justify-content: center; }
+}

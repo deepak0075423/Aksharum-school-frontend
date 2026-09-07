@@ -1,12 +1,31 @@
-import React, { useMemo, useState } from 'react';
+/**
+ * Student Analytics — the landing page.
+ *
+ * One screen for two audiences. A school admin sees every section; a teacher
+ * sees only the sections they are class teacher, vice class teacher or subject
+ * teacher of. The server decides that (getScope) — this page renders what came
+ * back, and never widens it.
+ *
+ * The filters above the panels are the whole page: the roll-up AND the roster
+ * below are both computed over exactly the selection in force, so a number here
+ * always describes the students listed underneath it.
+ *
+ * Every module block is gated on the module producing it. A school without fees
+ * is not shown a fee column, an empty fee panel, or a "has dues" filter.
+ */
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
 import { useAuth } from '../../contexts/AuthContext';
 import { getScope, getOverview, getStudents } from '../../api/analytics.api';
-import { PageHeader, Spinner, Badge, Table, Pagination, Empty } from '../../components/ui/index';
+import { Empty, Spinner, Badge } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import { ListFoot } from '../directory/employeeParts';
+import { VIZ, fmtMoney, toneForPercent } from './viz';
 import {
-  VIZ, Panel, Hero, Meter, BandBar, Grid, fmtMoney, toneForPercent, toneColor,
-} from './viz';
+  Chip, Crumbs, FeeCell, Hero, LibraryCell, NoData, Panel, PercentCell, RankList,
+  Split, StudentCell, Tile,
+} from './analyticsParts';
 
 // Filters that need a computed metric are gated on the module that produces it —
 // there is no point offering "has dues" to a school without the fees module.
@@ -45,13 +64,12 @@ const SORT_DEFS = [
 ];
 
 const EMPTY_FILTERS = { gender: '', status: '', attendance: '', result: '', fees: '', library: '', transport: '' };
+const PAGE_SIZES = [20, 50, 100];
 
-// One page for two audiences. A school admin sees every section; a teacher sees
-// only the sections they are class teacher / vice class teacher of, or teach a
-// subject in — the backend decides, this page just renders what came back.
 export default function StudentAnalytics() {
   const { user } = useAuth();
-  const base = user?.role === 'teacher' ? '/teacher/student-analytics' : '/admin/student-analytics';
+  const isTeacher = user?.role === 'teacher';
+  const base = isTeacher ? '/teacher/student-analytics' : '/admin/student-analytics';
 
   const [classId,   setClassId]   = useState('');
   const [sectionId, setSectionId] = useState('');
@@ -61,8 +79,16 @@ export default function StudentAnalytics() {
   const [sortBy,    setSortBy]    = useState('roll');
   const [showMore,  setShowMore]  = useState(false);
   const [page,      setPage]      = useState(1);
+  const [limit,     setLimit]     = useState(20);
 
   const { data: scope, loading: scopeLoading, error: scopeError, refetch: retryScope } = useFetch(getScope, []);
+
+  // A keystroke is not a search; wait for a pause. (The old page needed the
+  // button pressed, which meant the panels could disagree with the box.)
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const params = useMemo(() => {
     const p = {};
@@ -79,7 +105,7 @@ export default function StudentAnalytics() {
 
   const { data: overview, loading: ovLoading } = useFetch(() => getOverview(params), [key]);
   const { data: roster, loading: rosterLoading } =
-    useFetch(() => getStudents({ ...params, page, limit: 20 }), [key, page]);
+    useFetch(() => getStudents({ ...params, page, limit }), [key, page, limit]);
 
   const setFilter = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
 
@@ -91,7 +117,6 @@ export default function StudentAnalytics() {
   }, [sections]);
   const sectionChoices = classId ? sections.filter((s) => s.classId === classId) : sections;
 
-  const applySearch = (e) => { e.preventDefault(); setPage(1); setTerm(search.trim()); };
   const resetFilters = () => {
     setClassId(''); setSectionId(''); setSearch(''); setTerm('');
     setFilters(EMPTY_FILTERS); setSortBy('roll'); setPage(1);
@@ -103,22 +128,18 @@ export default function StudentAnalytics() {
   // like an empty roster.
   if (scopeError) {
     return (
-      <div className="page">
-        <PageHeader title="Student Analytics" />
-        <Empty
-          icon="🔌"
-          title="Could not load analytics"
-          message={scopeError}
-          action={<button className="btn btn-primary" onClick={retryScope}>Try again</button>}
-        />
+      <div className="page anpg">
+        <Crumbs home={isTeacher ? '/teacher/dashboard' : '/admin/dashboard'} />
+        <Empty icon="🔌" title="Could not load analytics" message={scopeError}
+          action={<button type="button" className="btn btn-primary" onClick={retryScope}>Try again</button>} />
       </div>
     );
   }
 
   if (!sections.length) {
     return (
-      <div className="page">
-        <PageHeader title="Student Analytics" />
+      <div className="page anpg">
+        <Crumbs home={isTeacher ? '/teacher/dashboard' : '/admin/dashboard'} />
         <Empty
           icon="🎓"
           title={scope?.canSeeAll ? 'No sections yet' : 'No classes assigned to you'}
@@ -132,6 +153,9 @@ export default function StudentAnalytics() {
 
   const modules = overview?.modules || scope?.modules || {};
   const totals  = overview?.totals;
+  const att     = overview?.attendance;
+  const res     = overview?.results;
+  const fees    = overview?.fees;
 
   const availableFilters = FILTER_DEFS.filter((f) => !f.module || modules[f.module]);
   const availableSorts   = SORT_DEFS.filter((s) => !s.module || modules[s.module]);
@@ -142,125 +166,76 @@ export default function StudentAnalytics() {
       label: f.label,
       valueLabel: f.options.find(([v]) => v === filters[f.key])?.[1] || filters[f.key],
     }));
-
-  const columns = [
-    {
-      key: 'name', label: 'Student',
-      render: (r) => (
-        <Link to={`${base}/${r._id}`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{
-            width: 30, height: 30, borderRadius: '50%', background: '#ede9fe', color: VIZ.accent,
-            display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: '.78rem', flexShrink: 0,
-          }}>{(r.name || '?').charAt(0).toUpperCase()}</span>
-          <span>
-            <span style={{ fontWeight: 600, display: 'block' }}>{r.name}</span>
-            <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
-              {r.admissionNumber || r.email}
-            </span>
-          </span>
-        </Link>
-      ),
-    },
-    { key: 'class', label: 'Class', render: (r) => `${r.className} ${r.sectionName}`.trim() || '—' },
-    { key: 'rollNumber', label: 'Roll', render: (r) => r.rollNumber || '—' },
-    ...(modules.attendance ? [{
-      key: 'attendancePercent', label: 'Attendance',
-      render: (r) => (r.attendancePercent == null
-        ? <span className="text-muted">—</span>
-        : <Meter value={r.attendancePercent} right={<strong>{r.attendancePercent}%</strong>} label={`${r.attendanceDays} days`} />),
-    }] : []),
-    ...(modules.result ? [{
-      key: 'avgPercent', label: 'Avg. result',
-      render: (r) => (r.avgPercent == null
-        ? <span className="text-muted">Not assessed</span>
-        : <Meter value={r.avgPercent} right={<strong>{r.avgPercent}%</strong>} label={`${r.examCount} exam${r.examCount === 1 ? '' : 's'}`} />),
-    }] : []),
-    ...(modules.fees ? [{
-      key: 'feeBalance', label: 'Fee balance',
-      render: (r) => (r.feeBalance > 0
-        ? <Badge variant="danger">{fmtMoney(r.feeBalance)} due</Badge>
-        : <Badge variant="success">Clear</Badge>),
-    }] : []),
-    ...(modules.library ? [{
-      key: 'booksOut', label: 'Library',
-      render: (r) => (r.booksOut
-        ? <span>{r.booksOut} out{r.booksOverdue ? <span style={{ color: VIZ.bad }}> · {r.booksOverdue} overdue</span> : null}</span>
-        : <span className="text-muted">—</span>),
-    }] : []),
-    {
-      key: 'open', label: '',
-      render: (r) => <Link to={`${base}/${r._id}`} className="btn btn-secondary btn-sm">View</Link>,
-    },
-  ];
+  const anyFilter = activeFilters.length > 0 || !!classId || !!sectionId || !!term || sortBy !== 'roll';
+  const students  = roster?.students || [];
 
   return (
-    <div className="page">
-      <PageHeader
-        title="Student Analytics"
-        subtitle={scope?.canSeeAll
-          ? `Every student in the school${scope?.academicYear ? ` · ${scope.academicYear.yearName}` : ''}`
-          : `${sections.length} section${sections.length === 1 ? '' : 's'} you teach${scope?.academicYear ? ` · ${scope.academicYear.yearName}` : ''}`}
-      />
+    <div className="page anpg">
+      <Crumbs home={isTeacher ? '/teacher/dashboard' : '/admin/dashboard'} />
 
-      {/* Filters — one block above the charts. Both the roll-up and the roster
-          below reflect exactly this selection. */}
-      <form onSubmit={applySearch} style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)', padding: 12, marginBottom: 16,
-      }}>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select className="form-control" style={{ width: 'auto', minWidth: 140 }}
-            value={classId}
+      <Hero scope={scope} sections={sections.length} />
+
+      {/* One selection drives the whole page: the figures, the panels and the
+          roster are all computed over exactly this. */}
+      <section className="anfilters">
+        <div className="anfilters__row">
+          <select className="form-control ansel" value={classId} aria-label="Class"
             onChange={(e) => { setClassId(e.target.value); setSectionId(''); setPage(1); }}>
             <option value="">All classes</option>
             {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select className="form-control" style={{ width: 'auto', minWidth: 140 }}
-            value={sectionId}
+
+          <select className="form-control ansel" value={sectionId} aria-label="Section"
             onChange={(e) => { setSectionId(e.target.value); setPage(1); }}>
             <option value="">All sections</option>
             {sectionChoices.map((s) => (
               <option key={s._id} value={s._id}>{s.className} — {s.sectionName}</option>
             ))}
           </select>
-          <input className="form-control" style={{ width: 'auto', minWidth: 190, flex: 1 }}
-            placeholder="Search name, admission or roll number…"
-            value={search} onChange={(e) => setSearch(e.target.value)} />
-          <button className="btn btn-primary" type="submit">Search</button>
-          <button className="btn btn-secondary" type="button" onClick={() => setShowMore((v) => !v)}>
-            Filters{activeFilters.length ? ` (${activeFilters.length})` : ''} {showMore ? '▴' : '▾'}
+
+          <div className="ansearch">
+            <Icon name="search" size={16} />
+            <input className="form-control" value={search} placeholder="Search by name, admission or roll number…"
+              onChange={(e) => setSearch(e.target.value)} aria-label="Search students" />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} aria-label="Clear search">
+                <Icon name="close" size={14} />
+              </button>
+            )}
+          </div>
+
+          <button type="button" className={`btn btn-secondary${activeFilters.length ? ' anmore--on' : ''}`}
+            onClick={() => setShowMore((v) => !v)} aria-expanded={showMore}>
+            <Icon name="filter" size={16} />
+            Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
           </button>
         </div>
 
         {showMore && (
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
-            gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)',
-          }}>
+          <div className="anfilters__panel">
             {availableFilters.map((f) => (
-              <label key={f.key} style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
+              <label key={f.key}>
                 {f.label}
-                <select className="form-control" style={{ marginTop: 4 }}
-                  value={filters[f.key]} onChange={(e) => setFilter(f.key, e.target.value)}>
+                <select className="form-control" value={filters[f.key]}
+                  onChange={(e) => setFilter(f.key, e.target.value)}>
                   <option value="">Any</option>
                   {f.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </label>
             ))}
-            <label style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
+            <label>
               Sort by
-              <select className="form-control" style={{ marginTop: 4 }}
-                value={sortBy} onChange={(e) => { setSortBy(e.target.value); setPage(1); }}>
+              <select className="form-control" value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setPage(1); }}>
                 {availableSorts.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
             </label>
           </div>
         )}
 
-        {/* Active selections, each individually removable */}
-        {(activeFilters.length > 0 || classId || sectionId || term || sortBy !== 'roll') && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
-            {term && <Chip label={`Search: ${term}`} onClear={() => { setSearch(''); setTerm(''); setPage(1); }} />}
+        {anyFilter && (
+          <div className="anfilters__chips">
+            {term && <Chip label={`Search: ${term}`} onClear={() => setSearch('')} />}
             {activeFilters.map((f) => (
               <Chip key={f.key} label={`${f.label}: ${f.valueLabel}`} onClear={() => setFilter(f.key, '')} />
             ))}
@@ -268,14 +243,14 @@ export default function StudentAnalytics() {
               <Chip label={`Sorted by ${SORT_DEFS.find((s) => s.key === sortBy)?.label}`}
                 onClear={() => { setSortBy('roll'); setPage(1); }} />
             )}
-            <button className="btn btn-secondary btn-sm" type="button" onClick={resetFilters}>Clear all</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={resetFilters}>Clear all</button>
           </div>
         )}
-      </form>
+      </section>
 
       {/* Which hat the viewer is wearing over the selected section */}
       {!scope?.canSeeAll && sectionId && (
-        <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+        <p className="anrole">
           Your role here:{' '}
           {(sections.find((s) => s._id === sectionId)?.roles || []).map((r) => (
             <Badge key={r} variant="primary">{r}</Badge>
@@ -284,156 +259,218 @@ export default function StudentAnalytics() {
       )}
 
       {ovLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
       ) : (
         <>
-          <div className="stat-grid" style={{ marginBottom: 4 }}>
-            <div className="stat-card">
-              <div className="stat-card__icon blue">👨‍🎓</div>
-              <div className="stat-card__info">
-                <div className="stat-card__value">{totals?.students ?? 0}</div>
-                <div className="stat-card__label">Students in view</div>
-              </div>
-            </div>
+          <div className="antiles">
+            <Tile icon="student" tone="indigo" value={totals?.students ?? 0} label="Students in view"
+              caption={anyFilter ? 'Matching these filters' : `Across ${sections.length} section${sections.length === 1 ? '' : 's'}`} />
             {modules.attendance && (
-              <div className="stat-card">
-                <div className="stat-card__icon green">✅</div>
-                <div className="stat-card__info">
-                  <div className="stat-card__value">
-                    {overview?.attendance?.average != null ? `${overview.attendance.average}%` : '—'}
-                  </div>
-                  <div className="stat-card__label">Average attendance</div>
-                </div>
-              </div>
+              <Tile icon="checkSquare" tone="green" value={att?.average} unit="%" label="Average attendance"
+                empty="Not marked yet"
+                caption={att?.tracked ? `${att.tracked} student${att.tracked === 1 ? '' : 's'} with a marked register` : 'No register marked yet'} />
             )}
             {modules.result && (
-              <div className="stat-card">
-                <div className="stat-card__icon purple">📊</div>
-                <div className="stat-card__info">
-                  <div className="stat-card__value">
-                    {overview?.results?.average != null ? `${overview.results.average}%` : '—'}
-                  </div>
-                  <div className="stat-card__label">Average result</div>
-                </div>
-              </div>
+              <Tile icon="chart" tone="purple" value={res?.average} unit="%" label="Average result"
+                empty="Not assessed"
+                caption={res?.assessed ? `${res.assessed} assessed · ${res.failing} with a failed exam` : 'No results published yet'} />
             )}
             {modules.fees && (
-              <div className="stat-card">
-                <div className="stat-card__icon orange">💰</div>
-                <div className="stat-card__info">
-                  <div className="stat-card__value">{fmtMoney(overview?.fees?.outstanding)}</div>
-                  <div className="stat-card__label">
-                    Outstanding · {overview?.fees?.defaulters || 0} student{overview?.fees?.defaulters === 1 ? '' : 's'}
-                  </div>
-                </div>
-              </div>
+              <Tile icon="wallet" tone="amber" value={fmtMoney(fees?.outstanding)} label="Outstanding fees"
+                caption={fees?.defaulters
+                  ? `${fees.defaulters} student${fees.defaulters === 1 ? '' : 's'} owing`
+                  : 'Nobody owes anything'} />
             )}
           </div>
 
-          <Grid min={320}>
-            {modules.attendance && overview?.attendance?.tracked > 0 && (
-              <Panel title="Attendance spread"
-                subtitle={`${overview.attendance.tracked} student${overview.attendance.tracked === 1 ? '' : 's'} with marked attendance`}>
-                <BandBar segments={[
-                  { label: '90% and above', value: overview.attendance.bands.above90,    color: VIZ.bands[3] },
-                  { label: '75–90%',        value: overview.attendance.bands.from75to90, color: VIZ.bands[2] },
-                  { label: '60–75%',        value: overview.attendance.bands.from60to75, color: VIZ.bands[1] },
-                  { label: 'Below 60%',     value: overview.attendance.bands.below60,    color: VIZ.bands[0] },
-                ]} />
-                {!!overview.attendance.lowest?.length && (
-                  <div style={{ marginTop: 16 }}>
-                    <h4 style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: 8 }}>Lowest attendance</h4>
-                    <RankList base={base} rows={overview.attendance.lowest}
-                      value={(r) => `${r.attendancePercent}%`} tone={(r) => toneForPercent(r.attendancePercent)} />
-                  </div>
-                )}
+          <div className="angrid">
+            {modules.attendance && (
+              <Panel icon="checkSquare" tone="green" title="Attendance spread"
+                subtitle={att?.tracked
+                  ? `${att.tracked} student${att.tracked === 1 ? '' : 's'} with a marked register`
+                  : 'Nothing marked in this selection yet'}>
+                {att?.tracked
+                  ? (
+                    <>
+                      {/* Ordered bands, so a single-hue ramp rather than the
+                          status trio — these are degrees of one thing. */}
+                      <Split segments={[
+                        { label: '90% and above', value: att.bands.above90,    color: VIZ.bands[3] },
+                        { label: '75–90%',        value: att.bands.from75to90, color: VIZ.bands[2] },
+                        { label: '60–75%',        value: att.bands.from60to75, color: VIZ.bands[1] },
+                        { label: 'Below 60%',     value: att.bands.below60,    color: VIZ.bands[0] },
+                      ]} />
+                      {!!att.lowest?.length && (
+                        <>
+                          <h4 className="anpanel__sub">Lowest attendance</h4>
+                          <RankList base={base} rows={att.lowest}
+                            value={(r) => `${r.attendancePercent}%`}
+                            tone={(r) => toneForPercent(r.attendancePercent)} />
+                        </>
+                      )}
+                    </>
+                  )
+                  : <NoData icon="checkSquare" title="No attendance marked yet"
+                      hint="Bands appear here as sections record their registers." />}
               </Panel>
             )}
 
             {modules.result && (
-              <Panel title="Academic standing" subtitle={`${overview?.results?.assessed || 0} assessed · ${overview?.results?.failing || 0} with a failed exam`}>
-                {overview?.results?.assessed ? (
-                  <Grid min={130} gap={12}>
-                    <div>
-                      <h4 style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: 8 }}>Top performers</h4>
-                      <RankList base={base} rows={overview.results.toppers} value={(r) => `${r.avgPercent}%`} tone={() => 'good'} />
+              <Panel icon="chart" tone="purple" title="Academic standing"
+                subtitle={res?.assessed
+                  ? `${res.assessed} assessed · ${res.failing} with a failed exam`
+                  : 'Nothing published in this selection yet'}>
+                {res?.assessed
+                  ? (
+                    <div className="anpanel__two">
+                      <div>
+                        <h4 className="anpanel__sub">Top performers</h4>
+                        <RankList base={base} rows={res.toppers}
+                          value={(r) => `${r.avgPercent}%`} tone={() => 'good'} />
+                      </div>
+                      <div>
+                        <h4 className="anpanel__sub">Needs attention</h4>
+                        <RankList base={base} rows={res.needHelp}
+                          value={(r) => `${r.avgPercent}%`} tone={(r) => toneForPercent(r.avgPercent)}
+                          empty="Nobody is struggling." />
+                      </div>
                     </div>
-                    <div>
-                      <h4 style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: 8 }}>Needs attention</h4>
-                      <RankList base={base} rows={overview.results.needHelp} value={(r) => `${r.avgPercent}%`} tone={(r) => toneForPercent(r.avgPercent)} />
-                    </div>
-                  </Grid>
-                ) : <p style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>No results published yet.</p>}
+                  )
+                  : <NoData icon="chart" title="No results published yet"
+                      hint="Averages and shortlists appear once an exam is published." />}
               </Panel>
             )}
 
-            {modules.fees && !!overview?.fees?.topDues?.length && (
-              <Panel title="Largest fee dues" subtitle={`${fmtMoney(overview.fees.collected)} collected so far`}>
-                <RankList base={base} rows={overview.fees.topDues} value={(r) => fmtMoney(r.feeBalance)} tone={() => 'bad'} />
+            {modules.fees && (
+              <Panel icon="wallet" tone="amber" title="Fees"
+                subtitle={`${fmtMoney(fees?.collected)} collected in this selection`}>
+                {(fees?.collected || fees?.outstanding)
+                  ? (
+                    <>
+                      {/* Collected against outstanding is a status split, so it
+                          ships both labels and both amounts. */}
+                      <Split segments={[
+                        { label: 'Collected',   value: fees.collected,   color: VIZ.good },
+                        { label: 'Outstanding', value: fees.outstanding, color: VIZ.bad },
+                      ]} />
+                      {!!fees.topDues?.length && (
+                        <>
+                          <h4 className="anpanel__sub">Largest dues</h4>
+                          <RankList base={base} rows={fees.topDues}
+                            value={(r) => fmtMoney(r.feeBalance)} tone={() => 'bad'} />
+                        </>
+                      )}
+                    </>
+                  )
+                  : <NoData icon="wallet" title="Nothing billed yet"
+                      hint="Collection and dues appear once fees are raised." />}
               </Panel>
             )}
 
             {(modules.library || modules.videoLibrary) && (
-              <Panel title="Engagement">
-                <Grid min={120} gap={14}>
+              <Panel icon="bookOpen" tone="blue" title="Engagement"
+                subtitle="What these students are reading and watching">
+                <div className="anengage">
                   {modules.library && (
-                    <Hero value={overview?.library?.booksOut ?? 0} label="Books currently out"
-                      tone={overview?.library?.overdue ? 'bad' : 'good'}
-                      sub={`${overview?.library?.overdue || 0} overdue · ${overview?.library?.readers || 0} readers`} />
+                    <div>
+                      <b>{overview?.library?.booksOut ?? 0}</b>
+                      <span>Books out</span>
+                      <small>
+                        {overview?.library?.overdue || 0} overdue · {overview?.library?.readers || 0} readers
+                      </small>
+                    </div>
                   )}
                   {modules.videoLibrary && (
-                    <Hero value={overview?.videos?.completed ?? 0} label="Videos completed"
-                      tone="accent"
-                      sub={`${overview?.videos?.watched || 0} started · ${overview?.videos?.viewers || 0} viewers`} />
+                    <div>
+                      <b>{overview?.videos?.completed ?? 0}</b>
+                      <span>Videos completed</span>
+                      <small>
+                        {overview?.videos?.watched || 0} started · {overview?.videos?.viewers || 0} viewers
+                      </small>
+                    </div>
                   )}
-                </Grid>
+                </div>
               </Panel>
             )}
-          </Grid>
+          </div>
         </>
       )}
 
-      <Panel title="Students" subtitle="Open a student for their full module-by-module dashboard">
-        <Table columns={columns} data={roster?.students} loading={rosterLoading}
-          emptyIcon="🔍" emptyTitle="No students match these filters" />
-        <Pagination page={roster?.page || 1} pages={roster?.pages || 1}
-          total={roster?.total || 0} onPage={setPage} />
-      </Panel>
+      <section className="card anroster">
+        <header className="anpanel__head">
+          <span className="anpanel__icon tint-indigo"><Icon name="users" size={18} /></span>
+          <div>
+            <h2>Students <span className="ancount">{roster?.total ?? 0}</span></h2>
+            <p>Open a student for their full module-by-module dashboard.</p>
+          </div>
+        </header>
+
+        {rosterLoading
+          ? <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
+          : students.length === 0
+            ? (
+              <Empty icon="🔍" title="No students match these filters"
+                message={anyFilter ? 'Try widening the selection.' : 'No students in this section yet.'}
+                action={anyFilter
+                  ? <button type="button" className="btn btn-secondary" onClick={resetFilters}>Clear all</button>
+                  : null} />
+            )
+            : (
+              <div className="table-wrap">
+                <table className="table antable">
+                  <thead>
+                    <tr>
+                      <th className="ancol-num">#</th>
+                      <th>Student</th>
+                      <th className="ancol-class">Class</th>
+                      <th className="ancol-roll">Roll</th>
+                      {modules.attendance && <th className="ancol-pc">Attendance</th>}
+                      {modules.result && <th className="ancol-pc">Avg. result</th>}
+                      {modules.fees && <th className="ancol-fee">Fees</th>}
+                      {modules.library && <th className="ancol-lib">Library</th>}
+                      <th className="ancol-act" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map((r, i) => (
+                      <tr key={r._id}>
+                        <td className="ancol-num">{((roster?.page || 1) - 1) * limit + i + 1}</td>
+                        <td><StudentCell row={r} base={base} /></td>
+                        <td className="ancol-class">{`${r.className} ${r.sectionName}`.trim() || '—'}</td>
+                        <td className="ancol-roll">{r.rollNumber || <span className="ed-none">—</span>}</td>
+                        {modules.attendance && (
+                          <td className="ancol-pc">
+                            <PercentCell value={r.attendancePercent}
+                              sub={r.attendanceDays ? `${r.attendanceDays} days` : ''} empty="Not marked" />
+                          </td>
+                        )}
+                        {modules.result && (
+                          <td className="ancol-pc">
+                            <PercentCell value={r.avgPercent}
+                              sub={r.examCount ? `${r.examCount} exam${r.examCount === 1 ? '' : 's'}` : ''}
+                              empty="Not assessed" />
+                          </td>
+                        )}
+                        {modules.fees && <td className="ancol-fee"><FeeCell row={r} /></td>}
+                        {modules.library && <td className="ancol-lib"><LibraryCell row={r} /></td>}
+                        <td className="ancol-act">
+                          <Link to={`${base}/${r._id}`} className="btn btn-secondary btn-sm">View</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+        {students.length > 0 && (
+          <ListFoot
+            page={roster?.page || 1} pages={roster?.pages || 1} total={roster?.total || 0}
+            limit={limit} count={students.length} noun="student"
+            onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} sizes={PAGE_SIZES}
+          />
+        )}
+      </section>
     </div>
-  );
-}
-
-// A removable summary of one active filter.
-function Chip({ label, onClear }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.75rem',
-      background: '#ede9fe', color: VIZ.accent, borderRadius: 99, padding: '4px 6px 4px 10px',
-    }}>
-      {label}
-      <button type="button" onClick={onClear} aria-label={`Remove ${label}`}
-        style={{
-          border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer',
-          fontSize: '.85rem', lineHeight: 1, padding: '0 2px',
-        }}>✕</button>
-    </span>
-  );
-}
-
-// A ranked shortlist — the table form the skill prefers once names carry the meaning.
-function RankList({ rows, value, tone, base }) {
-  if (!rows?.length) return <p style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Nothing to show.</p>;
-  return (
-    <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
-      {rows.map((r) => (
-        <li key={r._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: '.82rem' }}>
-          <Link to={`${base}/${r._id}`} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {r.name}
-            <span style={{ color: 'var(--text-muted)', fontSize: '.72rem' }}> · {r.className} {r.sectionName}</span>
-          </Link>
-          <strong style={{ color: toneColor[tone(r)], flexShrink: 0 }}>{value(r)}</strong>
-        </li>
-      ))}
-    </ol>
   );
 }
