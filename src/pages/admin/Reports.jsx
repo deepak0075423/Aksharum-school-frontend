@@ -1,63 +1,115 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+/**
+ * Admin → Reports.
+ *
+ * An index, not a report. Every card is a real screen inside the module that
+ * owns it, so what opens is always the live thing rather than a copy of it —
+ * this page exists because "where do I see what we collected this term" should
+ * not require remembering that it lives three clicks inside Fees.
+ *
+ * Built on the same frame as the academic lists (listParts.jsx): a hero, four
+ * headcount tiles, a card holding the category filter and the groups, then the
+ * closing panels.
+ */
+import React, { useMemo, useState } from 'react';
 import useFetch from '../../hooks/useFetch';
-import { getDashboard, getModules } from '../../api/admin.api';
-import { PageHeader, StatCard, Spinner } from '../../components/ui/index';
-
-const REPORT_LINKS = [
-  { module: 'fees',    to: '/admin/fees/reports',      icon: '💰', label: 'Fees Collection & Dues',
-    desc: 'Collection summaries, outstanding dues and concession reports' },
-  { module: 'fees',    to: '/admin/fees/dashboard',    icon: '📈', label: 'Fees Overview',
-    desc: 'Collection progress and recent transactions at a glance' },
-  { module: 'leave',   to: '/admin/leave',             icon: '🏖️', label: 'Leave Reports',
-    desc: 'Leave usage per teacher with Excel export (Reports tab)' },
-  { module: 'payroll', to: '/admin/payroll/dashboard', icon: '💵', label: 'Payroll Summary',
-    desc: 'Run totals — gross, deductions and net payouts' },
-  { module: 'library', to: '/admin/library/dashboard', icon: '📖', label: 'Library Overview',
-    desc: 'Circulation, overdue books, reservations and fines' },
-  { module: 'result',  to: '/admin/results',           icon: '📊', label: 'Exam Results',
-    desc: 'Formal exam status, marks review and published results' },
-  { module: 'aptitudeExam', to: '/admin/exams',        icon: '📝', label: 'Aptitude Exams',
-    desc: 'Exams overview across the school with result status' },
-  { module: 'attendance', to: '/admin/attendance',     icon: '✅', label: 'Attendance',
-    desc: 'Teacher attendance regularization queue' },
-];
+import { getDashboard } from '../../api/admin.api';
+import { useModules } from '../../contexts/ModulesContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { Alert, Badge, Spinner } from '../../components/ui/index';
+import Icon, { TrophyScene } from '../../components/ui/icons';
+import { Crumbs, ListHero, ListStats, HelpPanel, PageFoot } from './listParts';
+import { HeadCount, MissingPanel, REPORTS, ReportGroup, catalogue } from './reportParts';
 
 export default function Reports() {
-  const { data, loading }  = useFetch(getDashboard);
-  const { data: modules }  = useFetch(getModules);
-  if (loading) return <div className="loading-page"><Spinner /></div>;
+  const { user: me } = useAuth();
+  // The shared module map — effective access, already fetched once per session.
+  // `ready` matters: isEnabled fails open while it loads, so asking too early
+  // lists reports the school cannot open.
+  const { isEnabled, ready } = useModules();
+  const { data, loading, error } = useFetch(getDashboard);
 
-  const links = REPORT_LINKS.filter(l => !l.module || modules?.[l.module]);
+  const [tab, setTab] = useState('all');
+
+  const groups = useMemo(() => (ready ? catalogue(isEnabled) : []), [ready, isEnabled]);
+  const total  = groups.reduce((n, g) => n + g.reports.length, 0);
+  const hidden = REPORTS.length - total;
+  const shown  = tab === 'all' ? groups : groups.filter((g) => g.key === tab);
+
+  const growth = data?.growth || {};
+  const year   = data?.academicYear;
+
+  if (loading || !ready) return <div className="loading-page"><Spinner /></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="Reports" subtitle="School analytics and insights" />
+    <div className="page listpg">
+      <Crumbs here="Reports" />
 
-      <div className="stat-grid" style={{ marginBottom: 24 }}>
-        <StatCard icon="👨‍🏫" label="Total Teachers"  value={data?.teachers} color="blue" />
-        <StatCard icon="👨‍🎓" label="Total Students"  value={data?.students} color="green" />
-        <StatCard icon="👨‍👩‍👧" label="Total Parents"   value={data?.parents}  color="orange" />
-        <StatCard icon="🏛️" label="Active Sections" value={data?.sections} color="purple" />
+      <ListHero
+        title="Reports"
+        subtitle="Everything the school records, gathered into one place — each one opens the live screen inside the module that owns it."
+        quote="A number is only worth reading if you know what it counted. Every report here is the module's own, not a copy of it."
+        scene={TrophyScene}
+      />
+
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      <ListStats>
+        <HeadCount icon="teacher" tone="indigo" value={data?.teachers} label="Teachers"
+          added={growth.teachers} caption="On the staff roll" />
+        <HeadCount icon="student" tone="green" value={data?.students} label="Students"
+          added={growth.students} caption="Admitted to the school" />
+        <HeadCount icon="users" tone="amber" value={data?.parents} label="Parents"
+          added={growth.parents} caption="With an account" />
+        <HeadCount icon="layers" tone="blue" value={data?.sections} label="Active sections"
+          added={growth.sections} caption="Across all classes" />
+      </ListStats>
+
+      <section className="card">
+        <div className="ltabs">
+          <button type="button" className={`ltab${tab === 'all' ? ' is-on' : ''}`}
+            aria-pressed={tab === 'all'} onClick={() => setTab('all')}>
+            All reports ({total})
+          </button>
+          {groups.map((g) => (
+            <button key={g.key} type="button" className={`ltab${tab === g.key ? ' is-on' : ''}`}
+              aria-pressed={tab === g.key} onClick={() => setTab(g.key)}>
+              {g.label} ({g.reports.length})
+            </button>
+          ))}
+        </div>
+
+        <div className="repbody">
+          {/* The year every figure above belongs to. It is not a picker: each
+              report has its own period controls, and one here would only claim
+              to filter screens it cannot reach. */}
+          {year && (
+            <div className="repyear">
+              <Icon name="calendar" size={15} />
+              <span>Figures are for <b>{year.yearName}</b></span>
+              <Badge variant={year.status === 'active' ? 'success' : 'muted'}>
+                {year.status === 'active' ? 'Active year' : year.status}
+              </Badge>
+              <span className="repyear__note">Each report picks its own dates once open.</span>
+            </div>
+          )}
+
+          {shown.length === 0
+            ? (
+              <Alert variant="info">
+                No reports in this category — your school does not run the modules behind them yet.
+              </Alert>
+            )
+            : shown.map((g) => <ReportGroup key={g.key} group={g} />)}
+        </div>
+      </section>
+
+      <div className="lbottom">
+        <MissingPanel hidden={hidden} />
+        <HelpPanel
+          text="Figures on this page are school-wide and live. A report that looks wrong is usually a question of period or scope — open it and check the year, term or class it is showing before treating a number as final." />
       </div>
 
-      <h2 style={{ marginBottom: 14, fontSize: '1rem', fontWeight: 600 }}>Detailed reports</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }}>
-        {links.map(item => (
-          <Link key={item.label} to={item.to}
-            style={{
-              display: 'block', background: 'var(--bg-card, var(--bg-primary))', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)', padding: 20, transition: 'box-shadow .2s, transform .15s',
-              textDecoration: 'none', color: 'inherit',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = ''; }}>
-            <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>{item.icon}</div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>{item.label}</div>
-            <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{item.desc}</div>
-          </Link>
-        ))}
-      </div>
+      <PageFoot schoolName={me?.school?.name} />
     </div>
   );
 }

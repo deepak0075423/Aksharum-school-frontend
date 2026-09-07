@@ -6,7 +6,15 @@ import {
 
 // The palette lives in palette.js so colour-only consumers need not pull
 // recharts in with it. Re-exported here so every existing importer is unchanged.
-export { VIZ, toneForPercent, toneColor } from './palette';
+//
+// The import is NOT redundant with the re-export beside it: `export … from` sets
+// up a pass-through for importers and creates no local binding, so every `VIZ.`
+// in the components below was a free variable — a ReferenceError the moment one
+// of these charts rendered. The re-export keeps the old import paths working;
+// the import is what makes this file's own code run.
+import { VIZ, toneForPercent, toneColor } from './palette';
+
+export { VIZ, toneForPercent, toneColor };
 
 export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 export const fmtMoney = (n) => (n == null ? '—' : `₹${Number(n).toLocaleString('en-IN')}`);
@@ -142,8 +150,11 @@ export const TrendLine = ({ data, xKey, yKey, unit = '%', name = 'Value', height
           activeDot={{ r: 5, fill: VIZ.accent, stroke: VIZ.surface, strokeWidth: 2 }}
           isAnimationActive={false}
         >
+          {/* The last point is labelled — unless it has no value. A series with
+              gaps (an unmarked day, a period with no data) ends on a null more
+              often than not, and labelling that printed "null%" over the axis. */}
           <LabelList dataKey={yKey} position="top" offset={10}
-            content={({ x, y, value, index }) => (index === data.length - 1
+            content={({ x, y, value, index }) => (index === data.length - 1 && Number.isFinite(Number(value))
               ? <text x={x} y={y - 10} textAnchor="middle" fontSize={11} fontWeight={700} fill={VIZ.ink}>{value}{unit}</text>
               : null)} />
         </Line>
@@ -155,7 +166,7 @@ export const TrendLine = ({ data, xKey, yKey, unit = '%', name = 'Value', height
 // ── Rank bars — compare magnitude across named items ──────────────────────────
 //  One series → one colour for every bar (never a value-ramp on the bars); the
 //  value rides at the tip so the numbers are readable without the axis.
-export const RankBars = ({ data, labelKey, valueKey, unit = '%', height, max = 100, color = VIZ.accent }) => {
+export const RankBars = ({ data, labelKey, valueKey, unit = '%', height, max = 100, color = VIZ.accent, labelWidth = 112 }) => {
   if (!data?.length) return <Empty />;
   const h = height || Math.max(120, data.length * 34 + 20);
   return (
@@ -163,7 +174,9 @@ export const RankBars = ({ data, labelKey, valueKey, unit = '%', height, max = 1
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 46, left: 4, bottom: 4 }} barCategoryGap={6}>
         <CartesianGrid stroke={VIZ.grid} strokeWidth={1} horizontal={false} />
         <XAxis type="number" domain={[0, max]} hide />
-        <YAxis type="category" dataKey={labelKey} width={112} tick={{ fontSize: 11, fill: VIZ.muted }} tickLine={false} axisLine={false} />
+        {/* `labelWidth` only ever widens the gutter for longer names; every
+            existing caller keeps the 112 it was drawn with. */}
+        <YAxis type="category" dataKey={labelKey} width={labelWidth} tick={{ fontSize: 11, fill: VIZ.muted }} tickLine={false} axisLine={false} />
         <Tooltip content={<VizTooltip unit={unit} />} cursor={{ fill: 'rgba(79,70,229,.05)' }} />
         <Bar dataKey={valueKey} name="Score" fill={color} barSize={18} radius={[0, 4, 4, 0]} isAnimationActive={false}>
           <LabelList dataKey={valueKey} position="right" offset={8}
