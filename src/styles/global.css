@@ -7701,3 +7701,120 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .libb-filters select { min-width: 0; width: 100%; }
   .libb-filters label { flex: 1 1 100%; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY CIRCULATION — the register
+   ───────────────────────────────────────────────────────────────────────────
+   Shares the library header and tiles (.libd-hero, .libd-tiles) and the admin
+   list frame's table and footer. The register lists loans, not events — there
+   is no "Issue / Return" column because a row's state is already in Status;
+   that slot carries the copy code, which is what tells two copies apart.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.libc-head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.libc-head > div:first-child { flex: 1; min-width: 0; }
+.libc-head h2 { font-size: .95rem; font-weight: 700; }
+.libc-head p  { font-size: .76rem; color: var(--text-muted); margin-top: 3px; }
+.libc-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── The filter bar ────────────────────────────────────────────────────────── */
+.libc-filters {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.libc-sel { width: auto; min-width: 132px; flex: 0 0 auto; font-size: .84rem; }
+
+.libc-range {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding: 0 10px; height: 38px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg-card);
+}
+.libc-range > svg   { color: var(--text-light); flex-shrink: 0; }
+.libc-range > span  { color: var(--text-muted); }
+.libc-range input {
+  width: auto; min-width: 122px; border: none; background: none;
+  padding: 0; height: auto; font-size: .8rem;
+}
+.libc-range input:focus { outline: none; box-shadow: none; }
+
+.libc-search { position: relative; flex: 1 1 220px; min-width: 190px; }
+.libc-search > svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.libc-search input { padding-left: 38px; padding-right: 34px; }
+.libc-search > button {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 22px; height: 22px;
+  border: none; border-radius: 50%; background: none; color: var(--text-light); cursor: pointer;
+}
+.libc-search > button:hover { background: var(--bg); color: var(--text); }
+
+/* ── Cells ─────────────────────────────────────────────────────────────────── */
+.libc-book { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.libc-book b     { display: block; font-size: .84rem; font-weight: 600; line-height: 1.3; }
+.libc-book small {
+  display: block; font-size: .71rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px;
+}
+/* No cover art in the catalogue, so a loan leads with the book's spine. */
+.libc-spine {
+  width: 28px; height: 36px; border-radius: 3px 5px 5px 3px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-left: 3px solid rgba(0, 0, 0, .22);
+  color: #fff; font-size: .78rem; font-weight: 700;
+}
+
+.libc-member b     { display: block; font-size: .83rem; font-weight: 600; }
+.libc-member small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 1px; }
+
+.libc-copy {
+  font-size: .74rem; font-variant-numeric: tabular-nums; color: var(--text-muted);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.libc-due       { font-size: .81rem; }
+.libc-due small { display: block; font-size: .69rem; color: var(--text-muted); margin-top: 2px; }
+/* Coloured only while the book is still out — a returned loan that came back
+   late is history, not a job. */
+.libc-due.is-late       { color: #dc2626; font-weight: 600; }
+.libc-due.is-late small { color: #dc2626; }
+
+.libc-status {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: .74rem; font-weight: 600; white-space: nowrap;
+}
+.libc-status.is-ok   { background: #dcfce7; color: #047857; }
+.libc-status.is-info { background: #e0f2fe; color: #0369a1; }
+.libc-status.is-warn { background: #fef3c7; color: #b45309; }
+.libc-status.is-bad  { background: #fee2e2; color: #b91c1c; }
+.libc-status.is-mute { background: var(--bg); color: var(--text-muted); }
+
+.libc-fine b     { display: block; font-size: .84rem; font-weight: 700; }
+.libc-fine small { display: block; font-size: .69rem; color: var(--text-muted); margin-top: 1px; }
+.libc-fine.is-pending b     { color: #dc2626; }
+.libc-fine.is-pending small { color: #dc2626; }
+.libc-fine.is-paid b        { color: #047857; }
+
+.libc-col-book   { min-width: 230px; }
+.libc-col-member { width: 165px; }
+.libc-col-copy   { width: 140px; }
+.libc-col-date   { width: 130px; white-space: nowrap; }
+.libc-col-status { width: 110px; }
+.libc-col-fine   { width: 120px; }
+
+@media (max-width: 1100px) {
+  .libc-head > div:first-child { flex: 1 1 100%; }
+  .libc-acts { width: 100%; }
+  .libc-acts .btn { flex: 1; justify-content: center; }
+}
+@media (max-width: 768px) {
+  .libc-sel, .libc-range { flex: 1 1 100%; min-width: 0; }
+  .libc-range input { flex: 1; min-width: 0; }
+  .libc-filters .btn { flex: 1; justify-content: center; }
+}

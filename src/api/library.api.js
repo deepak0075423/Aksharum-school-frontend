@@ -37,6 +37,9 @@ export const issueBook           = (data)       => api.post('/library/issue', da
 export const getReturnForm       = (params)     => api.get('/library/return', { params });
 export const returnBook          = (data)       => api.post('/library/return', data);
 export const renewBook           = (id)         => api.post(`/library/issuances/${id}/renew`);
+// Each id runs through the same renewal rules a single one does; the reply says
+// which were refused and why.
+export const bulkRenew           = (ids)        => api.post('/library/issuances/renew', { ids });
 export const getReservations     = (params)     => api.get('/library/reservations', { params });
 export const markReservationReady= (id)         => api.post(`/library/reservations/${id}/mark-ready`);
 export const cancelReservation   = (id, reason) => api.delete(`/library/reservations/${id}`, { data: { reason } });

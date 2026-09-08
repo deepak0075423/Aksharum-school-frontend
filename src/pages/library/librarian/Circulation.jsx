@@ -1,15 +1,35 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+/**
+ * Library → Circulation.
+ *
+ * The register of loans, and the three things done at a counter: scan, issue,
+ * return. Four figures sit above it, each against the same week before it.
+ *
+ * Every way of narrowing the register — status, who, class, the date window,
+ * the search box — travels with the request. The list is paginated, so
+ * filtering in the browser would narrow one page and quietly hide the rest.
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
-import { getIssuances, getReturnForm, issueBook, returnBook, renewBook, getBooks, getIssueForm, scanCopy,
-  getClassList, downloadFile } from '../../../api/library.api';
-import { PageHeader, Table, Badge, Button, Modal, Spinner, Pagination, Alert } from '../../../components/ui/index';
+import { getIssuances, getReturnForm, issueBook, returnBook, renewBook, bulkRenew, getBooks,
+  getIssueForm, scanCopy, getClassList, downloadFile } from '../../../api/library.api';
+import { Button, Modal, Spinner, Alert } from '../../../components/ui/index';
+import Icon from '../../../components/ui/icons';
 import MemberPicker from '../../../components/library/MemberPicker';
 import DropdownPanel, { isInsideDropdown } from '../../../components/ui/DropdownPanel';
+import {
+  ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep,
+  SelectionBar, useSelection,
+} from '../../admin/listParts';
+import { Hero, Tile, delta, note, quoteOfTheDay } from './dashParts';
+import {
+  BookCell, CopyCell, DateRange, DueCell, FineCell, MemberCell, ROLE_FILTERS,
+  SearchBox, STATUS_FILTERS, StatusChip, fmtDate, money,
+} from './circulationParts';
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
-const money   = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+/** The states a loan is still open in — the only ones that can be acted on. */
+const ACTIVE = ['issued', 'overdue'];
 
 export default function LibraryCirculation() {
   // Everything, unfiltered, is the honest default — a librarian opening this
@@ -23,21 +43,59 @@ export default function LibraryCirculation() {
   const [classFilter,  setClassFilter]  = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
   const [memberFilter, setMemberFilter] = useState('');   // one member's loans
-  const [page, setPage] = useState(1);
+  const [range,  setRange]  = useState({ from: '', to: '' });
+  const [search, setSearch] = useState('');
+  const [term,   setTerm]   = useState('');
+  const [page,   setPage]   = useState(1);
+  const [limit,  setLimit]  = useState(10);
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const base = pathname.replace(/\/circulation$/, '');
 
-  const filters = {
+  // A request per keystroke is a request per keystroke; wait for a pause.
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const filters = useMemo(() => ({
     status:    statusFilter  || undefined,
     role:      roleFilter    || undefined,
     classId:   classFilter   || undefined,
     sectionId: sectionFilter || undefined,
     userId:    memberFilter  || undefined,
-  };
+    from:      range.from    || undefined,
+    to:        range.to      || undefined,
+    q:         term          || undefined,
+  }), [statusFilter, roleFilter, classFilter, sectionFilter, memberFilter, range, term]);
+  const filterKey = JSON.stringify(filters);
 
   const { data, meta, loading, refetch } = useFetch(
-    () => getIssuances({ ...filters, page, limit: 20 }),
-    [statusFilter, roleFilter, classFilter, sectionFilter, memberFilter, page],
+    () => getIssuances({ ...filters, page, limit }),
+    [filterKey, page, limit],
   );
   const issuances = Array.isArray(data) ? data : [];
+  const stats = meta?.stats || {};
+  const pages = meta?.pages || 1;
+  const total = meta?.total ?? issuances.length;
+  const start = (Math.min(page, pages) - 1) * limit;
+  const selection = useSelection(issuances, `${filterKey}|${page}|${limit}`);
+  const heroQuote = useMemo(() => quoteOfTheDay(3), []);
+
+  // Renewing several at once still runs every loan through the renewal cap and
+  // the reservation queue — the reply says which were refused and why.
+  const [renewing, setRenewing] = useState(false);
+  const renewSelected = async () => {
+    setRenewing(true);
+    try {
+      const res = await bulkRenew(selection.ids);
+      if (res?.renewed) toast.success(`${res.renewed} loan${res.renewed === 1 ? '' : 's'} renewed`);
+      (res?.skipped || []).forEach((sk) => toast.error(sk.reason, { duration: 6000 }));
+      if (!res?.renewed && !res?.skipped?.length) toast('Nothing was renewed', { icon: 'ℹ️' });
+      selection.clear(); refetch();
+    } catch (err) { toast.error(err?.message || 'Could not renew'); }
+    finally { setRenewing(false); }
+  };
 
   // Class and section only narrow students, so they appear with that role.
   const [classes, setClasses] = useState([]);
@@ -46,11 +104,17 @@ export default function LibraryCirculation() {
   }, []);
   const sections = classes.find(c => c._id === classFilter)?.sections || [];
 
+  const resetAll = () => {
+    setStatusFilter(''); setRoleFilter(''); setClassFilter(''); setSectionFilter('');
+    setMemberFilter(''); setRange({ from: '', to: '' }); setSearch(''); setTerm(''); setPage(1);
+  };
+
   const resetFilters = () => {
     setStatusFilter(''); setRoleFilter(''); setClassFilter('');
     setSectionFilter(''); setMemberFilter(''); setPage(1);
   };
-  const filtersOn = statusFilter || roleFilter || classFilter || sectionFilter || memberFilter;
+  const filtersOn = !!(statusFilter || roleFilter || classFilter || sectionFilter || memberFilter
+    || range.from || range.to || term);
 
   // format=xlsx is what makes this endpoint return a spreadsheet rather than the
   // JSON the table on screen uses; without it the browser saved JSON as .xlsx.
@@ -238,133 +302,174 @@ export default function LibraryCirculation() {
     catch (err) { toast.error(err?.response?.data?.message || err.message); }
   };
 
-  // 'lost' was missing, so a written-off loan fell through to the grey default
-  // and looked no different from an ordinary return.
-  const statusColor = { issued: 'success', returned: 'muted', overdue: 'danger', lost: 'warning' };
-  const payColor    = { pending: 'danger', paid: 'success', waived: 'muted' };
-  const payLabel    = { pending: 'Unpaid', paid: 'Paid', waived: 'Waived' };
 
   const columns = [
-    { key: 'book',     label: 'Book',    render: r => <div><div style={{ fontWeight:600 }}>{r.book?.title||'—'}</div><div style={{ fontSize:'.75rem',color:'var(--text-muted)' }}>{r.book?.isbn||''}</div></div> },
-    { key: 'member',   label: 'Member',  render: r => <div><div>{r.issuedTo?.name||'—'}</div><div style={{ fontSize:'.75rem',color:'var(--text-muted)' }}>{r.issuedToRole||''}</div></div> },
-    { key: 'copy',     label: 'Copy',    render: r => r.bookCopy?.uniqueCode || '—' },
-    { key: 'issued',   label: 'Issued',  render: r => fmtDate(r.issueDate) },
-    { key: 'due',      label: 'Due',     render: r => {
-      const overdue = r.status === 'issued' && new Date() > new Date(r.dueDate);
-      return <span style={{ color: overdue ? 'var(--danger)' : 'inherit' }}>{fmtDate(r.dueDate)}</span>;
-    }},
-    { key: 'status',   label: 'Status',  render: r => <Badge variant={statusColor[r.status]||'muted'}>{r.status}</Badge> },
-    // What the loan cost and whether that has been settled. A loan closed as
-    // lost is a debt as much as a stock write-off, and the register showed
-    // neither the charge nor the payment against it.
-    { key: 'fine',     label: 'Fine',    render: r => {
-      const f = r.fineSummary;
-      if (!f) return <span className="text-muted">—</span>;
-      return (
-        <div>
-          <div>{money(f.charged)}</div>
-          <div style={{ fontSize:'.72rem', color:'var(--text-muted)' }}>
-            {money(f.paid)} paid{f.waived > 0 ? ` · ${money(f.waived)} waived` : ''}
-          </div>
-        </div>
-      );
-    }},
-    { key: 'payment',  label: 'Payment', render: r => {
-      const f = r.fineSummary;
-      if (!f) return <span className="text-muted">—</span>;
-      return (
-        <div>
-          <Badge variant={payColor[f.status] || 'muted'}>{payLabel[f.status] || f.status}</Badge>
-          {f.outstanding > 0 && (
-            <div style={{ fontSize:'.72rem', color:'var(--danger)', marginTop:2 }}>{money(f.outstanding)} due</div>
-          )}
-          {(f.receipts || []).length > 0 && (
-            <div style={{ fontSize:'.68rem', color:'var(--text-muted)', marginTop:2 }}>{f.receipts.join(', ')}</div>
-          )}
-        </div>
-      );
-    }},
-    { key: 'actions',  label: '', render: r => r.status === 'issued' && (
-      <div style={{ display:'flex', gap:4 }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => handleRenew(r._id)}>Renew</button>
-      </div>
-    )},
+    { key: 'book',   className: 'libc-col-book',   label: 'Book',      render: (r) => <BookCell row={r} /> },
+    { key: 'member', className: 'libc-col-member', label: 'Member',    render: (r) => <MemberCell row={r} /> },
+    // Not "Issue / Return": a row here is a loan, and its state is already in
+    // Status. The copy code is what tells two copies of one title apart.
+    { key: 'copy',   className: 'libc-col-copy',   label: 'Copy',      render: (r) => <CopyCell row={r} /> },
+    { key: 'issued', className: 'libc-col-date',   label: 'Issued on', render: (r) => fmtDate(r.issueDate) || '—' },
+    { key: 'due',    className: 'libc-col-date',   label: 'Due date',  render: (r) => <DueCell row={r} /> },
+    { key: 'status', className: 'libc-col-status', label: 'Status',    render: (r) => <StatusChip status={r.status} /> },
+    { key: 'fine',   className: 'libc-col-fine',   label: 'Fine',      render: (r) => <FineCell row={r} /> },
+    {
+      key: 'actions',
+      className: 'ltable__acts',
+      label: 'Actions',
+      render: (r) => (
+        <RowActions>
+          {/* There is no page for one loan, so the eye opens the book it is a
+              loan of — its copies, and everything else out on it. */}
+          <IconAction icon="eye" label="Open this book"
+            onClick={() => navigate(`${base}/books/${r.book?._id || ''}`)}
+            disabled={!r.book?._id} />
+          <RowMenu>
+            {/* A closed loan cannot be renewed or taken back, and MenuItem has
+                no disabled state — so those are simply not offered on one. */}
+            {ACTIVE.includes(r.status) && (
+              <>
+                <MenuItem icon="repeat" onClick={() => handleRenew(r._id)}>Renew loan</MenuItem>
+                <MenuItem icon="checkCircle" onClick={openReturn}>Take it back</MenuItem>
+                <MenuSep />
+              </>
+            )}
+            <MenuItem icon="book" to={`${base}/books/${r.book?._id || ''}`}>Book and copies</MenuItem>
+            {r.fineSummary?.outstanding > 0 && (
+              <MenuItem icon="banknote" to={`${base}/fines`}>Collect {money(r.fineSummary.outstanding)}</MenuItem>
+            )}
+          </RowMenu>
+        </RowActions>
+      ),
+    },
   ];
 
   return (
-    <div className="page">
-      <PageHeader title="Circulation" subtitle="Issue and return books"
-        action={
-          <div style={{ display:'flex', gap:8 }}>
-            <Button variant="secondary" onClick={openScan}>📷 Scan</Button>
-            <Button variant="secondary" onClick={openReturn}>Return Book</Button>
-            <Button onClick={openIssue}>Issue Book</Button>
-          </div>
-        } />
+    <div className="page libdpg libcpg">
+      <Hero
+        icon="repeat" title="Circulation"
+        tagline="Scan · Issue · Return"
+        subtitle="Issue and take back books, and see everything the school is holding."
+        quote={heroQuote} />
 
-      <div className="card">
-        <div className="card-header" style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-          <select className="form-control" style={{ width:150 }} value={statusFilter}
-            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
-            <option value="">All statuses</option>
-            <option value="issued">Issued</option>
-            <option value="overdue">Overdue</option>
-            <option value="returned">Returned</option>
-            <option value="lost">Lost</option>
+      <div className="libd-tiles">
+        <Tile icon="repeat" tone="green" to={pathname}
+          value={stats.issued ?? 0} label="Issued this week" caption="Loans made since Monday"
+          trend={delta(stats.issued || 0, stats.issuedPrev || 0, 'last week')} />
+
+        <Tile icon="checkCircle" tone="blue" to={`${pathname}?status=returned`}
+          value={stats.returned ?? 0} label="Returned this week" caption="Books back on the shelf"
+          trend={delta(stats.returned || 0, stats.returnedPrev || 0, 'last week')} />
+
+        <Tile icon="alert" tone={stats.overdue ? 'pink' : 'green'} to={`${pathname}?status=overdue`}
+          value={stats.overdue ?? 0} label="Overdue" caption={stats.overdue ? 'Out past the due date' : 'Nothing late'}
+          trend={delta(stats.overdue || 0, stats.overduePrev || 0, 'last week')} />
+
+        <Tile icon="banknote" tone="amber" to={`${base}/fines`}
+          value={money(stats.collected)} label="Fines collected" caption={stats.outstanding
+            ? `${money(stats.outstanding)} still outstanding` : 'Nothing outstanding'}
+          trend={delta(stats.collected || 0, stats.collectedPrev || 0, 'last week')} />
+      </div>
+
+      <section className="card libc-card">
+        <header className="libc-head">
+          <div>
+            <h2>Circulation register</h2>
+            <p>Every loan the library has made, newest first.</p>
+          </div>
+          <div className="libc-acts">
+            <Button variant="secondary" onClick={openScan}><Icon name="search" size={16} /> Scan</Button>
+            <Button variant="secondary" onClick={openReturn}><Icon name="checkCircle" size={16} /> Return book</Button>
+            <Button onClick={openIssue}><Icon name="plus" size={16} /> Issue book</Button>
+          </div>
+        </header>
+
+        <div className="libc-filters">
+          <select className="form-control libc-sel" value={statusFilter} aria-label="Filter by status"
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+            {STATUS_FILTERS.map(([v, l]) => <option key={v || 'any'} value={v}>{l}</option>)}
           </select>
 
-          <select className="form-control" style={{ width:140 }} value={roleFilter}
+          <select className="form-control libc-sel" value={roleFilter} aria-label="Filter by who borrowed"
             disabled={!!memberFilter}
             title={memberFilter ? 'Clear the member to filter by role' : undefined}
-            onChange={e => {
+            onChange={(e) => {
               setRoleFilter(e.target.value);
               // Class and section describe students only.
               if (e.target.value !== 'student') { setClassFilter(''); setSectionFilter(''); }
               setPage(1);
             }}>
-            <option value="">Students & staff</option>
-            <option value="student">Students</option>
-            <option value="teacher">Teachers</option>
+            {ROLE_FILTERS.map(([v, l]) => <option key={v || 'any'} value={v}>{l}</option>)}
           </select>
 
           {roleFilter !== 'teacher' && (
             <>
-              <select className="form-control" style={{ width:150 }} value={classFilter}
+              <select className="form-control libc-sel" value={classFilter} aria-label="Filter by class"
                 disabled={!!memberFilter}
-                onChange={e => { setClassFilter(e.target.value); setSectionFilter(''); setPage(1); }}>
+                onChange={(e) => { setClassFilter(e.target.value); setSectionFilter(''); setPage(1); }}>
                 <option value="">All classes</option>
-                {classes.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
 
-              <select className="form-control" style={{ width:140 }} value={sectionFilter}
+              <select className="form-control libc-sel" value={sectionFilter} aria-label="Filter by section"
                 disabled={!classFilter || !!memberFilter}
-                onChange={e => { setSectionFilter(e.target.value); setPage(1); }}>
+                onChange={(e) => { setSectionFilter(e.target.value); setPage(1); }}>
                 <option value="">{classFilter ? 'All sections' : 'Pick a class first'}</option>
-                {sections.map(sec => <option key={sec._id} value={sec._id}>{sec.name}</option>)}
+                {sections.map((sec) => <option key={sec._id} value={sec._id}>{sec.name}</option>)}
               </select>
             </>
           )}
 
+          <DateRange from={range.from} to={range.to}
+            onChange={(r) => { setRange(r); setPage(1); }} />
+
+          <SearchBox value={search} onChange={setSearch} />
+
           {/* One named person's loans — the commonest thing a librarian is
               asked for at the desk. */}
-          <MemberPicker compact placeholder="Search member…" role={roleFilter || undefined}
+          <MemberPicker compact placeholder="One member…" role={roleFilter || undefined}
             value={memberFilter} onChange={(id) => { setMemberFilter(id); setPage(1); }} />
 
-          {filtersOn && (
-            <button className="btn btn-secondary btn-sm" onClick={resetFilters}>Clear</button>
-          )}
+          <Button variant="secondary" onClick={exportList}
+            title="Export what is filtered here, not just this page">
+            <Icon name="download" size={16} /> Export
+          </Button>
 
-          <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
-            {meta?.total != null && <span className="text-muted text-sm">{meta.total} record(s)</span>}
-            <Button variant="secondary" size="sm" onClick={exportList}>⬇ Export</Button>
-          </div>
+          {filtersOn && (
+            <Button variant="secondary" onClick={resetAll}>
+              <Icon name="refresh" size={15} /> Reset
+            </Button>
+          )}
         </div>
-        <div className="card-body" style={{ padding:0, overflowX:'auto' }}>
-          {loading ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>
-            : <Table columns={columns} data={issuances} emptyIcon="📖" emptyTitle="No issuances found" />}
-        </div>
-        {meta?.pages > 1 && <div className="card-footer"><Pagination page={page} pages={meta.pages} total={meta.total} onPage={setPage} /></div>}
-      </div>
+
+        <SelectionBar count={selection.ids.length} noun="loan" onClear={selection.clear}>
+          <Button variant="secondary" size="sm" loading={renewing} onClick={renewSelected}>
+            <Icon name="repeat" size={15} /> Renew
+          </Button>
+        </SelectionBar>
+
+        <ListTable
+          columns={columns}
+          rows={issuances}
+          loading={loading}
+          selection={selection}
+          startIndex={start}
+          emptyIcon={filtersOn ? '🔍' : '📖'}
+          emptyTitle={filtersOn ? 'No loans match this' : 'Nothing has been issued yet'}
+          emptyMessage={filtersOn
+            ? 'Try another status, a wider date window, or clear the search.'
+            : 'Issue a book and it appears here, with its due date and anything owed on it.'}
+          emptyAction={filtersOn
+            ? <Button variant="secondary" onClick={resetAll}>Clear filters</Button>
+            : <Button onClick={openIssue}>Issue a book</Button>}
+        />
+
+        <ListFooter
+          page={Math.min(page, pages)} pages={pages} total={total}
+          limit={limit} count={issuances.length} noun="loan"
+          onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
+        />
+      </section>
 
       {/* Issue Modal */}
       <Modal open={issueModal} onClose={() => setIssueModal(false)} title="Issue Book"
