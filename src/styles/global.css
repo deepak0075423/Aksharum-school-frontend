@@ -7299,3 +7299,293 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .holform__btns .btn { flex: 1; justify-content: center; }
   .holsteps li span + * { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY DASHBOARD
+   ───────────────────────────────────────────────────────────────────────────
+   Five figures across the top, then circulation beside the collection and the
+   counter's shortcuts, then what was issued beside what is late. The
+   circulation chart is two series off the validated single-hue ramp with a
+   legend and per-bar values; every donut segment is named and counted in the
+   key beside it — colour is a second channel here, never the only one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.libdpg { display: flex; flex-direction: column; gap: 18px; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.libd-hero {
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  padding: 4px 0 2px;
+}
+.libd-hero__mark {
+  width: 64px; height: 64px; border-radius: 18px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #ede9fe; color: var(--primary);
+}
+.libd-hero__text { flex: 1 1 320px; min-width: 0; }
+.libd-hero__text h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+.libd-hero__tag {
+  font-size: .84rem; font-weight: 600; color: var(--primary);
+  letter-spacing: .04em; margin-top: 4px;
+}
+.libd-hero__text > p:last-child { font-size: .86rem; color: var(--text-muted); margin-top: 5px; }
+.libd-hero__art { width: 180px; height: auto; flex-shrink: 0; color: var(--primary-light, #c7d2fe); }
+.libd-hero__quote {
+  position: relative; flex: 0 1 300px; min-width: 240px;
+  padding: 18px 20px 18px 40px; margin: 0;
+  background: #f5f3ff; border-radius: var(--radius-lg);
+}
+.libd-hero__quote > span {
+  position: absolute; left: 18px; top: 12px;
+  font-size: 1.7rem; line-height: 1; color: var(--primary); opacity: .5;
+}
+.libd-hero__quote p { font-size: .92rem; font-weight: 600; color: #4338ca; line-height: 1.45; }
+.libd-hero__quote cite { display: block; font-size: .76rem; font-style: normal; color: var(--text-muted); margin-top: 7px; }
+
+/* ── Five figures, one row ─────────────────────────────────────────────────── */
+.libd-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.libd-tile {
+  display: flex; align-items: flex-start; gap: 11px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 15px 14px;
+  color: inherit; text-decoration: none; min-width: 0;
+  transition: border-color .15s, box-shadow .15s;
+}
+.libd-tile:hover { border-color: var(--primary); box-shadow: 0 2px 10px rgba(79, 70, 229, .08); }
+.libd-tile > svg:last-child { color: var(--text-light); flex-shrink: 0; margin-top: 8px; }
+.libd-tile:hover > svg:last-child { color: var(--primary); }
+.libd-tile__icon {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libd-tile__body  { flex: 1; min-width: 0; }
+.libd-tile__value { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+.libd-tile__label { display: block; font-size: .82rem; font-weight: 600; margin-top: 2px; }
+.libd-tile__cap   {
+  display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The direction is in the words as well as in the arrow and the colour. */
+.libd-trend {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 6px; font-size: .71rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.libd-trend svg { flex-shrink: 0; }
+.libd-trend.is-up   { color: #059669; }
+.libd-trend.is-down { color: #dc2626; }
+.libd-trend.is-flat { color: var(--text-muted); }
+
+/* ── The two content rows ──────────────────────────────────────────────────── */
+/* The three cards line up top and bottom — a row that ends in three different
+   places reads as three unrelated things rather than one band of the page. */
+.libd-row {
+  display: grid; gap: 16px; align-items: stretch;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1.1fr) minmax(0, 1.05fr);
+}
+/* The bottom row is a long table beside a short list; stretching there would
+   just add white space under the list. */
+.libd-row--bottom { grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); align-items: start; }
+.libd-col { display: flex; flex-direction: column; gap: 16px; }
+
+.libd-panel { display: flex; flex-direction: column; height: 100%; }
+.libd-panel__head {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.libd-panel__icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libd-panel__head > div { flex: 1; min-width: 0; }
+.libd-panel__head h2 { font-size: .92rem; font-weight: 700; }
+.libd-panel__head p  { font-size: .76rem; color: var(--text-muted); margin-top: 3px; }
+.libd-panel__head a  {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  font-size: .77rem; font-weight: 600; color: var(--primary); text-decoration: none;
+}
+.libd-panel__body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; }
+.libd-panel__body > .table-wrap { margin: -14px -16px; width: calc(100% + 32px); }
+
+.libd-none {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 28px 16px; text-align: center; flex: 1;
+}
+.libd-none svg  { color: var(--text-light); margin-bottom: 4px; }
+.libd-none p    { font-size: .86rem; font-weight: 600; }
+.libd-none span { font-size: .77rem; color: var(--text-muted); max-width: 40ch; line-height: 1.5; }
+
+/* ── Circulation chart ─────────────────────────────────────────────────────── */
+.libd-range { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.libd-range__btn {
+  padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-card); color: var(--text-muted); cursor: pointer;
+  font-size: .74rem; font-weight: 600;
+}
+.libd-range__btn:hover { border-color: var(--primary); color: var(--primary); }
+.libd-range__btn.is-on { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
+
+.libd-legend {
+  display: flex; flex-wrap: wrap; gap: 6px 20px;
+  list-style: none; margin: 0 0 16px; padding: 0;
+  font-size: .78rem; color: var(--text-muted);
+}
+.libd-legend li { display: flex; align-items: center; gap: 7px; }
+.libd-legend i  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.libd-legend b  { color: var(--text); font-weight: 700; }
+
+/* The chart takes whatever height the row settles on, never dropping below
+   the point where the bars stop being readable. */
+.libd-chart { display: flex; flex-direction: column; flex: 1; }
+.libd-bars { display: flex; align-items: flex-end; gap: 6px; flex: 1; min-height: 175px; }
+.libd-bars__week { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%; }
+/* 2px of the page between the pair rather than a border — two fills separated
+   without introducing a third colour. */
+.libd-bars__pair {
+  flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.libd-bars__bar {
+  position: relative; width: 13px; min-height: 3px;
+  border-radius: 4px 4px 0 0;      /* the data end is rounded, the baseline is not */
+}
+.libd-bars__bar b {
+  position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+  font-size: .68rem; font-weight: 700; color: var(--text); white-space: nowrap;
+}
+.libd-bars__x {
+  display: block; text-align: center; margin-top: 7px;
+  font-size: .67rem; color: var(--text-muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── The collection ────────────────────────────────────────────────────────── */
+.libd-donut { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; flex: 1; }
+.libd-donut__ring { position: relative; width: 148px; flex-shrink: 0; }
+.libd-donut__ring svg { width: 100%; height: auto; display: block; }
+.libd-donut__mid {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+}
+.libd-donut__mid b     { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.libd-donut__mid small { display: block; font-size: .72rem; color: var(--text-muted); }
+.libd-donut__key { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 2px; }
+.libd-donut__key li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 0; font-size: .81rem;
+}
+.libd-donut__key li + li { border-top: 1px dashed var(--border); }
+.libd-donut__key i { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.libd-donut__key a, .libd-donut__key span {
+  flex: 1; min-width: 0; color: inherit; text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.libd-donut__key a:hover { color: var(--primary); }
+.libd-donut__key b { font-weight: 700; }
+.libd-donut__more { color: var(--text-muted); }
+
+/* ── Quick actions ─────────────────────────────────────────────────────────── */
+/* Five equal rows sharing the height, so the list fills the card evenly
+   instead of bunching at the top with a gap beneath it. */
+.libd-acts {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 6px; flex: 1; grid-auto-rows: 1fr; align-content: stretch;
+}
+/* The <li> is what the grid stretches, so the link has to fill it. */
+.libd-acts a {
+  display: flex; align-items: center; gap: 11px; height: 100%;
+  padding: 9px 10px; border-radius: var(--radius);
+  background: var(--bg); color: inherit; text-decoration: none;
+  border: 1px solid transparent;
+}
+.libd-acts a:hover { background: #eef2ff; border-color: #c7d2fe; }
+.libd-acts__icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--bg-card);
+}
+.libd-acts__text { flex: 1; min-width: 0; }
+.libd-acts__text b     { display: block; font-size: .83rem; font-weight: 600; }
+.libd-acts__text small {
+  display: block; font-size: .71rem; color: var(--text-muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.libd-acts a > svg:last-child { color: var(--text-light); flex-shrink: 0; }
+.libd-acts a:hover > svg:last-child { color: var(--primary); }
+
+/* ── Lists ─────────────────────────────────────────────────────────────────── */
+.libd-table { font-size: .83rem; }
+.libd-table th { background: var(--bg); white-space: nowrap; }
+.libd-table td { padding: 10px 16px; vertical-align: middle; }
+.libd-nowrap   { white-space: nowrap; color: var(--text-muted); font-size: .78rem; }
+
+.libd-book { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.libd-book b     { display: block; font-size: .84rem; font-weight: 600; }
+.libd-book small {
+  display: block; font-size: .72rem; color: var(--text-muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;
+}
+/* No cover art in the catalogue, so the spine is the initial rather than a
+   stock image that would imply one. */
+.libd-spine {
+  width: 30px; height: 38px; border-radius: 3px 5px 5px 3px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-left: 3px solid rgba(0, 0, 0, .22);
+  color: #fff; font-size: .82rem; font-weight: 700;
+}
+.libd-who b     { display: block; font-size: .83rem; font-weight: 600; }
+.libd-who small { display: block; font-size: .72rem; color: var(--text-muted); }
+
+.libd-overdue { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.libd-overdue li { display: flex; align-items: center; gap: 11px; padding: 9px 0; }
+.libd-overdue li + li { border-top: 1px dashed var(--border); }
+.libd-overdue li > div { flex: 1; min-width: 0; }
+.libd-overdue b     { display: block; font-size: .84rem; font-weight: 600; }
+.libd-overdue small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 1px; }
+.libd-late { text-align: right; flex-shrink: 0; }
+.libd-late b     { display: block; font-size: 1rem; font-weight: 700; color: #dc2626; }
+.libd-late small { display: block; font-size: .68rem; color: var(--text-muted); }
+
+/* ── Closing card ──────────────────────────────────────────────────────────── */
+.libd-inspire {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px; background: #f5f3ff; border-color: #ddd6fe;
+}
+.libd-inspire__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libd-inspire h2   { font-size: .84rem; font-weight: 700; }
+.libd-inspire p    { font-size: .86rem; font-style: italic; color: #4338ca; margin-top: 7px; line-height: 1.5; }
+.libd-inspire cite { display: block; font-size: .74rem; font-style: normal; color: var(--text-muted); margin-top: 6px; }
+
+/* A filter arrived from elsewhere — say so, and let it be undone. */
+.libd-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 8px 5px 12px; border-radius: 999px;
+  background: #eef2ff; color: var(--primary);
+  font-size: .78rem; font-weight: 600;
+}
+.libd-chip button {
+  display: grid; place-items: center; width: 18px; height: 18px;
+  border: none; border-radius: 50%; background: none;
+  color: inherit; cursor: pointer; font-size: .95rem; line-height: 1;
+}
+.libd-chip button:hover { background: #c7d2fe; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .libd-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .libd-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .libd-row > .libd-panel:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .libd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .libd-row, .libd-row--bottom { grid-template-columns: minmax(0, 1fr); }
+  .libd-row > .libd-panel:first-child { grid-column: auto; }
+  .libd-hero__art { display: none; }
+  .libd-bars { height: 165px; }
+  .libd-bars__bar { width: 9px; }
+}
+@media (max-width: 560px) {
+  .libd-tiles { grid-template-columns: minmax(0, 1fr); }
+}

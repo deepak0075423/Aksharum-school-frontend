@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import { getBooks, createBook, updateBook, deleteBook, importBooks, downloadFile } from '../../../api/library.api';
@@ -9,9 +9,16 @@ const EMPTY = { title: '', authors: '', isbn: '', publisher: '', category: '', l
 
 export default function LibraryBooks() {
   const { pathname } = useLocation();   // /admin/library/books or /teacher/manage-library/books
+  // ?category= comes from the dashboard's collection panel. The endpoint has
+  // always filtered on it; nothing on this page ever asked.
+  const [params, setParams] = useSearchParams();
+  const category = params.get('category') || '';
   const [search, setSearch] = useState('');
   const [page,   setPage]   = useState(1);
-  const { data, meta, loading, refetch } = useFetch(() => getBooks({ q: search || undefined, page, limit: 20 }), [search, page]);
+  const { data, meta, loading, refetch } = useFetch(
+    () => getBooks({ q: search || undefined, category: category || undefined, page, limit: 20 }),
+    [search, category, page],
+  );
   const books = Array.isArray(data) ? data : [];
 
   const [modal,    setModal]   = useState(false);
@@ -127,9 +134,17 @@ export default function LibraryBooks() {
             <Button onClick={openCreate}>+ Add Book</Button>
           </div>
         } />
-      <div style={{ marginBottom:16 }}>
+      <div style={{ marginBottom:16, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
         <input className="form-control" placeholder="Search by title, ISBN…" style={{ maxWidth:300 }}
           value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+        {/* A narrowed list has to say so, and has to be undoable. */}
+        {category && (
+          <span className="libd-chip">
+            {category}
+            <button type="button" aria-label="Show every category"
+              onClick={() => { setParams(p => { p.delete('category'); return p; }, { replace: true }); setPage(1); }}>×</button>
+          </span>
+        )}
       </div>
       <div className="card">
         <div className="card-body" style={{ padding:0 }}>

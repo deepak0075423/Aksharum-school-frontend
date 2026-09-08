@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import { getIssuances, getReturnForm, issueBook, returnBook, renewBook, getBooks, getIssueForm, scanCopy,
@@ -12,8 +13,12 @@ const money   = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 export default function LibraryCirculation() {
   // Everything, unfiltered, is the honest default — a librarian opening this
-  // page is as likely to be chasing a return as looking at what is out.
-  const [statusFilter, setStatusFilter] = useState('');
+  // page is as likely to be chasing a return as looking at what is out. The
+  // exception is arriving from the dashboard's Overdue tile, which asks for a
+  // status in the URL: reading "2 overdue" and landing on all two hundred
+  // issuances is not an answer.
+  const [params] = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState(() => params.get('status') || '');
   const [roleFilter,   setRoleFilter]   = useState('');
   const [classFilter,  setClassFilter]  = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
