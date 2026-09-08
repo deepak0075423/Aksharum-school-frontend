@@ -46,7 +46,10 @@ export default function LibraryDashboard() {
 
   return (
     <div className="page libdpg">
-      <Hero quote={heroQuote} />
+      <Hero
+        tagline="Discover · Learn · Grow"
+        subtitle="What the collection holds, what is out on loan, and what needs chasing today."
+        quote={heroQuote} />
 
       {error && <Alert variant="danger">{error}</Alert>}
 

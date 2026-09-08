@@ -7,6 +7,9 @@ export const getBook             = (id, params) => api.get(`/library/books/${id}
 export const createBook          = (data)       => api.post('/library/books', data);
 export const updateBook          = (id, data)   => api.put(`/library/books/${id}`, data);
 export const deleteBook          = (id)         => api.delete(`/library/books/${id}`);
+// Each id runs through the same refusals a single delete does; the reply says
+// which ones stayed put and why.
+export const bulkDeleteBooks     = (ids)        => api.post('/library/books/bulk-delete', { ids });
 export const importBooks         = (file)       => {
   const fd = new FormData();
   fd.append('file', file);

@@ -44,13 +44,13 @@ export const note = (text) => ({ dir: 'flat', text });
 
 // ── The header ───────────────────────────────────────────────────────────────
 
-export const Hero = ({ quote }) => (
+export const Hero = ({ icon = 'library', title = 'Library', tagline, subtitle, quote }) => (
   <header className="libd-hero">
-    <span className="libd-hero__mark"><Icon name="library" size={30} /></span>
+    <span className="libd-hero__mark"><Icon name={icon} size={30} /></span>
     <div className="libd-hero__text">
-      <h1>Library</h1>
-      <p className="libd-hero__tag">Discover · Learn · Grow</p>
-      <p>What the collection holds, what is out on loan, and what needs chasing today.</p>
+      <h1>{title}</h1>
+      {tagline ? <p className="libd-hero__tag">{tagline}</p> : null}
+      <p>{subtitle}</p>
     </div>
     <BooksArt />
     <blockquote className="libd-hero__quote">
