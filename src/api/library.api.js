@@ -41,6 +41,9 @@ export const renewBook           = (id)         => api.post(`/library/issuances/
 // which were refused and why.
 export const bulkRenew           = (ids)        => api.post('/library/issuances/renew', { ids });
 export const getReservations     = (params)     => api.get('/library/reservations', { params });
+// Queueing somebody at the desk — through exactly the rules a member's own
+// reservation goes through (services/libraryRules.placeReservation).
+export const createReservation   = (data)       => api.post('/library/reservations', data);
 export const markReservationReady= (id)         => api.post(`/library/reservations/${id}/mark-ready`);
 export const cancelReservation   = (id, reason) => api.delete(`/library/reservations/${id}`, { data: { reason } });
 export const getFines            = (params)     => api.get('/library/fines', { params });
