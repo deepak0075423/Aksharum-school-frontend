@@ -113,7 +113,8 @@ input, select, textarea {
    Browsers without `:has()` simply keep the old behaviour.
 */
 .app-main:has(.libpol-body),
-.app-main:has(.librep-body) { overflow: visible; }
+.app-main:has(.librep-body),
+.app-main:has(.libsr-body) { overflow: visible; }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
@@ -10288,4 +10289,182 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .liblg-hero__art { display: none; }
   .liblg-hero__body h1 { font-size: 1.5rem; }
   .liblg-figs { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY SEARCH — the catalogue, narrowed by what it actually holds
+   ───────────────────────────────────────────────────────────────────────────
+   Sits on the library landing's shapes (.liblg-hero, .liblg-figs, .liblg-card)
+   so the two tabs of the module read as one screen; everything below is what
+   only the search has — the filter rail, the two layouts and the book row.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.libsrpg { display: flex; flex-direction: column; gap: 16px; }
+
+.libsr-t--indigo { --tone: var(--primary); }
+.libsr-t--violet { --tone: #7c3aed; }
+.libsr-t--green  { --tone: #059669; }
+.libsr-t--amber  { --tone: #d97706; }
+.libsr-t--slate  { --tone: #64748b; }
+
+.libsr-art { width: 210px; height: 88px; color: var(--primary); flex-shrink: 0; }
+
+.libsr-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 16px; align-items: start; }
+.libsr-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Four across the results column, which is narrower than the whole page. */
+.libsr-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.libsr-figs .liblg-fig { padding: 14px 15px; gap: 12px; }
+.libsr-figs .liblg-ico--lg { width: 46px; height: 46px; }
+.libsr-figs .liblg-fig__value { font-size: 1.35rem; }
+
+/* ── Filter rail ──────────────────────────────────────────────────────────── */
+/* Sticky because the results scroll past it; see the .app-main opt-out below. */
+.libsr-rail { position: sticky; top: 12px; }
+.libsr-filters {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 14px;
+}
+.libsr-filters > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.libsr-filters h2 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 1rem; font-weight: 700; letter-spacing: -.01em;
+}
+.libsr-filters h2 > svg { color: var(--primary); }
+.libsr-clear {
+  background: none; border: 0; cursor: pointer; padding: 0; font: inherit;
+  font-size: .8rem; font-weight: 600; color: var(--primary);
+}
+.libsr-clear:hover { color: var(--primary-dark); }
+
+.libsr-field { display: flex; flex-direction: column; gap: 6px; }
+.libsr-field > span { font-size: .82rem; font-weight: 600; color: var(--text); }
+.libsr-input { position: relative; display: block; }
+.libsr-input > svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.libsr-input .form-control { padding-left: 34px; }
+.libsr-filters__go { display: flex; flex-direction: column; gap: 9px; margin-top: 2px; }
+.libsr-filters__go .btn { width: 100%; justify-content: center; gap: 7px; }
+
+/* ── Results head ─────────────────────────────────────────────────────────── */
+.libsr-tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.libsr-sort { display: flex; align-items: center; gap: 8px; }
+.libsr-sort > span { font-size: .82rem; color: var(--text-muted); white-space: nowrap; }
+.libsr-sort .form-control { padding: 6px 30px 6px 10px; font-size: .83rem; height: auto; min-width: 150px; }
+
+.libsr-view { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.libsr-view button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 32px; border: 0; cursor: pointer;
+  background: var(--bg-card); color: var(--text-muted);
+}
+.libsr-view button + button { border-left: 1px solid var(--border); }
+.libsr-view button:hover { background: var(--bg); }
+.libsr-view button.is-on { background: var(--primary); color: #fff; }
+
+/* ── Table ────────────────────────────────────────────────────────────────── */
+/* Wide content scrolls inside the card rather than pushing the page sideways. */
+.libsr-tablewrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+.libsr-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.libsr-table th {
+  text-align: left; padding: 0 16px 11px 0; white-space: nowrap;
+  font-size: .71rem; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.libsr-table td { padding: 12px 16px 12px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+.libsr-table tbody tr:hover { background: var(--bg); }
+.libsr-right { text-align: right; padding-right: 0 !important; }
+.libsr-dash { color: var(--text-light); }
+
+.libsr-book { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.libsr-book__body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.libsr-title {
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; font-size: .92rem; font-weight: 700; color: var(--text);
+}
+.libsr-title:hover { color: var(--primary); }
+.libsr-book__body > span { font-size: .8rem; color: var(--text-muted); }
+.libsr-book__body > em { font-style: normal; font-size: .74rem; color: var(--text-light); }
+
+.libsr-cover {
+  width: 40px; height: 54px; border-radius: 5px; flex-shrink: 0; object-fit: cover;
+  background: var(--bg); border: 1px solid var(--border);
+}
+.libsr-cover--none {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, #fff);
+}
+.libsr-cover--lg { width: 78px; height: 104px; border-radius: 8px; }
+
+.libsr-pill {
+  display: inline-block; border-radius: 999px; padding: 4px 11px;
+  font-size: .73rem; font-weight: 700; white-space: nowrap;
+  background: color-mix(in srgb, var(--tone) 12%, #fff); color: var(--tone);
+}
+
+.libsr-actions { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.libsr-actions .btn { gap: 6px; white-space: nowrap; }
+.libsr-held { display: inline-flex; align-items: center; gap: 8px; }
+.libsr-held--block { flex: 1; }
+.libsr-cancel {
+  background: none; border: 0; cursor: pointer; padding: 0; font: inherit;
+  font-size: .78rem; font-weight: 600; color: var(--text-muted);
+}
+.libsr-cancel:hover { color: var(--danger); }
+.libsr-cancel:disabled { opacity: .5; cursor: default; }
+
+/* ── Grid ─────────────────────────────────────────────────────────────────── */
+.libsr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.libsr-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card); transition: border-color var(--transition), box-shadow var(--transition);
+}
+.libsr-card:hover { border-color: var(--primary-light); box-shadow: var(--shadow-sm); }
+.libsr-card h3 {
+  font-size: .92rem; font-weight: 700; line-height: 1.35; margin-top: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.libsr-card > p { font-size: .78rem; color: var(--text-muted); }
+.libsr-card__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.libsr-card__go { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; }
+.libsr-card__go .btn { flex: 1; justify-content: center; }
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+.libsr-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  flex-wrap: wrap; font-size: .83rem; color: var(--text-muted);
+}
+.libsr-loading { display: flex; justify-content: center; padding: 48px 0; }
+
+/* ── Book details ─────────────────────────────────────────────────────────── */
+.libsr-detail { display: flex; gap: 18px; align-items: flex-start; }
+.libsr-detail__body { min-width: 0; flex: 1; }
+.libsr-detail__row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .86rem;
+}
+.libsr-detail__row:last-child { border-bottom: 0; }
+.libsr-detail__row > span { color: var(--text-muted); flex-shrink: 0; }
+.libsr-detail__row > strong { text-align: right; min-width: 0; word-break: break-word; }
+.libsr-detail__desc {
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+  font-size: .86rem; line-height: 1.6; color: var(--text-muted); white-space: pre-wrap;
+}
+
+@media (max-width: 1240px) {
+  .libsr-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 980px) {
+  .libsr-body { grid-template-columns: minmax(0, 1fr); }
+  .libsr-rail { position: static; }
+}
+@media (max-width: 700px) {
+  .libsr-figs { grid-template-columns: minmax(0, 1fr); }
+  .libsr-tools { flex-wrap: wrap; }
+  .libsr-sort .form-control { min-width: 120px; }
 }
