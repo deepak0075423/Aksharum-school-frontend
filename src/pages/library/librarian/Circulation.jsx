@@ -53,8 +53,11 @@ export default function LibraryCirculation() {
   const [classFilter,  setClassFilter]  = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
   const [range,  setRange]  = useState({ from: '', to: '' });
-  const [search, setSearch] = useState('');
-  const [term,   setTerm]   = useState('');
+  // A link in from the overdue register carries what to look at — a copy code,
+  // a member's name — so "open in circulation" lands on the loan rather than on
+  // the whole desk.
+  const [search, setSearch] = useState(params.get('q') || '');
+  const [term,   setTerm]   = useState(params.get('q') || '');
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(10);
   const { pathname } = useLocation();

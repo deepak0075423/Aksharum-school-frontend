@@ -62,6 +62,9 @@ export const getAuditLog         = (params)     => api.get('/library/audit-log',
 // ── Reports ───────────────────────────────────────────────────────────────────
 export const listReports         = ()           => api.get('/library/reports');
 export const runReport           = (path, params) => api.get(path, { params });
+// The overdue register's own action: the notice a librarian would otherwise
+// chase by hand, sent to the borrower and — for a student — to their parents.
+export const remindOverdue       = (ids)        => api.post('/library/reports/overdue/remind', { ids });
 /**
  * Downloads an authenticated endpoint as a file. The API is bearer-token
  * authenticated, so a plain link would arrive without credentials — fetch it,

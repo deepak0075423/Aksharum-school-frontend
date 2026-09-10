@@ -324,7 +324,7 @@ export function ListTable({
                     <td className="ltable__tick">
                       <input type="checkbox" checked={selection.has(row._id)}
                         onChange={() => selection.toggle(row._id)}
-                        aria-label={`Select ${row.name}`} />
+                        aria-label={`Select ${row.name || row.member || row.title || row.book || 'this row'}`} />
                     </td>
                   )}
                   <td className="ltable__num">{startIndex + i + 1}</td>

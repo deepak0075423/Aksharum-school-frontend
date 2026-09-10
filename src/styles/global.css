@@ -8012,3 +8012,291 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 @media (max-width: 768px) {
   .libf-add2 { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY REPORTS — the answers
+   ───────────────────────────────────────────────────────────────────────────
+   Shares the library header and tiles (.libd-hero, .libd-tiles) and the admin
+   list frame's table and footer (.ltable, .lfoot). The catalogue of reports is
+   a rail down the left rather than a row of tabs: there are eight of them, each
+   needs a sentence to tell it from its neighbour, and a librarian picks one and
+   stays in it.
+
+   One table renders all eight, so the cells are styled by what a value *is* —
+   a date, a fine, an overdue count — and never by which report is open. Colour
+   is a second channel throughout: every chip carries its word, and the overdue
+   count is bold as well as red.
+
+   The print rules at the foot are the report's other output. Everything the
+   paper cannot act on comes off — the shell, the rail, the filters, the pager,
+   the row actions — and the printed heading says what was asked and of what.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.libreppg .libd-tiles { margin-bottom: 2px; }
+
+/* ── The two columns ───────────────────────────────────────────────────────── */
+.librep-body {
+  display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+}
+
+/* ── The rail ──────────────────────────────────────────────────────────────── */
+.librep-rail { overflow: hidden; }
+.librep-rail__head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.librep-rail__mark {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.librep-rail__head h2 { font-size: .92rem; font-weight: 700; }
+.librep-rail ul { list-style: none; margin: 0; padding: 6px; }
+
+.librep-rail__item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: none; border-radius: var(--radius);
+  background: none; color: inherit; text-align: left; cursor: pointer;
+  transition: background .15s;
+}
+.librep-rail__item:hover { background: var(--bg); }
+.librep-rail__item.is-on { background: #eef2ff; }
+.librep-rail__item.is-on b { color: var(--primary); }
+.librep-rail__item > svg:last-child { color: var(--text-light); flex-shrink: 0; }
+.librep-rail__item.is-on > svg:last-child { color: var(--primary); }
+
+.librep-rail__icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.librep-rail__text { flex: 1; min-width: 0; }
+.librep-rail__text b {
+  display: block; font-size: .84rem; font-weight: 600; line-height: 1.25;
+}
+/* The blurb is what tells "Dead stock" from "Stock take"; two lines of it, and
+   never a truncated first line. */
+.librep-rail__text small {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  font-size: .71rem; color: var(--text-muted); line-height: 1.35;
+  margin-top: 2px; overflow: hidden;
+}
+
+/* ── The report card ───────────────────────────────────────────────────────── */
+.librep-main { min-width: 0; }
+
+.librep-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.librep-head__icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.librep-head > div { flex: 1 1 240px; min-width: 0; }
+.librep-head h2 { font-size: .98rem; font-weight: 700; }
+.librep-head p  { font-size: .77rem; color: var(--text-muted); margin-top: 3px; }
+
+/* ── The report's own figures ──────────────────────────────────────────────── */
+.librep-sum {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.librep-sum__item {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 12px 16px; background: var(--bg-card);
+}
+.librep-sum__value {
+  font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.librep-sum__label { font-size: .77rem; font-weight: 600; }
+.librep-sum__cap   { font-size: .7rem; color: var(--text-muted); line-height: 1.35; }
+
+/* ── Filters ───────────────────────────────────────────────────────────────── */
+.librep-filters {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.librep-filters__select { width: auto; min-width: 150px; font-size: .82rem; padding: 7px 30px 7px 11px; }
+.librep-filters__member { flex: 1 1 240px; min-width: 220px; max-width: 320px; }
+.librep-filters__date {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .78rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;
+}
+.librep-filters__date input { width: auto; font-size: .82rem; padding: 6px 10px; }
+.librep-filters__acts { display: flex; gap: 8px; margin-left: auto; }
+
+.librep-search { position: relative; flex: 1 1 200px; min-width: 180px; max-width: 300px; }
+.librep-search > svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.librep-search input { padding: 7px 30px 7px 34px; font-size: .82rem; }
+.librep-search > button {
+  position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 20px; height: 20px;
+  border: none; border-radius: 50%; background: none; color: var(--text-light); cursor: pointer;
+}
+.librep-search > button:hover { background: var(--bg-card); color: var(--text); }
+
+.librep-tags {
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+  padding: 11px 16px; border-bottom: 1px solid var(--border);
+}
+.librep-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 6px 3px 10px; border-radius: 999px;
+  background: #eef2ff; color: #4338ca; font-size: .75rem; font-weight: 600;
+}
+.librep-tag button {
+  display: grid; place-items: center; width: 16px; height: 16px;
+  border: none; border-radius: 50%; background: rgba(79, 70, 229, .16);
+  color: inherit; cursor: pointer;
+}
+.librep-tag button:hover { background: rgba(79, 70, 229, .3); }
+
+.librep-alert { padding: 12px 16px 0; }
+
+/* ── The period picker ─────────────────────────────────────────────────────── */
+.librep-range { position: relative; flex-shrink: 0; }
+.librep-range__btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); color: inherit; cursor: pointer;
+  font-size: .82rem; font-weight: 600; white-space: nowrap;
+}
+.librep-range__btn:hover { border-color: var(--primary); color: var(--primary); }
+.librep-range__btn > svg:first-child { color: var(--text-muted); }
+/* The panel around this is portalled to <body> and brings its own box, border
+   and shadow; this is only what sits inside it. */
+.librep-range__pop { padding: 6px; }
+.librep-range__preset {
+  display: block; width: 100%; padding: 8px 10px;
+  border: none; border-radius: var(--radius); background: none;
+  color: inherit; text-align: left; cursor: pointer; font-size: .83rem;
+}
+.librep-range__preset:hover { background: var(--bg); color: var(--primary); }
+.librep-range__custom {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-top: 6px; padding: 10px 10px 4px; border-top: 1px solid var(--border);
+}
+.librep-range__custom label {
+  display: block; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+}
+.librep-range__custom input { margin-top: 4px; font-size: .8rem; padding: 6px 8px; }
+
+/* ── Cells ─────────────────────────────────────────────────────────────────── */
+.librep-col.is-right { text-align: right; }
+.librep-col.is-date, .librep-col.is-code { white-space: nowrap; }
+
+.librep-book { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* No cover art anywhere in the module, so a book leads with its spine rather
+   than a stock image that would imply the library has a picture of it. */
+.librep-spine {
+  width: 26px; height: 34px; border-radius: 3px 4px 4px 3px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-left: 3px solid rgba(0, 0, 0, .22);
+  color: #fff; font-size: .78rem; font-weight: 700;
+}
+.librep-book b, .librep-who b {
+  display: block; font-size: .83rem; font-weight: 600; line-height: 1.3;
+}
+.librep-book small, .librep-who small {
+  display: block; font-size: .71rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px;
+}
+
+.librep-text  { font-size: .82rem; }
+.librep-date  { font-size: .8rem; white-space: nowrap; }
+.librep-code  { font-size: .78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.librep-num   { font-size: .84rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.librep-money { font-size: .84rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The one number on the page somebody has to act on. */
+.librep-late  { font-size: .88rem; font-weight: 700; color: #dc2626; font-variant-numeric: tabular-nums; }
+
+.librep-chip {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: .73rem; font-weight: 600; white-space: nowrap;
+}
+.librep-chip.is-ok   { background: #dcfce7; color: #047857; }
+.librep-chip.is-info { background: #e0f2fe; color: #0369a1; }
+.librep-chip.is-warn { background: #fef3c7; color: #b45309; }
+.librep-chip.is-bad  { background: #fee2e2; color: #b91c1c; }
+.librep-chip.is-mute,
+.librep-chip.is-soft { background: var(--bg); color: var(--text-muted); }
+
+.librep-role {
+  display: inline-block; padding: 2px 9px; border-radius: 6px;
+  font-size: .72rem; font-weight: 600;
+}
+.librep-role.is-student { background: #eef2ff; color: #4338ca; }
+.librep-role.is-teacher { background: #ecfdf5; color: #047857; }
+
+.librep-col.is-acts { width: 190px; }
+
+/* ── Waiting for a member ──────────────────────────────────────────────────── */
+.librep-prompt {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 52px 20px; text-align: center;
+}
+.librep-prompt__icon {
+  width: 46px; height: 46px; border-radius: 14px; margin-bottom: 6px;
+  display: grid; place-items: center;
+}
+.librep-prompt b    { font-size: .92rem; }
+.librep-prompt span { font-size: .8rem; color: var(--text-muted); max-width: 44ch; line-height: 1.5; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .librep-body { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked, the rail becomes a strip of cards rather than a tall list nobody
+     scrolls past to reach the table. */
+  .librep-rail ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+}
+@media (max-width: 768px) {
+  .librep-filters__select,
+  .librep-filters__member,
+  .librep-search { flex: 1 1 100%; max-width: none; width: 100%; }
+  .librep-filters__acts { margin-left: 0; width: 100%; }
+  .librep-filters__acts .btn { flex: 1; justify-content: center; }
+  .librep-range { width: 100%; }
+  .librep-range__btn { width: 100%; justify-content: space-between; }
+}
+
+/* ── Print ─────────────────────────────────────────────────────────────────── */
+/* Hidden on screen; the paper's own heading. */
+.librep-print { display: none; }
+
+@media print {
+  /* Everything that is navigation, chrome or a control rather than the report. */
+  .app-sidebar, .app-header, .modnav, .sidebar-overlay,
+  .libd-hero, .libd-tiles, .librep-rail, .librep-filters, .librep-tags,
+  .lfoot, .lselbar, .librep-col.is-acts, .ltable__tick, .librep-range { display: none !important; }
+
+  .app-main, .page, .page-transition { padding: 0 !important; margin: 0 !important; display: block !important; }
+  .librep-body { display: block !important; }
+  .librep-main, .card { border: none !important; box-shadow: none !important; }
+  .librep-head { display: none !important; }
+
+  .librep-print { display: block; margin-bottom: 14px; }
+  .librep-print h1 { font-size: 17pt; font-weight: 700; }
+  .librep-print__blurb   { font-size: 9pt; color: #444; margin-top: 2px; }
+  .librep-print__meta    { font-size: 8.5pt; color: #666; margin-top: 6px; }
+  .librep-print__filters { font-size: 8.5pt; color: #444; margin-top: 2px; }
+
+  /* The figures are the report's headline and belong on the paper. */
+  .librep-sum { border: 1px solid #ddd; background: #fff; gap: 0; }
+  .librep-sum__item { border-right: 1px solid #eee; padding: 8px 10px; }
+
+  .table-wrap { overflow: visible !important; }
+  .ltable { font-size: 8.5pt; width: 100%; }
+  .ltable th { background: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ltable tr { break-inside: avoid; }
+  .librep-spine { display: none; }
+  .librep-chip, .librep-role { border: 1px solid #ddd; background: #fff !important; color: #111 !important; }
+  .librep-late { color: #111 !important; }
+
+  @page { margin: 12mm; }
+}

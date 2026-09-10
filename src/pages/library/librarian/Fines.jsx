@@ -49,8 +49,10 @@ export default function LibraryFines() {
     setPage(1);
   };
 
-  const [search, setSearch] = useState('');
-  const [term,   setTerm]   = useState('');
+  // A link in from a report names who it is about, so "fines for this member"
+  // arrives with the register already narrowed to them.
+  const [search, setSearch] = useState(params.get('q') || '');
+  const [term,   setTerm]   = useState(params.get('q') || '');
   const [reason, setReason] = useState('');
   const [mode,   setMode]   = useState('');
   const [classId, setClassId] = useState('');
