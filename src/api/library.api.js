@@ -10,6 +10,13 @@ export const getBookActivity     = (id)         => api.get(`/library/books/${id}
 export const createBook          = (data)       => api.post('/library/books', data);
 export const updateBook          = (id, data)   => api.put(`/library/books/${id}`, data);
 export const deleteBook          = (id)         => api.delete(`/library/books/${id}`);
+// The cover is its own call — the file needs a book to belong to, so it follows
+// the create rather than riding along with it.
+export const uploadBookCover     = (id, file)   => {
+  const fd = new FormData();
+  fd.append('cover', file);
+  return api.post(`/library/books/${id}/cover`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+};
 // Each id runs through the same refusals a single delete does; the reply says
 // which ones stayed put and why.
 export const bulkDeleteBooks     = (ids)        => api.post('/library/books/bulk-delete', { ids });

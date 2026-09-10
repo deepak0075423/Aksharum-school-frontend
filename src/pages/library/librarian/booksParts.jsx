@@ -13,14 +13,17 @@
  */
 import React from 'react';
 import Icon from '../../../components/ui/icons';
+import { fileUrl } from '../../admin/listParts';
 
 // ── Status ───────────────────────────────────────────────────────────────────
 
 export const STATUS = {
-  available:  { label: 'Available',  tone: 'ok' },
-  issued_out: { label: 'All out',    tone: 'warn' },
-  overdue:    { label: 'Overdue',    tone: 'bad' },
-  no_copies:  { label: 'No copies',  tone: 'mute' },
+  available:  { label: 'Available',       tone: 'ok' },
+  issued_out: { label: 'All out',         tone: 'warn' },
+  overdue:    { label: 'Overdue',         tone: 'bad' },
+  // Owned, but not on the shelf yet — being covered, labelled or catalogued.
+  processing: { label: 'Being processed', tone: 'mute' },
+  no_copies:  { label: 'No copies',       tone: 'mute' },
 };
 
 export const StatusChip = ({ status }) => {
@@ -32,6 +35,7 @@ export const STATUS_FILTERS = [
   ['', 'Any status'],
   ['available', 'Available'],
   ['issued_out', 'All copies out'],
+  ['processing', 'Being processed'],
   ['overdue', 'Has an overdue copy'],
   ['no_copies', 'No copies registered'],
 ];
@@ -43,13 +47,25 @@ export const STATUS_FILTERS = [
  * initial on a coloured block. A stock image would imply the library has a
  * picture of this book, which it does not.
  */
+/**
+ * A book's face: its cover if one was uploaded, otherwise a drawn spine off its
+ * own title. The image is small and fixed-size here — a catalogue row is a row,
+ * not a shelf.
+ */
+export const Cover = ({ book }) => (book?.coverImage
+  ? (
+    <img className="libb-cover" src={fileUrl(book.coverImage)} alt="" loading="lazy" decoding="async"
+      onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+  )
+  : <Spine title={book?.title} />);
+
 export const Spine = ({ title }) => (
   <span className="libb-spine" aria-hidden>{(title || '?').charAt(0).toUpperCase()}</span>
 );
 
 export const TitleCell = ({ book }) => (
   <span className="libb-title">
-    <Spine title={book.title} />
+    <Cover book={book} />
     <span>
       <b>{book.title}</b>
       {book.publisher ? <small>{book.publisher}</small> : null}
@@ -160,61 +176,3 @@ export const formToBook = (form) => ({
   ...form,
   authors: String(form.authors || '').split(',').map((a) => a.trim()).filter(Boolean),
 });
-
-/**
- * The fields of a catalogue entry, shared by the list's Add/Edit dialog and the
- * book's own page. One copy, because two forms for one record drift: `edition`
- * was on the model and in the update endpoint, and neither form ever offered it
- * — which matters, since a title, its ISBN and its edition together are what
- * decide whether a book is a duplicate.
- */
-export const BookFields = ({ form, onChange }) => {
-  const set = (key) => (e) => onChange(key, e.target.value);
-  return (
-    <>
-      <div className="form-row form-row-2">
-        <div className="form-group">
-          <label className="form-label required">Title</label>
-          <input className="form-control" required value={form.title} onChange={set('title')} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Author(s)</label>
-          <input className="form-control" value={form.authors} placeholder="Comma-separated"
-            onChange={set('authors')} />
-        </div>
-      </div>
-      <div className="form-row form-row-2">
-        <div className="form-group">
-          <label className="form-label">ISBN</label>
-          <input className="form-control" value={form.isbn} onChange={set('isbn')} />
-          <div className="form-hint">10 or 13 digits. Hyphens and spaces are fine.</div>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Publisher</label>
-          <input className="form-control" value={form.publisher} onChange={set('publisher')} />
-        </div>
-      </div>
-      <div className="form-row form-row-2">
-        <div className="form-group">
-          <label className="form-label">Category</label>
-          <input className="form-control" value={form.category} onChange={set('category')} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Edition</label>
-          <input className="form-control" value={form.edition} placeholder="e.g. 3rd" onChange={set('edition')} />
-          <div className="form-hint">Two editions of one title are two catalogue entries.</div>
-        </div>
-      </div>
-      <div className="form-row form-row-2">
-        <div className="form-group">
-          <label className="form-label">Language</label>
-          <input className="form-control" value={form.language} onChange={set('language')} />
-        </div>
-      </div>
-      <div className="form-group">
-        <label className="form-label">Description</label>
-        <textarea className="form-control" rows={3} value={form.description} onChange={set('description')} />
-      </div>
-    </>
-  );
-};

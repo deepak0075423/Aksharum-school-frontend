@@ -14,6 +14,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../../components/ui/icons';
+import { fileUrl } from '../../admin/listParts';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
@@ -33,12 +34,15 @@ export const Blank = ({ children = '—' }) => <span className="lnone">{children
 //  than stored: `availableCopies` alone cannot tell "every copy is out" from
 //  "this title has no copies at all", and those need different answers.
 
-export const stateOf = (book, stats = {}) => {
+export const stateOf = (book, stats = {}, breakdown = {}) => {
   const total = book?.totalCopies ?? 0;
   const free  = book?.availableCopies ?? 0;
+  const being = Number(breakdown.processing || 0);
   if (!total)            return { key: 'none',      tone: 'mute', label: 'No copies',     hint: 'Nothing to lend yet' };
   if (stats.overdue)     return { key: 'overdue',   tone: 'bad',  label: 'Overdue',       hint: `${stats.overdue} ${stats.overdue === 1 ? 'copy' : 'copies'} past due` };
   if (free > 0)          return { key: 'available', tone: 'ok',   label: 'Available',     hint: 'On the shelf now' };
+  // Nothing free and nothing lent: the copies are owned but not shelved yet.
+  if (being >= total)    return { key: 'processing', tone: 'mute', label: 'Being processed', hint: 'Owned, not on the shelf yet' };
   return { key: 'out', tone: 'warn', label: 'All copies out', hint: 'Nothing left to lend' };
 };
 
@@ -55,11 +59,24 @@ export const Spine = ({ title, size = 'lg' }) => (
   </span>
 );
 
+/**
+ * A book's face: its cover if one was uploaded, otherwise the drawn spine. The
+ * spine is the fallback rather than the rule now, but it is still what most of
+ * the catalogue shows — a school library photographs very few of its books.
+ */
+export const Cover = ({ book, size = 'lg' }) => (book?.coverImage
+  ? (
+    <img className={`libbd-cover is-${size}`} src={fileUrl(book.coverImage)} alt=""
+      loading="lazy" decoding="async"
+      onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+  )
+  : <Spine title={book?.title} size={size} />);
+
 // ── The header ───────────────────────────────────────────────────────────────
 
 export const BookHero = ({ book, state }) => (
   <header className="libbd-hero">
-    <Spine title={book.title} />
+    <Cover book={book} />
     <div className="libbd-hero__text">
       <h1>{book.title}</h1>
       <p className="libbd-hero__by">{authorsOf(book) || <Blank>Author not recorded</Blank>}</p>
@@ -125,8 +142,9 @@ export const Facts = ({ rows }) => (
 // ── Where the copies are ─────────────────────────────────────────────────────
 
 const SEGMENTS = [
-  { key: 'available', label: 'On the shelf', tone: 'ok' },
-  { key: 'issued',    label: 'Out on loan',  tone: 'info' },
+  { key: 'available',  label: 'On the shelf',   tone: 'ok' },
+  { key: 'issued',     label: 'Out on loan',    tone: 'info' },
+  { key: 'processing', label: 'Being processed', tone: 'mute' },
   { key: 'reserved',  label: 'Held',         tone: 'warn' },
   { key: 'damaged',   label: 'Damaged',      tone: 'amber' },
   { key: 'lost',      label: 'Lost',         tone: 'bad' },
@@ -194,7 +212,7 @@ export const RelatedBooks = ({ books = [], to }) => {
       {books.map((b) => (
         <li key={b._id}>
           <Link to={`${to}/${b._id}`}>
-            <Spine title={b.title} size="sm" />
+            <Cover book={b} size="sm" />
             {/* Why it is here rides on the second line with the author. As a
                 chip of its own it took 110px out of a 288px row and left the
                 title with barely a word. */}
@@ -222,7 +240,7 @@ export const LOAN_TONE = {
 
 export const CopyStatus = ({ status }) => (
   <span className={`libbd-tag is-${{
-    available: 'ok', issued: 'info', reserved: 'warn', damaged: 'amber', lost: 'bad',
+    available: 'ok', issued: 'info', reserved: 'warn', processing: 'mute', damaged: 'amber', lost: 'bad',
   }[status] || 'mute'}`}>{status}</span>
 );
 

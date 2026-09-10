@@ -11,11 +11,11 @@
  * `availableCopies` alone cannot answer it.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import {
-  getBooks, createBook, updateBook, deleteBook, bulkDeleteBooks, importBooks, downloadFile,
+  getBooks, deleteBook, bulkDeleteBooks, importBooks, downloadFile,
 } from '../../../api/library.api';
 import { Badge, Button, Modal, Confirm, Alert } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
@@ -24,9 +24,9 @@ import {
   SelectionBar, FiltersButton, useSelection,
 } from '../../admin/listParts';
 import { Hero, Tile, note, quoteOfTheDay } from './dashParts';
+import BookDialog from './bookDialog';
 import {
-  AuthorsCell, BookFields, Chip, CopiesCell, EMPTY_BOOK, FiltersPanel, SortHead,
-  StatusChip, TitleCell, bookToForm, formToBook,
+  AuthorsCell, Chip, CopiesCell, FiltersPanel, SortHead, StatusChip, TitleCell,
 } from './booksParts';
 
 /** A share of the catalogue, said as a share — and never divided by zero. */
@@ -105,14 +105,11 @@ export default function LibraryBooks() {
     finally { setBulkBusy(false); }
   };
 
-  const [modal,    setModal]   = useState(false);
-  const [editItem, setEditItem]= useState(null);
-  const [del,      setDel]     = useState(null);
-  const [saving,   setSaving]  = useState(false);
-  const [delLoad,  setDL]      = useState(false);
-  const [form,     setForm]    = useState(EMPTY_BOOK);
-  const [justCreated, setJustCreated] = useState(null);
-  const [duplicate,   setDuplicate]   = useState(null);
+  const [del,     setDel]    = useState(null);
+  const [delLoad, setDL]     = useState(false);
+  // null = closed, {} = a new title, { book } = editing that one. The dialog
+  // owns the form, the copies it arrives with and the duplicate refusal.
+  const [dialog,  setDialog] = useState(null);
 
   // ── Import / export ──────────────────────────────────────────────────────
   // The bulk-upload endpoint has existed since the module shipped and nothing
@@ -150,33 +147,8 @@ export default function LibraryBooks() {
   const exportCatalogue = () => grab('/library/books/export', { q: search }, 'library_catalogue.xlsx');
   const downloadTemplate = () => grab('/library/books/bulk-upload/template', {}, 'library_books_template.xlsx');
 
-  const openCreate = () => { setForm(EMPTY_BOOK); setEditItem(null); setModal(true); };
-  const openEdit   = (b) => { setForm(bookToForm(b)); setEditItem(b); setModal(true); };
-
-  const handleSave = async (e) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      const payload = formToBook(form);
-      if (editItem) {
-        await updateBook(editItem._id, payload);
-        toast.success('Book updated');
-      } else {
-        const res = await createBook(payload);
-        toast.success('Book added — add copies to put it into circulation');
-        if (res?.data?._id) setJustCreated(res.data._id);
-      }
-      setModal(false); refetch();
-    } catch (err) {
-      // The server refuses a book that already exists and says which one, so
-      // the librarian can go add copies to it instead of retyping it.
-      if (err?.data?.code === 'DUPLICATE_BOOK') {
-        setDuplicate({ message: err.message, ...err.data.data });
-        return;
-      }
-      toast.error(err?.message || 'Could not save the book');
-    }
-    finally { setSaving(false); }
-  };
+  const openCreate = () => setDialog({});
+  const openEdit   = (b) => setDialog({ book: b });
 
   const handleDelete = async () => {
     setDL(true);
@@ -364,19 +336,17 @@ export default function LibraryBooks() {
         />
       </section>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editItem ? 'Edit Book' : 'Add Book'}
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="book-form" type="submit" loading={saving}>{editItem ? 'Save' : 'Add'}</Button></>}>
-        <form id="book-form" onSubmit={handleSave}>
-          <BookFields form={form} onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))} />
-        </form>
-      </Modal>
+      <BookDialog
+        open={!!dialog} book={dialog?.book} categories={categories}
+        onClose={() => setDialog(null)}
+        onSaved={(id, opt) => { refetch(); if (opt?.open && id) navigate(`${pathname}/${id}`); }} />
+
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete} loading={delLoad}
-        title="Delete book"
+        title="Delete book" confirmLabel="Delete book"
         message={`Delete “${del?.title}”? Its copies go with it. A book that is out on loan or queued for cannot be deleted.`} />
 
       <Confirm open={bulkDel} onClose={() => setBulkDel(false)} onConfirm={removeSelected} loading={bulkBusy}
-        title="Delete books"
+        title="Delete books" confirmLabel="Delete them"
         message={`Delete ${selection.ids.length} book${selection.ids.length === 1 ? '' : 's'} and their copies? Any that are out on loan, queued for, or still marked issued will be kept and named.`} />
 
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import books" maxWidth={520}
@@ -419,30 +389,6 @@ export default function LibraryBooks() {
             )}
           </div>
         )}
-      </Modal>
-
-      {/* A second physical book is a copy, not a second catalogue entry — the
-          refusal has to lead somewhere useful or it is just an obstacle. */}
-      <Modal open={!!duplicate} onClose={() => setDuplicate(null)} title="This book is already listed" maxWidth={460}
-        footer={<>
-          <Button variant="secondary" onClick={() => setDuplicate(null)}>Back to form</Button>
-          <Link className="btn btn-primary" to={`${pathname}/${duplicate?.existingBookId}`}
-            onClick={() => { setDuplicate(null); setModal(false); }}>Add copies to it</Link>
-        </>}>
-        <p style={{ color: 'var(--text-muted)' }}>{duplicate?.message}</p>
-      </Modal>
-
-      {/* A catalogue entry with no physical copies can never be issued, so the
-          new book leads straight into registering them. */}
-      <Modal open={!!justCreated} onClose={() => setJustCreated(null)} title="Add copies?" maxWidth={440}
-        footer={<>
-          <Button variant="secondary" onClick={() => setJustCreated(null)}>Later</Button>
-          <Link className="btn btn-primary" to={`${pathname}/${justCreated}`}>Add Copies</Link>
-        </>}>
-        <p style={{ color: 'var(--text-muted)' }}>
-          The book is in the catalogue, but it has no physical copies yet — it cannot be
-          issued or reserved until at least one is registered.
-        </p>
       </Modal>
     </div>
   );

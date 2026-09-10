@@ -113,8 +113,7 @@ input, select, textarea {
    Browsers without `:has()` simply keep the old behaviour.
 */
 .app-main:has(.libpol-body),
-.app-main:has(.librep-body),
-.app-main:has(.libbd-body) { overflow: visible; }
+.app-main:has(.librep-body) { overflow: visible; }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
@@ -7674,6 +7673,11 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   border-left: 3px solid rgba(0, 0, 0, .22);
   color: #fff; font-size: .84rem; font-weight: 700;
 }
+.libb-cover {
+  width: 30px; height: 40px; flex-shrink: 0;
+  border-radius: 3px; object-fit: contain; background: var(--bg);
+}
+
 .libb-authors {
   display: block; font-size: .82rem;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px;
@@ -8694,7 +8698,19 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   color: #fff; font-weight: 700;
 }
 .libbd-spine.is-lg { width: 96px; height: 132px; border-radius: 4px 9px 9px 4px; font-size: 2.4rem; }
+/* Covers are portraits of every proportion, so they are contained rather than
+   cropped — a cover with its title cut off is worse than no cover. */
+.libbd-cover { flex-shrink: 0; border-radius: 6px; object-fit: contain; box-shadow: var(--shadow-md); background: var(--bg); }
+.libbd-cover.is-lg { width: 96px; height: 132px; }
+.libbd-cover.is-sm { width: 30px; height: 40px; border-radius: 3px; box-shadow: none; }
 .libbd-spine.is-sm { width: 30px; height: 40px; border-radius: 3px 5px 5px 3px; font-size: .85rem; border-left-width: 3px; }
+
+/* Subject tags, in the one place the catalogue lists them. */
+.libbd-tags { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.libbd-tags span {
+  padding: 2px 9px; border-radius: 999px;
+  background: #eef2ff; color: #4338ca; font-size: .71rem; font-weight: 600;
+}
 
 /* ── The two columns ───────────────────────────────────────────────────────── */
 .libbd-body {
@@ -8704,33 +8720,23 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libbd-main, .libbd-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 /*
-   The sidebar is the shelf-side answer, so it stays put while the record scrolls
-   past it: sticky below the app header, sized to its own content, and scrolling
-   inside itself if it is ever taller than the screen. What lets it stick at all
-   is the `.app-main:has(.libbd-body)` rule up beside `.app-main`.
+   The sidebar scrolls with the page, and every card in it is whole.
+
+   It used to be sticky with `max-height` + `overflow-y: auto`, and that is a
+   trap: a flex column with a height limit *shrinks its children to fit*, so the
+   cards were squashed below their content and `.card { overflow: hidden }` cut
+   what was left. Quick actions lost its bottom row and Related books opened on
+   top of it. `flex-shrink: 0` alone would fix the squashing and leave the
+   cutting; keeping the column at its natural height fixes both, and a column of
+   three short cards beside a long record does not need pinning to be useful.
+
+   The status card is what is worth keeping in view, so that one stays put on
+   its own — see `.libbd-status` below.
 */
-.libbd-side {
-  position: sticky;
-  top: calc(var(--header-height) + 16px);
-  align-self: start;
-  max-height: calc(100vh - var(--header-height) - 32px);
-  /* A safety net for short windows, not the normal way to read this column —
-     the cards below are sized to fit a laptop screen without it. macOS hides
-     overlay scrollbars until you scroll, so this one is made permanent: an
-     invisible scrollbar over cut-off content reads as missing content, which
-     is exactly how Quick actions and Related books went missing. */
-  overflow-y: auto;
-  scrollbar-width: thin;
-  /* Room for the shadow of the cards inside, which a clipped box would cut. */
-  padding: 2px;
-  margin: -2px;
-}
-.libbd-side::-webkit-scrollbar { width: 8px; }
-.libbd-side::-webkit-scrollbar-thumb {
-  background: var(--border); border-radius: 999px;
-  border: 2px solid var(--bg);
-}
-.libbd-side::-webkit-scrollbar-track { background: transparent; }
+.libbd-side { align-self: start; }
+/* Cards keep their own height. Nothing in this column may be compressed to make
+   another card fit. */
+.libbd-side > * { flex-shrink: 0; }
 /* The two buttons the mockup puts at the top right, above the status card. */
 .libbd-side__acts { display: flex; gap: 8px; }
 .libbd-side__acts .btn { flex: 1; justify-content: center; }
@@ -8921,10 +8927,8 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   /* Stacked, the shelf-side answer belongs above the record, not under it —
      and there is nothing beside it to stay level with, so it scrolls away
      like everything else. */
-  .libbd-side {
-    order: -1; position: static; max-height: none; overflow: visible;
-    padding: 0; margin: 0;
-  }
+  /* Stacked, the shelf-side answer belongs above the record, not under it. */
+  .libbd-side { order: -1; }
   .libbd-quick { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 }
 @media (max-width: 768px) {
@@ -9154,6 +9158,29 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libx-collect b     { display: block; font-size: .82rem; }
 .libx-collect small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
 
+/* ── Adding a title, and the copies it arrives with ────────────────────────── */
+/* One question with its consequence under it, rather than a bare tickbox whose
+   meaning lives somewhere else on the screen. */
+.libx-check {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px; margin-bottom: 12px;
+  background: var(--bg); border-radius: var(--radius-lg);
+}
+.libx-check input { margin-top: 3px; flex-shrink: 0; }
+.libx-check label { cursor: pointer; }
+.libx-check b     { display: block; font-size: .82rem; }
+.libx-check small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+
+.libx-detail {
+  padding: 12px; margin-bottom: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.libx-detail .form-group:last-child { margin-bottom: 0; }
+
+/* Cataloguing a stack of books is one dialog, not twenty. */
+.libx-again { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.libx-again input { cursor: pointer; }
+
 /* ── The footer line ───────────────────────────────────────────────────────── */
 .libx-foot__note {
   display: inline-flex; align-items: center; gap: 6px; margin-right: auto;
@@ -9173,4 +9200,76 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .libx-cond { flex-direction: row; align-items: center; gap: 10px; }
   .libx-cond__icon { margin-bottom: 0; }
   .libx-foot__note { width: 100%; margin-bottom: 8px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY — the add/edit book dialog
+   ───────────────────────────────────────────────────────────────────────────
+   The record on the left, and on the right the three things that decide what
+   happens to it: the cover, how many copies arrive, and whether those copies
+   go straight onto the shelf. Shares the counter dialogs' frame (.libx-*).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The record needs the room; the three side cards are short. */
+.libbk-grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }
+.libbk-sub  { margin: -6px 0 14px; }
+
+.libbk-side { gap: 14px; display: flex; flex-direction: column; }
+.libbk-card {
+  padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.libbk-card > h4 {
+  font-size: .76rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px;
+}
+.libbk-card .form-group:last-child { margin-bottom: 0; }
+
+/* ── The cover ─────────────────────────────────────────────────────────────── */
+.libbk-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; width: 100%; padding: 26px 16px; cursor: pointer; text-align: center;
+  background: var(--bg); border: 2px dashed var(--border); border-radius: var(--radius-lg);
+  color: inherit;
+}
+.libbk-drop:hover,
+.libbk-drop.is-over { border-color: var(--primary); background: #f5f3ff; }
+.libbk-drop__icon {
+  width: 46px; height: 46px; border-radius: 14px; margin-bottom: 6px;
+  display: grid; place-items: center; background: #ede9fe; color: var(--primary);
+}
+.libbk-drop b     { font-size: .83rem; font-weight: 600; }
+.libbk-drop small { font-size: .77rem; color: var(--text-muted); }
+.libbk-drop em    { font-style: normal; font-size: .71rem; color: var(--text-light); margin-top: 4px; }
+
+.libbk-cover { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+/* A cover is a portrait; letting it fill the box would crop the title off it. */
+.libbk-cover img {
+  max-height: 190px; max-width: 100%; border-radius: var(--radius);
+  box-shadow: var(--shadow-md); object-fit: contain;
+}
+.libbk-cover__acts { display: flex; gap: 8px; }
+.libbk-cover__acts button {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text-muted); cursor: pointer;
+  font-size: .76rem; font-weight: 600;
+}
+.libbk-cover__acts button:hover           { border-color: var(--primary); color: var(--primary); }
+.libbk-cover__acts button.is-danger:hover { border-color: #dc2626; color: #dc2626; }
+
+/* ── On the shelf, or not yet ──────────────────────────────────────────────── */
+.libbk-radio {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px; margin-bottom: 8px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.libbk-radio:last-child { margin-bottom: 0; }
+.libbk-radio.is-on      { border-color: var(--primary); background: #f5f3ff; }
+.libbk-radio input      { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary); }
+.libbk-radio b          { display: block; font-size: .83rem; }
+.libbk-radio small      { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45; }
+
+@media (max-width: 860px) {
+  .libbk-grid { grid-template-columns: minmax(0, 1fr); }
 }

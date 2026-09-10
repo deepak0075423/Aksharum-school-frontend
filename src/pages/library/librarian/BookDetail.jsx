@@ -20,14 +20,14 @@ import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import {
-  getBook, getBookActivity, updateBook, deleteBook, addCopies, updateCopy,
+  getBook, getBookActivity, deleteBook, addCopies, updateCopy,
   setCopyStatus, deleteCopy, createReservation, labelSheetUrl,
 } from '../../../api/library.api';
 import { Alert, Button, Confirm, Modal, Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import MemberPicker from '../../../components/library/MemberPicker';
 import { ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
-import { BookFields, bookToForm, formToBook } from './booksParts';
+import BookDialog from './bookDialog';
 import {
   BookHero, CopyStatus, Facts, LoanStatus, Panel, QuickActions, RelatedBooks,
   StockBar, Tabs, Who, authorsOf, fmtDate, stateOf,
@@ -35,7 +35,7 @@ import {
 
 const CONDITIONS = ['new', 'good', 'fair', 'damaged'];
 // 'issued' is absent on purpose — circulation owns that transition.
-const MANUAL_STATUSES = ['available', 'reserved', 'damaged', 'lost'];
+const MANUAL_STATUSES = ['available', 'processing', 'reserved', 'damaged', 'lost'];
 const EMPTY_ADD = { count: 1, condition: 'new', rackLocation: '', acquisitionDate: '', vendor: '', billNumber: '', cost: '' };
 
 export default function LibraryBookDetail() {
@@ -68,7 +68,7 @@ export default function LibraryBookDetail() {
   const queue     = activity?.reservations || [];
   const related   = activity?.related || [];
   const copyTotal = meta?.total ?? copies.length;
-  const state     = useMemo(() => stateOf(book, stats), [book, stats]);
+  const state     = useMemo(() => stateOf(book, stats, breakdown), [book, stats, breakdown]);
 
   const reload = () => { refetch(); refetchActivity(); };
 
@@ -170,25 +170,7 @@ export default function LibraryBookDetail() {
 
   // ── The catalogue entry itself ───────────────────────────────────────────
   const [editOpen, setEditOpen] = useState(false);
-  const [form,     setForm]     = useState(null);
-  const [duplicate, setDuplicate] = useState(null);
-
-  const openEditBook = () => { setForm(bookToForm(book)); setEditOpen(true); };
-
-  const saveBook = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await updateBook(id, formToBook(form));
-      toast.success('Book updated');
-      setEditOpen(false); refetch();
-    } catch (err) {
-      // Renaming a book onto one that already exists is the same mistake as
-      // adding it twice, and the refusal has to lead somewhere useful.
-      if (err?.data?.code === 'DUPLICATE_BOOK') setDuplicate({ message: err.message, ...err.data.data });
-      else toast.error(err?.message || 'Could not save the book');
-    } finally { setSaving(false); }
-  };
+  const openEditBook = () => setEditOpen(true);
 
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removing,   setRemoving]   = useState(false);
@@ -299,6 +281,8 @@ export default function LibraryBookDetail() {
   const facts = [
     ['ISBN', book.isbn || '', 'idCard'],
     ['Publisher', book.publisher || '', 'building'],
+    ['Published', book.publishedYear || '', 'calendar'],
+    ['Pages', book.pages || '', 'files'],
     ['Edition', book.edition || '', 'layers'],
     ['Language', book.language || '', 'compass'],
     ['Category', book.category || '', 'folder'],
@@ -359,6 +343,9 @@ export default function LibraryBookDetail() {
                   ['Title', book.title, 'book'],
                   ['Author(s)', authorsOf(book) || '', 'user'],
                   ...facts,
+                  ['Subjects', (book.subjects || []).length
+                    ? <span className="libbd-tags">{book.subjects.map((t) => <span key={t}>{t}</span>)}</span>
+                    : '', 'target'],
                 ]} />
               </Panel>
 
@@ -399,7 +386,7 @@ export default function LibraryBookDetail() {
                     aria-label="Filter copies by status"
                     onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
                     <option value="">All statuses</option>
-                    {['available', 'issued', 'reserved', 'damaged', 'lost'].map((st) => (
+                    {['available', 'issued', 'processing', 'reserved', 'damaged', 'lost'].map((st) => (
                       <option key={st} value={st}>{st} ({breakdown[st] ?? 0})</option>
                     ))}
                   </select>
@@ -556,26 +543,10 @@ export default function LibraryBookDetail() {
 
       {/* ── Dialogs ──────────────────────────────────────────────────────── */}
 
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Book"
-        footer={<>
-          <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
-          <Button form="book-edit-form" type="submit" loading={saving}>Save</Button>
-        </>}>
-        {form && (
-          <form id="book-edit-form" onSubmit={saveBook}>
-            <BookFields form={form} onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))} />
-          </form>
-        )}
-      </Modal>
-
-      <Modal open={!!duplicate} onClose={() => setDuplicate(null)} title="This book is already listed" maxWidth={460}
-        footer={<>
-          <Button variant="secondary" onClick={() => setDuplicate(null)}>Back to form</Button>
-          <Link className="btn btn-primary" to={`${booksPath}/${duplicate?.existingBookId}`}
-            onClick={() => { setDuplicate(null); setEditOpen(false); }}>Open that entry</Link>
-        </>}>
-        <p style={{ color: 'var(--text-muted)' }}>{duplicate?.message}</p>
-      </Modal>
+      <BookDialog
+        open={editOpen} book={book} categories={book?.category ? [book.category] : []}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => refetch()} />
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Copies"
         footer={<>
