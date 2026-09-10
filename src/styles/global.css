@@ -10468,3 +10468,60 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .libsr-tools { flex-wrap: wrap; }
   .libsr-sort .form-control { min-width: 120px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY MY BOOKS — every loan, open and closed
+   ───────────────────────────────────────────────────────────────────────────
+   Built on the search tab's table and cover (.libsr-*) so a book looks the
+   same wherever the module shows one. What is only here: the toolbar, the
+   days-left note beside a due date, and the money panel in the loan drawer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.libmbpg { display: flex; flex-direction: column; gap: 16px; }
+
+/* The toolbar lives in the card head, so it wraps onto its own line rather
+   than squeezing the title out of the way. */
+.libmb-panel .liblg-card__head { flex-wrap: wrap; }
+.libmb-tools { display: flex; align-items: center; gap: 10px; flex: 1 1 520px; min-width: 0; justify-content: flex-end; }
+.libmb-search { flex: 1 1 260px; min-width: 180px; }
+.libmb-search .form-control { width: 100%; }
+.libmb-select { width: auto; min-width: 150px; padding: 8px 30px 8px 12px; font-size: .85rem; height: auto; }
+.libmb-tools .btn { gap: 7px; white-space: nowrap; }
+
+.libmb-art { width: 200px; height: 90px; color: var(--primary); flex-shrink: 0; }
+
+.libmb-num { width: 34px; color: var(--text-muted); }
+.libmb-code { font-variant-numeric: tabular-nums; color: var(--text-muted); white-space: nowrap; }
+.libmb-table td { vertical-align: middle; }
+
+/* The number that decides whether to act, next to the date it comes from. */
+.libmb-due { display: block; font-style: normal; font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
+.libmb-due--late { color: var(--danger); font-weight: 600; }
+
+/* Money owed is never left to the drawer alone. */
+.libmb-owed {
+  display: block; font-style: normal; font-size: .74rem; font-weight: 600;
+  color: var(--danger); margin-top: 4px;
+}
+.libmb-owed-strong { color: var(--danger); }
+
+.libmb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.libmb-by { font-size: .84rem; color: var(--text-muted); }
+
+.libmb-fine {
+  margin-top: 16px; padding: 14px 16px; border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--danger) 5%, #fff);
+  border: 1px solid color-mix(in srgb, var(--danger) 18%, var(--border));
+}
+.libmb-fine h4 { font-size: .84rem; font-weight: 700; margin-bottom: 8px; }
+.libmb-fine__row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  padding: 5px 0; font-size: .85rem;
+}
+.libmb-fine__row > span { color: var(--text-muted); }
+
+@media (max-width: 900px) {
+  .libmb-tools { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .libmb-search { flex: 1 1 100%; }
+  .libmb-select { flex: 1 1 140px; min-width: 0; }
+}
