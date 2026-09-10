@@ -1,50 +1,78 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+/**
+ * Library → Books → one book.
+ *
+ * The catalogue entry, its stock, and what has happened to it: the record on
+ * the left in four tabs, and on the right the one thing a librarian standing at
+ * the shelf actually wants — is a copy available, and what can I do about it.
+ *
+ * A catalogue entry is not a book on a shelf. Nothing can be issued until the
+ * title has physical copies, so this is where they are registered, each with
+ * its own LIB-COPY-xxxxxx code, condition, rack and lifecycle status — and why
+ * a title with none of them says so before it says anything else.
+ *
+ * Two requests, deliberately. The copy list is paged and filtered, so it is
+ * re-read whenever the librarian narrows it; the book's history, its queue and
+ * its neighbours are read once, because none of that changes when you type a
+ * copy code.
+ */
+import React, { useMemo, useState } from 'react';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
-import { getBook, addCopies, updateCopy, setCopyStatus, deleteCopy, labelSheetUrl } from '../../../api/library.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner, Input, Select, Alert, Pagination }
-  from '../../../components/ui/index';
+import {
+  getBook, getBookActivity, updateBook, deleteBook, addCopies, updateCopy,
+  setCopyStatus, deleteCopy, createReservation, labelSheetUrl,
+} from '../../../api/library.api';
+import { Alert, Button, Confirm, Modal, Spinner } from '../../../components/ui/index';
+import Icon from '../../../components/ui/icons';
+import MemberPicker from '../../../components/library/MemberPicker';
+import { ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
+import { BookFields, bookToForm, formToBook } from './booksParts';
+import {
+  BookHero, CopyStatus, Facts, LoanStatus, Panel, QuickActions, RelatedBooks,
+  StockBar, Tabs, Who, authorsOf, fmtDate, stateOf,
+} from './bookParts';
 
-// A catalogue entry is not a book on a shelf. Nothing can be issued until the
-// title has physical copies, so this is where they are registered — each one
-// gets its own LIB-COPY-xxxxxx code, condition, rack and lifecycle status.
-
-const STATUS_VARIANT = {
-  available: 'success',
-  issued:    'info',
-  reserved:  'warning',
-  lost:      'danger',
-  damaged:   'danger',
-};
+const CONDITIONS = ['new', 'good', 'fair', 'damaged'];
 // 'issued' is absent on purpose — circulation owns that transition.
 const MANUAL_STATUSES = ['available', 'reserved', 'damaged', 'lost'];
-const CONDITIONS      = ['new', 'good', 'fair', 'damaged'];
-
 const EMPTY_ADD = { count: 1, condition: 'new', rackLocation: '', acquisitionDate: '', vendor: '', billNumber: '', cost: '' };
 
-const fmtDate = d => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
-
 export default function LibraryBookDetail() {
-  const { id }     = useParams();
-  const navigate   = useNavigate();
+  const { id }       = useParams();
+  const navigate     = useNavigate();
   const { pathname } = useLocation();
   // Works under /admin/library/books/:id and /teacher/manage-library/books/:id
-  const booksPath  = pathname.slice(0, pathname.lastIndexOf('/'));
+  const booksPath = pathname.slice(0, pathname.lastIndexOf('/'));
+  const base      = booksPath.replace(/\/books$/, '');
 
-  // The copy list is paged and filterable — a class-set textbook can carry
-  // hundreds of copies, and shipping all of them to render one table was the
-  // slowest thing on this screen.
+  const [tab,    setTab]    = useState('overview');
   const [page,   setPage]   = useState(1);
+  const [limit,  setLimit]  = useState(25);
   const [status, setStatus] = useState('');
   const [code,   setCode]   = useState('');
+
   const { data: book, meta, loading, error, refetch } = useFetch(
-    () => getBook(id, { page, limit: 25, status: status || undefined, code: code.trim() || undefined }),
-    [id, page, status, code],
+    () => getBook(id, { page, limit, status: status || undefined, code: code.trim() || undefined }),
+    [id, page, limit, status, code],
   );
+  const { data: activity, loading: loadingActivity, refetch: refetchActivity } = useFetch(
+    () => getBookActivity(id),
+    [id],
+  );
+
   const copies    = book?.copies || [];
   const breakdown = book?.breakdown || {};
+  const stats     = activity?.stats || {};
+  const loans     = activity?.loans || [];
+  const queue     = activity?.reservations || [];
+  const related   = activity?.related || [];
+  const copyTotal = meta?.total ?? copies.length;
+  const state     = useMemo(() => stateOf(book, stats), [book, stats]);
 
+  const reload = () => { refetch(); refetchActivity(); };
+
+  // ── Copies: add, edit, retire, remove ────────────────────────────────────
   const [addOpen,  setAddOpen]  = useState(false);
   const [addForm,  setAddForm]  = useState(EMPTY_ADD);
   const [saving,   setSaving]   = useState(false);
@@ -65,17 +93,28 @@ export default function LibraryBookDetail() {
     try {
       const res = await addCopies(id, { ...addForm, count, cost: addForm.cost === '' ? 0 : Number(addForm.cost) });
       toast.success(`${res?.count ?? count} ${count === 1 ? 'copy' : 'copies'} added`);
-      setAddOpen(false); setPage(1); refetch();
+      setAddOpen(false); setPage(1); setTab('copies'); reload();
     } catch (err) { toast.error(err?.message || 'Could not add copies'); }
     finally { setSaving(false); }
   };
 
-  const openEdit = (c) => {
+  const openEditCopy = (c) => {
     setEditForm({
       condition: c.condition || 'new', rackLocation: c.rackLocation || '',
       vendor: c.vendor || '', billNumber: c.billNumber || '', cost: c.cost ?? '',
     });
     setEditCopy(c);
+  };
+
+  const handleEditCopy = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await updateCopy(id, editCopy._id, editForm);
+      toast.success('Copy updated');
+      setEditCopy(null); refetch();
+    } catch (err) { toast.error(err?.message || 'Could not update copy'); }
+    finally { setSaving(false); }
   };
 
   // Writing a copy off during a stock check is the moment losses are found, so
@@ -91,35 +130,24 @@ export default function LibraryBookDetail() {
       const res = await setCopyStatus(id, writeOff.copy._id, writeOff.status, charge,
         charge && writeOffPrice !== '' ? Number(writeOffPrice) : undefined);
       toast.success(res?.fine ? `Marked ${writeOff.status} — ₹${res.fine.amount} charged` : `Marked ${writeOff.status}`);
-      setWriteOff(null); refetch();
+      setWriteOff(null); reload();
     } catch (err) { toast.error(err?.message || 'Could not change the status'); }
     finally { setBusyId(null); }
   };
 
-  const handleEdit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await updateCopy(id, editCopy._id, editForm);
-      toast.success('Copy updated');
-      setEditCopy(null); refetch();
-    } catch (err) { toast.error(err?.message || 'Could not update copy'); }
-    finally { setSaving(false); }
-  };
-
-  const handleStatus = async (copy, status) => {
-    if (status === copy.status) return;
+  const handleStatus = async (copy, next) => {
+    if (next === copy.status) return;
     // Lost and damaged take the copy out of the collection and may cost someone.
-    if (status === 'lost' || status === 'damaged') { setWriteOffPrice(''); return setWriteOff({ copy, status }); }
+    if (next === 'lost' || next === 'damaged') { setWriteOffPrice(''); return setWriteOff({ copy, status: next }); }
     setBusyId(copy._id);
-    try { await setCopyStatus(id, copy._id, status); toast.success(`Marked ${status}`); refetch(); }
+    try { await setCopyStatus(id, copy._id, next); toast.success(`Marked ${next}`); reload(); }
     catch (err) { toast.error(err?.message || 'Could not change status'); }
     finally { setBusyId(null); }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteCopy = async () => {
     setDelLoad(true);
-    try { await deleteCopy(id, del._id); toast.success('Copy removed'); setDel(null); refetch(); }
+    try { await deleteCopy(id, del._id); toast.success('Copy removed'); setDel(null); reload(); }
     catch (err) { toast.error(err?.message || 'Could not remove copy'); }
     finally { setDelLoad(false); }
   };
@@ -140,94 +168,414 @@ export default function LibraryBookDetail() {
     } catch (err) { toast.error(err?.message || 'Could not build the label sheet'); }
   };
 
-  const columns = [
-    { key: 'uniqueCode', label: 'Copy Code', render: r => <strong>{r.uniqueCode}</strong> },
-    { key: 'status',     label: 'Status',
-      render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge> },
-    { key: 'condition',  label: 'Condition',    render: r => r.condition || '—' },
-    { key: 'rack',       label: 'Rack',         render: r => r.rackLocation || '—' },
-    { key: 'acquired',   label: 'Acquired',     render: r => fmtDate(r.acquisitionDate) },
-    { key: 'source',     label: 'Source', render: r => (
-      r.vendor || r.billNumber || r.cost
-        ? <span className="text-sm">{[r.vendor, r.billNumber, r.cost ? `₹${r.cost}` : ''].filter(Boolean).join(' · ')}</span>
-        : '—'
-    )},
-    { key: 'actions',    label: '', render: r => (
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-        <select className="form-control" style={{ width: 130, padding: '4px 8px', fontSize: '0.8rem' }}
-          value={MANUAL_STATUSES.includes(r.status) ? r.status : ''}
-          disabled={r.status === 'issued' || busyId === r._id}
-          onChange={e => handleStatus(r, e.target.value)}>
-          {r.status === 'issued' && <option value="">issued</option>}
-          {MANUAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>
-        <button className="btn btn-danger btn-sm" disabled={r.status === 'issued'}
-          onClick={() => setDel(r)}>Remove</button>
+  // ── The catalogue entry itself ───────────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [form,     setForm]     = useState(null);
+  const [duplicate, setDuplicate] = useState(null);
+
+  const openEditBook = () => { setForm(bookToForm(book)); setEditOpen(true); };
+
+  const saveBook = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await updateBook(id, formToBook(form));
+      toast.success('Book updated');
+      setEditOpen(false); refetch();
+    } catch (err) {
+      // Renaming a book onto one that already exists is the same mistake as
+      // adding it twice, and the refusal has to lead somewhere useful.
+      if (err?.data?.code === 'DUPLICATE_BOOK') setDuplicate({ message: err.message, ...err.data.data });
+      else toast.error(err?.message || 'Could not save the book');
+    } finally { setSaving(false); }
+  };
+
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removing,   setRemoving]   = useState(false);
+  const removeBook = async () => {
+    setRemoving(true);
+    try {
+      await deleteBook(id);
+      toast.success('Book removed from the catalogue');
+      navigate(booksPath);
+    } catch (err) { toast.error(err?.message || 'Could not remove the book'); setRemoving(false); }
+  };
+
+  // ── Reserving at the desk ────────────────────────────────────────────────
+  const [reserveOpen, setReserveOpen] = useState(false);
+  const [reserveFor,  setReserveFor]  = useState('');
+  const [reserving,   setReserving]   = useState(false);
+
+  const reserve = async () => {
+    if (!reserveFor) return toast.error('Pick the member the copy is for');
+    setReserving(true);
+    try {
+      const res = await createReservation({ bookId: id, userId: reserveFor });
+      // A reservation placed while a copy is free comes back already held, not
+      // queued — the member is told to come and collect it, so the desk should
+      // be told the same thing.
+      const made = res?.data;
+      toast.success(made?.status === 'ready'
+        ? 'Reserved — a copy is free and is being held for them'
+        : `Reserved — number ${made?.queuePosition ?? '?'} in the queue`);
+      setReserveOpen(false); setReserveFor(''); reload();
+    } catch (err) { toast.error(err?.message || 'Could not reserve the book'); }
+    finally { setReserving(false); }
+  };
+
+  if (loading) return <div className="loading-page"><Spinner /></div>;
+  if (error || !book) {
+    return (
+      <div className="page libdpg libbdpg">
+        <Alert variant="danger">{error || 'This book is not in the catalogue.'}</Alert>
+        <div><Link className="btn btn-secondary" to={booksPath}>← Back to Books</Link></div>
       </div>
-    )},
+    );
+  }
+
+  const copyColumns = [
+    {
+      key: 'uniqueCode', className: 'libbd-col-code', label: 'Copy code',
+      render: (r) => <span className="libbd-code">{r.uniqueCode}</span>,
+    },
+    { key: 'status', className: 'libbd-col-status', label: 'Status', render: (r) => <CopyStatus status={r.status} /> },
+    { key: 'condition', className: 'libbd-col-cond', label: 'Condition', render: (r) => r.condition || '—' },
+    { key: 'rack', className: 'libbd-col-rack', label: 'Rack', render: (r) => r.rackLocation || <span className="lnone">Unshelved</span> },
+    {
+      // Acquired and where it came from are one fact about buying this copy, and
+      // splitting them into two columns is what pushed the table off the screen.
+      key: 'acquired', className: 'libbd-col-src', label: 'Acquired',
+      render: (r) => {
+        const source = [r.vendor, r.billNumber, r.cost ? `₹${r.cost}` : ''].filter(Boolean).join(' · ');
+        if (!r.acquisitionDate && !source) return <span className="lnone">Not recorded</span>;
+        return (
+          <span className="libbd-acq">
+            <b>{fmtDate(r.acquisitionDate) || '—'}</b>
+            {source ? <small>{source}</small> : null}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'actions', className: 'ltable__acts libbd-col-acts', label: '',
+      render: (r) => (
+        <RowActions>
+          <IconAction icon="pencil" label="Edit copy" variant="edit"
+            disabled={busyId === r._id} onClick={() => openEditCopy(r)} />
+          <RowMenu>
+            {/* A copy that is out belongs to the loan, not to this table: the
+                server refuses to re-mark or remove it until the return is
+                recorded, so the only move offered is going to find it. */}
+            {r.status === 'issued' ? (
+              <MenuItem icon="repeat" to={`${base}/circulation?q=${encodeURIComponent(r.uniqueCode)}`}>
+                Find the loan
+              </MenuItem>
+            ) : (
+              <>
+                {/* Marking a copy is a decision, not a dropdown to nudge past —
+                    and a select this wide in every row is what stopped the table
+                    fitting on one screen. */}
+                {MANUAL_STATUSES.filter((st) => st !== r.status).map((st) => (
+                  <MenuItem key={st}
+                    icon={st === 'available' ? 'checkCircle' : st === 'reserved' ? 'clock' : 'alert'}
+                    danger={st === 'lost' || st === 'damaged'}
+                    onClick={() => handleStatus(r, st)}>
+                    Mark {st}
+                  </MenuItem>
+                ))}
+                <MenuSep />
+                <MenuItem icon="repeat" to={`${base}/circulation?q=${encodeURIComponent(r.uniqueCode)}`}>
+                  Find in circulation
+                </MenuItem>
+                <MenuItem icon="trash" danger onClick={() => setDel(r)}>Remove copy</MenuItem>
+              </>
+            )}
+          </RowMenu>
+        </RowActions>
+      ),
+    },
   ];
 
-  if (loading) return <div className="page" style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div>;
-  if (error || !book) return <div className="page"><Alert variant="danger">{error || 'Book not found'}</Alert></div>;
+  const facts = [
+    ['ISBN', book.isbn || '', 'idCard'],
+    ['Publisher', book.publisher || '', 'building'],
+    ['Edition', book.edition || '', 'layers'],
+    ['Language', book.language || '', 'compass'],
+    ['Category', book.category || '', 'folder'],
+    ['Catalogued', book.createdAt
+      ? `${fmtDate(book.createdAt)}${book.createdBy?.name ? ` by ${book.createdBy.name}` : ''}`
+      : '', 'calendar'],
+  ];
+  // The sidebar answers a question asked at the shelf, and there is one screen
+  // for three cards. Edition and who catalogued it are record-keeping — they
+  // stay in the Overview tab's details, where the whole entry is laid out.
+  const shelfFacts = facts.filter(([label]) => label !== 'Edition' && label !== 'Catalogued');
 
   return (
-    <div className="page">
-      <PageHeader
-        title={book.title}
-        subtitle={`${(book.authors || []).join(', ') || 'Unknown author'}${book.isbn ? ` · ISBN ${book.isbn}` : ''}`}
-        action={
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" onClick={() => navigate(booksPath)}>← Books</Button>
-            <Button onClick={openAdd}>+ Add Copies</Button>
-          </div>
-        }
-      />
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
-            <div><div className="form-label">Publisher</div><div>{book.publisher || '—'}</div></div>
-            <div><div className="form-label">Category</div><div>{book.category || '—'}</div></div>
-            <div><div className="form-label">Language</div><div>{book.language || '—'}</div></div>
-            <div><div className="form-label">Availability</div>
-              <div><strong>{book.availableCopies ?? 0}</strong> available of {book.totalCopies ?? 0}</div></div>
-          </div>
+    <div className="page libdpg libbdpg">
+      <div className="libbd-top">
+        <div className="breadcrumb">
+          <Link to={`${base}/dashboard`}>Library</Link>
+          <span aria-hidden>›</span>
+          <Link to={booksPath}>Books</Link>
+          <span aria-hidden>›</span>
+          <span>{book.title}</span>
         </div>
+        <Button variant="secondary" onClick={() => navigate(booksPath)}>
+          <Icon name="chevronLeft" size={16} /> Back to Books
+        </Button>
       </div>
 
-      {copies.length === 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <Alert variant="warning">
-            This title has no physical copies yet, so it cannot be issued or reserved.
-            Add copies to put it into circulation.
-          </Alert>
-        </div>
-      )}
+      <div className="libbd-body">
+        <main className="libbd-main">
+          <BookHero book={book} state={state} />
 
-      <div className="card">
-        <div className="card-header" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <h2 style={{ marginRight: 'auto' }}>Copies ({meta?.total ?? copies.length})</h2>
-          <input className="form-control" style={{ width: 170 }} placeholder="Find a copy code…"
-            value={code} onChange={e => { setCode(e.target.value); setPage(1); }} />
-          <select className="form-control" style={{ width: 150 }} value={status}
-            onChange={e => { setStatus(e.target.value); setPage(1); }}>
-            <option value="">All statuses</option>
-            {['available', 'issued', 'reserved', 'damaged', 'lost'].map(st => (
-              <option key={st} value={st}>{st} ({breakdown[st] ?? 0})</option>
-            ))}
-          </select>
-          <Button variant="secondary" onClick={printLabels}>🏷 Print labels</Button>
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <Table columns={columns} data={copies} emptyIcon="📕" emptyTitle="No copies match" />
-        </div>
-        {meta?.pages > 1 && (
-          <div className="card-footer">
-            <Pagination page={page} pages={meta.pages} total={meta.total} onPage={setPage} />
+          {/* A catalogue entry with no physical copies can never be issued, and
+              that is the first thing to say about it. */}
+          {(book.totalCopies ?? 0) === 0 && (
+            <Alert variant="warning">
+              This title has no physical copies yet, so it cannot be issued or reserved.
+              Add copies to put it into circulation.
+            </Alert>
+          )}
+
+          <Tabs
+            active={tab} onPick={setTab}
+            tabs={[
+              { key: 'overview', label: 'Overview' },
+              { key: 'copies', label: 'Copies', count: copyTotal },
+              { key: 'circulation', label: 'Circulation', count: activity?.loansTotal ?? 0 },
+              { key: 'queue', label: 'Reservations', count: queue.length },
+            ]} />
+
+          {tab === 'overview' && (
+            <>
+              <Panel icon="bookOpen" tone="indigo" title="About this book"
+                subtitle="What the catalogue records about the title itself.">
+                {book.description
+                  ? <p className="libbd-desc">{book.description}</p>
+                  : <p className="libbd-none">No description recorded. Edit the book to add one.</p>}
+                <Facts rows={[
+                  ['Title', book.title, 'book'],
+                  ['Author(s)', authorsOf(book) || '', 'user'],
+                  ...facts,
+                ]} />
+              </Panel>
+
+              <Panel icon="layers" tone="blue" title="Where the copies are"
+                subtitle={`${book.availableCopies ?? 0} of ${book.totalCopies ?? 0} on the shelf right now`}
+                action={<button type="button" className="libbd-link" onClick={() => setTab('copies')}>
+                  See every copy <Icon name="chevronRight" size={13} />
+                </button>}>
+                <StockBar breakdown={breakdown} total={book.totalCopies ?? 0} />
+              </Panel>
+
+              <Panel icon="chart" tone="green" title="How this book has worked"
+                subtitle="Its whole borrowing record, not just this term.">
+                {loadingActivity ? <div className="libbd-loading"><Spinner /></div> : (
+                  <div className="libbd-figures">
+                    <Figure value={stats.loans ?? 0} label="Times borrowed" />
+                    <Figure value={stats.readers ?? 0} label="Different members" />
+                    <Figure value={stats.out ?? 0} label="Out right now"
+                      tone={stats.overdue ? 'bad' : undefined}
+                      caption={stats.overdue ? `${stats.overdue} overdue` : ''} />
+                    <Figure value={stats.waiting ?? 0} label="Waiting in the queue" />
+                    <Figure value={stats.lastIssued ? fmtDate(stats.lastIssued) : '—'} label="Last borrowed" wide />
+                  </div>
+                )}
+              </Panel>
+            </>
+          )}
+
+          {tab === 'copies' && (
+            <Panel icon="library" tone="indigo" title="Copies"
+              subtitle="Every physical copy, where it sits and what state it is in."
+              className="libbd-panel--flush"
+              action={(
+                <div className="libbd-copyacts">
+                  <input className="form-control libbd-find" placeholder="Find a copy code…"
+                    value={code} onChange={(e) => { setCode(e.target.value); setPage(1); }} />
+                  <select className="form-control libbd-filter" value={status}
+                    aria-label="Filter copies by status"
+                    onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+                    <option value="">All statuses</option>
+                    {['available', 'issued', 'reserved', 'damaged', 'lost'].map((st) => (
+                      <option key={st} value={st}>{st} ({breakdown[st] ?? 0})</option>
+                    ))}
+                  </select>
+                  <Button variant="secondary" size="sm" onClick={printLabels}>
+                    <Icon name="files" size={15} /> Labels
+                  </Button>
+                  <Button size="sm" onClick={openAdd}><Icon name="plus" size={15} /> Add</Button>
+                </div>
+              )}>
+              <ListTable
+                columns={copyColumns}
+                rows={copies}
+                loading={loading}
+                startIndex={(Math.min(page, meta?.pages || 1) - 1) * limit}
+                emptyIcon={status || code ? '🔍' : '📕'}
+                emptyTitle={status || code ? 'No copies match' : 'No copies registered'}
+                emptyMessage={status || code
+                  ? 'Try another status, or clear the copy code.'
+                  : 'Register copies to put this title into circulation.'}
+                emptyAction={status || code
+                  ? <Button variant="secondary" onClick={() => { setStatus(''); setCode(''); }}>Clear filters</Button>
+                  : <Button onClick={openAdd}>+ Add Copies</Button>}
+              />
+              <ListFooter
+                page={Math.min(page, meta?.pages || 1)} pages={meta?.pages || 1} total={copyTotal}
+                limit={limit} count={copies.length} noun="copy" plural="copies"
+                onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} />
+            </Panel>
+          )}
+
+          {tab === 'circulation' && (
+            <Panel icon="repeat" tone="green" title="Circulation history"
+              subtitle={activity?.loansTotal
+                ? `The last ${loans.length} of ${activity.loansTotal} loans`
+                : 'Nothing has been borrowed yet'}
+              className="libbd-panel--flush"
+              action={(
+                <Link className="libbd-link" to={`${base}/circulation?q=${encodeURIComponent(book.title)}`}>
+                  Full register <Icon name="chevronRight" size={13} />
+                </Link>
+              )}>
+              {loadingActivity ? <div className="libbd-loading"><Spinner /></div> : !loans.length ? (
+                <p className="libbd-none">No copy of this book has been issued yet.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table className="table ltable">
+                    <thead>
+                      <tr>
+                        <th>Member</th><th>Copy</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loans.map((l) => (
+                        <tr key={l._id}>
+                          <td><Who name={l.issuedTo?.name} sub={l.borrowerClass || l.issuedTo?.role} /></td>
+                          <td><span className="libbd-code">{l.bookCopy?.uniqueCode || '—'}</span></td>
+                          <td>{fmtDate(l.issueDate)}</td>
+                          <td>{fmtDate(l.dueDate)}</td>
+                          <td>{l.returnDate ? fmtDate(l.returnDate) : <span className="lnone">Still out</span>}</td>
+                          <td><LoanStatus status={l.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          )}
+
+          {tab === 'queue' && (
+            <Panel icon="clock" tone="amber" title="Reservations"
+              subtitle={queue.length ? 'In the order they will be served' : 'Nobody is waiting'}
+              className="libbd-panel--flush"
+              action={(
+                <Link className="libbd-link" to={`${base}/reservations`}>
+                  All reservations <Icon name="chevronRight" size={13} />
+                </Link>
+              )}>
+              {loadingActivity ? <div className="libbd-loading"><Spinner /></div> : !queue.length ? (
+                <p className="libbd-none">
+                  No one is queued for this title.
+                  {(book.availableCopies ?? 0) > 0 ? ' A copy is on the shelf, so there is nothing to wait for.' : ''}
+                </p>
+              ) : (
+                <div className="table-wrap">
+                  <table className="table ltable">
+                    <thead>
+                      <tr><th>#</th><th>Member</th><th>Queued</th><th>Status</th><th>Hold expires</th></tr>
+                    </thead>
+                    <tbody>
+                      {queue.map((r, i) => (
+                        <tr key={r._id}>
+                          <td className="ltable__num">{r.queuePosition ?? i + 1}</td>
+                          <td><Who name={r.reservedBy?.name} sub={r.reservedBy?.role} /></td>
+                          <td>{fmtDate(r.reservedAt)}</td>
+                          <td><span className={`libbd-tag is-${r.status === 'ready' ? 'ok' : 'info'}`}>{r.status}</span></td>
+                          <td>{r.expiresAt ? fmtDate(r.expiresAt) : <span className="lnone">Not held yet</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          )}
+        </main>
+
+        <aside className="libbd-side">
+          <div className="libbd-side__acts">
+            <Button variant="secondary" onClick={openEditBook}><Icon name="pencil" size={15} /> Edit Book</Button>
+            <Button onClick={openAdd}><Icon name="plus" size={15} /> Add Copies</Button>
           </div>
+
+          <section className="card libbd-status">
+            <div className={`libbd-status__head is-${state.tone}`}>
+              <b>{state.label}</b>
+              <span>{state.hint}</span>
+            </div>
+            <p className="libbd-status__count">
+              <strong>{book.availableCopies ?? 0}</strong> of {book.totalCopies ?? 0} copies available
+            </p>
+            <Facts rows={shelfFacts} />
+          </section>
+
+          <Panel icon="sparkle" tone="purple" title="Quick actions">
+            <QuickActions items={[
+              { icon: 'plus', tone: 'indigo', label: 'Add copies', onClick: openAdd },
+              {
+                icon: 'clock', tone: 'amber', label: 'Reserve',
+                onClick: () => { setReserveFor(''); setReserveOpen(true); },
+                disabled: (book.totalCopies ?? 0) === 0,
+                why: 'This title has no copies to queue for',
+              },
+              {
+                icon: 'repeat', tone: 'green', label: 'Issue a copy',
+                // The counter owns issuing; this opens it with the book already
+                // chosen rather than making the librarian search for it again.
+                onClick: () => navigate(`${base}/circulation?issue=${id}`),
+                disabled: (book.availableCopies ?? 0) === 0,
+                why: 'No copy is on the shelf to issue',
+              },
+              { icon: 'trash', tone: 'danger', label: 'Remove book', onClick: () => setRemoveOpen(true) },
+            ]} />
+          </Panel>
+
+          <Panel icon="book" tone="blue" title="Related books"
+            subtitle="By the same author, or in the same category">
+            {loadingActivity
+              ? <div className="libbd-loading"><Spinner /></div>
+              : <RelatedBooks books={related} to={booksPath} />}
+          </Panel>
+        </aside>
+      </div>
+
+      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Book"
+        footer={<>
+          <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button form="book-edit-form" type="submit" loading={saving}>Save</Button>
+        </>}>
+        {form && (
+          <form id="book-edit-form" onSubmit={saveBook}>
+            <BookFields form={form} onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))} />
+          </form>
         )}
-      </div>
+      </Modal>
+
+      <Modal open={!!duplicate} onClose={() => setDuplicate(null)} title="This book is already listed" maxWidth={460}
+        footer={<>
+          <Button variant="secondary" onClick={() => setDuplicate(null)}>Back to form</Button>
+          <Link className="btn btn-primary" to={`${booksPath}/${duplicate?.existingBookId}`}
+            onClick={() => { setDuplicate(null); setEditOpen(false); }}>Open that entry</Link>
+        </>}>
+        <p style={{ color: 'var(--text-muted)' }}>{duplicate?.message}</p>
+      </Modal>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Copies"
         footer={<>
@@ -235,30 +583,51 @@ export default function LibraryBookDetail() {
           <Button form="add-copies-form" type="submit" loading={saving}>Add</Button>
         </>}>
         <form id="add-copies-form" onSubmit={handleAdd}>
-          <Input label="Number of copies" type="number" min={1} max={100} required
-            value={addForm.count} hint="Each copy is registered with its own code, e.g. LIB-COPY-000042"
-            onChange={e => setAddForm(f => ({ ...f, count: e.target.value }))} />
-          <div className="form-row form-row-2">
-            <Select label="Condition" value={addForm.condition}
-              onChange={e => setAddForm(f => ({ ...f, condition: e.target.value }))}>
-              {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-            </Select>
-            <Input label="Rack location" placeholder="e.g. A-01" value={addForm.rackLocation}
-              onChange={e => setAddForm(f => ({ ...f, rackLocation: e.target.value }))} />
+          <div className="form-group">
+            <label className="form-label required">Number of copies</label>
+            <input type="number" className="form-control" min={1} max={100} required value={addForm.count}
+              onChange={(e) => setAddForm((f) => ({ ...f, count: e.target.value }))} />
+            <div className="form-hint">Each copy is registered with its own code, e.g. LIB-COPY-000042.</div>
           </div>
-          <Input label="Acquisition date" type="date" value={addForm.acquisitionDate}
-            onChange={e => setAddForm(f => ({ ...f, acquisitionDate: e.target.value }))} />
+          <div className="form-row form-row-2">
+            <div className="form-group">
+              <label className="form-label">Condition</label>
+              <select className="form-control" value={addForm.condition}
+                onChange={(e) => setAddForm((f) => ({ ...f, condition: e.target.value }))}>
+                {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rack location</label>
+              <input className="form-control" placeholder="e.g. A-01" value={addForm.rackLocation}
+                onChange={(e) => setAddForm((f) => ({ ...f, rackLocation: e.target.value }))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Acquisition date</label>
+            <input type="date" className="form-control" value={addForm.acquisitionDate}
+              onChange={(e) => setAddForm((f) => ({ ...f, acquisitionDate: e.target.value }))} />
+          </div>
 
           {/* The accession record — what a stock audit asks for */}
           <div className="form-row form-row-2">
-            <Input label="Vendor" placeholder="Who it was bought from" value={addForm.vendor}
-              onChange={e => setAddForm(f => ({ ...f, vendor: e.target.value }))} />
-            <Input label="Bill number" placeholder="Invoice reference" value={addForm.billNumber}
-              onChange={e => setAddForm(f => ({ ...f, billNumber: e.target.value }))} />
+            <div className="form-group">
+              <label className="form-label">Vendor</label>
+              <input className="form-control" placeholder="Who it was bought from" value={addForm.vendor}
+                onChange={(e) => setAddForm((f) => ({ ...f, vendor: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Bill number</label>
+              <input className="form-control" placeholder="Invoice reference" value={addForm.billNumber}
+                onChange={(e) => setAddForm((f) => ({ ...f, billNumber: e.target.value }))} />
+            </div>
           </div>
-          <Input label="Cost per copy (₹)" type="number" min={0} step="0.01" value={addForm.cost}
-            hint="Recorded against every copy in this batch."
-            onChange={e => setAddForm(f => ({ ...f, cost: e.target.value }))} />
+          <div className="form-group">
+            <label className="form-label">Cost per copy (₹)</label>
+            <input type="number" className="form-control" min={0} step="0.01" value={addForm.cost}
+              onChange={(e) => setAddForm((f) => ({ ...f, cost: e.target.value }))} />
+            <div className="form-hint">Recorded against every copy in this batch.</div>
+          </div>
         </form>
       </Modal>
 
@@ -267,21 +636,38 @@ export default function LibraryBookDetail() {
           <Button variant="secondary" onClick={() => setEditCopy(null)}>Cancel</Button>
           <Button form="edit-copy-form" type="submit" loading={saving}>Save</Button>
         </>}>
-        <form id="edit-copy-form" onSubmit={handleEdit}>
-          <Select label="Condition" value={editForm.condition}
-            onChange={e => setEditForm(f => ({ ...f, condition: e.target.value }))}>
-            {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-          </Select>
-          <Input label="Rack location" placeholder="e.g. A-01" value={editForm.rackLocation}
-            onChange={e => setEditForm(f => ({ ...f, rackLocation: e.target.value }))} />
+        <form id="edit-copy-form" onSubmit={handleEditCopy}>
           <div className="form-row form-row-2">
-            <Input label="Vendor" value={editForm.vendor}
-              onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} />
-            <Input label="Bill number" value={editForm.billNumber}
-              onChange={e => setEditForm(f => ({ ...f, billNumber: e.target.value }))} />
+            <div className="form-group">
+              <label className="form-label">Condition</label>
+              <select className="form-control" value={editForm.condition}
+                onChange={(e) => setEditForm((f) => ({ ...f, condition: e.target.value }))}>
+                {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rack location</label>
+              <input className="form-control" placeholder="e.g. A-01" value={editForm.rackLocation}
+                onChange={(e) => setEditForm((f) => ({ ...f, rackLocation: e.target.value }))} />
+            </div>
           </div>
-          <Input label="Cost (₹)" type="number" min={0} step="0.01" value={editForm.cost}
-            onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))} />
+          <div className="form-row form-row-2">
+            <div className="form-group">
+              <label className="form-label">Vendor</label>
+              <input className="form-control" value={editForm.vendor || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, vendor: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Bill number</label>
+              <input className="form-control" value={editForm.billNumber || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, billNumber: e.target.value }))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Cost (₹)</label>
+            <input type="number" className="form-control" min={0} step="0.01" value={editForm.cost ?? ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, cost: e.target.value }))} />
+          </div>
         </form>
       </Modal>
 
@@ -300,15 +686,40 @@ export default function LibraryBookDetail() {
         <div className="form-group" style={{ maxWidth: 220 }}>
           <label className="form-label">Charge (₹)</label>
           <input type="number" className="form-control" min={0} step="0.01" value={writeOffPrice}
-            placeholder="Policy rate" onChange={e => setWriteOffPrice(e.target.value)} />
+            placeholder="Policy rate" onChange={(e) => setWriteOffPrice(e.target.value)} />
           <div className="form-hint">
             Leave blank to use the rate in the library policy, or enter what the book actually cost.
           </div>
         </div>
       </Modal>
 
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete} loading={delLoad}
-        title="Remove Copy" message={`Remove copy ${del?.uniqueCode} from the shelf list? This cannot be undone.`} />
+      <Modal open={reserveOpen} onClose={() => setReserveOpen(false)} title="Reserve this book" maxWidth={460}
+        footer={<>
+          <Button variant="secondary" onClick={() => setReserveOpen(false)}>Cancel</Button>
+          <Button onClick={reserve} loading={reserving} disabled={!reserveFor}>Reserve</Button>
+        </>}>
+        <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
+          Queues a member for “{book.title}”. If a copy is free it is held for them; otherwise they
+          join the queue and are told when it is their turn.
+        </p>
+        <MemberPicker value={reserveFor} onChange={(uid) => setReserveFor(uid)} />
+      </Modal>
+
+      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDeleteCopy} loading={delLoad}
+        title="Remove copy" confirmLabel="Remove copy"
+        message={`Remove copy ${del?.uniqueCode} from the shelf list? This cannot be undone.`} />
+
+      <Confirm open={removeOpen} onClose={() => setRemoveOpen(false)} onConfirm={removeBook} loading={removing}
+        title="Remove this book" confirmLabel="Remove book"
+        message={`Delete “${book.title}” and its ${book.totalCopies ?? 0} cop${(book.totalCopies ?? 0) === 1 ? 'y' : 'ies'}? A book that is out on loan or queued for cannot be removed.`} />
     </div>
   );
 }
+
+const Figure = ({ value, label, caption, tone, wide }) => (
+  <div className={`libbd-figure${wide ? ' is-wide' : ''}`}>
+    <span className={`libbd-figure__value${tone ? ` is-${tone}` : ''}`}>{value}</span>
+    <span className="libbd-figure__label">{label}</span>
+    {caption ? <span className="libbd-figure__cap">{caption}</span> : null}
+  </div>
+);

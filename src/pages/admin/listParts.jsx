@@ -491,15 +491,18 @@ export const MenuSep = () => <div className="lmenu__sep" />;
  * Rendered even for a single page, because the count sentence is the answer to
  * "did my filter do anything" and it should not vanish once the list is short.
  */
-export const ListFooter = ({ page, pages, total, limit, count, noun, onPage, onLimit }) => {
+// `plural` for the nouns English does not make by adding an s — a footer that
+// says "No copys to show" undoes a page's worth of care.
+export const ListFooter = ({ page, pages, total, limit, count, noun, plural, onPage, onLimit }) => {
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to   = (page - 1) * limit + count;
+  const many = plural || `${noun}s`;
   return (
     <div className="lfoot">
       <span className="lfoot__count">
         {total === 0
-          ? `No ${noun}s to show`
-          : `Showing ${from} to ${to} of ${total} ${total === 1 ? noun : `${noun}s`}`}
+          ? `No ${many} to show`
+          : `Showing ${from} to ${to} of ${total} ${total === 1 ? noun : many}`}
       </span>
       <div className="lfoot__right">
         <Pagination page={page} pages={pages} total={total} onPage={onPage} />

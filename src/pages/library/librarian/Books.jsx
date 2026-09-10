@@ -25,10 +25,9 @@ import {
 } from '../../admin/listParts';
 import { Hero, Tile, note, quoteOfTheDay } from './dashParts';
 import {
-  AuthorsCell, Chip, CopiesCell, FiltersPanel, SortHead, StatusChip, TitleCell,
+  AuthorsCell, BookFields, Chip, CopiesCell, EMPTY_BOOK, FiltersPanel, SortHead,
+  StatusChip, TitleCell, bookToForm, formToBook,
 } from './booksParts';
-
-const EMPTY = { title: '', authors: '', isbn: '', publisher: '', category: '', language: 'English', description: '' };
 
 /** A share of the catalogue, said as a share — and never divided by zero. */
 const share = (n, total) => (total ? `${Math.round((n / total) * 100)}% of the catalogue` : 'Nothing catalogued yet');
@@ -111,7 +110,7 @@ export default function LibraryBooks() {
   const [del,      setDel]     = useState(null);
   const [saving,   setSaving]  = useState(false);
   const [delLoad,  setDL]      = useState(false);
-  const [form,     setForm]    = useState(EMPTY);
+  const [form,     setForm]    = useState(EMPTY_BOOK);
   const [justCreated, setJustCreated] = useState(null);
   const [duplicate,   setDuplicate]   = useState(null);
 
@@ -151,17 +150,13 @@ export default function LibraryBooks() {
   const exportCatalogue = () => grab('/library/books/export', { q: search }, 'library_catalogue.xlsx');
   const downloadTemplate = () => grab('/library/books/bulk-upload/template', {}, 'library_books_template.xlsx');
 
-  const openCreate = () => { setForm(EMPTY); setEditItem(null); setModal(true); };
-  const openEdit   = (b) => {
-    setForm({ title: b.title, authors: (b.authors||[]).join(', '), isbn: b.isbn||'',
-      publisher: b.publisher||'', category: b.category||'', language: b.language||'English', description: b.description||'' });
-    setEditItem(b); setModal(true);
-  };
+  const openCreate = () => { setForm(EMPTY_BOOK); setEditItem(null); setModal(true); };
+  const openEdit   = (b) => { setForm(bookToForm(b)); setEditItem(b); setModal(true); };
 
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      const payload = { ...form, authors: form.authors.split(',').map(a => a.trim()).filter(Boolean) };
+      const payload = formToBook(form);
       if (editItem) {
         await updateBook(editItem._id, payload);
         toast.success('Book updated');
@@ -373,28 +368,7 @@ export default function LibraryBooks() {
         footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
           <Button form="book-form" type="submit" loading={saving}>{editItem ? 'Save' : 'Add'}</Button></>}>
         <form id="book-form" onSubmit={handleSave}>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label required">Title</label>
-              <input className="form-control" required value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} /></div>
-            <div className="form-group"><label className="form-label">Author(s)</label>
-              <input className="form-control" value={form.authors} placeholder="Comma-separated"
-                onChange={e => setForm(f=>({...f,authors:e.target.value}))} /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">ISBN</label>
-              <input className="form-control" value={form.isbn} onChange={e => setForm(f=>({...f,isbn:e.target.value}))} /></div>
-            <div className="form-group"><label className="form-label">Publisher</label>
-              <input className="form-control" value={form.publisher} onChange={e => setForm(f=>({...f,publisher:e.target.value}))} /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Category</label>
-              <input className="form-control" value={form.category} onChange={e => setForm(f=>({...f,category:e.target.value}))} /></div>
-            <div className="form-group"><label className="form-label">Language</label>
-              <input className="form-control" value={form.language} onChange={e => setForm(f=>({...f,language:e.target.value}))} /></div>
-          </div>
-          <div className="form-group"><label className="form-label">Description</label>
-            <textarea className="form-control" rows={2} value={form.description}
-              onChange={e => setForm(f=>({...f,description:e.target.value}))} /></div>
+          <BookFields form={form} onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))} />
         </form>
       </Modal>
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete} loading={delLoad}

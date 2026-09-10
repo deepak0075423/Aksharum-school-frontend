@@ -113,7 +113,8 @@ input, select, textarea {
    Browsers without `:has()` simply keep the old behaviour.
 */
 .app-main:has(.libpol-body),
-.app-main:has(.librep-body) { overflow: visible; }
+.app-main:has(.librep-body),
+.app-main:has(.libbd-body) { overflow: visible; }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
@@ -8634,4 +8635,301 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .card { border: 1px solid #ddd !important; box-shadow: none !important; break-inside: avoid; }
   .libpol-switch, .libpol-flag { border: 1px solid #ddd; background: #fff !important; color: #111 !important; }
   @page { margin: 12mm; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY BOOK — one title's page
+   ───────────────────────────────────────────────────────────────────────────
+   The record on the left in tabs, the shelf-side answer on the right: is a copy
+   available, and what can I do about it. Shares the admin list frame's table
+   (.ltable) for the copy list.
+
+   There is no cover art, no rating and no reviews anywhere in this module, so
+   the header leads with a drawn spine and says only what the catalogue knows.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.libbdpg { display: flex; flex-direction: column; gap: 16px; }
+
+.libbd-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.libbd-top .breadcrumb { margin: 0; }
+
+/* ── The header ────────────────────────────────────────────────────────────── */
+.libbd-hero { display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap; padding: 2px 0; }
+.libbd-hero__text { flex: 1 1 340px; min-width: 0; }
+.libbd-hero__text h1 { font-size: 1.65rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.libbd-hero__by { font-size: .92rem; color: var(--text-muted); margin-top: 4px; }
+.libbd-hero__chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+.libbd-hero__desc {
+  font-size: .86rem; color: var(--text-muted); line-height: 1.6;
+  margin-top: 12px; max-width: 68ch;
+}
+
+.libbd-chip {
+  display: inline-block; padding: 4px 11px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: .75rem; font-weight: 600; color: var(--text-muted);
+}
+
+/* The state, with its dot and its word — colour is never the only channel. */
+.libbd-state {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 999px;
+  font-size: .75rem; font-weight: 700;
+}
+.libbd-state i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.libbd-state.is-ok   { background: #dcfce7; color: #047857; }
+.libbd-state.is-warn { background: #fef3c7; color: #b45309; }
+.libbd-state.is-bad  { background: #fee2e2; color: #b91c1c; }
+.libbd-state.is-mute { background: var(--bg); color: var(--text-muted); }
+
+/* A book leads with its spine: the module has no cover art, and a stock image
+   would imply the library holds a picture of this title. */
+.libbd-spine {
+  display: grid; place-items: center; flex-shrink: 0;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-left: 4px solid rgba(0, 0, 0, .22);
+  color: #fff; font-weight: 700;
+}
+.libbd-spine.is-lg { width: 96px; height: 132px; border-radius: 4px 9px 9px 4px; font-size: 2.4rem; }
+.libbd-spine.is-sm { width: 30px; height: 40px; border-radius: 3px 5px 5px 3px; font-size: .85rem; border-left-width: 3px; }
+
+/* ── The two columns ───────────────────────────────────────────────────────── */
+.libbd-body {
+  display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+}
+.libbd-main, .libbd-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/*
+   The sidebar is the shelf-side answer, so it stays put while the record scrolls
+   past it: sticky below the app header, sized to its own content, and scrolling
+   inside itself if it is ever taller than the screen. What lets it stick at all
+   is the `.app-main:has(.libbd-body)` rule up beside `.app-main`.
+*/
+.libbd-side {
+  position: sticky;
+  top: calc(var(--header-height) + 16px);
+  align-self: start;
+  max-height: calc(100vh - var(--header-height) - 32px);
+  /* A safety net for short windows, not the normal way to read this column —
+     the cards below are sized to fit a laptop screen without it. macOS hides
+     overlay scrollbars until you scroll, so this one is made permanent: an
+     invisible scrollbar over cut-off content reads as missing content, which
+     is exactly how Quick actions and Related books went missing. */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* Room for the shadow of the cards inside, which a clipped box would cut. */
+  padding: 2px;
+  margin: -2px;
+}
+.libbd-side::-webkit-scrollbar { width: 8px; }
+.libbd-side::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+.libbd-side::-webkit-scrollbar-track { background: transparent; }
+/* The two buttons the mockup puts at the top right, above the status card. */
+.libbd-side__acts { display: flex; gap: 8px; }
+.libbd-side__acts .btn { flex: 1; justify-content: center; }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────── */
+.libbd-tabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 5px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+}
+.libbd-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border: none; border-radius: var(--radius-lg);
+  background: none; color: var(--text-muted); cursor: pointer;
+  font-size: .85rem; font-weight: 600;
+}
+.libbd-tab:hover  { background: var(--bg); color: var(--text); }
+.libbd-tab.is-on  { background: var(--primary); color: #fff; }
+.libbd-tab b {
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--bg); color: var(--text-muted);
+  font-size: .72rem; font-variant-numeric: tabular-nums;
+}
+.libbd-tab.is-on b { background: rgba(255, 255, 255, .22); color: #fff; }
+
+/* ── Panels ────────────────────────────────────────────────────────────────── */
+.libbd-panel__head {
+  display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.libbd-panel__icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libbd-panel__head > div { flex: 1 1 200px; min-width: 0; }
+.libbd-panel__head h2 { font-size: .93rem; font-weight: 700; }
+.libbd-panel__head p  { font-size: .76rem; color: var(--text-muted); margin-top: 3px; }
+.libbd-panel__body { padding: 16px; }
+/* The tables bring their own edges. */
+.libbd-panel--flush .libbd-panel__body { padding: 0; }
+
+.libbd-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 0; border: none; background: none; cursor: pointer;
+  font-size: .78rem; font-weight: 600; color: var(--primary); text-decoration: none;
+}
+
+.libbd-desc { font-size: .87rem; line-height: 1.65; color: var(--text); }
+.libbd-none { font-size: .82rem; color: var(--text-muted); line-height: 1.55; padding: 4px 0; }
+.libbd-panel--flush .libbd-none { padding: 20px 16px; }
+.libbd-loading { display: flex; justify-content: center; padding: 28px; }
+
+/* ── Facts ─────────────────────────────────────────────────────────────────── */
+.libbd-facts { margin: 10px 0 0; }
+.libbd-facts > div {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+}
+.libbd-facts > div:last-child { border-bottom: none; }
+.libbd-facts dt {
+  display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+  font-size: .79rem; color: var(--text-muted);
+}
+.libbd-facts dt svg { color: var(--text-light); flex-shrink: 0; }
+.libbd-facts dd { margin: 0; font-size: .84rem; font-weight: 600; text-align: right; min-width: 0; word-break: break-word; }
+
+/* ── Where the copies are ──────────────────────────────────────────────────── */
+.libbd-stock__bar {
+  display: flex; height: 10px; border-radius: 999px; overflow: hidden;
+  background: var(--bg); margin-bottom: 14px;
+}
+.libbd-stock__bar span { display: block; height: 100%; }
+.libbd-stock__bar .is-ok   { background: #10b981; }
+.libbd-stock__bar .is-info { background: #4f46e5; }
+.libbd-stock__bar .is-warn { background: #f59e0b; }
+.libbd-stock__bar .is-amber{ background: #fb923c; }
+.libbd-stock__bar .is-bad  { background: #dc2626; }
+
+.libbd-stock__key {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 14px;
+}
+.libbd-stock__key li { display: flex; align-items: center; gap: 8px; font-size: .8rem; }
+.libbd-stock__key i { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.libbd-stock__key i.is-ok   { background: #10b981; }
+.libbd-stock__key i.is-info { background: #4f46e5; }
+.libbd-stock__key i.is-warn { background: #f59e0b; }
+.libbd-stock__key i.is-amber{ background: #fb923c; }
+.libbd-stock__key i.is-bad  { background: #dc2626; }
+.libbd-stock__key span { color: var(--text-muted); margin-right: auto; }
+.libbd-stock__key b { font-variant-numeric: tabular-nums; }
+
+/* ── Figures ───────────────────────────────────────────────────────────────── */
+.libbd-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.libbd-figure {
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+.libbd-figure.is-wide { grid-column: span 2; }
+.libbd-figure__value {
+  display: block; font-size: 1.35rem; font-weight: 700; line-height: 1.15;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+.libbd-figure__value.is-bad { color: #dc2626; }
+.libbd-figure__label { display: block; font-size: .76rem; color: var(--text-muted); margin-top: 3px; }
+.libbd-figure__cap   { display: block; font-size: .72rem; font-weight: 600; color: #b91c1c; margin-top: 3px; }
+
+/* ── The sidebar ───────────────────────────────────────────────────────────── */
+.libbd-status { padding: 14px; }
+.libbd-status__head {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px; border-radius: var(--radius-lg);
+}
+.libbd-status__head b    { font-size: .95rem; font-weight: 700; }
+.libbd-status__head span { font-size: .76rem; opacity: .85; }
+.libbd-status__head.is-ok   { background: #dcfce7; color: #047857; }
+.libbd-status__head.is-warn { background: #fef3c7; color: #b45309; }
+.libbd-status__head.is-bad  { background: #fee2e2; color: #b91c1c; }
+.libbd-status__head.is-mute { background: var(--bg); color: var(--text-muted); }
+.libbd-status__count { font-size: .84rem; color: var(--text-muted); margin: 10px 0 0; }
+.libbd-status__count strong { font-size: 1.05rem; color: var(--text); font-variant-numeric: tabular-nums; }
+
+.libbd-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.libbd-quick__btn {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card); color: inherit; cursor: pointer;
+  font-size: .77rem; font-weight: 600; text-align: left; line-height: 1.25;
+}
+.libbd-quick__btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.libbd-quick__btn:disabled { opacity: .5; cursor: not-allowed; }
+.libbd-quick__btn.is-danger:hover:not(:disabled) { border-color: #dc2626; color: #dc2626; }
+.libbd-quick__icon { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; }
+
+.libbd-related { list-style: none; margin: 0; padding: 0; }
+.libbd-related li + li { border-top: 1px solid var(--border); }
+.libbd-related a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; color: inherit; text-decoration: none;
+}
+.libbd-related a:hover b { color: var(--primary); }
+.libbd-related a > svg:last-child { color: var(--text-light); flex-shrink: 0; }
+.libbd-related__text { flex: 1; min-width: 0; }
+.libbd-related__text b {
+  display: block; font-size: .82rem; font-weight: 600; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.libbd-related__text small {
+  display: block; font-size: .71rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Cells in the two tables ───────────────────────────────────────────────── */
+.libbd-tag {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: .73rem; font-weight: 600; white-space: nowrap;
+}
+.libbd-tag.is-ok   { background: #dcfce7; color: #047857; }
+.libbd-tag.is-info { background: #e0f2fe; color: #0369a1; }
+.libbd-tag.is-warn { background: #fef3c7; color: #b45309; }
+.libbd-tag.is-amber{ background: #ffedd5; color: #c2410c; }
+.libbd-tag.is-bad  { background: #fee2e2; color: #b91c1c; }
+.libbd-tag.is-mute { background: var(--bg); color: var(--text-muted); }
+
+.libbd-who b     { display: block; font-size: .84rem; font-weight: 600; }
+.libbd-who small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+.libbd-code { font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.libbd-acq b     { display: block; font-size: .82rem; font-weight: 600; white-space: nowrap; }
+.libbd-acq small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+
+.libbd-copyacts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.libbd-find   { width: 160px; font-size: .82rem; padding: 7px 11px; }
+.libbd-filter { width: 150px; font-size: .82rem; padding: 7px 11px; }
+
+/* Sized so the whole table lands inside one screen at the widths this app is
+   used at — the copy list is read across, and a row that runs off the right
+   edge is a row nobody finishes reading. */
+.libbd-col-code   { width: 145px; }
+.libbd-col-status { width: 110px; }
+.libbd-col-cond   { width: 95px; }
+.libbd-col-rack   { width: 100px; }
+.libbd-col-src    { min-width: 130px; }
+.libbd-col-acts   { width: 96px; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .libbd-body { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked, the shelf-side answer belongs above the record, not under it —
+     and there is nothing beside it to stay level with, so it scrolls away
+     like everything else. */
+  .libbd-side {
+    order: -1; position: static; max-height: none; overflow: visible;
+    padding: 0; margin: 0;
+  }
+  .libbd-quick { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+}
+@media (max-width: 768px) {
+  .libbd-spine.is-lg { width: 68px; height: 96px; font-size: 1.7rem; }
+  .libbd-copyacts { width: 100%; }
+  .libbd-find, .libbd-filter { flex: 1; width: auto; }
+  .libbd-figure.is-wide { grid-column: auto; }
 }

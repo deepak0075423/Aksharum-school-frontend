@@ -13,7 +13,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import { getIssuances, getReturnForm, issueBook, returnBook, renewBook, bulkRenew, getBooks,
-  getIssueForm, scanCopy, getClassList, downloadFile } from '../../../api/library.api';
+  getBook, getIssueForm, scanCopy, getClassList, downloadFile } from '../../../api/library.api';
 import { Button, Modal, Spinner, Alert } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import MemberPicker from '../../../components/library/MemberPicker';
@@ -183,6 +183,26 @@ export default function LibraryCirculation() {
     setIssueForm(EMPTY_ISSUE); setBook(null); setCopies([]); setBookQuery(''); setBookHits([]);
   };
   const openIssue = () => { resetIssue(); setIssueModal(true); };
+
+  // A book's own page sends the librarian here with the title already decided
+  // (?issue=<bookId>), so the counter opens on the copy rather than on a search
+  // box for a book they were just looking at. The parameter is consumed on
+  // arrival, or Back would re-open the dialog over a register they wanted to read.
+  useEffect(() => {
+    const wanted = params.get('issue');
+    if (!wanted) return;
+    setParams((p) => { p.delete('issue'); return p; }, { replace: true });
+    (async () => {
+      try {
+        const res = await getBook(wanted);
+        if (!res?.data) throw new Error('That book is no longer in the catalogue');
+        resetIssue();
+        setIssueModal(true);
+        await pickBook(res.data);
+      } catch (err) { toast.error(err?.message || 'Could not open the issue counter for that book'); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleIssue = async (e) => {
     e.preventDefault();

@@ -4,6 +4,9 @@ import api from './axios';
 export const getDashboard        = ()           => api.get('/library/dashboard');
 export const getBooks            = (params)     => api.get('/library/books', { params });
 export const getBook             = (id, params) => api.get(`/library/books/${id}`, { params });
+// The book's history, its queue and its neighbours. A second call on purpose:
+// none of it changes when the copy list is paged or filtered.
+export const getBookActivity     = (id)         => api.get(`/library/books/${id}/activity`);
 export const createBook          = (data)       => api.post('/library/books', data);
 export const updateBook          = (id, data)   => api.put(`/library/books/${id}`, data);
 export const deleteBook          = (id)         => api.delete(`/library/books/${id}`);
