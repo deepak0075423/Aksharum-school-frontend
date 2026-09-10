@@ -8933,3 +8933,244 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .libbd-find, .libbd-filter { flex: 1; width: auto; }
   .libbd-figure.is-wide { grid-column: auto; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY COUNTER — the issue and return dialogs
+   ───────────────────────────────────────────────────────────────────────────
+   Both are two panes: the physical object on the left — which book, which copy,
+   whose loan — and the decision being recorded on the right. A librarian
+   holding a book works left to right, and so does the dialog.
+
+   Everything here is inside .modal, which is already a scrolling card, so the
+   panes size to their content rather than fighting it for height.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The dialog's own heading ──────────────────────────────────────────────── */
+.libx-title { display: flex; align-items: center; gap: 12px; }
+.libx-title__icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libx-title b     { display: block; font-size: 1.05rem; font-weight: 700; }
+.libx-title small { display: block; font-size: .78rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+
+/* ── The two panes ─────────────────────────────────────────────────────────── */
+.libx-grid {
+  display: grid; gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+.libx-pane { min-width: 0; }
+.libx-pane > h4 {
+  font-size: .76rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px;
+}
+.libx-pane__second { margin-top: 18px; }
+.libx-hint { font-size: .76rem; color: var(--text-muted); margin: 8px 0 0; }
+.libx-loading { display: flex; justify-content: center; padding: 20px; }
+
+/* The right pane is the decision, so it is set apart from the object on the
+   left rather than reading as one long form. */
+.libx-grid > .libx-pane:last-child {
+  padding-left: 18px; border-left: 1px solid var(--border);
+}
+
+/* ── A book, wherever one is shown ─────────────────────────────────────────── */
+.libx-spine {
+  width: 34px; height: 46px; border-radius: 3px 5px 5px 3px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-left: 3px solid rgba(0, 0, 0, .22);
+  color: #fff; font-size: 1rem; font-weight: 700;
+}
+
+.libx-book {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+.libx-book > div { flex: 1; min-width: 0; }
+.libx-book b     { display: block; font-size: .92rem; font-weight: 700; line-height: 1.3; }
+.libx-book small { display: block; font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
+.libx-x {
+  display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0;
+  border: none; border-radius: 50%; background: var(--bg-card);
+  color: var(--text-muted); cursor: pointer;
+}
+.libx-x:hover { background: #fee2e2; color: #b91c1c; }
+
+.libx-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.libx-chips span {
+  padding: 2px 9px; border-radius: 999px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  font-size: .71rem; font-weight: 600; color: var(--text-muted);
+}
+
+/* One row per fact, label left, value right. */
+.libx-facts { margin: 12px 0; }
+.libx-fact {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .8rem;
+}
+.libx-fact:last-child { border-bottom: none; }
+.libx-fact svg  { color: var(--text-light); flex-shrink: 0; }
+.libx-fact span { color: var(--text-muted); margin-right: auto; }
+.libx-fact b    { font-weight: 600; text-align: right; min-width: 0; word-break: break-word; }
+
+/* What is on the shelf, which is what decides whether this can happen at all. */
+.libx-stock {
+  display: flex; align-items: center; gap: 11px;
+  padding: 12px; border-radius: var(--radius-lg); margin-bottom: 14px;
+}
+.libx-stock.is-ok  { background: #dcfce7; color: #047857; }
+.libx-stock.is-bad { background: #fee2e2; color: #b91c1c; }
+.libx-stock__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center; background: rgba(255, 255, 255, .6);
+}
+.libx-stock > span:nth-child(2) { flex: 1; min-width: 0; }
+.libx-stock small { display: block; font-size: .72rem; opacity: .85; }
+.libx-stock b     { display: block; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.libx-stock em    { font-style: normal; font-size: .74rem; font-weight: 700; flex-shrink: 0; }
+
+/* ── The book search ───────────────────────────────────────────────────────── */
+.libx-hit {
+  display: flex; width: 100%; gap: 10px; align-items: center; text-align: left;
+  padding: 9px 12px; background: none; border: 0;
+  border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.libx-hit:hover { background: var(--bg); }
+.libx-hit .libx-spine { width: 26px; height: 34px; font-size: .8rem; }
+.libx-hit > span  { flex: 1; min-width: 0; }
+.libx-hit b       { display: block; font-size: .88rem; font-weight: 600; }
+.libx-hit small   { display: block; font-size: .74rem; color: var(--text-muted); }
+.libx-hit em {
+  font-style: normal; font-size: .72rem; font-weight: 700; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 999px;
+}
+.libx-hit em.is-ok  { background: #dcfce7; color: #047857; }
+.libx-hit em.is-bad { background: #fee2e2; color: #b91c1c; }
+
+/* ── Two-way switches (student/teacher, member/copy) ───────────────────────── */
+.libx-seg {
+  display: flex; gap: 4px; padding: 4px; margin-bottom: 12px;
+  background: var(--bg); border-radius: var(--radius-lg);
+}
+.libx-seg button {
+  flex: 1; padding: 7px 12px; border: none; border-radius: var(--radius);
+  background: none; color: var(--text-muted); cursor: pointer;
+  font-size: .82rem; font-weight: 600;
+}
+.libx-seg button.is-on { background: var(--primary); color: #fff; }
+
+/* ── Which loan came back ──────────────────────────────────────────────────── */
+.libx-find { display: flex; gap: 8px; }
+.libx-loans { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.libx-loans button {
+  display: flex; width: 100%; align-items: center; gap: 10px; text-align: left;
+  padding: 9px; margin-bottom: 6px; cursor: pointer;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.libx-loans button:hover { border-color: var(--primary); }
+.libx-loans .libx-spine { width: 26px; height: 34px; font-size: .8rem; }
+.libx-loans span  { flex: 1; min-width: 0; }
+.libx-loans b     { display: block; font-size: .85rem; font-weight: 600; }
+.libx-loans small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; }
+.libx-loans em {
+  font-style: normal; font-size: .72rem; font-weight: 700; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 999px;
+}
+.libx-loans em.is-bad { background: #fee2e2; color: #b91c1c; }
+
+.libx-when {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: var(--radius-lg);
+  font-size: .82rem; font-weight: 600;
+}
+.libx-when.is-ok  { background: #dcfce7; color: #047857; }
+.libx-when.is-bad { background: #fee2e2; color: #b91c1c; }
+.libx-when span   { margin-left: auto; font-weight: 500; font-size: .75rem; opacity: .85; }
+
+/* ── How it came back ──────────────────────────────────────────────────────── */
+.libx-conds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.libx-cond {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 11px 10px; cursor: pointer; text-align: left;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.libx-cond:disabled { opacity: .5; cursor: not-allowed; }
+.libx-cond b     { font-size: .82rem; font-weight: 700; }
+.libx-cond small { font-size: .68rem; color: var(--text-muted); line-height: 1.35; }
+.libx-cond__icon {
+  width: 30px; height: 30px; border-radius: 9px; margin-bottom: 2px;
+  display: grid; place-items: center; background: var(--bg); color: var(--text-muted);
+}
+/* The chosen one is stated by its border and its tint, not by colour alone —
+   it is also the only one that is not faded back. */
+.libx-cond.is-on { border-width: 2px; padding: 10px 9px; }
+.libx-cond.is-ok.is-on   { border-color: #059669; }
+.libx-cond.is-ok.is-on   .libx-cond__icon { background: #dcfce7; color: #047857; }
+.libx-cond.is-warn.is-on { border-color: #d97706; }
+.libx-cond.is-warn.is-on .libx-cond__icon { background: #fef3c7; color: #b45309; }
+.libx-cond.is-bad.is-on  { border-color: #dc2626; }
+.libx-cond.is-bad.is-on  .libx-cond__icon { background: #fee2e2; color: #b91c1c; }
+
+.libx-count { text-align: right; }
+
+/* ── What it will cost ─────────────────────────────────────────────────────── */
+.libx-fine {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg); overflow: hidden;
+}
+.libx-fine__head {
+  display: flex; align-items: center; gap: 11px;
+  padding: 12px; border-bottom: 1px solid var(--border); background: var(--bg-card);
+}
+.libx-fine__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center; background: #fee2e2; color: #b91c1c;
+}
+.libx-fine__head > span:nth-child(2) { flex: 1; min-width: 0; }
+.libx-fine__head small { display: block; font-size: .72rem; color: var(--text-muted); }
+.libx-fine__head b     { display: block; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.libx-fine__link {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+  font-size: .75rem; font-weight: 600; color: var(--primary); text-decoration: none;
+}
+.libx-fine__lines { list-style: none; margin: 0; padding: 10px 12px; }
+.libx-fine__lines li {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 3px 0; font-size: .78rem;
+}
+.libx-fine__lines span { color: var(--text-muted); margin-right: auto; }
+.libx-fine__lines b    { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.libx-collect {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px; border-top: 1px solid var(--border);
+  background: var(--bg-card); cursor: pointer;
+}
+.libx-collect input { margin-top: 3px; flex-shrink: 0; }
+.libx-collect b     { display: block; font-size: .82rem; }
+.libx-collect small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+
+/* ── The footer line ───────────────────────────────────────────────────────── */
+.libx-foot__note {
+  display: inline-flex; align-items: center; gap: 6px; margin-right: auto;
+  font-size: .76rem; color: var(--text-muted);
+}
+.libx-foot__note svg { color: var(--text-light); }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .libx-grid { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked, the decision follows the object rather than sitting beside it. */
+  .libx-grid > .libx-pane:last-child {
+    padding-left: 0; padding-top: 18px;
+    border-left: none; border-top: 1px solid var(--border);
+  }
+  .libx-conds { grid-template-columns: minmax(0, 1fr); }
+  .libx-cond { flex-direction: row; align-items: center; gap: 10px; }
+  .libx-cond__icon { margin-bottom: 0; }
+  .libx-foot__note { width: 100%; margin-bottom: 8px; }
+}

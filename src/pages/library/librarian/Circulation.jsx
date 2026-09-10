@@ -8,20 +8,20 @@
  * the search box — travels with the request. The list is paginated, so
  * filtering in the browser would narrow one page and quietly hide the rest.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
-import { getIssuances, getReturnForm, issueBook, returnBook, renewBook, bulkRenew, getBooks,
-  getBook, getIssueForm, scanCopy, getClassList, downloadFile } from '../../../api/library.api';
+import {
+  getIssuances, getBook, returnBook, renewBook, bulkRenew, scanCopy, getClassList, downloadFile,
+} from '../../../api/library.api';
 import { Button, Modal, Spinner, Alert } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
-import MemberPicker from '../../../components/library/MemberPicker';
-import DropdownPanel, { isInsideDropdown } from '../../../components/ui/DropdownPanel';
 import {
   ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep,
   SelectionBar, useSelection,
 } from '../../admin/listParts';
+import { IssueDialog, ReturnDialog } from './counterDialogs';
 import { Hero, Tile, delta, note, quoteOfTheDay } from './dashParts';
 import {
   BookCell, CopyCell, DateRange, DueCell, FineCell, MemberCell, ROLE_FILTERS,
@@ -122,10 +122,6 @@ export default function LibraryCirculation() {
     setRange({ from: '', to: '' }); setSearch(''); setTerm(''); setPage(1);
   };
 
-  const resetFilters = () => {
-    setStatusFilter(''); setRoleFilter(''); setClassFilter('');
-    setSectionFilter(''); setMemberFilter(''); setPage(1);
-  };
   const filtersOn = !!(statusFilter || roleFilter || classFilter || sectionFilter
     || range.from || range.to || term);
 
@@ -136,87 +132,39 @@ export default function LibraryCirculation() {
       loading: 'Preparing the file…', success: 'Downloaded', error: (e) => e?.message || 'Export failed',
     });
 
-  // ── Issue Book ───────────────────────────────────────────────────────────────
-  const EMPTY_ISSUE = { bookId: '', copyId: '', userId: '', dueDate: '', notes: '' };
-  const [issueModal, setIssueModal] = useState(false);
-  const [issueForm,  setIssueForm]  = useState(EMPTY_ISSUE);
-  const [issueSaving, setIssueSaving] = useState(false);
+  // ── The counter's two dialogs ────────────────────────────────────────────
+  // Both own their own forms (counterDialogs.jsx); this page only says when
+  // they are open and what they already know. `issuePreset` is how the scanner
+  // and a book's own page hand over a book that is already decided.
+  const [issueOpen,   setIssueOpen]   = useState(false);
+  const [issuePreset, setIssuePreset] = useState(null);
+  const [returnOpen,  setReturnOpen]  = useState(false);
+  const [returnPreset, setReturnPreset] = useState(null);
 
-  // Book search, so the librarian names a title instead of pasting its id.
-  const [bookQuery, setBookQuery] = useState('');
-  const [bookHits,  setBookHits]  = useState([]);
-  const [book,      setBook]      = useState(null);
-  const [copies,    setCopies]    = useState([]);
-  const bookBoxRef   = useRef(null);
-  const bookFieldRef = useRef(null);
-
-  // The hit list is portalled out of the scrolling modal body, so closing on an
-  // outside click has to treat the portalled panel as "inside".
-  useEffect(() => {
-    const away = (e) => { if (!isInsideDropdown(e.target, bookBoxRef.current)) setBookHits([]); };
-    document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
-  }, []);
-
-  useEffect(() => {
-    if (book || bookQuery.trim().length < 2) { setBookHits([]); return; }
-    let live = true;
-    const t = setTimeout(async () => {
-      try {
-        const res = await getBooks({ q: bookQuery.trim(), limit: 8 });
-        if (live) setBookHits(res?.data || []);
-      } catch { if (live) setBookHits([]); }
-    }, 250);
-    return () => { live = false; clearTimeout(t); };
-  }, [bookQuery, book]);
-
-  const pickBook = async (b) => {
-    setBook(b); setBookHits([]); setBookQuery('');
-    setIssueForm(f => ({ ...f, bookId: b._id, copyId: '' }));
-    try {
-      const res = await getIssueForm({ bookId: b._id });
-      setCopies(res?.data?.copies || []);
-    } catch (err) { toast.error(err?.message || 'Could not load copies'); setCopies([]); }
+  const openIssue  = () => { setIssuePreset(null); setIssueOpen(true); };
+  const openReturn = (copyCode) => {
+    setReturnPreset(copyCode ? { copyCode } : null);
+    setReturnOpen(true);
   };
 
-  const resetIssue = () => {
-    setIssueForm(EMPTY_ISSUE); setBook(null); setCopies([]); setBookQuery(''); setBookHits([]);
-  };
-  const openIssue = () => { resetIssue(); setIssueModal(true); };
-
-  // A book's own page sends the librarian here with the title already decided
+  // A book's page sends the librarian here with the title already decided
   // (?issue=<bookId>), so the counter opens on the copy rather than on a search
   // box for a book they were just looking at. The parameter is consumed on
   // arrival, or Back would re-open the dialog over a register they wanted to read.
   useEffect(() => {
     const wanted = params.get('issue');
     if (!wanted) return;
-    setParams((p) => { p.delete('issue'); return p; }, { replace: true });
+    setParams((q) => { q.delete('issue'); return q; }, { replace: true });
     (async () => {
       try {
         const res = await getBook(wanted);
         if (!res?.data) throw new Error('That book is no longer in the catalogue');
-        resetIssue();
-        setIssueModal(true);
-        await pickBook(res.data);
+        setIssuePreset({ book: res.data });
+        setIssueOpen(true);
       } catch (err) { toast.error(err?.message || 'Could not open the issue counter for that book'); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleIssue = async (e) => {
-    e.preventDefault();
-    if (!issueForm.bookId || !issueForm.copyId || !issueForm.userId)
-      return toast.error('Pick a book, a copy and a member');
-    setIssueSaving(true);
-    try {
-      await issueBook(issueForm);
-      toast.success('Book issued');
-      setIssueModal(false); resetIssue();
-      refetch();
-    } catch (err) { toast.error(err?.message || 'Could not issue the book'); }
-    finally { setIssueSaving(false); }
-  };
 
   // ── Scanner ──────────────────────────────────────────────────────────────────
   // A USB or Bluetooth scanner types the copy code and presses Enter, so this is
@@ -253,88 +201,13 @@ export default function LibraryCirculation() {
     finally { setScanBusy(false); }
   };
 
-  // Scanned a shelf copy — carry it straight into the issue form.
+  // Scanned a shelf copy — carry it straight into the issue dialog, book and
+  // copy already chosen.
   const scanIssue = () => {
-    setIssueForm({ ...EMPTY_ISSUE, bookId: scanned.book._id, copyId: scanned.copy._id });
-    setBook(scanned.book);
-    setCopies([scanned.copy]);
+    setIssuePreset({ book: scanned.book, copyId: scanned.copy._id });
     setScanModal(false);
-    setIssueModal(true);
+    setIssueOpen(true);
   };
-
-  // ── Return Book ──────────────────────────────────────────────────────────────
-  // Two ways a book arrives at the desk: with the person who borrowed it, or on
-  // its own. So the form takes either the member or the copy code, rather than
-  // the user id it used to demand.
-  const [returnModal,   setReturnModal]  = useState(false);
-  const [returnBy,      setReturnBy]     = useState('member');   // 'member' | 'copy'
-  const [returnMember,  setReturnMember] = useState(null);
-  const [returnCode,    setReturnCode]   = useState('');
-  const [returnList,    setReturnList]   = useState([]);
-  const [returnLoad,    setReturnLoad]   = useState(false);
-  const [returning,     setReturning]    = useState(false);
-  const [searched,      setSearched]     = useState(false);
-
-  const openReturn = () => {
-    setReturnBy('member'); setReturnMember(null); setReturnCode('');
-    setReturnList([]); setSearched(false); setReturnModal(true);
-  };
-
-  const loadReturns = async (params) => {
-    setReturnLoad(true);
-    try {
-      const res = await getReturnForm(params);
-      setReturnList(res?.data?.issuances || []);
-      setSearched(true);
-    } catch (err) { toast.error(err?.message || 'Could not load their books'); }
-    finally { setReturnLoad(false); }
-  };
-
-  // Picking a member loads their books straight away — no second click.
-  const pickReturnMember = (id, m) => {
-    setReturnMember(m);
-    setReturnList([]); setSearched(false);
-    if (id) loadReturns({ userId: id });
-  };
-
-  const searchByCode = (e) => {
-    e.preventDefault();
-    if (!returnCode.trim()) return;
-    loadReturns({ copyCode: returnCode.trim() });
-  };
-
-  // How the book came back. 'good' puts the copy straight back on the shelf;
-  // the other two keep it off and charge the borrower for it.
-  const [returnCondition, setReturnCondition] = useState({});
-  // An optional replacement price. The policy multiple is only ever a stand-in
-  // for a cost nobody recorded — if the librarian knows it, they can say so.
-  const [returnPrice, setReturnPrice] = useState({});
-
-  const handleReturn = async (issuanceId) => {
-    const condition = returnCondition[issuanceId] || 'good';
-    const priced = returnPrice[issuanceId];
-    if (condition !== 'good' && priced !== undefined && priced !== '' && Number(priced) < 0)
-      return toast.error('Enter a charge of zero or more');
-    setReturning(true);
-    try {
-      const res = await returnBook({
-        issuanceId, condition,
-        ...(condition !== 'good' && priced !== undefined && priced !== '' ? { fineAmount: Number(priced) } : {}),
-      });
-      const fine = res?.data?.fine;
-      toast.success(fine ? `Recorded — ₹${fine.amount} fine raised` : 'Book returned');
-      setReturnList(prev => prev.filter(i => i._id !== issuanceId));
-      refetch();
-    } catch (err) { toast.error(err?.message || 'Could not record the return'); }
-    finally { setReturning(false); }
-  };
-
-  // ── Renew ────────────────────────────────────────────────────────────────────
-  const handleRenew = async (id) => {
-    try { await renewBook(id); toast.success('Renewed'); refetch(); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
-  };
-
 
   const columns = [
     { key: 'book',   className: 'libc-col-book',   label: 'Book',      render: (r) => <BookCell row={r} /> },
@@ -363,7 +236,7 @@ export default function LibraryCirculation() {
             {ACTIVE.includes(r.status) && (
               <>
                 <MenuItem icon="repeat" onClick={() => handleRenew(r._id)}>Renew loan</MenuItem>
-                <MenuItem icon="checkCircle" onClick={openReturn}>Take it back</MenuItem>
+                <MenuItem icon="checkCircle" onClick={() => openReturn(r.bookCopy?.uniqueCode)}>Take it back</MenuItem>
                 <MenuSep />
               </>
             )}
@@ -412,7 +285,7 @@ export default function LibraryCirculation() {
           </div>
           <div className="libc-acts">
             <Button variant="secondary" onClick={openScan}><Icon name="search" size={16} /> Scan</Button>
-            <Button variant="secondary" onClick={openReturn}><Icon name="checkCircle" size={16} /> Return book</Button>
+            <Button variant="secondary" onClick={() => openReturn()}><Icon name="checkCircle" size={16} /> Return book</Button>
             <Button onClick={openIssue}><Icon name="plus" size={16} /> Issue book</Button>
           </div>
         </header>
@@ -497,180 +370,15 @@ export default function LibraryCirculation() {
       </section>
 
       {/* Issue Modal */}
-      <Modal open={issueModal} onClose={() => setIssueModal(false)} title="Issue Book"
-        footer={<><Button variant="secondary" onClick={() => setIssueModal(false)}>Cancel</Button>
-          <Button form="issue-form" type="submit" loading={issueSaving}>Issue</Button></>}>
-        <form id="issue-form" onSubmit={handleIssue}>
-          {/* Book: searched by title or ISBN, never typed as an id */}
-          <div className="form-group" ref={bookBoxRef}>
-            <label className="form-label required">Book</label>
-            {book ? (
-              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
-                            border:'1px solid var(--border)', borderRadius:6, background:'var(--bg)' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <strong>{book.title}</strong>
-                  <div className="text-muted text-sm">
-                    {(book.authors||[]).join(', ') || 'Unknown author'}{book.isbn ? ` · ${book.isbn}` : ''}
-                  </div>
-                </div>
-                <button type="button" className="btn btn-secondary btn-sm"
-                  onClick={() => { setBook(null); setCopies([]); setIssueForm(f=>({...f,bookId:'',copyId:''})); }}>Change</button>
-              </div>
-            ) : (
-              <div ref={bookFieldRef}>
-                <input className="form-control" autoFocus placeholder="Search by title or ISBN…"
-                  value={bookQuery} onChange={e => setBookQuery(e.target.value)} />
-              </div>
-            )}
-            <DropdownPanel anchorRef={bookFieldRef} open={bookHits.length > 0 && !book}>
-              {bookHits.map(b => (
-                <button key={b._id} type="button" onClick={() => pickBook(b)}
-                  style={{ display:'flex', width:'100%', gap:10, alignItems:'center', textAlign:'left',
-                           padding:'9px 12px', background:'none', border:0,
-                           borderBottom:'1px solid var(--border)', cursor:'pointer' }}>
-                  <span style={{ flex:1, minWidth:0 }}>
-                    <strong style={{ fontSize:'0.92rem' }}>{b.title}</strong>
-                    <span className="text-muted text-sm" style={{ display:'block' }}>
-                      {(b.authors||[]).join(', ') || 'Unknown author'}
-                    </span>
-                  </span>
-                  <span className={`badge badge-${(b.availableCopies ?? 0) > 0 ? 'success' : 'danger'}`}>
-                    {b.availableCopies ?? 0} free
-                  </span>
-                </button>
-              ))}
-            </DropdownPanel>
-          </div>
+      <IssueDialog
+        open={issueOpen} preset={issuePreset}
+        onClose={() => { setIssueOpen(false); setIssuePreset(null); }}
+        onDone={refetch} />
 
-          {book && (
-            <div className="form-group">
-              <label className="form-label required">Copy</label>
-              {copies.length === 0 ? (
-                <Alert variant="warning">No copy of this book is on the shelf right now.</Alert>
-              ) : (
-                <select className="form-control" required value={issueForm.copyId}
-                  onChange={e => setIssueForm(f=>({...f,copyId:e.target.value}))}>
-                  <option value="">Pick an available copy…</option>
-                  {copies.map(c => (
-                    <option key={c._id} value={c._id}>
-                      {c.uniqueCode}{c.rackLocation ? ` · ${c.rackLocation}` : ''}{c.condition ? ` · ${c.condition}` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
-
-          <MemberPicker value={issueForm.userId}
-            onChange={(id) => setIssueForm(f => ({ ...f, userId: id }))} />
-
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Due date</label>
-              <input type="date" className="form-control" value={issueForm.dueDate}
-                onChange={e => setIssueForm(f=>({...f,dueDate:e.target.value}))} />
-              <div className="form-hint">Leave blank to use the policy loan period.</div></div>
-            <div className="form-group"><label className="form-label">Notes</label>
-              <input className="form-control" value={issueForm.notes}
-                onChange={e => setIssueForm(f=>({...f,notes:e.target.value}))} /></div>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Return Modal */}
-      <Modal open={returnModal} onClose={() => setReturnModal(false)} title="Return Book" maxWidth={720}
-        footer={<Button variant="secondary" onClick={() => setReturnModal(false)}>Close</Button>}>
-
-        <div className="tabs" style={{ marginBottom: 16 }}>
-          {[['member', '👤 By member'], ['copy', '🏷 By copy code']].map(([key, label]) => (
-            <button key={key} type="button" className={`tab${returnBy === key ? ' active' : ''}`}
-              onClick={() => { setReturnBy(key); setReturnList([]); setSearched(false); }}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {returnBy === 'member' ? (
-          <MemberPicker value={returnMember?._id || ''} onChange={pickReturnMember} label="Who is returning it" />
-        ) : (
-          <form onSubmit={searchByCode}>
-            <div className="form-group">
-              <label className="form-label">Copy code</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="form-control" autoFocus value={returnCode}
-                  placeholder="Scan the spine label, or type LIB-COPY-000042"
-                  onChange={e => setReturnCode(e.target.value)} />
-                <Button type="submit" loading={returnLoad}>Find</Button>
-              </div>
-              <div className="form-hint">A scanner types the code and submits on its own.</div>
-            </div>
-          </form>
-        )}
-
-        {returnMember && returnBy === 'member' && (returnMember.overdue > 0 || returnMember.finesDue > 0) && (
-          <div style={{ marginBottom: 12 }}>
-            <Alert variant="warning">
-              {returnMember.name} has
-              {returnMember.overdue > 0 ? ` ${returnMember.overdue} overdue book(s)` : ''}
-              {returnMember.overdue > 0 && returnMember.finesDue > 0 ? ' and' : ''}
-              {returnMember.finesDue > 0 ? ` ₹${returnMember.finesDue} in unpaid fines` : ''}.
-            </Alert>
-          </div>
-        )}
-
-        {returnLoad && <div style={{ padding: 24, display: 'flex', justifyContent: 'center' }}><Spinner /></div>}
-
-        {returnList.length > 0 && (
-          <table className="table">
-            <thead><tr><th>Book</th><th>Borrower</th><th>Due</th><th>Condition</th><th></th></tr></thead>
-            <tbody>
-              {returnList.map(i => {
-                const late = new Date(i.dueDate) < new Date();
-                return (
-                <tr key={i._id} data-focus-id={i._id}>
-                  <td><strong>{i.book?.title||'—'}</strong><br /><small>{i.bookCopy?.uniqueCode||''}</small></td>
-                  <td>{i.issuedTo?.name || '—'}</td>
-                  <td style={late ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>
-                    {fmtDate(i.dueDate)}
-                    {late && <div style={{ fontSize: '0.72rem' }}>
-                      {Math.ceil((Date.now() - new Date(i.dueDate)) / 86400000)} day(s) late
-                    </div>}
-                  </td>
-                  <td>
-                    <select className="form-control" style={{ width:120, padding:'4px 8px', fontSize:'0.8rem' }}
-                      value={returnCondition[i._id] || 'good'}
-                      onChange={e => setReturnCondition(c => ({ ...c, [i._id]: e.target.value }))}>
-                      <option value="good">Good</option>
-                      <option value="damaged">Damaged</option>
-                      <option value="lost">Lost</option>
-                    </select>
-                    {(returnCondition[i._id] === 'damaged' || returnCondition[i._id] === 'lost') && (
-                      <>
-                        <input type="number" className="form-control" min={0} step="0.01"
-                          style={{ width:120, padding:'4px 8px', fontSize:'0.8rem', marginTop:4 }}
-                          placeholder="Charge ₹"
-                          value={returnPrice[i._id] ?? ''}
-                          onChange={e => setReturnPrice(p => ({ ...p, [i._id]: e.target.value }))} />
-                        <div style={{ fontSize:'.68rem', color:'var(--text-muted)', marginTop:2, maxWidth:120 }}>
-                          Blank uses the policy rate. Late fine is added on top.
-                        </div>
-                      </>
-                    )}
-                  </td>
-                  <td><Button size="sm" onClick={() => handleReturn(i._id)} loading={returning}>Return</Button></td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-        {returnList.length === 0 && searched && !returnLoad && (
-          <Alert variant="info">
-            {returnBy === 'copy'
-              ? `Copy ${returnCode} is not out on loan — nothing to return.`
-              : `${returnMember?.name || 'This member'} has no books out.`}
-          </Alert>
-        )}
-      </Modal>
+      <ReturnDialog
+        open={returnOpen} preset={returnPreset} base={base}
+        onClose={() => { setReturnOpen(false); setReturnPreset(null); }}
+        onDone={refetch} />
 
       {/* Scanner — a handheld scanner types the code and submits, so the field
           just needs to stay focused and act on Enter. */}
