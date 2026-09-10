@@ -127,8 +127,11 @@ export default function AdminLeave() {
   const onReqFilter = (setter) => (value) => { releaseFocus(); setReqPage(1); setter(value); };
   const onReqPage   = (p) => { releaseFocus(); setReqPage(p); };
 
-  const { data: teachers } = useFetch(() => api.getTeachers({ limit: 500, status: 'active' }));
-  const teacherList = teachers?.data || [];
+  // Not getTeachers(): /admin/teachers is school-admin-only, so a teacher whose
+  // designation grants admin on the leave module would find every picker on
+  // this screen empty. This list rides the leave module's own guard.
+  const { data: teachers } = useFetch(api.getLeaveEmployees);
+  const teacherList = teachers || [];
 
   const handleAction = async () => {
     if (!actionModal) return;

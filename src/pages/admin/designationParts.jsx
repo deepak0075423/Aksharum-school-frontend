@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Empty, Modal } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
+import { Link } from 'react-router-dom';
 import { Blank, Drawer, DrawerFoot, fmtDate } from './listParts';
 
 // ── Levels ───────────────────────────────────────────────────────────────────
@@ -408,16 +409,27 @@ export function DesignationDrawer({ row, modules, onClose, onEdit }) {
  * The people on a designation.
  *
  * Opened deliberately from the row's menu, and again — unasked — when a delete
- * is refused, because "reassign them first" is only actionable next to the list
- * of who "them" is. `blocking` switches it between the two.
+ * or a deactivation is refused, because "reassign them first" is only
+ * actionable next to the list of who "them" is. `blocking` switches it between
+ * the two, and `action` says which of the two was refused: deactivating is a
+ * soft delete — the designation leaves the dropdown and its holders lose the
+ * access it granted — so it is blocked on exactly the same terms.
  */
 export function HoldersModal({ state, onClose, onDownload, downloading }) {
   const teachers = state?.teachers || [];
+  const verb = state?.action === 'deactivate' ? 'deactivate' : 'delete';
+  const n = teachers.length;
   return (
     <Modal open={!!state} onClose={onClose} maxWidth={880}
-      title={state?.blocking ? 'Cannot Delete Designation' : `Teachers — ${state?.name || ''}`}
+      title={state?.blocking
+        ? (verb === 'deactivate' ? 'Cannot Deactivate Designation' : 'Cannot Delete Designation')
+        : `Teachers — ${state?.name || ''}`}
       footer={<>
         <Button variant="secondary" onClick={onClose}>Close</Button>
+        <Link to={`/admin/teachers?designation=${encodeURIComponent(state?.name || '')}`}
+          className="btn btn-secondary" onClick={onClose}>
+          <Icon name="teacher" size={15} /> Open in Teachers
+        </Link>
         <Button onClick={onDownload} loading={downloading} disabled={!teachers.length}>
           <Icon name="download" size={15} /> Download Excel
         </Button>
@@ -425,13 +437,15 @@ export function HoldersModal({ state, onClose, onDownload, downloading }) {
       {state?.blocking && (
         <Alert variant="danger">
           {state.message
-            || `Cannot delete “${state.name}” — ${teachers.length} teacher${teachers.length === 1 ? '' : 's'} still ${teachers.length === 1 ? 'has' : 'have'} this designation. Reassign ${teachers.length === 1 ? 'them' : 'them all'} to another designation first.`}
+            || `Cannot ${verb} “${state.name}” — ${n} teacher${n === 1 ? '' : 's'} still ${n === 1 ? 'has' : 'have'} this designation. Reassign ${n === 1 ? 'them' : 'them all'} to another designation first.`}
         </Alert>
       )}
 
       <p className="dnote dnote--plain">
         {state?.blocking
-          ? 'Reassign each teacher on the Teachers page, then delete the designation. Download the list to work through it offline.'
+          ? (verb === 'deactivate'
+            ? `Deactivating takes “${state.name}” off the designation dropdown and the ${n === 1 ? 'teacher' : `${n} teachers`} below would lose the module access it grants. Reassign ${n === 1 ? 'them' : 'them all'} on the Teachers page first, then deactivate it. Download the list to work through it offline.`
+            : 'Reassign each teacher on the Teachers page, then delete the designation. Download the list to work through it offline.')
           : 'Everyone below inherits this designation’s module access. Change someone’s designation on the Teachers page.'}
       </p>
 

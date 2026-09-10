@@ -176,15 +176,7 @@ export default function Designations() {
     finally { setSaving(false); }
   };
 
-  const toggleActive = async (row) => {
-    try {
-      await api.updateDesignation(row._id, { isActive: !row.isActive });
-      toast.success(row.isActive ? `“${row.name}” deactivated` : `“${row.name}” activated`);
-      await load();
-    } catch (err) { toast.error(err.message); }
-  };
-
-  const openHolders = async (row, blocking = false) => {
+  const openHolders = async (row, blocking = false, action = 'delete') => {
     try {
       const d = unwrap(await api.getDesignationTeachers(row._id));
       setHolders({
@@ -192,14 +184,47 @@ export default function Designations() {
         name: d?.designation || row.name,
         teachers: d?.teachers || [],
         blocking,
+        action,
       });
     } catch (err) { toast.error(err.message); }
+  };
+
+  /**
+   * Activate is free; deactivate is not.
+   *
+   * An inactive designation leaves the dropdown and its holders fall back to
+   * the legacy permissions — the same silent loss of access a delete causes —
+   * so the server refuses it while teachers still hold it, and this shows who
+   * they are rather than a toast nobody can act on.
+   */
+  const toggleActive = async (row) => {
+    if (row.isActive && row.holderCount) { openHolders(row, true, 'deactivate'); return; }
+    try {
+      await api.updateDesignation(row._id, { isActive: !row.isActive });
+      toast.success(row.isActive ? `“${row.name}” deactivated` : `“${row.name}” activated`);
+      await load();
+    } catch (err) {
+      const body = err.data;
+      if (body?.code === 'DESIGNATION_IN_USE') {
+        setHolders({
+          designationId: row._id,
+          name: body.designation || row.name,
+          teachers: body.teachers || [],
+          message: body.message,
+          action: body.action || 'deactivate',
+          blocking: true,
+        });
+        await load();
+      } else {
+        toast.error(err.message);
+      }
+    }
   };
 
   // Ask for the list up front when the row already shows holders, so the admin
   // sees the blockers in one click rather than being refused first.
   const tryDelete = (row) => {
-    if (row.holderCount) openHolders(row, true);
+    if (row.holderCount) openHolders(row, true, 'delete');
     else setDel(row);
   };
 
@@ -222,6 +247,7 @@ export default function Designations() {
           name: body.designation || target.name,
           teachers: body.teachers || [],
           message: body.message,
+          action: 'delete',
           blocking: true,
         });
         await load();

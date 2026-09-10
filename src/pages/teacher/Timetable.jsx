@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getTimetable, downloadTimetable, getClassTimetable } from '../../api/teacher.api';
 import { PageHeader, Spinner, Empty } from '../../components/ui/index';
+import { useSearchParams } from 'react-router-dom';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -14,14 +15,21 @@ function triggerBlobDownload(blob, filename) {
 }
 
 export default function TeacherTimetable() {
-  const [tab,             setTab]             = useState('mine');   // 'mine' | 'myclass'
+  // My Section links here with the section it wants the grid for, so the page
+  // opens on that class rather than on whichever one the server would pick.
+  const [searchParams] = useSearchParams();
+  const wantedSection  = searchParams.get('section');
+
+  const [tab,             setTab]             = useState(wantedSection ? 'myclass' : 'mine');
   const [searchTeacherId, setSearchTeacherId] = useState('');
   const [selectedYearId,  setSelectedYearId]  = useState('');
   const [queryParams,     setQueryParams]      = useState({});
   const [downloading,     setDownloading]      = useState(false);
+  const [classSectionId,  setClassSectionId]   = useState(wantedSection || '');
 
   const { data: raw,        loading: loading1 } = useFetch(() => getTimetable(queryParams), [queryParams]);
-  const { data: classRaw,   loading: loading2 } = useFetch(getClassTimetable, []);
+  const { data: classRaw,   loading: loading2 } = useFetch(
+    () => getClassTimetable(classSectionId ? { section: classSectionId } : undefined), [classSectionId]);
 
   const payload          = raw || {};
   const entries          = payload.entries          || [];
@@ -33,7 +41,8 @@ export default function TeacherTimetable() {
   const allTeachers      = payload.allTeachers      || [];
 
   const classPayload  = classRaw || {};
-  const mySection     = classPayload.section;   // null if not a class teacher
+  const mySection     = classPayload.section;   // null when attached to nothing
+  const classSections = classPayload.sections || [];
   const classTT       = classPayload.timetable;
   const classEntries  = classPayload.entries  || [];
   const classDays     = classPayload.days     || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -103,7 +112,7 @@ export default function TeacherTimetable() {
             borderBottom: tab === 'myclass' ? '2px solid var(--primary)' : '2px solid transparent',
             marginBottom: -2,
           }}>
-            My Class ({mySection.className} – {mySection.sectionName})
+            {classSections.length > 1 ? 'My Classes' : 'My Class'} ({mySection.className} – {mySection.sectionName})
           </button>
         )}
       </div>
@@ -161,6 +170,25 @@ export default function TeacherTimetable() {
       {/* ══ MY CLASS TAB ═════════════════════════════════════════════════════ */}
       {tab === 'myclass' && mySection && (
         <>
+          {/* A teacher reaches a section three ways and can hold several, so
+              the tab is a switch rather than a single fixed class. */}
+          {classSections.length > 1 && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-body" style={{ padding: '12px 16px' }}>
+                <div className="form-group" style={{ marginBottom: 0, maxWidth: 360 }}>
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>Section</label>
+                  <select className="form-control" value={String(mySection._id)}
+                    onChange={e => setClassSectionId(e.target.value)}>
+                    {classSections.map(sec => (
+                      <option key={sec._id} value={sec._id}>
+                        {sec.className} – {sec.sectionName} ({sec.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
           {!classTT || !classTT.periodsStructure?.length
             ? <Empty icon="🕐" title="Timetable not configured"
                 message={`No timetable has been set up for ${mySection.className} – ${mySection.sectionName} yet.`} />

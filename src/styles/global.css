@@ -4724,9 +4724,89 @@ button.lstat:hover, a.lstat:hover {
 .subnext a:hover svg { color: var(--primary); }
 .subnext a svg:last-child { margin-left: auto; flex-shrink: 0; }
 
+/* ── The view drawer ───────────────────────────────────────────────────────
+   The list can only count the classes a subject reaches. The drawer names
+   them, and drops one level further to the sections and the teacher standing
+   in each — which is the question "is this subject set up" actually asks. */
+.subwho__open {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  display: block; width: 100%; min-width: 0;
+  border-radius: var(--radius);
+}
+.subwho__open:hover .subwho__name { color: var(--primary); }
+.subwho__open:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* The same three counts as the usage cell, given room to breathe. */
+.subfacts {
+  display: flex; flex-wrap: wrap; gap: 6px 18px;
+  font-size: .82rem; color: var(--text-muted);
+  padding-bottom: 10px;
+}
+.subfacts b { color: var(--text); font-weight: 700; font-size: .95rem; }
+
+/* Class → sections → who takes each. Indented rather than tabulated: the
+   sections belong to the class above them, and a flat table hides that. */
+.subtree { display: flex; flex-direction: column; gap: 10px; }
+.subtree__class {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.subtree__head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px;
+  background: var(--bg);
+  font-size: .85rem;
+}
+.subtree__head svg { color: var(--text-light); flex-shrink: 0; }
+/* Not decoration — the class does not carry the subject, yet somebody teaches
+   it there. Something has to say so. */
+.subtree__flag {
+  margin-left: auto;
+  font-size: .7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px;
+  background: #fef3c7; color: #92400e;
+}
+.subtree__sec {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.subtree__name { font-size: .82rem; font-weight: 500; }
+.subtree__none { font-size: .78rem; color: var(--text-light); }
+
+/* The catalogue pool, each name saying whether it is a shortlist entry or a
+   real assignment. */
+.subpeople {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.subpeople__row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  padding: 9px 12px;
+}
+.subpeople__row + .subpeople__row { border-top: 1px solid var(--border); }
+/* Which sections they actually take it in — the line that turns a name into
+   an answer. */
+.subpeople__where {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .73rem; color: var(--text-light); margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.subpeople__where svg { flex-shrink: 0; }
+.subpeople__tags {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  flex-shrink: 0;
+}
+.subhint { font-size: .78rem; color: var(--text-muted); line-height: 1.5; margin: 0 0 10px; }
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .subwho__sub, .subusage__where { max-width: 180px; }
+  .subtree__flag { margin-left: 0; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -9727,6 +9807,24 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 }
 .tsec-act > svg { color: var(--primary); }
 .tsec-act:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 5%, #fff); }
+
+/* A section listed in a panel carries the same actions, tucked under its row
+   so the two read as one block rather than as two unrelated controls. Lighter
+   than the headline set above — this is a row in a list, not the page's
+   subject. */
+.tsec-block { display: flex; flex-direction: column; }
+.tsec-block > .tsec-actions {
+  gap: 8px; margin: -4px 0 0;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--border); border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+.tsec-block > .tsec-row { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.tsec-block > .tsec-actions .tsec-act {
+  flex: 1 1 auto; padding: 7px 11px; font-size: .78rem; font-weight: 600;
+}
+.tsec-block > .tsec-actions .tsec-act > svg { width: 15px; height: 15px; }
 
 /* ── Rows ─────────────────────────────────────────────────────────────────── */
 .tsec-rows { display: flex; flex-direction: column; gap: 10px; }

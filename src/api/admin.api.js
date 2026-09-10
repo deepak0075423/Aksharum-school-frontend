@@ -173,11 +173,18 @@ export const syncSectionChatGroup         = (id) => api.post(`/admin/sections/${
 // where that subject is used in that year, plus inUse/notInUse counts on the
 // envelope. Omit it and the response is the plain catalogue every dropdown wants.
 export const getSubjects   = (params) => api.get('/admin/subjects', { params });
+// One subject with the classes and sections it reaches, and who teaches it in
+// each — the list only knows the counts.
+export const getSubject    = (id) => api.get(`/admin/subjects/${id}`);
 export const createSubject = (data) => api.post('/admin/subjects', data);
 export const updateSubject = (id, data) => api.put(`/admin/subjects/${id}`, data);
 export const deleteSubject = (id) => api.delete(`/admin/subjects/${id}`);
 
 // Leave
+// The staff every leave picker chooses from. Deliberately not getTeachers():
+// /admin/teachers is school-admin-only, and a teacher whose designation grants
+// admin on the leave module reaches these screens too.
+export const getLeaveEmployees      = ()         => api.get('/admin/leave/employees');
 export const getLeaveTypes          = ()         => api.get('/admin/leave/types');
 export const createLeaveType        = (data)     => api.post('/admin/leave/types', data);
 export const updateLeaveType        = (id, data) => api.put(`/admin/leave/types/${id}`, data);

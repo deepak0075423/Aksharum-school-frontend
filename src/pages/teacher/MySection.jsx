@@ -7,16 +7,16 @@
  * every row opens the same section drawer.
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
+import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
 import { getMySection, createAnnouncement, deleteAnnouncement } from '../../api/teacher.api';
 import { Button, Modal, Spinner, Confirm } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
-  Tile, Panel, Fact, SectionRow, RoleRow, AnnouncementRow, NoRows, SectionDrawer,
-  HeroArt, chipFor, classLabel, secLabel, plural, YearTag,
+  Tile, Panel, Fact, SectionRow, SectionActions, SectionBlock, RoleRow, AnnouncementRow,
+  NoRows, SectionDrawer, HeroArt, chipFor, classLabel, secLabel, plural, YearTag,
 } from './sectionParts';
 
 const SHOWN = 3;   // rows a card shows before "View All" opens the rest
@@ -24,9 +24,12 @@ const SHOWN = 3;   // rows a card shows before "View All" opens the rest
 export default function MySection() {
   const { data, loading, refetch } = useFetch(getMySection);
   const { isEnabled } = useModules();
+  const { user: me } = useAuth();
 
   const [drawer,   setDrawer]   = useState(null);
-  const [annOpen,  setAnnOpen]  = useState(false);
+  // The section being posted to, not a boolean — a teacher can post to their
+  // own class, a class they cover as vice, or one they only take a subject in.
+  const [annOpen,  setAnnOpen]  = useState(null);
   const [annForm,  setAnnForm]  = useState({ title: '', message: '' });
   const [saving,   setSaving]   = useState(false);
   const [delAnn,   setDelAnn]   = useState(null);
@@ -60,9 +63,9 @@ export default function MySection() {
     e.preventDefault();
     setSaving(true);
     try {
-      await createAnnouncement(annForm);
-      toast.success('Announcement posted');
-      setAnnOpen(false);
+      await createAnnouncement({ ...annForm, section: annOpen._id });
+      toast.success(`Posted to ${secLabel(annOpen)}`);
+      setAnnOpen(null);
       setAnnForm({ title: '', message: '' });
       refetch();
     } catch (err) { toast.error(err.message); }
@@ -88,6 +91,11 @@ export default function MySection() {
   const annRows  = allAnn  ? announcements : announcements.slice(0, SHOWN);
   const isClassTeacher = role === 'classTeacher';
 
+  // Posting is open to anyone attached to the section; taking a notice down is
+  // not — you wrote it, or it is on the board of a class you are class teacher
+  // of. The server enforces the same rule.
+  const canRemove = (ann) => isClassTeacher || String(ann.createdBy) === String(me?.id || me?._id);
+
   return (
     <div className="page tsecpg">
 
@@ -96,7 +104,10 @@ export default function MySection() {
         <span className="tsec-ico tsec-ico--xl tsec-t--indigo"><Icon name="users" size={28} /></span>
         <div className="tsec-hero__body">
           <h1>My Section</h1>
-          <p>View your class section, responsibilities and related information.</p>
+          <p>
+            Your class section, responsibilities and related information
+            {currentYear ? ` for ${currentYear}` : ''}.
+          </p>
         </div>
         <div className="tsec-hero__art">
           <HeroArt />
@@ -106,15 +117,18 @@ export default function MySection() {
 
       {nothing ? (
         <div className="alert alert-warning">
-          You are not attached to any section yet — no class teacher, vice class teacher or
-          subject teacher assignment. Your school office sets these up on the class.
+          You are not attached to any section{currentYear ? ` in ${currentYear}` : ' yet'} — no class
+          teacher, vice class teacher or subject teacher assignment this academic year. Your school
+          office sets these up on the class.
         </div>
       ) : (
         <>
           {/* ── The three headline tiles ─────────────────────────────── */}
           <div className="tsec-tiles">
+            {/* Class alone is ambiguous — a teacher holds one SECTION of it, so
+                the tile names both. */}
             <Tile tone="indigo" icon="teacher" label="Class Teacher"
-              value={classTeacherOf.length ? classLabel(classTeacherOf[0]) : 'Not assigned'}
+              value={classTeacherOf.length ? secLabel(classTeacherOf[0]) : 'Not assigned'}
               sub={classTeacherOf[0]
                 ? `Academic Year ${classTeacherOf[0].yearName || currentYear || '—'}`
                 : 'No section of your own'}
@@ -156,38 +170,25 @@ export default function MySection() {
                       </div>
                     </div>
 
-                    <div className="tsec-actions">
-                      <button type="button" className="tsec-act" onClick={() => setDrawer(section)}>
-                        <Icon name="users" size={17} />View Students
-                      </button>
-                      {isEnabled('attendance') && (
-                        <Link className="tsec-act" to="/teacher/attendance">
-                          <Icon name="checkSquare" size={17} />Take Attendance
-                        </Link>
-                      )}
-                      {isEnabled('timetable') && (
-                        <Link className="tsec-act" to="/teacher/timetable">
-                          <Icon name="clock" size={17} />View Timetable
-                        </Link>
-                      )}
-                      {canPost && (
-                        <button type="button" className="tsec-act" onClick={() => setAnnOpen(true)}>
-                          <Icon name="megaphone" size={17} />Post Announcement
-                        </button>
-                      )}
-                    </div>
+                    <SectionActions row={section} role={isClassTeacher ? 'classTeacher' : 'vice'}
+                      isEnabled={isEnabled} canAnnounce={canPost}
+                      onStudents={setDrawer} onAnnounce={setAnnOpen} />
 
                     {/* A teacher can hold more than one class of their own */}
                     {classTeacherOf.length > 1 && (
                       <div className="tsec-rows tsec-rows--tight">
                         {classTeacherOf.slice(1).map((s) => (
-                          <SectionRow key={s._id} row={s} tone="indigo"
-                            title={classLabel(s)}
-                            facts={<>
-                              <Fact icon="layers">Section {s.sectionName}</Fact>
-                              <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
-                            </>}
-                            badge="Class Teacher" onOpen={() => setDrawer(s)} />
+                          <SectionBlock key={s._id}>
+                            <SectionRow row={s} tone="indigo"
+                              title={classLabel(s)}
+                              facts={<>
+                                <Fact icon="layers">Section {s.sectionName}</Fact>
+                                <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
+                              </>}
+                              badge="Class Teacher" onOpen={() => setDrawer(s)} />
+                            <SectionActions row={s} role="classTeacher" isEnabled={isEnabled}
+                              onStudents={setDrawer} onAnnounce={setAnnOpen} />
+                          </SectionBlock>
                         ))}
                       </div>
                     )}
@@ -203,13 +204,20 @@ export default function MySection() {
                       : null}>
                     <div className="tsec-rows">
                       {viceRows.map((s) => (
-                        <SectionRow key={s._id} row={s} tone="green"
-                          title={classLabel(s)}
-                          facts={<>
-                            <Fact icon="layers">Section {s.sectionName}</Fact>
-                            <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
-                          </>}
-                          badge="Vice Class Teacher" onOpen={() => setDrawer(s)} />
+                        <SectionBlock key={s._id}>
+                          <SectionRow row={s} tone="green"
+                            title={classLabel(s)}
+                            facts={<>
+                              <Fact icon="layers">Section {s.sectionName}</Fact>
+                              <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
+                            </>}
+                            badge="Vice Class Teacher" onOpen={() => setDrawer(s)} />
+                          {/* A vice class teacher covers the class — the same
+                              four things the class teacher does, on the class
+                              they actually cover. */}
+                          <SectionActions row={s} role="vice" isEnabled={isEnabled}
+                            onStudents={setDrawer} onAnnounce={setAnnOpen} />
+                        </SectionBlock>
                       ))}
                     </div>
                   </Panel>
@@ -225,7 +233,7 @@ export default function MySection() {
                     <div className="tsec-rows tsec-rows--tight">
                       {annRows.map((a, i) => (
                         <AnnouncementRow key={a._id} ann={a} tone={i % 2 ? 'green' : 'indigo'}
-                          onDelete={canPost ? () => setDelAnn(a) : null} />
+                          onDelete={canRemove(a) ? () => setDelAnn(a) : null} />
                       ))}
                     </div>
                   ) : (
@@ -267,14 +275,20 @@ export default function MySection() {
                       : null}>
                     <div className="tsec-rows">
                       {subjRows.map((s) => (
-                        <SectionRow key={`${s._id}:${s.subject}`} row={s} tone="rose"
-                          chip={String(s.subject || '?')[0].toUpperCase()}
-                          title={s.subject || 'Subject'}
-                          facts={<Fact icon="layers">{secLabel(s)}</Fact>}
-                          right={<span className="tsec-count">
-                            <Icon name="users" size={15} />{plural(s.studentCount, 'Student')}
-                          </span>}
-                          onOpen={() => setDrawer(s)} />
+                        <SectionBlock key={`${s._id}:${s.subject}`}>
+                          <SectionRow row={s} tone="rose"
+                            chip={String(s.subject || '?')[0].toUpperCase()}
+                            title={s.subject || 'Subject'}
+                            facts={<Fact icon="layers">{secLabel(s)}</Fact>}
+                            right={<span className="tsec-count">
+                              <Icon name="users" size={15} />{plural(s.studentCount, 'Student')}
+                            </span>}
+                            onOpen={() => setDrawer(s)} />
+                          {/* No attendance: the day is recorded by the section,
+                              and a subject teacher has the class for a period. */}
+                          <SectionActions row={s} role="subject" isEnabled={isEnabled}
+                            onStudents={setDrawer} onAnnounce={setAnnOpen} />
+                        </SectionBlock>
                       ))}
                     </div>
                   </Panel>
@@ -300,14 +314,15 @@ export default function MySection() {
 
       {drawer && <SectionDrawer section={drawer} onClose={() => setDrawer(null)} />}
 
-      <Modal open={annOpen} onClose={() => setAnnOpen(false)} title="Post Announcement"
+      <Modal open={!!annOpen} onClose={() => setAnnOpen(null)}
+        title={annOpen ? `Post to ${secLabel(annOpen)}` : 'Post Announcement'}
         footer={<>
-          <Button variant="secondary" onClick={() => setAnnOpen(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => setAnnOpen(null)}>Cancel</Button>
           <Button form="tsec-ann" type="submit" loading={saving}>Post</Button>
         </>}>
         <form id="tsec-ann" onSubmit={postAnnouncement}>
           <p className="text-muted text-sm" style={{ marginBottom: 14 }}>
-            Goes to {section ? secLabel(section) : 'your class'} — every student in the section
+            Goes to {annOpen ? secLabel(annOpen) : 'your class'} — every student in that section
             sees it on their class page.
           </p>
           <div className="form-group">

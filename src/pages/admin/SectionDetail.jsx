@@ -216,11 +216,18 @@ export default function SectionDetail() {
   const handleUnassignTeacher = async () => {
     setUnassigning(true);
     try {
-      await api.removeSectionSubjectTeacher(id, unassignConfirm.subjectId, unassignConfirm.teacherId);
-      toast.success('Teacher unassigned');
+      const res = await api.removeSectionSubjectTeacher(id, unassignConfirm.subjectId, unassignConfirm.teacherId);
+      const d = res?.data ?? res;
+      // Removing the last teacher anywhere in the class takes the subject off
+      // the class too, so say so — it is a second change the admin did not ask
+      // for by name, and the class subject count on this page moves with it.
+      toast.success(d?.unassigned
+        ? `${unassignConfirm.teacherName} unassigned — nobody else taught ${unassignConfirm.subjectName} in ${d.className || 'this class'}, so the subject is no longer on the class`
+        : 'Teacher unassigned');
       setUnassignConfirm(null);
       refetchSST();
       refetchGroup();
+      if (d?.unassigned) refetchSec();   // the class subject count changed
     } catch (err) { toast.error(err.message); }
     finally { setUnassigning(false); }
   };
@@ -544,9 +551,10 @@ export default function SectionDetail() {
               groups={groupedSST}
               loading={loadSST}
               onAssign={openSubjectModal}
-              onUnassign={(subject, teacher) => setUnassignConfirm({
+              onUnassign={(subject, teacher, lastInSection) => setUnassignConfirm({
                 subjectId: subject._id, teacherId: teacher._id,
                 teacherName: teacher.name, subjectName: subject.subjectName,
+                lastInSection,
               })}
             />
           </div>
@@ -669,7 +677,12 @@ export default function SectionDetail() {
         loading={unassigning}
         title="Unassign Teacher"
         message={unassignConfirm
-          ? `Remove ${unassignConfirm.teacherName} from teaching ${unassignConfirm.subjectName} in this section? The teacher and the subject are both untouched everywhere else.`
+          ? `Remove ${unassignConfirm.teacherName} from teaching ${unassignConfirm.subjectName} in this section? `
+            + (unassignConfirm.lastInSection
+              // The page can see this section's line-up but not its siblings',
+              // so it says what it knows and the server settles the rest.
+              ? `They are the only teacher for it here, so the subject leaves this section — and if no other section of ${section.className} teaches it either, it comes off the class as well.`
+              : 'The teacher and the subject are both untouched everywhere else.')
           : ''}
       />
 

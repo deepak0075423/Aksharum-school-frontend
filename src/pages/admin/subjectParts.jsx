@@ -12,7 +12,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
-import { Alert, Badge, Button, Modal, Spinner } from '../../components/ui/index';
+import { Alert, Badge, Button, Empty, Modal, Spinner } from '../../components/ui/index';
+import { Blank, Drawer, DrawerFoot, fmtDate } from './listParts';
 
 export const TYPES = [
   { value: 'theory',    label: 'Theory',    tone: 'indigo', icon: 'book' },
@@ -116,6 +117,207 @@ export const StatusCell = ({ subject }) => (
     {subject.usage?.inUse ? 'In use' : 'Not used'}
   </Badge>
 );
+
+// ── The drawer ───────────────────────────────────────────────────────────────
+
+/**
+ * One subject, opened from the list.
+ *
+ * The row can only say how many classes carry it; the question an admin
+ * actually has is *which*, and who is standing in front of each section. So the
+ * body is a tree — class, then its sections, then the teacher in each — and it
+ * marks the two things that are wrong rather than leaving them to be inferred:
+ * a class that carries the subject with no section teaching it yet, and a
+ * teacher in the catalogue pool who has not been put in front of anybody.
+ *
+ * The teacher list underneath is the pool and the real assignments merged.
+ * Neither is a subset of the other and showing only the pool was actively
+ * misleading — a subject with five staffed sections read as having nobody.
+ */
+export function SubjectDrawer({ open, subject, detail, loading, error, onClose, onEdit }) {
+  if (!open) return null;
+
+  // The row is already on screen; the detail fills in behind it. Showing the
+  // row's own fields immediately keeps the drawer from opening empty.
+  const s = detail || subject || {};
+  const t = typeOf(s);
+  const classes = detail?.classes || [];
+  const usage   = s.usage || {};
+  // Until the detail lands there is only the row's catalogue pool to show.
+  const people  = detail?.people
+    || (s.teachers || []).map((t) => ({ ...t, inPool: true, sections: [] }));
+  const teaching = people.filter((p) => p.sections.length);
+  // Carried by the class list, but no section has a teacher — the subject is
+  // half set up, which is the one thing this screen has to say out loud.
+  const carriedOnly = classes.filter((c) => c.carried && !c.sections.some((x) => x.teachers.length));
+
+  return (
+    <Drawer open onClose={onClose}>
+      <div className="ldrawer__head">
+        <span className={`submark tint-${t.tone}`} style={{ width: 52, height: 52, borderRadius: 14 }}>
+          <Icon name={t.icon} size={26} />
+        </span>
+        <div className="ldrawer__id">
+          <h3>{s.subjectName || 'Subject'}</h3>
+          {s.description ? <p>{s.description}</p> : null}
+          <div className="ldrawer__tags">
+            <span className={`subtype subtype--${t.tone}`}>{t.label}</span>
+            {s.subjectCode ? <code className="subcode">{s.subjectCode}</code> : null}
+            <Badge variant={usage.inUse ? 'success' : 'muted'}>{usage.inUse ? 'In use' : 'Not used'}</Badge>
+          </div>
+        </div>
+        <button type="button" className="lact" onClick={onClose} aria-label="Close">
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+
+      <div className="ldrawer__body">
+        {error && <Alert variant="danger">{error}</Alert>}
+
+        <section className="ldrawer__sec">
+          <h4>The catalogue entry</h4>
+          <dl>
+            <div className="lfield"><dt>Name</dt><dd>{s.subjectName || <Blank />}</dd></div>
+            <div className="lfield"><dt>Code</dt><dd>{s.subjectCode || <Blank />}</dd></div>
+            <div className="lfield"><dt>Type</dt><dd>{t.label}</dd></div>
+            <div className="lfield"><dt>Description</dt><dd>{s.description || <Blank />}</dd></div>
+            <div className="lfield"><dt>Academic year</dt>
+              <dd>{detail?.academicYear?.yearName || <Blank />}</dd></div>
+            <div className="lfield"><dt>Added</dt><dd>{fmtDate(s.createdAt) || <Blank />}</dd></div>
+          </dl>
+        </section>
+
+        {/* First, because "who teaches this" is the question the list cannot
+            answer. Until the detail lands only the row's catalogue pool is
+            known, and that is not the same list — so it waits rather than
+            showing a shorter one that reads as the whole answer. */}
+        <section className="ldrawer__sec">
+          <h4>Teachers</h4>
+          {loading && !detail ? (
+            <div style={{ padding: '14px 0' }}><Spinner size="sm" /></div>
+          ) : (<>
+          <p className="subhint">
+            {teaching.length
+              ? `${teaching.length} ${teaching.length === 1 ? 'teacher takes' : 'teachers take'} this subject in a section.`
+              : 'Nobody takes this subject in a section yet.'}
+            {' '}The rest are the catalogue pool — the shortlist a section picks from.
+          </p>
+          {people.length ? (
+            <div className="subpeople">
+              {people.map((x) => (
+                <div key={x._id} className="subpeople__row">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="subpool__name">
+                      {x.name || 'Teacher'}
+                      {x.employeeId ? <span>{x.employeeId}</span> : null}
+                    </div>
+                    {x.email ? <div className="subpool__mail">{x.email}</div> : null}
+                    {(x.department || x.designation) && (
+                      <div className="subpool__tags">
+                        {x.department  && <Badge variant="info">{x.department}</Badge>}
+                        {x.designation && <Badge variant="muted">{x.designation}</Badge>}
+                      </div>
+                    )}
+                    {/* Where they actually take it — the answer to "who teaches
+                        this", which a name on its own does not give. */}
+                    {x.sections.length > 0 && (
+                      <div className="subpeople__where" title={x.sections.join(', ')}>
+                        <Icon name="layers" size={13} />
+                        {x.sections.slice(0, 4).join(', ')}
+                        {x.sections.length > 4 ? ` +${x.sections.length - 4} more` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="subpeople__tags">
+                    {x.sections.length > 0 && (
+                      <Badge variant="success">
+                        {x.sections.length} {x.sections.length === 1 ? 'section' : 'sections'}
+                      </Badge>
+                    )}
+                    {/* The two states worth acting on: in the pool but teaching
+                        nothing, and teaching without ever being added to it. */}
+                    {detail && !x.inPool && <Badge variant="warning">Not in the pool</Badge>}
+                    {detail && x.inPool && x.sections.length === 0 && <Badge variant="muted">Not assigned</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="subpool__empty" style={{ padding: 0 }}>
+              Nobody is listed against this subject, and nobody teaches it.
+            </p>
+          )}
+          </>)}
+        </section>
+
+        <section className="ldrawer__sec">
+          <h4>Where it is taught</h4>
+          <div className="subfacts">
+            <span><b>{usage.classCount || 0}</b> {usage.classCount === 1 ? 'class' : 'classes'}</span>
+            <span><b>{usage.sectionCount || 0}</b> {usage.sectionCount === 1 ? 'section' : 'sections'}</span>
+            <span><b>{usage.teacherCount || 0}</b> {usage.teacherCount === 1 ? 'teacher' : 'teachers'}</span>
+          </div>
+
+          {loading && !detail ? (
+            <div style={{ padding: '14px 0' }}><Spinner size="sm" /></div>
+          ) : classes.length ? (
+            <div className="subtree">
+              {classes.map((c) => (
+                <div key={c._id} className="subtree__class">
+                  <div className="subtree__head">
+                    <Icon name="grid" size={15} />
+                    <b>{c.className}</b>
+                    {!c.carried && (
+                      <span className="subtree__flag" title="A section has a teacher for this subject, but the class itself does not carry it">
+                        Not on the class list
+                      </span>
+                    )}
+                  </div>
+                  {c.sections.length ? c.sections.map((sec) => (
+                    <div key={sec._id} className="subtree__sec">
+                      <span className="subtree__name">Section {sec.sectionName}</span>
+                      {sec.teachers.length ? (
+                        <div className="lchips">
+                          {sec.teachers.map((x) => <span key={x._id} className="lchip" title={x.email}>{x.name}</span>)}
+                        </div>
+                      ) : (
+                        <span className="subtree__none">No teacher yet</span>
+                      )}
+                    </div>
+                  )) : (
+                    <div className="subtree__sec">
+                      <span className="subtree__none">Carried by the class — no section teaches it yet</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty icon="🗂️" title="Not taught anywhere yet"
+              message="No class carries this subject, so nobody is teaching it. Assign it to a class, then name a teacher on each section." />
+          )}
+
+          {carriedOnly.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <Alert variant="warning">
+                {carriedOnly.length === 1
+                  ? `${carriedOnly[0].className} carries this subject but no section has a teacher for it.`
+                  : `${carriedOnly.length} classes carry this subject but no section has a teacher for it: ${carriedOnly.map((c) => c.className).join(', ')}.`}
+              </Alert>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <DrawerFoot>
+        <Link to="/admin/classes" className="btn btn-secondary" onClick={onClose}>
+          <Icon name="grid" size={15} /> Open Classes
+        </Link>
+        <Button onClick={() => onEdit(subject || detail)}><Icon name="pencil" size={15} /> Edit subject</Button>
+      </DrawerFoot>
+    </Drawer>
+  );
+}
 
 // ── The form ─────────────────────────────────────────────────────────────────
 

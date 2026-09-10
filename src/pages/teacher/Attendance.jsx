@@ -30,28 +30,44 @@ const STATUS_COLORS = { present: '#10b981', absent: '#ef4444', late: '#f59e0b' }
 const STATUS_OPTS   = ['present', 'absent', 'late'];
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-// ── Tab 1: Mark Student Attendance (class teacher / vice class teacher) ───────
-function MarkAttendance() {
+/**
+ * Tab 1: Mark Student Attendance — class teacher or vice class teacher.
+ *
+ * A teacher can own more than one section: their own class, plus any they
+ * cover as vice. The server used to pick one and never say which, so covering
+ * a second class meant a register you could not reach. `?section=` names one —
+ * that is what My Section's "Take Attendance" links carry — and the picker is
+ * there for the rest.
+ */
+function MarkAttendance({ wantedSection }) {
   const today = new Date().toISOString().split('T')[0];
   const [date,     setDate]     = useState(today);
+  const [sectionId, setSectionId] = useState(wantedSection || '');
+  const [sections, setSections] = useState([]);
   const [students, setStudents] = useState([]);
   const [records,  setRecords]  = useState({});
   const [loading,  setLoading]  = useState(false);
   const [saving,   setSaving]   = useState(false);
 
-  const fetchAttendance = async (d) => {
+  const fetchAttendance = async (d, id) => {
     setLoading(true);
     try {
-      const res = await getAttendance({ date: d });
-      setStudents(res?.data?.students || []);
+      const res = await getAttendance({ date: d, section: id || undefined });
+      const body = res?.data || {};
+      setSections(body.sections || []);
+      // The server answers with the section it actually used, so the picker
+      // shows the register on screen rather than the one that was asked for.
+      if (body.section?._id) setSectionId(String(body.section._id));
+      if (body.refused) toast.error(body.refused);
+      setStudents(body.students || []);
       const map = {};
-      (res?.data?.records || []).forEach(r => { map[String(r.student)] = r.status; });
+      (body.records || []).forEach(r => { map[String(r.student)] = r.status; });
       setRecords(map);
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAttendance(date); }, [date]);
+  useEffect(() => { fetchAttendance(date, sectionId); }, [date, sectionId]);
 
   const markAll = (status) => {
     const map = {};
@@ -66,7 +82,7 @@ function MarkAttendance() {
         studentId: s.user?._id || s._id,
         status: records[String(s.user?._id || s._id)] || 'absent',
       }));
-      await markAttendance({ date, records: recs });
+      await markAttendance({ date, section: sectionId || undefined, records: recs });
       toast.success('Attendance saved!');
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setSaving(false); }
@@ -75,6 +91,16 @@ function MarkAttendance() {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        {sections.length > 1 && (
+          <select className="form-control" style={{ maxWidth: 260 }} aria-label="Section"
+            value={sectionId} onChange={e => setSectionId(e.target.value)}>
+            {sections.map(sec => (
+              <option key={sec._id} value={sec._id}>
+                {sec.label}{sec.role === 'vice' ? ' — vice' : ''}
+              </option>
+            ))}
+          </select>
+        )}
         <input type="date" className="form-control" style={{ maxWidth: 200 }}
           value={date} max={today} onChange={e => setDate(e.target.value)} />
         <button className="btn btn-secondary btn-sm" onClick={() => markAll('present')}>All Present</button>
@@ -88,7 +114,11 @@ function MarkAttendance() {
         <div className="card">
           <div className="card-body" style={{ padding: 0 }}>
             {!students.length ? (
-              <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>No students in your section.</div>
+              <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
+                {sections.length
+                  ? `No students enrolled in ${sections.find(x => x._id === sectionId)?.label || 'this section'}.`
+                  : 'You are not the class teacher or vice class teacher of any section, so there is no register to mark.'}
+              </div>
             ) : (
               <table className="table">
                 <thead><tr><th>#</th><th>Student</th><th>Roll No</th><th>Status</th></tr></thead>
@@ -183,6 +213,8 @@ export default function TeacherAttendance() {
   // notification was about rather than on its default.
   const [searchParams] = useSearchParams();
   const wantedTab = searchParams.get('tab');
+  // My Section links here with the section it wants the register for.
+  const wantedSection = searchParams.get('section');
   const [tab, setTab] = useState(
     ['mark', 'ranking', 'mine', 'correct'].includes(wantedTab) ? wantedTab : 'mark');
   return (
@@ -194,7 +226,7 @@ export default function TeacherAttendance() {
         <button className={`tab${tab === 'mine' ? ' active' : ''}`}    onClick={() => setTab('mine')}>My Attendance</button>
         <button className={`tab${tab === 'correct' ? ' active' : ''}`} onClick={() => setTab('correct')}>Student Corrections</button>
       </div>
-      {tab === 'mark'    && <MarkAttendance />}
+      {tab === 'mark'    && <MarkAttendance wantedSection={wantedSection} />}
       {tab === 'ranking' && <SectionRanking />}
       {tab === 'mine'    && (
         <SelfAttendance

@@ -25,8 +25,8 @@ import {
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot,
 } from './listParts';
 import {
-  DeleteDialog, InUseDialog, NextStepsPanel, StatusCell, SubjectCell, SubjectForm,
-  TeacherChips, TypeBadge, TYPES, UsageCell, teacherCount,
+  DeleteDialog, InUseDialog, NextStepsPanel, StatusCell, SubjectCell, SubjectDrawer,
+  SubjectForm, TeacherChips, TypeBadge, TYPES, UsageCell, teacherCount,
 } from './subjectParts';
 
 const SORTS = [
@@ -77,6 +77,10 @@ export default function Subjects() {
   const [limit,  setLimit]  = useState(10);
 
   const [editing,  setEditing]  = useState(null);   // the row, or 'new'
+  const [viewing,  setViewing]  = useState(null);   // the row the drawer is open on
+  const [detail,   setDetail]   = useState(null);   // its full breakdown, once it lands
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailErr, setDetailErr] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [del,      setDel]      = useState(null);
   const [blocked,  setBlocked]  = useState(null);   // why a delete was refused
@@ -97,6 +101,19 @@ export default function Subjects() {
       .finally(() => setTeachersLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
+
+  // The drawer opens on the row the list already has and fills in behind it —
+  // only the server knows which sections teach it and who takes each one.
+  useEffect(() => {
+    if (!viewing) return undefined;
+    let alive = true;
+    setDetail(null); setDetailErr(''); setDetailLoading(true);
+    api.getSubject(viewing._id)
+      .then((res) => { if (alive) setDetail(res?.data ?? res); })
+      .catch((e) => { if (alive) setDetailErr(e.message); })
+      .finally(() => { if (alive) setDetailLoading(false); });
+    return () => { alive = false; };
+  }, [viewing]);
 
   // A keystroke is not a search; wait for a pause.
   useEffect(() => {
@@ -180,10 +197,21 @@ export default function Subjects() {
   };
 
   const openEdit = (s) => { setFormErr(''); setEditing(s); };
+  const openView = (s) => { setViewing(s); };
 
   // ── Columns ────────────────────────────────────────────────────────────────
   const columns = [
-    { key: 'subject', className: 'subcol-name', label: 'Subject', render: (s) => <SubjectCell subject={s} /> },
+    {
+      key: 'subject',
+      className: 'subcol-name',
+      label: 'Subject',
+      render: (s) => (
+        <button type="button" className="subwho__open" onClick={() => openView(s)}
+          title={`View ${s.subjectName}`}>
+          <SubjectCell subject={s} />
+        </button>
+      ),
+    },
     {
       key: 'code',
       className: 'subcol-code',
@@ -210,6 +238,7 @@ export default function Subjects() {
       label: 'Actions',
       render: (s) => (
         <RowActions>
+          <IconAction icon="eye" label="View subject" onClick={() => openView(s)} />
           <IconAction icon="pencil" label="Edit subject" variant="edit" onClick={() => openEdit(s)} />
           <RowMenu>
             <MenuItem icon="grid" to="/admin/classes">Assign to a class</MenuItem>
@@ -374,6 +403,16 @@ export default function Subjects() {
         defaultParts={{ classes: false, sections: false, subjects: true, curriculum: false, assignments: false }}
         onClose={() => setImportOpen(false)}
         onImported={refetch}
+      />
+
+      <SubjectDrawer
+        open={!!viewing}
+        subject={viewing}
+        detail={detail}
+        loading={detailLoading}
+        error={detailErr}
+        onClose={() => { setViewing(null); setDetail(null); setDetailErr(''); }}
+        onEdit={(row) => { setViewing(null); setDetail(null); openEdit(row); }}
       />
 
       <DeleteDialog subject={del} yearName={yearName} deleting={deleting}

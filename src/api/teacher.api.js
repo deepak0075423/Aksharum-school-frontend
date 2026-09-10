@@ -18,7 +18,9 @@ export const getClassRanking       = ()       => api.get('/teacher/attendance-ra
 export const reviewCorrection      = (data)   => api.post('/teacher/correction-requests/review', data);
 export const getTimetable          = (params) => api.get('/teacher/timetable', { params });
 export const downloadTimetable     = ()       => api.get('/teacher/timetable/download', { responseType: 'blob' });
-export const getClassTimetable     = ()       => api.get('/teacher/timetable/my-class');
+// `section` picks which of the teacher's sections to show; without it the
+// server keeps its old behaviour of choosing the first one that has a timetable.
+export const getClassTimetable     = (params) => api.get('/teacher/timetable/my-class', { params });
 export const getExams       = () => api.get('/teacher/exams');
 export const createExam     = (data) => api.post('/teacher/exams', data);
 export const getExam        = (id) => api.get(`/teacher/exams/${id}`);

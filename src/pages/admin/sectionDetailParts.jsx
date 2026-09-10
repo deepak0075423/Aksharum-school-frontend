@@ -91,7 +91,10 @@ export const SubjectBoard = ({ groups, loading, onAssign, onUnassign }) => {
                   ? row.teachers.map((t) => (
                     <span key={t._id} className="sdteacher">
                       {t.name}
-                      <button type="button" onClick={() => onUnassign(row.subject, t)}
+                      {/* The last teacher leaving takes the subject with them —
+                          the confirm has to say that before it happens. */}
+                      <button type="button"
+                        onClick={() => onUnassign(row.subject, t, row.teachers.length === 1)}
                         title={`Unassign ${t.name}`} aria-label={`Unassign ${t.name}`}>
                         <Icon name="close" size={12} />
                       </button>

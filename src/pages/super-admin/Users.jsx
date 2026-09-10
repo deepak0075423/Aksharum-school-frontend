@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/superAdmin.api';
 import { useAuth } from '../../contexts/AuthContext';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
+import { Alert, PageHeader, Table, Badge, Button, Modal, Confirm, Pagination, Spinner } from '../../components/ui/index';
 import { isEmail, passwordError } from '../../utils/validators';
 
 const ROLES      = ['super_admin', 'school_admin', 'teacher', 'student', 'parent'];
@@ -261,7 +261,12 @@ export default function SAUsers() {
           <button className="btn btn-secondary btn-sm" title={r.isActive ? 'Deactivate' : 'Activate'}
             onClick={() => handleToggle(r)}>{r.isActive ? '🔒' : '🔓'}
           </button>
-          <button className="btn btn-secondary btn-sm" title="One-time login link"
+          {/* A magic link is a way past the password, not past the account being
+              switched off — there is nothing to generate for a disabled one. */}
+          <button className="btn btn-secondary btn-sm" disabled={!r.isActive}
+            title={r.isActive
+              ? 'One-time login link'
+              : 'Account is deactivated — activate it before issuing a login link'}
             onClick={() => { setLinkUser(r); setGenLink(''); }}>🔗
           </button>
           {canDelete(r) && (
@@ -432,6 +437,13 @@ export default function SAUsers() {
       <Modal open={!!linkUser} onClose={() => { setLinkUser(null); setGenLink(''); }}
         title={`Login Link — ${linkUser?.name}`}
         footer={<Button variant="secondary" onClick={() => { setLinkUser(null); setGenLink(''); }}>Close</Button>}>
+        {linkUser && !linkUser.isActive ? (
+          <Alert variant="warning">
+            <b>{linkUser.name}</b> is deactivated. A login link would hand back exactly the
+            access the deactivation withdrew, so none can be issued — activate the account first.
+          </Alert>
+        ) : (
+        <>
         <p className="text-muted text-sm" style={{ marginBottom: 16 }}>
           Generate a one-time magic link. The link expires after first use.
         </p>
@@ -458,6 +470,8 @@ export default function SAUsers() {
           </div>
         ) : (
           <Button onClick={handleGenLink} loading={linkLoad}>🔗 Generate Link</Button>
+        )}
+        </>
         )}
       </Modal>
 

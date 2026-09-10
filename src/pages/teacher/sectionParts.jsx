@@ -7,6 +7,7 @@
  * shapes that repeat; the page itself only decides what goes in them.
  */
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Modal, Spinner } from '../../components/ui/index';
 import { getTeacherSection } from '../../api/teacher.api';
@@ -40,7 +41,14 @@ export const secLabel = (row) => {
 /** "1 Class" / "2 Classes" — the irregular plural has to be passed in. */
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || `${one}s`)}`;
 
-/** A year chip, and only when the row is not this year's work. */
+/**
+ * A year chip, and only when the row is not this year's work.
+ *
+ * The server now filters My Section to the active academic year, so this is
+ * usually silent — but a school with no active year yet cannot be filtered by
+ * one, and then rows from several years arrive together and the chip is the
+ * only thing telling them apart. Keep it.
+ */
 export const YearTag = ({ row }) =>
   row && !row.isCurrentYear && row.yearName
     ? <span className="tsec-year" title="Another academic year">{row.yearName}</span>
@@ -100,6 +108,47 @@ export function SectionRow({ row, tone = 'indigo', chip, title, facts, badge, ri
     </button>
   );
 }
+
+/**
+ * What a teacher can do with one section.
+ *
+ * The same row of actions wherever a section appears, because the answer to
+ * "can I take the register for this class" must not depend on which panel the
+ * class happens to be listed in. Every action names the section in its link,
+ * so the page it opens works on that section rather than on whichever one the
+ * server would have guessed.
+ *
+ * `role` decides only one of them: daily attendance belongs to the section, so
+ * a subject teacher — who has the class for a period — does not mark it.
+ */
+export function SectionActions({ row, role, isEnabled, onStudents, onAnnounce, canAnnounce = true }) {
+  const id = String(row._id);
+  return (
+    <div className="tsec-actions">
+      <button type="button" className="tsec-act" onClick={() => onStudents(row)}>
+        <Icon name="users" size={17} />View Students
+      </button>
+      {role !== 'subject' && isEnabled('attendance') && (
+        <Link className="tsec-act" to={`/teacher/attendance?section=${id}`}>
+          <Icon name="checkSquare" size={17} />Take Attendance
+        </Link>
+      )}
+      {isEnabled('timetable') && (
+        <Link className="tsec-act" to={`/teacher/timetable?section=${id}`}>
+          <Icon name="clock" size={17} />View Timetable
+        </Link>
+      )}
+      {canAnnounce && onAnnounce && (
+        <button type="button" className="tsec-act" onClick={() => onAnnounce(row)}>
+          <Icon name="megaphone" size={17} />Post Announcement
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A section row with its own actions underneath, as one block. */
+export const SectionBlock = ({ children }) => <div className="tsec-block">{children}</div>;
 
 /** A responsibility: what the role is, and where it applies. */
 export function RoleRow({ tone = 'indigo', icon, label, sub, onClick }) {
