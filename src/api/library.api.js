@@ -57,6 +57,9 @@ export const createFine          = (data)       => api.post('/library/fines', da
 export const waiveFine           = (id, data)   => api.post(`/library/fines/${id}/waive`, data);
 export const getPolicy           = ()           => api.get('/library/policy');
 export const updatePolicy        = (data)       => api.put('/library/policy', data);
+// What the rules used to say. Open to whoever may change them, unlike the
+// audit log, which stays school-admin only.
+export const getPolicyHistory    = ()           => api.get('/library/policy/history');
 export const getAuditLog         = (params)     => api.get('/library/audit-log', { params });
 
 // ── Reports ───────────────────────────────────────────────────────────────────

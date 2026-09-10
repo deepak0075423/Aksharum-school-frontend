@@ -98,6 +98,23 @@ input, select, textarea {
    scrolls inside its own container instead of pushing the whole page past the viewport */
 .app-main    { grid-area: main; overflow-y: auto; overflow-x: hidden; min-width: 0; }
 
+/*
+   …which is also why `position: sticky` inside a page does nothing by default.
+   An ancestor with a non-visible overflow becomes the scrollport a sticky
+   descendant sticks *inside*, and this one never scrolls: the shell is
+   `min-height: 100vh`, so the main row grows with its content and the window is
+   what moves. A sticky child therefore has nothing to stick to and travels up
+   the page with everything else.
+
+   Pages that need a sticky rail opt out by name, rather than the shell changing
+   for everybody — several pages call `window.scrollTo` and would break if the
+   window stopped being the scroller. Their wide content sits in its own
+   `.table-wrap`, so losing `overflow-x: hidden` here costs them nothing.
+   Browsers without `:has()` simply keep the old behaviour.
+*/
+.app-main:has(.libpol-body),
+.app-main:has(.librep-body) { overflow: visible; }
+
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
   background:     var(--bg-sidebar);
@@ -8041,7 +8058,28 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 }
 
 /* ── The rail ──────────────────────────────────────────────────────────────── */
-.librep-rail { overflow: hidden; }
+/*
+   Stays put while a long report scrolls past it — the catalogue of reports is
+   how you get to the next one, and it was disappearing off the top by the
+   second page of an accession register.
+
+   It sticks *below the app header*, which is itself sticky at the top of the
+   window, and sizes to its own content (`align-self: start`) so there is room
+   inside its box to travel. What actually lets it stick at all is the
+   `.app-main:has(.librep-body)` rule up beside `.app-main` — without that,
+   nothing on this page can stick to anything.
+*/
+.librep-rail {
+  position: sticky;
+  top: calc(var(--header-height) + 16px);
+  align-self: start;
+  /* A rail taller than the screen cannot be read where it sticks, so the list
+     inside it scrolls rather than the bottom being cut off. */
+  max-height: calc(100vh - var(--header-height) - 32px);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.librep-rail > ul { overflow-y: auto; flex: 1 1 auto; }
 .librep-rail__head {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 16px; border-bottom: 1px solid var(--border);
@@ -8252,7 +8290,10 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 @media (max-width: 1180px) {
   .librep-body { grid-template-columns: minmax(0, 1fr); }
   /* Stacked, the rail becomes a strip of cards rather than a tall list nobody
-     scrolls past to reach the table. */
+     scrolls past to reach the table — nothing to stick to the top of, and
+     nothing to scroll inside. */
+  .librep-rail { position: static; max-height: none; display: block; }
+  .librep-rail > ul { overflow-y: visible; }
   .librep-rail ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 }
 @media (max-width: 768px) {
@@ -8298,5 +8339,299 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .librep-chip, .librep-role { border: 1px solid #ddd; background: #fff !important; color: #111 !important; }
   .librep-late { color: #111 !important; }
 
+  @page { margin: 12mm; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY POLICY — the rules, and the form for them
+   ───────────────────────────────────────────────────────────────────────────
+   Shares the library header and tiles (.libd-hero, .libd-tiles). Two screens
+   off one set of classes: the read view and the editor differ in what sits in
+   the panels, not in how the page is built, so the rail, the panels and the
+   footer stamp are written once.
+
+   The tiles here are figures, not links — a policy is a statement, and a
+   borrowing limit has nowhere to lead. They carry no hover or chevron for the
+   same reason.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.libpolpg .libd-tiles { margin-bottom: 2px; }
+.libpol-tile { cursor: default; }
+.libpol-tile:hover { border-color: var(--border); box-shadow: none; }
+/* The label reads first here: the figure means nothing until you know it is a
+   loan period rather than a fine. */
+.libpol-tile .libd-tile__label { font-size: .78rem; color: var(--text-muted); font-weight: 600; }
+.libpol-tile .libd-tile__value { font-size: 1.5rem; margin-top: 2px; }
+
+/* ── The two columns ───────────────────────────────────────────────────────── */
+.libpol-body {
+  display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(0, 270px) minmax(0, 1fr);
+}
+.libpol-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ── The rail ──────────────────────────────────────────────────────────────── */
+/*
+   Sticky, because the sections it lists are a scroll away from each other on
+   the editor and the rail is how you get back.
+
+   Three things have to be true for that to actually happen, and only one of
+   them is `position: sticky`:
+
+    • It sticks *below the app header*, which is itself sticky at the top of the
+      window. `top: 16px` would park the rail underneath it.
+
+    • It sizes to its content rather than the row (`align-self: start`), or
+      there is no room inside its own box for it to travel.
+
+    • Nothing between it and the window may clip — see the
+      `.app-main:has(.libpol-body)` rule up beside `.app-main`, which is what
+      was stopping this from working at all.
+*/
+.libpol-rail {
+  position: sticky;
+  top: calc(var(--header-height) + 16px);
+  align-self: start;
+  /* A rail taller than the screen cannot be read where it sticks, so the list
+     inside it scrolls instead of the bottom being cut off. */
+  max-height: calc(100vh - var(--header-height) - 32px);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.libpol-rail > ul { overflow-y: auto; flex: 1 1 auto; }
+
+.libpol-rail__head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.libpol-rail__mark {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libpol-rail__head h2 { font-size: .92rem; font-weight: 700; }
+.libpol-rail ul { list-style: none; margin: 0; padding: 6px; }
+.libpol-rail__item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: none; border-radius: var(--radius);
+  background: none; color: inherit; text-align: left; cursor: pointer;
+  transition: background .15s;
+}
+.libpol-rail__item:hover { background: var(--bg); }
+.libpol-rail__item.is-on { background: #eef2ff; }
+.libpol-rail__item.is-on .libpol-rail__text { color: var(--primary); font-weight: 600; }
+.libpol-rail__item > svg:last-child { color: var(--text-light); flex-shrink: 0; }
+.libpol-rail__item.is-on > svg:last-child { color: var(--primary); }
+.libpol-rail__icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libpol-rail__text { flex: 1; min-width: 0; font-size: .85rem; }
+
+/* ── "Last updated" ────────────────────────────────────────────────────────── */
+.libpol-stamp {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: var(--radius-lg);
+  background: var(--bg); font-size: .78rem;
+}
+.libpol-stamp--rail { margin: 6px; }
+.libpol-stamp__icon {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--bg-card); color: var(--primary);
+}
+.libpol-stamp b     { display: block; font-size: .78rem; }
+.libpol-stamp small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+
+/* ── Panels ────────────────────────────────────────────────────────────────── */
+/* Scrolled to from the rail, so they clear the sticky app header and the rail's
+   own resting place rather than landing underneath them. */
+.libpol-panel { scroll-margin-top: calc(var(--header-height) + 16px); }
+.libpol-panel__head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.libpol-panel__icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libpol-panel__head > div { flex: 1 1 220px; min-width: 0; }
+.libpol-panel__head h2 { font-size: .95rem; font-weight: 700; }
+.libpol-panel__head p  { font-size: .76rem; color: var(--text-muted); margin-top: 3px; }
+.libpol-panel__acts { display: flex; align-items: center; gap: 8px; }
+
+.libpol-flag {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: .72rem; font-weight: 600; white-space: nowrap;
+}
+.libpol-flag.is-default { background: var(--bg); color: var(--text-muted); }
+.libpol-flag.is-set     { background: #e0f2fe; color: #0369a1; }
+.libpol-flag.is-changed { background: #fef3c7; color: #b45309; }
+
+.libpol-reset {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text-muted); cursor: pointer;
+  font-size: .75rem; font-weight: 600;
+}
+.libpol-reset:hover { color: var(--primary); border-color: var(--primary); }
+
+/* ── Rows, in the read view ────────────────────────────────────────────────── */
+.libpol-rows { padding: 4px 16px 12px; }
+.libpol-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+}
+.libpol-row:last-child { border-bottom: none; }
+.libpol-row__label { font-size: .85rem; min-width: 0; }
+/* A flag's sentence is the setting; a number's sentence is help, and lives in
+   the form instead. */
+.libpol-row.is-flag .libpol-row__label small {
+  display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45;
+}
+.libpol-row__value {
+  font-size: .92rem; font-weight: 700; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.libpol-switch {
+  display: inline-block; padding: 3px 12px; border-radius: 999px;
+  font-size: .74rem; font-weight: 700; white-space: nowrap;
+}
+.libpol-switch.is-on  { background: #dcfce7; color: #047857; }
+.libpol-switch.is-off { background: var(--bg); color: var(--text-muted); }
+
+.libpol-note {
+  margin: 0; padding: 12px 16px;
+  border-top: 1px solid var(--border); background: var(--bg);
+  font-size: .78rem; color: var(--text-muted); line-height: 1.55;
+}
+.libpol-note strong { color: var(--text); }
+.libpol-alert { padding: 14px 16px; }
+
+/* ── Member types ──────────────────────────────────────────────────────────── */
+.libpol-matrix th:not(:first-child),
+.libpol-matrix td:not(:first-child) { text-align: right; }
+.libpol-matrix td { font-size: .84rem; }
+.libpol-matrix td:first-child { color: var(--text-muted); }
+/* The one cell where the two columns disagree — which is the whole reason the
+   table is here. */
+.libpol-matrix__diff { color: #b45309; font-weight: 700; }
+
+/* ── History ───────────────────────────────────────────────────────────────── */
+.libpol-log { list-style: none; margin: 0; padding: 14px 16px 16px; }
+.libpol-log li { position: relative; padding: 0 0 16px 20px; border-left: 2px solid var(--border); }
+.libpol-log li:last-child { padding-bottom: 0; border-left-color: transparent; }
+.libpol-log__dot {
+  position: absolute; left: -5px; top: 5px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
+}
+.libpol-log__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.libpol-log__head b    { font-size: .85rem; }
+.libpol-log__head time { font-size: .74rem; color: var(--text-muted); margin-left: auto; }
+.libpol-log__changes { list-style: none; margin: 7px 0 0; padding: 0; display: grid; gap: 5px; }
+.libpol-log__changes li {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding: 0; border: none; font-size: .79rem;
+}
+.libpol-log__changes span   { color: var(--text-muted); min-width: 150px; }
+.libpol-log__changes em     { font-style: normal; color: var(--text-muted); text-decoration: line-through; }
+.libpol-log__changes svg    { color: var(--text-light); }
+.libpol-log__changes strong { font-weight: 700; }
+.libpol-log__none { font-size: .78rem; color: var(--text-muted); margin-top: 6px; }
+
+.libpol-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 34px 16px; text-align: center;
+}
+.libpol-empty__icon {
+  width: 42px; height: 42px; border-radius: 13px; margin-bottom: 6px;
+  display: grid; place-items: center;
+}
+.libpol-empty b    { font-size: .88rem; }
+.libpol-empty span { font-size: .78rem; color: var(--text-muted); max-width: 46ch; line-height: 1.5; }
+
+/* ═══ The editor ═══════════════════════════════════════════════════════════ */
+
+.libpol-edithead {
+  display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+  margin: 2px 0 4px;
+}
+.libpol-edithead > div { flex: 1 1 320px; min-width: 0; }
+.libpol-edithead h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; }
+.libpol-edithead p  { font-size: .84rem; color: var(--text-muted); margin-top: 5px; }
+
+.libpol-banner {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 16px 18px; background: linear-gradient(90deg, #f5f3ff, var(--bg-card) 60%);
+}
+.libpol-banner__icon {
+  width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.libpol-banner > div { flex: 1 1 300px; min-width: 0; }
+.libpol-banner h2 { font-size: 1rem; font-weight: 700; }
+.libpol-banner p  { font-size: .8rem; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+.libpol-banner blockquote {
+  flex: 0 1 300px; margin: 0; padding: 12px 16px;
+  background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border);
+}
+.libpol-banner blockquote p    { font-size: .84rem; font-weight: 600; color: #4338ca; }
+.libpol-banner blockquote cite { display: block; font-size: .74rem; font-style: normal; color: var(--text-muted); margin-top: 5px; }
+
+.libpol-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 16px; padding: 16px;
+}
+.libpol-field { margin-bottom: 12px; }
+.libpol-field .form-hint strong { color: var(--text); }
+
+.libpol-flags { display: flex; flex-direction: column; gap: 2px; padding: 8px 16px 14px; }
+.libpol-check {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 11px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.libpol-check:last-child { border-bottom: none; }
+.libpol-check input { margin-top: 3px; flex-shrink: 0; }
+.libpol-check b     { display: block; font-size: .85rem; font-weight: 600; }
+.libpol-check small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45; }
+
+/* ── The editor's footer ───────────────────────────────────────────────────── */
+/* Sticks to the bottom: the sections are long, and Save should never be
+   somewhere you have to go looking for. */
+.libpol-foot {
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.libpol-foot .libpol-stamp { background: none; padding: 0; }
+.libpol-foot__acts { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.libpol-foot__count { font-size: .78rem; font-weight: 600; color: #b45309; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .libpol-body { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked, the rail is a short strip of links above the content — nothing to
+     stick to the top of, and nothing to scroll inside. */
+  .libpol-rail { position: static; max-height: none; display: block; }
+  .libpol-rail > ul { overflow-y: visible; }
+  .libpol-rail ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+}
+@media (max-width: 768px) {
+  .libpol-panel__acts { width: 100%; justify-content: space-between; }
+  .libpol-foot__acts { width: 100%; margin-left: 0; }
+  .libpol-foot__acts .btn { flex: 1; justify-content: center; }
+  .libpol-log__changes span { min-width: 0; }
+}
+
+/* ── Print ─────────────────────────────────────────────────────────────────── */
+/* A policy is the one page in the module people pin to a noticeboard. */
+@media print {
+  .app-sidebar, .app-header, .modnav, .sidebar-overlay,
+  .libpol-rail, .libpol-panel__acts, .libpol-foot, .libd-hero__quote { display: none !important; }
+  .app-main, .page, .page-transition { padding: 0 !important; margin: 0 !important; }
+  .libpol-body { display: block !important; }
+  .libpol-main > * { margin-bottom: 12px; }
+  .card { border: 1px solid #ddd !important; box-shadow: none !important; break-inside: avoid; }
+  .libpol-switch, .libpol-flag { border: 1px solid #ddd; background: #fff !important; color: #111 !important; }
   @page { margin: 12mm; }
 }

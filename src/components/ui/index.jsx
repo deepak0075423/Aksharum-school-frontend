@@ -121,12 +121,14 @@ export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }
 };
 
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
-export const Confirm = ({ open, onClose, onConfirm, title, message, loading }) => (
+// `confirmLabel` names the action rather than the dialog: "Discard changes"
+// tells the reader what the red button does, which "Confirm" never does.
+export const Confirm = ({ open, onClose, onConfirm, title, message, loading, confirmLabel }) => (
   <Modal open={open} onClose={onClose} title={title || 'Confirm'} maxWidth={440}
     footer={
       <>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button variant="danger" onClick={onConfirm} loading={loading}>Confirm</Button>
+        <Button variant="danger" onClick={onConfirm} loading={loading}>{confirmLabel || 'Confirm'}</Button>
       </>
     }>
     <p style={{ color: 'var(--text-muted)' }}>{message || 'Are you sure?'}</p>

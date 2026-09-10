@@ -172,6 +172,7 @@ const LibCirculation= lazy(() => import('./pages/library/librarian/Circulation')
 const LibReservations=lazy(() => import('./pages/library/librarian/Reservations'));
 const LibFines      = lazy(() => import('./pages/library/librarian/Fines'));
 const LibPolicy     = lazy(() => import('./pages/library/librarian/Policy'));
+const LibPolicyEdit = lazy(() => import('./pages/library/librarian/PolicyEdit'));
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
 const InvDashboard   = lazy(() => import('./pages/inventory/admin/Dashboard'));
@@ -427,6 +428,7 @@ export default function App() {
               <Route path="fines"       element={<LibFines />} />
               <Route path="reports"     element={<LibReports />} />
               <Route path="policy"      element={<LibPolicy />} />
+              <Route path="policy/edit" element={<LibPolicyEdit />} />
             </Route>
             {/* Inventory */}
             <Route path="inventory" element={<ModuleNav tabs={INVENTORY_ADMIN_TABS} />}>
@@ -558,6 +560,7 @@ export default function App() {
               <Route path="fines"       element={<LibFines />} />
               <Route path="reports"     element={<LibReports />} />
               <Route path="policy"      element={<LibPolicy />} />
+              <Route path="policy/edit" element={<LibPolicyEdit />} />
             </Route>
             <Route path="inventory" element={<ModuleNav tabs={INVENTORY_TEACHER_TABS} />}>
               <Route index element={<Navigate to="requests" replace />} />
