@@ -9574,3 +9574,295 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 @media (max-width: 900px) {
   .holtch-figs--wide { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEACHER MY SECTION — one class of your own, and everything else you carry
+   ───────────────────────────────────────────────────────────────────────────
+   A teacher is attached to a section in three ways — class teacher, vice class
+   teacher, subject teacher — and the page says all three with the same row:
+   a coloured chip, a name, a line of facts, a chevron. The colour is the only
+   thing that changes, and it is set once per row through --tone, so a new kind
+   of attachment is a new modifier and nothing else.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.tsecpg { display: flex; flex-direction: column; gap: 16px; }
+
+/* One tone per row/tile/chip; every colour below is mixed from it. */
+.tsec-t--indigo { --tone: var(--primary); }
+.tsec-t--green  { --tone: #059669; }
+.tsec-t--violet { --tone: #7c3aed; }
+.tsec-t--rose   { --tone: #e11d48; }
+
+/* Rounded square holding an icon — the page's one badge shape, three sizes. */
+.tsec-ico {
+  width: 40px; height: 40px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 12%, #fff);
+  color: var(--tone, var(--primary));
+}
+.tsec-ico--lg { width: 46px; height: 46px; border-radius: 13px; }
+.tsec-ico--xl { width: 58px; height: 58px; border-radius: 16px; }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+.tsec-hero {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
+}
+.tsec-hero__body { flex: 1 1 320px; min-width: 0; }
+.tsec-hero__body h1 { font-size: 1.75rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+.tsec-hero__body p  { color: var(--text-muted); font-size: .9rem; margin-top: 3px; }
+
+/* Ornament, not content: it is the first thing to go when the row gets tight. */
+.tsec-hero__art {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px 12px 12px; border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 7%, #fff);
+}
+.tsec-art { width: 108px; height: 64px; color: var(--primary); flex-shrink: 0; }
+.tsec-quote {
+  font-size: .88rem; font-weight: 600; font-style: italic; line-height: 1.45;
+  color: var(--primary-dark); max-width: 190px;
+}
+
+/* ── The three headline tiles ─────────────────────────────────────────────── */
+.tsec-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tsec-tile {
+  display: flex; align-items: center; gap: 14px; text-align: left; width: 100%;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  padding: 16px 18px; font: inherit; color: inherit;
+}
+/* The tile a teacher is most likely to act on carries its tone, so the row of
+   three has a subject rather than reading as three equal boxes. */
+.tsec-tile.tsec-t--green {
+  background: color-mix(in srgb, var(--tone) 6%, #fff);
+  border-color: color-mix(in srgb, var(--tone) 22%, var(--border));
+}
+.tsec-tile--go { cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition); }
+.tsec-tile--go:hover { border-color: var(--tone); box-shadow: var(--shadow); }
+.tsec-tile--go > svg:last-child { color: var(--text-light); flex-shrink: 0; }
+.tsec-tile__body  { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tsec-tile__label { font-size: .82rem; font-weight: 600; color: var(--text-muted); }
+.tsec-tile__value {
+  font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tsec-tile__sub   { font-size: .78rem; color: var(--text-muted); }
+
+/* ── Two columns: my class on the left, what else I carry on the right ────── */
+.tsec-grid {
+  display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(320px, 1fr);
+  gap: 16px; align-items: start;
+}
+.tsec-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.tsec-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.tsec-card__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 15px 18px 0;
+}
+.tsec-card__head h2 { font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em; }
+.tsec-card__body { padding: 14px 18px 18px; }
+.tsec-more {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  background: none; border: 0; cursor: pointer; padding: 2px 0;
+  font: inherit; font-size: .83rem; font-weight: 600; color: var(--primary);
+}
+.tsec-more:hover { color: var(--primary-dark); }
+
+/* ── My class ─────────────────────────────────────────────────────────────── */
+.tsec-mine { display: flex; align-items: center; gap: 14px; }
+.tsec-mine__body { min-width: 0; flex: 1; }
+.tsec-mine__title {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 1.15rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 7px;
+}
+
+/* The class identifier — "C1". Reads as a tile, not as text. */
+.tsec-chip {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .92rem; font-weight: 800; letter-spacing: -.02em;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 12%, #fff);
+  color: var(--tone, var(--primary));
+}
+.tsec-chip--lg { width: 56px; height: 56px; border-radius: 15px; font-size: 1.12rem; }
+
+.tsec-badge {
+  flex-shrink: 0; white-space: nowrap; border-radius: 999px;
+  padding: 4px 11px; font-size: .71rem; font-weight: 700;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 13%, #fff);
+  color: var(--tone, var(--primary));
+}
+/* A row from another academic year still belongs to this teacher — it is
+   labelled rather than hidden, and stays quiet enough not to be mistaken for
+   this year's work. */
+.tsec-year {
+  flex-shrink: 0; border-radius: 999px; padding: 3px 9px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .01em;
+  background: var(--bg); color: var(--text-muted); border: 1px solid var(--border);
+}
+
+.tsec-fact {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .83rem; color: var(--text-muted); min-width: 0;
+}
+.tsec-fact > svg { color: var(--text-light); flex-shrink: 0; }
+.tsec-row__facts { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-width: 0; }
+
+/* ── The four things you do with your class ───────────────────────────────── */
+.tsec-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.tsec-act {
+  flex: 1 1 150px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 14px; border-radius: var(--radius); cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  font: inherit; font-size: .85rem; font-weight: 600; text-decoration: none;
+  transition: border-color var(--transition), background var(--transition);
+}
+.tsec-act > svg { color: var(--primary); }
+.tsec-act:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 5%, #fff); }
+
+/* ── Rows ─────────────────────────────────────────────────────────────────── */
+.tsec-rows { display: flex; flex-direction: column; gap: 10px; }
+.tsec-rows--tight { gap: 8px; }
+.tsec-rows--tight.tsec-rows { margin-top: 14px; }
+.tsec-card__body > .tsec-rows--tight:first-child { margin-top: 0; }
+
+.tsec-row {
+  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: var(--radius-lg); cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-card); font: inherit; color: inherit;
+  transition: border-color var(--transition), background var(--transition);
+}
+.tsec-row:hover {
+  border-color: color-mix(in srgb, var(--tone, var(--primary)) 45%, var(--border));
+  background: color-mix(in srgb, var(--tone, var(--primary)) 4%, #fff);
+}
+.tsec-row__body  { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.tsec-row__title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: .95rem; font-weight: 700; letter-spacing: -.01em;
+}
+.tsec-row__chev  { color: var(--text-light); flex-shrink: 0; }
+.tsec-count {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-size: .8rem; color: var(--text-muted); white-space: nowrap;
+}
+.tsec-count > svg { color: var(--text-light); }
+
+/* ── Responsibilities ─────────────────────────────────────────────────────── */
+.tsec-role {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 10px 12px; border-radius: var(--radius-lg);
+  border: 1px solid transparent; background: none; font: inherit; color: inherit;
+}
+.tsec-role--go { cursor: pointer; transition: border-color var(--transition), background var(--transition); }
+.tsec-role--go:hover {
+  border-color: color-mix(in srgb, var(--tone, var(--primary)) 40%, var(--border));
+  background: color-mix(in srgb, var(--tone, var(--primary)) 4%, #fff);
+}
+.tsec-role__body  { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.tsec-role__label { font-size: .93rem; font-weight: 700; letter-spacing: -.01em; }
+.tsec-role__sub   {
+  font-size: .8rem; color: var(--text-muted); line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Announcements ────────────────────────────────────────────────────────── */
+.tsec-ann {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius-lg);
+  border: 1px solid var(--border); background: var(--bg-card);
+}
+.tsec-ann__body  { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.tsec-ann__title { font-size: .92rem; font-weight: 700; letter-spacing: -.01em; }
+.tsec-ann__text  {
+  font-size: .82rem; color: var(--text-muted); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tsec-ann__date  { font-size: .76rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.tsec-ann__del {
+  background: none; border: 0; cursor: pointer; padding: 2px; flex-shrink: 0;
+  color: var(--text-light); border-radius: 6px; line-height: 0;
+}
+.tsec-ann__del:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, #fff); }
+
+/* ── Monitors ─────────────────────────────────────────────────────────────── */
+.tsec-mons { display: flex; flex-wrap: wrap; gap: 8px; }
+.tsec-mon {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px 6px 6px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: .85rem; font-weight: 600;
+}
+
+.tsec-none {
+  display: flex; align-items: center; gap: 10px; padding: 16px 4px;
+  font-size: .85rem; color: var(--text-muted);
+}
+.tsec-none > svg { color: var(--text-light); flex-shrink: 0; }
+
+/* ── The section drawer ───────────────────────────────────────────────────── */
+.tsec-drawer__figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.tsec-drawer__figs > div {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 12px 14px;
+  display: flex; flex-direction: column; font-size: .78rem; color: var(--text-muted);
+}
+.tsec-drawer__figs span { font-size: 1.2rem; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
+.tsec-drawer__who { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.tsec-drawer__who > div { display: flex; flex-direction: column; min-width: 0; }
+.tsec-drawer__who strong { font-size: .92rem; }
+.tsec-drawer__who em {
+  font-style: normal; font-size: .78rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tsec-drawer__cap {
+  font-size: .7rem; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-light); margin-bottom: 2px;
+}
+.tsec-drawer__h { font-size: .82rem; font-weight: 700; margin: 18px 0 8px; }
+.tsec-drawer__subs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tsec-drawer__subs > div {
+  display: flex; justify-content: space-between; gap: 10px; min-width: 0;
+  padding: 8px 12px; border-radius: var(--radius); background: var(--bg);
+  font-size: .84rem;
+}
+.tsec-drawer__subs span { color: var(--text-muted); }
+.tsec-drawer__roster {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px;
+  max-height: 320px; overflow-y: auto;
+}
+.tsec-student {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 8px 10px; border-radius: var(--radius); background: var(--bg);
+}
+.tsec-student__av {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--primary); color: #fff; font-size: .8rem; font-weight: 700;
+}
+.tsec-student__body { min-width: 0; display: flex; flex-direction: column; }
+.tsec-student__body strong { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsec-student__body em {
+  font-style: normal; font-size: .72rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tsec-student__roll { font-size: .72rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+@media (max-width: 1100px) {
+  .tsec-grid  { grid-template-columns: minmax(0, 1fr); }
+  .tsec-tiles { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+}
+@media (max-width: 720px) {
+  .tsec-hero__art { display: none; }
+  .tsec-hero__body h1 { font-size: 1.4rem; }
+  .tsec-act { flex: 1 1 calc(50% - 5px); }
+  .tsec-drawer__who, .tsec-drawer__subs { grid-template-columns: minmax(0, 1fr); }
+  .tsec-drawer__figs { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+}

@@ -3,6 +3,7 @@ export const getDashboard    = () => api.get('/teacher/dashboard');
 export const getModules      = () => api.get('/teacher/modules');
 export const getSchoolConfig = () => api.get('/profile/school-config');
 export const getMySection   = () => api.get('/teacher/my-section');
+export const getTeacherSection = (id) => api.get(`/teacher/sections/${id}`);
 export const createAnnouncement = (data) => api.post('/teacher/announcements', data);
 export const deleteAnnouncement = (id) => api.delete(`/teacher/announcements/${id}`);
 export const getAttendance  = (params) => api.get('/teacher/attendance', { params });
