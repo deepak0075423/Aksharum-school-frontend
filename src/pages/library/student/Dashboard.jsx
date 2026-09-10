@@ -1,98 +1,211 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+/**
+ * The library landing page for a member — student or teacher.
+ *
+ * Two faces, one layout. A member sees their own shelf: what they hold, what
+ * they owe, what they have reserved. A teacher who runs the library also sees
+ * the counter's — books out across the school, who has them, and the fines
+ * standing against all readers.
+ *
+ * The line between the two is drawn by the server, not by this file: the
+ * school-wide figures come from GET /library/dashboard, which sits behind the
+ * module-admin guard, so a teacher without library access cannot obtain them
+ * however the page is rendered. What the catalogue holds and what it is made of
+ * is not privileged — Search shows both to anyone who may browse.
+ */
+import React, { useMemo } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useModules } from '../../../contexts/ModulesContext';
 import useFetch from '../../../hooks/useFetch';
-import { getMyBooks, getMyFines, getTeacherMyBooks, getTeacherMyFines } from '../../../api/library.api';
-import { PageHeader, Spinner } from '../../../components/ui/index';
+import { teacherLibDashboard, studentDashboard, getDashboard } from '../../../api/library.api';
+import { Spinner } from '../../../components/ui/index';
+import {
+  LibHero, Fig, Panel, ViewAll, Action, LoanTable, Activity, Categories, rupees,
+} from './dashboardParts';
 
-// LibraryIssuance.status is one of issued / overdue / returned / lost. There has
-// never been an 'active' — the tile counted `b.status === 'active'` and so read
-// zero for every member who has ever had a book out. A loan the member still
-// holds is one that has not come back and has not been written off.
+// LibraryIssuance.status is issued / overdue / returned / lost. A loan somebody
+// still holds is one that has not come back and has not been written off.
 const OUT_ON_LOAN = ['issued', 'overdue'];
 
-const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+export default function LibraryMemberDashboard() {
+  const { user }      = useAuth();
+  const { modules }   = useModules();
+  const isTeacher     = user?.role === 'teacher';
+  const runsLibrary   = isTeacher && !!modules?.isLibrarian;
+  const base          = isTeacher ? '/teacher/library' : '/student/library';
 
-export default function LibraryStudentDashboard() {
-  const { user }    = useAuth();
-  const isTeacher   = user?.role === 'teacher';
   // The teacher endpoints are a separate mount; hitting the student ones as a
-  // teacher 403s and left both tiles at zero for exactly the same reason.
-  const { data: books, loading: bl } = useFetch(isTeacher ? getTeacherMyBooks : getMyBooks, [isTeacher]);
-  const { data: fines, loading: fl } = useFetch(isTeacher ? getTeacherMyFines : getMyFines, [isTeacher]);
+  // teacher 403s, which is what used to leave every tile at zero.
+  const { data: mine, loading } = useFetch(
+    isTeacher ? teacherLibDashboard : studentDashboard, [isTeacher],
+  );
+  // Asked for only by somebody who may have it — and refused by the server if
+  // this ever becomes untrue.
+  const { data: wide } = useFetch(
+    () => (runsLibrary ? getDashboard() : Promise.resolve({ data: null })), [runsLibrary],
+  );
 
-  const basePath = isTeacher ? '/teacher/library' : '/student/library';
+  const issued   = useMemo(() => (mine?.issuedBooks || []), [mine]);
+  const fines    = useMemo(() => (mine?.pendingFines || []), [mine]);
+  const holds    = useMemo(() => (mine?.reservations || []), [mine]);
+  const cat      = mine?.catalogue || {};
 
-  const rows      = Array.isArray(books) ? books : [];
-  const fineRows  = Array.isArray(fines) ? fines : [];
-
-  const issued  = rows.filter(b => OUT_ON_LOAN.includes(b.status));
-  const overdue = rows.filter(b => b.status === 'overdue' || b.isOverdue).length;
-  const lost    = rows.filter(b => b.status === 'lost').length;
-
-  // What is still owed, not what was originally charged: a part-waived fine
-  // that has been settled is not money the member has to find.
-  const owed = fineRows.reduce((sum, f) => sum + Math.max(
-    0,
-    Number(f.amount || 0) - Number(f.waivedAmount || 0) - Number(f.paidAmount || 0),
+  // What is still owed, not what was charged: a part-waived fine that has been
+  // settled is not money anybody has to find.
+  const owed = fines.reduce((sum, f) => sum + Math.max(
+    0, Number(f.amount || 0) - Number(f.waivedAmount || 0) - Number(f.paidAmount || 0),
   ), 0);
-  const pendingFines = fineRows.filter(f => f.status === 'pending').length;
 
-  const tiles = [
-    { label: 'Books Issued', value: issued.length, bg: '#d1fae5', to: `${basePath}/my-books` },
-    { label: 'Overdue',      value: overdue,       bg: '#fef3c7', to: `${basePath}/my-books`, hide: !overdue },
-    { label: 'Lost',         value: lost,          bg: '#e5e7eb', to: `${basePath}/my-books`, hide: !lost },
-    { label: 'Pending Fines', value: pendingFines, sub: owed > 0 ? rupees(owed) + ' outstanding' : null,
-      bg: '#fee2e2', to: `${basePath}/my-fines` },
-  ].filter(t => !t.hide);
+  /* The loans table. School-wide when this teacher runs the library, otherwise
+     the reader's own — where an "issued to" column would say "me" every time. */
+  const loans = useMemo(() => {
+    if (runsLibrary) {
+      return (wide?.recent || [])
+        .filter((r) => OUT_ON_LOAN.includes(r.status))
+        .slice(0, 6)
+        .map((r) => ({
+          _id: r._id, title: r.book?.title || 'Book',
+          borrower: r.issuedTo?.name || 'Reader',
+          borrowerClass: r.issuedTo?.className || (r.issuedTo?.role === 'teacher' ? 'Staff' : ''),
+          issueDate: r.issueDate, dueDate: r.dueDate, status: r.status,
+        }));
+    }
+    return issued.map((i) => ({
+      _id: i._id, title: i.book?.title || 'Book',
+      issueDate: i.issueDate, dueDate: i.dueDate, status: i.status,
+    }));
+  }, [runsLibrary, wide, issued]);
 
-  const quickLinks = [
-    { to: `${basePath}/search`,   icon: '🔍', label: 'Search Books', color: '#dbeafe' },
-    { to: `${basePath}/my-books`, icon: '📚', label: 'My Books',     color: '#d1fae5' },
-    { to: `${basePath}/my-fines`, icon: '💰', label: 'My Fines',     color: '#fee2e2' },
-  ];
+  /* The activity feed, from the same source as the table but read differently:
+     the table answers "who has what", this answers "what happened when". */
+  const activity = useMemo(() => {
+    if (runsLibrary) {
+      return (wide?.recent || []).slice(0, 6).map((r) => {
+        const back = r.status === 'returned';
+        return {
+          _id: r._id,
+          icon: back ? 'checkCircle' : 'bookOpen',
+          tone: back ? 'green' : 'indigo',
+          title: `${r.book?.title || 'Book'} ${back ? 'returned' : 'issued'}`,
+          sub: `by ${r.issuedTo?.name || 'a reader'}${r.issuedTo?.className ? ` (${r.issuedTo.className})` : ''}`,
+          at: back ? (r.returnDate || r.issueDate) : r.issueDate,
+        };
+      });
+    }
+    return (mine?.history || []).slice(0, 6).map((h) => {
+      const back = h.status === 'returned';
+      return {
+        _id: h._id,
+        icon: back ? 'checkCircle' : h.status === 'overdue' ? 'alert' : 'bookOpen',
+        tone: back ? 'green' : h.status === 'overdue' ? 'red' : 'indigo',
+        title: `${h.title} ${back ? 'returned' : 'issued to you'}`,
+        sub: back ? `Borrowed ${new Date(h.issueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+          : `Due ${new Date(h.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
+        at: back ? (h.returnDate || h.issueDate) : h.issueDate,
+      };
+    });
+  }, [runsLibrary, wide, mine]);
+
+  if (loading) return <div className="loading-page"><Spinner /></div>;
+
+  const overdueMine = issued.filter((b) => b.status === 'overdue').length;
 
   return (
-    <div className="page">
-      <PageHeader title="Library" subtitle="School library portal" />
+    <div className="page liblgpg">
+      <LibHero
+        title="Library"
+        blurb={runsLibrary
+          ? 'Access, manage and explore your school library resources.'
+          : isTeacher
+            ? 'Browse the catalogue, track what you have borrowed and settle any fines.'
+            : 'Find your next book, track what you have borrowed and check your fines.'}
+        quote={isTeacher
+          ? '“A reader today, a better educator tomorrow.”'
+          : '“A reader today, a leader tomorrow.”'} />
 
-      {(bl || fl) ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
-      ) : (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12, marginBottom: 24 }}>
-            {tiles.map(t => (
-              <Link key={t.label} to={t.to}
-                style={{
-                  background: t.bg, borderRadius: 'var(--radius)', padding: '16px 20px',
-                  textDecoration: 'none', color: 'var(--text)', display: 'block',
-                }}>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{t.label}</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{t.value}</div>
-                {t.sub && <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{t.sub}</div>}
-              </Link>
-            ))}
-          </div>
+      <div className="liblg-figs">
+        <Fig icon="bookOpen" tone="blue" label="Total Books"
+          value={Number(cat.totalBooks || 0).toLocaleString('en-IN')}
+          caption={`${Number(cat.availableCopies || 0).toLocaleString('en-IN')} copies on the shelf`}
+          to={`${base}/search`} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>
-            {quickLinks.map(l => (
-              <Link key={l.to} to={l.to}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  background: l.color, borderRadius: 'var(--radius-lg)', padding: '20px 12px',
-                  textDecoration: 'none', color: 'var(--text)', gap: 8,
-                  transition: 'transform .15s, box-shadow .15s', textAlign: 'center',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
-              >
-                <span style={{ fontSize: '1.8rem' }}>{l.icon}</span>
-                <span style={{ fontWeight: 500, fontSize: '.85rem' }}>{l.label}</span>
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
+        {runsLibrary ? (
+          <Fig icon="checkCircle" tone="green" label="Issued Books"
+            value={wide?.issuedCopies ?? 0} caption="Currently issued"
+            to="/teacher/manage-library/circulation" />
+        ) : (
+          <Fig icon="checkCircle" tone="green" label="Issued Books"
+            value={issued.length}
+            caption={overdueMine ? `${overdueMine} overdue` : 'Currently with you'}
+            to={`${base}/my-books`} />
+        )}
+
+        {runsLibrary ? (
+          <Fig icon="clock" tone="amber" label="Pending Fines"
+            value={wide?.pendingFines ?? 0}
+            caption={wide?.pendingFineTotal ? `${rupees(wide.pendingFineTotal)} across all readers` : 'Across all readers'}
+            to="/teacher/manage-library/fines" />
+        ) : (
+          <Fig icon="clock" tone="amber" label="Pending Fines"
+            value={fines.length}
+            caption={owed > 0 ? `${rupees(owed)} outstanding` : 'Nothing outstanding'}
+            to={`${base}/my-fines`} />
+        )}
+
+        {runsLibrary ? (
+          <Fig icon="users" tone="violet" label="Active Readers"
+            value={wide?.activeReaders ?? 0}
+            caption={`of ${wide?.members ?? 0} students & staff`} />
+        ) : (
+          <Fig icon="star" tone="violet" label="Reservations"
+            value={holds.length}
+            caption={holds.length ? 'Waiting for you' : 'Nothing on hold'}
+            to={`${base}/search`} />
+        )}
+      </div>
+
+      <div className="liblg-grid">
+        <div className="liblg-col">
+          <Panel icon="activity" tone="indigo" title="Quick Actions">
+            <div className="liblg-acts-grid">
+              <Action to={`${base}/search`} icon="search" tone="blue"
+                label="Search Books" sub="Find books in library" />
+              <Action to={`${base}/my-books`} icon="bookOpen" tone="green"
+                label="My Books" sub="View issued books" />
+              <Action to={`${base}/my-fines`} icon="banknote" tone="amber"
+                label="My Fines" sub="Check pending fines" />
+              {runsLibrary && (
+                <Action to="/teacher/manage-library/dashboard" icon="settings" tone="violet"
+                  label="Manage Library" sub="Add, update books" />
+              )}
+            </div>
+          </Panel>
+
+          <Panel icon="bookOpen" tone="indigo"
+            title={runsLibrary ? 'Currently Issued Books' : 'My Issued Books'}
+            action={<ViewAll to={runsLibrary ? '/teacher/manage-library/circulation' : `${base}/my-books`} />}>
+            <LoanTable rows={loans} showBorrower={runsLibrary}
+              empty={runsLibrary
+                ? { title: 'No books are out right now', body: 'Issued books appear here as soon as the counter lends one.' }
+                : { title: 'You have no books out', body: 'Search the catalogue and reserve a book to get started.' }} />
+          </Panel>
+        </div>
+
+        <div className="liblg-col">
+          <Panel icon="clock" tone="indigo" title="Recent Activity"
+            action={<ViewAll to={runsLibrary ? '/teacher/manage-library/circulation' : `${base}/my-books`} />}>
+            <Activity items={activity}
+              empty={runsLibrary
+                ? { title: 'Nothing at the counter yet', body: 'Issues and returns will show up here.' }
+                : { title: 'No library activity yet', body: 'Books you borrow and return will show up here.' }} />
+          </Panel>
+
+          <Panel icon="chart" tone="violet" title="Popular Categories"
+            action={<ViewAll to={`${base}/search`} label="Browse" />}>
+            <Categories categories={mine?.categories}
+              empty={{ title: 'No categories yet', body: 'Categories appear once books are catalogued.' }} />
+          </Panel>
+        </div>
+      </div>
     </div>
   );
 }
