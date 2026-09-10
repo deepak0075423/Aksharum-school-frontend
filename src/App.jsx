@@ -7,7 +7,7 @@ import ModuleGuard from './components/ModuleGuard';
 import AdminAreaGuard from './components/AdminAreaGuard';
 import ModuleNav, {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
-  LIBRARY_STUDENT_TABS, PAYROLL_TEACHER_TABS, LIBRARY_MANAGE_TABS,
+  LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, PAYROLL_TEACHER_TABS, LIBRARY_MANAGE_TABS,
   INVENTORY_ADMIN_TABS, INVENTORY_TEACHER_TABS,
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS, HOSTEL_ADMIN_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
@@ -132,6 +132,8 @@ const SLibrary      = lazy(() => import('./pages/library/student/Dashboard'));
 const SLibSearch    = lazy(() => import('./pages/library/student/Search'));
 const SLibMyBooks   = lazy(() => import('./pages/library/student/MyBooks'));
 const SLibMyFines   = lazy(() => import('./pages/library/student/MyFines'));
+const PLibrary      = lazy(() => import('./pages/library/parent/Overview'));
+const PLibFines     = lazy(() => import('./pages/library/parent/Fines'));
 
 // ── Parent ────────────────────────────────────────────────────────────────────
 const PDashboard    = lazy(() => import('./pages/parent/Dashboard'));
@@ -646,6 +648,11 @@ export default function App() {
               <Route path="requests"   element={<TrParentRequests />} />
             </Route>
             <Route path="hostel"           element={<HsParent />} />
+            {/* Library — one child at a time; the child rides in ?child= */}
+            <Route element={<ModuleNav tabs={LIBRARY_PARENT_TABS} />}>
+              <Route path="library"       element={<PLibrary />} />
+              <Route path="library/fines" element={<PLibFines />} />
+            </Route>
             <Route path="notifications"    element={<SharedNotifications />} />
           </Route>
 

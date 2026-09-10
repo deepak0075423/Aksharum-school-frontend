@@ -74,6 +74,13 @@ export const LIBRARY_STUDENT_TABS = (base) => ([
   { to: `${base}/library/my-fines`, label: '💸 My Fines' },
 ]);
 
+// A parent's library: what each child has borrowed, and their fines. The
+// child on screen rides in `?child=` so the tabs do not switch child.
+export const LIBRARY_PARENT_TABS = [
+  { to: '/parent/library',       label: '📚 Books', end: true },
+  { to: '/parent/library/fines', label: '💸 Fines' },
+];
+
 export const PAYROLL_TEACHER_TABS = [
   { to: '/teacher/payroll/ctc',      label: '💼 My CTC' },
   { to: '/teacher/payroll/payslips', label: '📄 Salary Slips' },

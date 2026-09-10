@@ -10605,3 +10605,59 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 @media (max-width: 1050px) {
   .libfn-body { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PARENT LIBRARY — one child at a time
+   ───────────────────────────────────────────────────────────────────────────
+   Reuses the module's hero, figures, card and table, and the class page's
+   child switch (.scls-kids / .scls-onekid) — a parent picks between children
+   the same way wherever the app asks them to. Only what is new to this screen
+   lives here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.libplpg { display: flex; flex-direction: column; gap: 16px; }
+.libpl-art { width: 206px; height: 92px; color: var(--primary); flex-shrink: 0; }
+
+/* A fine standing against a child, on the child's own button — so a parent
+   sees which one owes money without opening both tabs. */
+.libpl-owed {
+  flex-shrink: 0; border-radius: 999px; padding: 3px 9px;
+  font-size: .72rem; font-weight: 700; white-space: nowrap;
+  background: color-mix(in srgb, var(--danger) 12%, #fff); color: var(--danger);
+}
+
+/* The one thing on this page a parent has to act on. */
+.libpl-owedbar {
+  display: flex; align-items: center; gap: 12px; text-decoration: none;
+  padding: 13px 16px; border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--danger) 6%, #fff);
+  border: 1px solid color-mix(in srgb, var(--danger) 24%, var(--border));
+  color: var(--text); transition: border-color var(--transition), background var(--transition);
+}
+.libpl-owedbar:hover {
+  background: color-mix(in srgb, var(--danger) 11%, #fff);
+  border-color: var(--danger);
+}
+.libpl-owedbar > svg:first-child { color: var(--danger); flex-shrink: 0; }
+.libpl-owedbar > svg:last-child  { color: var(--text-light); flex-shrink: 0; margin-left: auto; }
+.libpl-owedbar span   { min-width: 0; font-size: .86rem; color: var(--text-muted); }
+.libpl-owedbar strong { display: block; font-size: .95rem; color: var(--danger); }
+
+/* ── Reservations ─────────────────────────────────────────────────────────── */
+.libpl-holds { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.libpl-hold {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 10px 12px; border-radius: var(--radius-lg);
+  background: var(--bg); border: 1px solid var(--border);
+}
+.libpl-hold__body { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.libpl-hold__body strong {
+  font-size: .89rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.libpl-hold__body span { font-size: .77rem; color: var(--text-muted); }
+
+.libpl-note {
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+  font-size: .8rem; color: var(--text-muted);
+}
+.libpl-note > svg { color: var(--text-light); flex-shrink: 0; }
