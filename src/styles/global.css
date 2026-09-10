@@ -7040,7 +7040,9 @@ button.lstat:hover, a.lstat:hover {
 
 /* ── The calendar ──────────────────────────────────────────────────────────── */
 .holcal, .holrail { padding: 14px 16px; }
-.holcal__head, .holrail__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.holcal__head, .holrail__head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+}
 .holcal__icon {
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
   display: grid; place-items: center;
@@ -7053,6 +7055,30 @@ button.lstat:hover, a.lstat:hover {
 }
 
 .holcal__nav { display: flex; align-items: center; gap: 6px; width: 100%; order: 3; }
+/* Titleless, the nav and the Today button share one row. */
+.holcal--bare .holcal__nav { width: auto; flex: 1; order: 0; justify-content: flex-start; gap: 10px; }
+.holcal--bare .holcal__nav b { flex: 0 0 auto; font-size: .95rem; }
+.holcal__today {
+  padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text-muted); cursor: pointer;
+  font-size: .78rem; font-weight: 600;
+}
+.holcal__today:hover { border-color: var(--primary); color: var(--primary); }
+
+/* Days from the months either side, so the grid never opens with blank boxes. */
+.holcal__day.is-outside { color: var(--text-light); opacity: .55; }
+
+/* What the dots and the outline mean, under the grid where they are used. */
+.holcal__legend {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  font-size: .74rem; color: var(--text-muted);
+}
+.holcal__legend span { display: inline-flex; align-items: center; gap: 7px; }
+.holcal__legend i { width: 9px; height: 9px; border-radius: 50%; }
+.holcal__legend i.is-mine  { background: var(--primary); }
+.holcal__legend i.is-class { background: #a5b4fc; }
+.holcal__legend i.is-today { background: none; border: 2px solid var(--primary); }
 .holcal__nav b { flex: 1; text-align: center; font-size: .82rem; font-weight: 700; }
 .holcal__nav button {
   display: grid; place-items: center; width: 26px; height: 26px;
@@ -9272,4 +9298,279 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 
 @media (max-width: 860px) {
   .libbk-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEACHER HOLIDAYS — two questions, two tabs
+   ───────────────────────────────────────────────────────────────────────────
+   "When am I off?" and "when do my classes not meet?" are different questions,
+   so they are different tabs rather than one list with a column. Everything
+   below sits on the admin holiday screen's parts (.holcal, .holrail, .holnext,
+   .holtypes) and the admin list frame's table — a holiday type is named,
+   coloured and dated the same way wherever it is read.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Title on the left, the figures on the right — one band, because the count of
+   holidays is part of the heading rather than a section under it. */
+.holtch-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; flex-wrap: wrap; margin-bottom: 2px;
+}
+.holtch-title { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 320px; }
+.holtch-title__icon {
+  width: 54px; height: 54px; border-radius: 16px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.holtch-title h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.holtch-title p  { font-size: .84rem; color: var(--text-muted); margin-top: 4px; }
+
+.holtch-figs { display: flex; gap: 12px; flex-wrap: wrap; }
+.holtch-fig {
+  display: flex; align-items: center; gap: 12px; min-width: 168px;
+  padding: 13px 16px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.holtch-fig__icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+.holtch-fig b     { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.05; letter-spacing: -.02em; }
+.holtch-fig small { display: block; font-size: .8rem; font-weight: 600; margin-top: 2px; }
+.holtch-fig em    { display: block; font-style: normal; font-size: .71rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── The two tabs ──────────────────────────────────────────────────────────── */
+/* Underlined rather than pilled: these are two views of one page, not two
+   destinations. */
+.holtch-tabs {
+  display: flex; gap: 8px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.holtch-tabs button {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 4px; margin-bottom: -1px;
+  border: none; border-bottom: 2px solid transparent; background: none;
+  color: var(--text-muted); cursor: pointer; font-size: .9rem; font-weight: 600;
+}
+.holtch-tabs button + button { margin-left: 18px; }
+.holtch-tabs button:hover { color: var(--text); }
+.holtch-tabs button.is-on { color: var(--primary); border-bottom-color: var(--primary); }
+.holtch-tabs b {
+  padding: 1px 8px; border-radius: 999px;
+  background: #eef2ff; color: var(--primary);
+  font-size: .72rem; font-variant-numeric: tabular-nums;
+}
+
+/* ── My holidays ───────────────────────────────────────────────────────────── */
+.holtch-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Cards keep their own height — a column with a height limit shrinks its
+   children, and a shrunk card is a clipped card. */
+.holtch-col > *, .holpg .holside > * { flex-shrink: 0; }
+
+.holtch-count {
+  padding: 1px 8px; border-radius: 999px; background: var(--bg);
+  color: var(--text-muted); font-size: .72rem; font-variant-numeric: tabular-nums;
+}
+.holtch-none { font-size: .8rem; color: var(--text-muted); }
+.holtch-foot {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: .73rem; color: var(--text-muted); line-height: 1.5;
+}
+/* A day already gone is not news; its distance is said quietly. */
+.holnext em.is-quiet { color: var(--text-light); font-weight: 500; }
+
+/* The one thing a teacher can actually do about a day off. */
+.holtch-leave { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; flex-wrap: wrap; }
+.holtch-leave > div { flex: 1 1 180px; min-width: 0; }
+.holtch-leave h2 { font-size: .88rem; font-weight: 700; }
+.holtch-leave p  { font-size: .78rem; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+.holtch-leave .btn { width: 100%; justify-content: center; }
+
+/* ── Details ───────────────────────────────────────────────────────────────── */
+.holtch-detail > div {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.holtch-detail > div:last-of-type { border-bottom: none; }
+.holtch-detail span { font-size: .79rem; color: var(--text-muted); }
+.holtch-detail b    { font-size: .85rem; text-align: right; }
+.holtch-detail__note {
+  margin-top: 12px; padding: 11px 12px; border-radius: var(--radius-lg);
+  background: var(--bg); font-size: .82rem; color: var(--text-muted); line-height: 1.55;
+}
+
+/* ── My class holidays ─────────────────────────────────────────────────────── */
+.holtch-card { overflow: visible; }
+.holtch-filters {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.holtch-filters select { width: auto; min-width: 165px; font-size: .83rem; padding: 8px 30px 8px 11px; }
+.holtch-range { display: inline-flex; align-items: center; gap: 8px; }
+.holtch-range input { width: auto; font-size: .83rem; padding: 7px 10px; }
+.holtch-range svg   { color: var(--text-light); flex-shrink: 0; }
+
+.holtch-search { position: relative; flex: 1 1 200px; min-width: 190px; max-width: 320px; }
+.holtch-search > svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.holtch-search input { padding-left: 34px; font-size: .83rem; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .holtch-head__icon { width: 46px; height: 46px; border-radius: 14px; }
+}
+@media (max-width: 768px) {
+  .holtch-tabs button { flex: 1; justify-content: center; padding: 9px 10px; }
+  .holtch-filters select,
+  .holtch-range,
+  .holtch-search { flex: 1 1 100%; width: 100%; max-width: none; }
+  .holtch-range input { flex: 1; }
+}
+
+/* ── Teacher holidays: the type key and the two lists ──────────────────────── */
+.holtch-types { padding: 14px 16px; }
+.holtch-types ul {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 18px;
+}
+.holtch-types li { display: flex; align-items: flex-start; gap: 10px; }
+.holtch-types i { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: currentColor; }
+.holtch-types b     { display: block; font-size: .84rem; font-weight: 600; }
+.holtch-types small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; }
+
+/* One holiday, told in full — a tear-off date, the name and its type, then the
+   date written out and whatever note came with it. */
+.holtch-list { padding: 14px 16px; }
+.holtch-rows { list-style: none; margin: 0; padding: 0; }
+.holtch-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.holtch-row:last-child { border-bottom: none; padding-bottom: 2px; }
+
+.holtch-row__date {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 46px; height: 50px; flex-shrink: 0;
+  border-radius: var(--radius-lg); background: #eef2ff; color: var(--primary);
+}
+.holtch-row__date b     { font-size: 1.05rem; font-weight: 700; line-height: 1; }
+.holtch-row__date small { font-size: .62rem; font-weight: 700; letter-spacing: .06em; margin-top: 2px; }
+
+.holtch-row__body { flex: 1; min-width: 0; }
+.holtch-row__top  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.holtch-row__top b { font-size: .89rem; font-weight: 700; }
+.holtch-row__body p {
+  display: flex; align-items: center; gap: 7px;
+  font-size: .78rem; color: var(--text-muted); margin-top: 5px;
+}
+.holtch-row__body p svg { color: var(--text-light); flex-shrink: 0; }
+.holtch-row__body p.is-quiet { color: var(--text-light); }
+
+.holtch-row__side { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.holtch-row__side em {
+  font-style: normal; font-size: .74rem; font-weight: 600; color: var(--primary); white-space: nowrap;
+}
+.holtch-row__side em.is-quiet { color: var(--text-light); font-weight: 500; }
+.holtch-row__side button {
+  display: grid; place-items: center; width: 28px; height: 28px;
+  border: none; border-radius: 8px; background: none; color: var(--text-light); cursor: pointer;
+}
+.holtch-row__side button:hover { background: var(--bg); color: var(--primary); }
+
+@media (max-width: 900px) {
+  .holtch-figs { width: 100%; }
+  .holtch-fig  { flex: 1 1 150px; min-width: 0; }
+}
+
+/* ── Student and parent holidays ───────────────────────────────────────────── */
+/* Both read the teacher screen's layout (.holtch-*); these are the two pieces
+   only a parent needs — the child switch, and the line naming an only child. */
+.holcal__legend .is-note { margin-left: auto; color: var(--text-light); }
+
+.holpar-who button { flex-direction: column; align-items: flex-start; gap: 2px; padding-bottom: 9px; }
+.holpar-who button em {
+  font-style: normal; font-size: .72rem; font-weight: 500; color: var(--text-muted);
+}
+.holpar-who button.is-on em { color: var(--primary); opacity: .8; }
+/* The count rides at the end of the name rather than under it. */
+.holpar-who button b {
+  position: absolute; top: 9px; right: 0;
+}
+.holpar-who button { position: relative; padding-right: 34px; }
+
+.holpar-note {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-radius: 999px; background: var(--bg);
+  font-size: .8rem; color: var(--text-muted); align-self: flex-start;
+}
+.holpar-note svg { color: var(--text-light); }
+
+/* Whose day it is, when it is not everybody's. */
+.holtch-row__meta { color: #b45309 !important; font-weight: 600; }
+.holtch-row__meta svg { color: #d97706 !important; }
+
+@media (max-width: 700px) {
+  .holpar-who { flex-wrap: wrap; }
+  .holpar-who button + button { margin-left: 0; }
+}
+
+/* ── The read-only holiday pages ───────────────────────────────────────────── */
+/*
+   The rhythm between sections. A bare .page is a plain block; the admin screens
+   get their spacing from .page.listpg, which these pages do not carry — so the
+   title, the figures and the cards below them stacked with nothing at all
+   between them.
+*/
+.page.holtch { display: flex; flex-direction: column; gap: 18px; }
+
+/* ── Proportions ───────────────────────────────────────────────────────────── */
+/*
+   `.holgrid` is the admin screen's split — a wide table beside a 320px rail.
+   These pages have a calendar beside a list of holidays, which is closer to
+   even, and the difference is not cosmetic: at 1fr/320px the calendar column
+   ran to ~1100px, and `aspect-ratio: 1` turned every day into a 150px square
+   while the rail squeezed each holiday's date onto two lines.
+*/
+.holtch .holgrid { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr); gap: 16px; }
+
+/* A day is a box to tap, not a tile. Fixed height, so the month is the same
+   size whatever width the column happens to be. */
+.holtch .holcal__grid { gap: 5px; }
+.holtch .holcal__day,
+.holtch .holcal__pad { aspect-ratio: auto; height: 46px; }
+.holtch .holcal__day { font-size: .82rem; border-radius: 10px; }
+.holtch .holcal__dots { bottom: 6px; }
+.holtch .holcal__dots i { width: 5px; height: 5px; }
+.holtch .holcal__dow { font-size: .68rem; padding-bottom: 6px; }
+
+/* With the rail widened, a holiday's date fits on one line and its type sits
+   beside the name rather than under it. */
+.holtch .holtch-row__body p { margin-top: 4px; }
+.holtch .holtch-row__top { flex-wrap: nowrap; }
+.holtch .holtch-row__top b {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.holtch .holtype { flex-shrink: 0; }
+
+@media (max-width: 1100px) {
+  .holtch .holgrid { grid-template-columns: minmax(0, 1fr); }
+  .holtch .holcal__day,
+  .holtch .holcal__pad { height: 42px; }
+}
+@media (max-width: 768px) {
+  .page.holtch { padding: 16px; gap: 14px; }
+}
+
+/* Three figures across the page rather than pressed against its right edge.
+   Beside the title they left a hand's width of nothing between the subtitle
+   and the first card — the teacher screen can carry them there because its
+   tabs sit under them, but these pages read top to bottom. */
+.holtch-figs--wide {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;
+}
+.holtch-figs--wide .holtch-fig { min-width: 0; padding: 15px 18px; }
+
+@media (max-width: 900px) {
+  .holtch-figs--wide { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 }

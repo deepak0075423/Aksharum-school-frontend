@@ -158,17 +158,39 @@ const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * holiday when there is something to open — the calendar is the fastest way to
  * find the row you meant.
  */
-export const MonthCalendar = ({ title = 'Calendar', month, onMonth, byDay, types, onPick }) => {
+/**
+ * `showAdjacent` fills the corners with the days either side of the month,
+ * greyed — a grid that starts on a Tuesday with three blank boxes reads as
+ * missing data. `onToday` adds the jump back, and `legend` is whatever needs
+ * saying under the grid.
+ *
+ * All three are opt-in: without them this is the calendar the admin screen has
+ * always drawn.
+ */
+export const MonthCalendar = ({
+  title = 'Calendar', month, onMonth, byDay, types, onPick,
+  onToday, showAdjacent, legend,
+}) => {
   const [y, m] = month;
   const first = new Date(y, m, 1);
   const total = new Date(y, m + 1, 0).getDate();
   const lead = first.getDay();
   const t = today();
 
-  const cells = [
-    ...Array.from({ length: lead }, () => null),
-    ...Array.from({ length: total }, (_, i) => i + 1),
-  ];
+  const cell = (date, muted) => ({
+    key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+    day: date.getDate(),
+    muted,
+  });
+
+  const days = Array.from({ length: total }, (_, i) => cell(new Date(y, m, i + 1), false));
+  const before = Array.from({ length: lead }, (_, i) => cell(new Date(y, m, i - lead + 1), true));
+  // Six rows always, so the card does not change height as the months turn.
+  const after = Array.from({ length: (7 - ((lead + total) % 7)) % 7 }, (_, i) => cell(new Date(y, m + 1, i + 1), true));
+
+  const cells = showAdjacent
+    ? [...before, ...days, ...after]
+    : [...Array.from({ length: lead }, () => null), ...days];
 
   const step = (by) => {
     const d = new Date(y, m + by, 1);
@@ -176,10 +198,14 @@ export const MonthCalendar = ({ title = 'Calendar', month, onMonth, byDay, types
   };
 
   return (
-    <section className="card holcal">
+    <section className={`card holcal${title === null ? ' holcal--bare' : ''}`}>
       <header className="holcal__head">
-        <span className="holcal__icon tint-indigo"><Icon name="calendarDays" size={16} /></span>
-        <h2>{title}</h2>
+        {title === null ? null : (
+          <>
+            <span className="holcal__icon tint-indigo"><Icon name="calendarDays" size={16} /></span>
+            <h2>{title}</h2>
+          </>
+        )}
         <div className="holcal__nav">
           <button type="button" onClick={() => step(-1)} aria-label="Previous month">
             <Icon name="chevronLeft" size={15} />
@@ -189,50 +215,52 @@ export const MonthCalendar = ({ title = 'Calendar', month, onMonth, byDay, types
             <Icon name="chevronRight" size={15} />
           </button>
         </div>
+        {onToday ? (
+          <button type="button" className="holcal__today" onClick={onToday}>Today</button>
+        ) : null}
       </header>
 
       <div className="holcal__grid">
         {DOW.map((d) => <span key={d} className="holcal__dow">{d}</span>)}
-        {cells.map((d, i) => {
-          if (d == null) return <span key={`p${i}`} className="holcal__pad" />;
-          const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        {cells.map((c, i) => {
+          if (c == null) return <span key={`p${i}`} className="holcal__pad" />;
+          const { key, day, muted } = c;
           const on = byDay[key] || [];
           const cls = [
             'holcal__day',
+            muted ? 'is-outside' : '',
             on.length ? 'is-holiday' : '',
             key === t ? 'is-today' : '',
           ].filter(Boolean).join(' ');
           const label = on.length
-            ? `${d} — ${on.map((h) => h.name).join(', ')}`
+            ? `${day} — ${on.map((h) => h.name).join(', ')}`
             : undefined;
+          const dots = on.length ? (
+            <span className="holcal__dots">
+              {on.slice(0, 3).map((h, n) => (
+                <i key={h._id || n} className={`tint-${tintFor(h.type, types)}`} />
+              ))}
+            </span>
+          ) : null;
+
           return on.length && onPick
             ? (
               <button key={key} type="button" className={cls} title={label} onClick={() => onPick(on[0])}>
-                {d}
-                <span className="holcal__dots">
-                  {on.slice(0, 3).map((h) => (
-                    <i key={h._id} className={`tint-${tintFor(h.type, types)}`} />
-                  ))}
-                </span>
+                {day}{dots}
               </button>
             )
             : (
-              <span key={key} className={cls} title={label}>
-                {d}
-                {on.length ? (
-                  <span className="holcal__dots">
-                    {on.slice(0, 3).map((h) => <i key={h._id} className={`tint-${tintFor(h.type, types)}`} />)}
-                  </span>
-                ) : null}
-              </span>
+              <span key={key} className={cls} title={label}>{day}{dots}</span>
             );
         })}
       </div>
 
-      <p className="holcal__foot">
-        <Icon name="checkCircle" size={13} />
-        Marked days are holidays in this list. Today is outlined.
-      </p>
+      {legend || (
+        <p className="holcal__foot">
+          <Icon name="checkCircle" size={13} />
+          Marked days are holidays in this list. Today is outlined.
+        </p>
+      )}
     </section>
   );
 };
@@ -295,6 +323,132 @@ export const TypesPanel = ({ types, counts, onManage }) => (
     </ul>
   </section>
 );
+
+// ── One holiday, read ────────────────────────────────────────────────────────
+//
+//  Shared by every role that only reads holidays — teacher, student, parent.
+
+const SHORT_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/**
+ * One holiday, in full: the day it starts as a tear-off date, its name and
+ * type, the date written out, and the note the school left on it. Everything
+ * a reader would otherwise have to open a dialog for.
+ */
+export const HolidayRow = ({ h, types, onPick, meta }) => {
+  const key = dayKey(h.startDate);
+  const [, mm, dd] = key.split('-');
+  const away = daysUntil(key);
+  const state = statusOf(h);
+
+  return (
+    <li className="holtch-row">
+      <span className="holtch-row__date">
+        <b>{dd}</b>
+        <small>{SHORT_MONTHS[Number(mm) - 1]}</small>
+      </span>
+
+      <div className="holtch-row__body">
+        <div className="holtch-row__top">
+          <b>{h.name}</b>
+          <TypeChip type={h.type} types={types} />
+        </div>
+        <p><Icon name="calendar" size={13} />{fmtRange(h)}</p>
+        <p className={h.description ? '' : 'is-quiet'}>
+          <Icon name="documents" size={13} />
+          {h.description || 'No note'}
+        </p>
+        {spanDays(h) > 1 ? (
+          <p><Icon name="clock" size={13} />{spanDays(h)} days</p>
+        ) : null}
+        {meta ? <p className="holtch-row__meta"><Icon name="users" size={13} />{meta}</p> : null}
+      </div>
+
+      <div className="holtch-row__side">
+        <em className={state === 'past' ? 'is-quiet' : ''}>
+          {state === 'past' ? 'Been'
+            : away <= 0 ? 'On now'
+              : away === 1 ? 'Tomorrow'
+                : `in ${away} days`}
+        </em>
+        <button type="button" onClick={() => onPick(h)} aria-label={`Details of ${h.name}`}>
+          <Icon name="dots" size={16} />
+        </button>
+      </div>
+    </li>
+  );
+};
+
+export const HolidayList = ({ title, icon, tone, holidays, types, onPick, empty, metaOf }) => {
+  // Long lists open on the near end; the rest is one click away rather than a
+  // column of forty dates nobody scrolls.
+  const [all, setAll] = useState(false);
+  const shown = all ? holidays : holidays.slice(0, 4);
+
+  return (
+    <section className="card holrail holtch-list">
+      <header className="holrail__head">
+        <span className={`holcal__icon tint-${tone}`}><Icon name={icon} size={16} /></span>
+        <h2>{title}</h2>
+        <b className="holtch-count">{holidays.length}</b>
+        {holidays.length > 4 ? (
+          <button type="button" className="holrail__link" onClick={() => setAll((v) => !v)}>
+            {all ? 'Show less' : 'View all'} <Icon name="chevronRight" size={13} />
+          </button>
+        ) : null}
+      </header>
+      {holidays.length ? (
+        <ul className="holtch-rows">
+          {shown.map((h) => (
+            <HolidayRow key={h._id} h={h} types={types} onPick={onPick} meta={metaOf?.(h)} />
+          ))}
+        </ul>
+      ) : (
+        <div className="holempty">
+          <Icon name="calendar" size={22} />
+          <p>{empty}</p>
+        </div>
+      )}
+    </section>
+  );
+};
+
+/** Everything the list rows leave out. */
+export const HolidayDialog = ({ holiday, types, onClose, appliesTo }) => (
+  <Modal open={!!holiday} onClose={onClose} maxWidth={460}
+    title={holiday?.name || 'Holiday'}
+    footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+    {holiday && (
+      <div className="holtch-detail">
+        <div>
+          <span>When</span>
+          <b>{fmtRange(holiday)}</b>
+        </div>
+        <div>
+          <span>Length</span>
+          <b>{spanDays(holiday) === 1 ? 'One day' : `${spanDays(holiday)} days`}</b>
+        </div>
+        <div>
+          <span>Type</span>
+          <TypeChip type={holiday.type} types={types} />
+        </div>
+        <div>
+          <span>Applies to</span>
+          <b>{appliesTo
+            || (holiday.myClasses?.length ? holiday.myClasses.join(', ') : null)
+            || (holiday.applicability?.scope === 'all' ? 'Everyone at the school' : 'You')}</b>
+        </div>
+        {holiday.description ? <p className="holtch-detail__note">{holiday.description}</p> : null}
+      </div>
+    )}
+  </Modal>
+);
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  My class holidays
+// ═════════════════════════════════════════════════════════════════════════════
+
+
 
 // ── Add / edit ───────────────────────────────────────────────────────────────
 
