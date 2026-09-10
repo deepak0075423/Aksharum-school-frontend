@@ -10525,3 +10525,83 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .libmb-search { flex: 1 1 100%; }
   .libmb-select { flex: 1 1 140px; min-width: 0; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY FINES — what is owed, what was paid, and why
+   ───────────────────────────────────────────────────────────────────────────
+   Shares the module's hero, figures, card and table (.liblg-*, .libsr-*). The
+   rail states the school's actual fine rules rather than linking to a policy
+   page members cannot open — the numbers come from the same policy the charges
+   were calculated from, so the two cannot disagree.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.libfnpg { display: flex; flex-direction: column; gap: 16px; }
+/* The component is a fragment, so the page's flex gap does not reach inside
+   it — its own blocks carry the rhythm. */
+.libfnpg .liblg-figs { margin-bottom: 0; }
+.libfn-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 320px); gap: 16px; align-items: start; margin-top: 16px; }
+.libfn-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.libfn-rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.libfn-loading { display: flex; justify-content: center; padding: 48px 0; }
+
+.libfn-art { width: 214px; height: 92px; color: var(--primary); flex-shrink: 0; }
+
+.libfn-num { width: 34px; color: var(--text-muted); }
+.libfn-table td { vertical-align: middle; }
+.libfn-table td strong { font-weight: 700; }
+.libfn-sub { display: block; font-style: normal; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+.libfn-waived { color: var(--success); }
+.libfn-booktitle { font-size: .9rem; }
+
+.libfn-receipt {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+  font-size: .82rem; font-weight: 600; color: var(--primary);
+}
+.libfn-receipt:hover { color: var(--primary-dark); text-decoration: underline; }
+
+.libfn-note {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 14px;
+  padding: 11px 13px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning) 8%, #fff);
+  border: 1px solid color-mix(in srgb, var(--warning) 26%, transparent);
+  font-size: .82rem; line-height: 1.5; color: var(--text);
+}
+.libfn-note > svg { color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+
+/* ── Quick actions ────────────────────────────────────────────────────────── */
+.libfn-acts { display: flex; flex-direction: column; gap: 10px; }
+.libfn-act {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 13px 14px; border-radius: var(--radius-lg); cursor: pointer; font: inherit;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  transition: border-color var(--transition), background var(--transition);
+}
+.libfn-act > span { flex: 1; min-width: 0; font-size: .89rem; font-weight: 600; }
+.libfn-act em { display: block; font-style: normal; font-size: .76rem; font-weight: 500; opacity: .75; }
+.libfn-act:hover:not(:disabled) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 5%, #fff); }
+.libfn-act:disabled { opacity: .55; cursor: default; }
+.libfn-act--pay {
+  background: var(--primary); border-color: var(--primary); color: var(--text-on-primary);
+}
+.libfn-act--pay:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
+
+/* ── Policy ───────────────────────────────────────────────────────────────── */
+.libfn-policy { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+.libfn-policy li {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: .84rem; line-height: 1.5; color: var(--text-muted);
+}
+.libfn-policy li > svg { color: var(--primary); flex-shrink: 0; margin-top: 2px; }
+.libfn-policy strong { color: var(--text); font-weight: 700; }
+
+.libfn-detailbook { font-size: .95rem; margin-bottom: 8px; }
+.libfn-rule {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid var(--border); font-size: .84rem; color: var(--text-muted); line-height: 1.55;
+}
+.libfn-rule > svg { color: var(--primary); flex-shrink: 0; margin-top: 2px; }
+
+@media (max-width: 1050px) {
+  .libfn-body { grid-template-columns: minmax(0, 1fr); }
+}
