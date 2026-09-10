@@ -9866,3 +9866,245 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .tsec-drawer__who, .tsec-drawer__subs { grid-template-columns: minmax(0, 1fr); }
   .tsec-drawer__figs { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STUDENT / PARENT CLASS — one class, read from two sides
+   ───────────────────────────────────────────────────────────────────────────
+   The student's My Class and the parent's Class Info are the same page about
+   the same class, so they share every shape below and differ only in whose
+   name is on it. The parent's child switch (.scls-kids) is the one part the
+   student page has no use for: a class is one per child, so the switch picks
+   a child rather than merging them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.sclspg { display: flex; flex-direction: column; gap: 16px; }
+
+.scls-t--indigo { --tone: var(--primary); }
+.scls-t--violet { --tone: #7c3aed; }
+.scls-t--green  { --tone: #059669; }
+.scls-t--blue   { --tone: #2563eb; }
+.scls-t--pink   { --tone: #db2777; }
+.scls-t--amber  { --tone: #d97706; }
+
+.scls-ico {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 12%, #fff);
+  color: var(--tone, var(--primary));
+}
+.scls-ico--lg { width: 52px; height: 52px; border-radius: 14px; }
+
+.scls-av {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .85rem; font-weight: 700; letter-spacing: -.01em;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 16%, #fff);
+  color: var(--tone, var(--primary));
+}
+.scls-badge {
+  flex-shrink: 0; white-space: nowrap; border-radius: 999px;
+  padding: 4px 11px; font-size: .71rem; font-weight: 700;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 12%, #fff);
+  color: var(--tone, var(--primary));
+}
+
+/* ── Header band ──────────────────────────────────────────────────────────── */
+.scls-hero {
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  border-radius: var(--radius-xl); padding: 26px 30px;
+  background: linear-gradient(115deg,
+    color-mix(in srgb, var(--primary) 9%, #fff) 0%,
+    color-mix(in srgb, var(--primary) 5%, #fff) 55%,
+    color-mix(in srgb, #7c3aed 7%, #fff) 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+}
+.scls-hero__body { flex: 1 1 340px; min-width: 0; }
+.scls-hero__kicker {
+  display: block; font-size: .74rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+}
+.scls-hero__body h1 { font-size: 2rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; }
+.scls-hero__year { font-size: 1.05rem; font-weight: 600; color: var(--primary-dark); margin-top: 6px; }
+.scls-hero__tag  { font-size: .92rem; color: var(--text-muted); margin-top: 8px; }
+
+/* Ornament: the first thing to go when the row gets tight. */
+.scls-hero__art { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
+.scls-art { width: 300px; height: 152px; color: var(--primary); flex-shrink: 0; }
+.scls-quote {
+  max-width: 180px; font-size: 1.02rem; font-weight: 600; line-height: 1.4;
+  color: var(--text); font-style: normal;
+  border-bottom: 3px solid var(--primary); padding-bottom: 12px;
+}
+
+/* ── The four figures ─────────────────────────────────────────────────────── */
+.scls-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.scls-fig {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 16px 18px;
+}
+.scls-fig__body  { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.scls-fig__label { font-size: .84rem; font-weight: 600; color: var(--text-muted); }
+.scls-fig__value {
+  font-size: 1.45rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.scls-fig__cap   { font-size: .76rem; color: var(--text-muted); margin-top: 3px; }
+.scls-bar {
+  display: block; height: 5px; border-radius: 999px; margin-top: 7px;
+  background: color-mix(in srgb, var(--tone, var(--primary)) 14%, var(--bg));
+}
+.scls-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--tone, var(--primary)); }
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+.scls-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.scls-row2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+
+.scls-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.scls-card__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.scls-card__head h2 {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em;
+}
+.scls-hicon { color: var(--tone, var(--primary)); display: inline-flex; flex-shrink: 0; }
+.scls-card__body { padding: 8px 18px 16px; }
+.scls-more {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  background: none; border: 0; cursor: pointer; padding: 2px 0; text-decoration: none;
+  font: inherit; font-size: .83rem; font-weight: 600; color: var(--primary);
+}
+.scls-more:hover { color: var(--primary-dark); }
+
+/* ── Label/value rows ─────────────────────────────────────────────────────── */
+.scls-info {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 11px 0; border-bottom: 1px solid var(--border); font-size: .88rem;
+}
+.scls-info:last-child { border-bottom: 0; }
+.scls-info > span    { color: var(--text-muted); min-width: 0; }
+.scls-info > strong  { font-weight: 700; text-align: right; min-width: 0; }
+
+/* ── A teacher ────────────────────────────────────────────────────────────── */
+.scls-person { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
+.scls-person + .scls-person { border-top: 1px solid var(--border); }
+.scls-person__body { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.scls-person__body strong { font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scls-person__body em {
+  font-style: normal; font-size: .78rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Quick links ──────────────────────────────────────────────────────────── */
+.scls-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 6px; }
+.scls-quick__item, .scls-quick__wide {
+  display: flex; align-items: center; gap: 9px; text-decoration: none; cursor: pointer;
+  padding: 12px 13px; border-radius: var(--radius); font: inherit;
+  font-size: .86rem; font-weight: 600; text-align: left;
+  background: color-mix(in srgb, var(--tone) 8%, #fff);
+  border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
+  color: var(--tone);
+  transition: background var(--transition), border-color var(--transition);
+}
+.scls-quick__item:hover, .scls-quick__wide:hover {
+  background: color-mix(in srgb, var(--tone) 14%, #fff);
+  border-color: color-mix(in srgb, var(--tone) 34%, transparent);
+}
+.scls-quick__wide { width: 100%; margin-top: 10px; }
+.scls-quick__chev { margin-left: auto; }
+
+/* ── Classmates ───────────────────────────────────────────────────────────── */
+.scls-mates { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; padding-top: 6px; }
+.scls-mate {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 8px 12px 8px 8px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border);
+}
+.scls-mate.is-me {
+  background: color-mix(in srgb, var(--primary) 7%, #fff);
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+}
+.scls-mate__name {
+  min-width: 0; font-size: .88rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.scls-mate__roll { margin-left: auto; font-size: .74rem; color: var(--text-muted); flex-shrink: 0; }
+
+.scls-tags { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 6px; }
+.scls-tag {
+  border-radius: 999px; padding: 5px 13px; font-size: .82rem; font-weight: 600;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-muted);
+}
+
+/* ── Class updates ────────────────────────────────────────────────────────── */
+.scls-updates { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
+.scls-update {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius-lg);
+  border: 1px solid var(--border); background: var(--bg-card);
+}
+.scls-update__body { min-width: 0; flex: 1; }
+.scls-update__body strong { display: block; font-size: .91rem; font-weight: 700; }
+.scls-update__body p {
+  font-size: .82rem; color: var(--text-muted); line-height: 1.45; margin-top: 2px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.scls-update time { font-size: .75rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+.scls-empty { display: flex; align-items: center; gap: 14px; padding: 14px 0 10px; }
+.scls-empty__icon {
+  width: 54px; height: 54px; border-radius: var(--radius-lg); flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--text-light); border: 1px solid var(--border);
+}
+.scls-empty strong { display: block; font-size: .92rem; font-weight: 700; }
+.scls-empty p      { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+.scls-none         { font-size: .85rem; color: var(--text-muted); padding: 12px 0; }
+
+/* ── The parent's child switch ────────────────────────────────────────────── */
+/* Not tabs over one list: each button swaps the whole page to a different
+   child, because two children have two different classes. */
+.scls-kids { display: flex; flex-wrap: wrap; gap: 10px; }
+.scls-kids button {
+  display: flex; align-items: center; gap: 11px; min-width: 210px;
+  padding: 10px 16px 10px 11px; border-radius: var(--radius-lg); cursor: pointer;
+  background: var(--bg-card); border: 1px solid var(--border); font: inherit; text-align: left;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.scls-kids button:hover { border-color: var(--primary-light); }
+.scls-kids button.is-on {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.scls-kids__body { min-width: 0; display: flex; flex-direction: column; }
+.scls-kids__body strong { font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scls-kids__body em {
+  font-style: normal; font-size: .77rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.scls-kids button.is-on .scls-kids__body em { color: var(--primary); }
+.scls-onekid {
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+  padding: 6px 13px; border-radius: 999px; font-size: .83rem; font-weight: 600;
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted);
+}
+.scls-onekid > svg { color: var(--text-light); }
+
+@media (max-width: 1200px) {
+  .scls-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1050px) {
+  .scls-row3, .scls-row2 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 780px) {
+  .scls-hero__art { display: none; }
+  .scls-hero { padding: 20px 22px; }
+  .scls-hero__body h1 { font-size: 1.5rem; }
+  .scls-figs { grid-template-columns: minmax(0, 1fr); }
+  .scls-kids button { min-width: 0; flex: 1 1 100%; }
+}
