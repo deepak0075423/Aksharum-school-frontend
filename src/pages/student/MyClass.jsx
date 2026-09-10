@@ -36,13 +36,30 @@ export default function StudentMyClass() {
   const { data, loading } = useFetch(getMyClass);
   if (loading) return <div className="loading-page"><Spinner /></div>;
 
-  const { section, subjectTeachers = [], classmates = [], monitors = [], announcements = [], profile } = data || {};
+  const {
+    section, subjectTeachers = [], classmates = [], monitors = [], announcements = [],
+    profile, pendingClass,
+  } = data || {};
 
   if (!section) {
+    // Being in a class but not yet in a section is a normal step, not a
+    // problem — telling a student they have no class when the school has
+    // already admitted them to one sends them to the office for nothing.
+    const pending = pendingClass?.className
+      || (pendingClass?.classNumber ? `Class ${pendingClass.classNumber}` : '');
     return (
       <div className="page">
         <PageHeader title="My Class" subtitle="Current class and section info" />
-        <div className="alert alert-warning">You haven't been assigned to a class yet. Please contact your school office.</div>
+        {pending ? (
+          <div className="alert alert-info">
+            You are in <strong>{pending}</strong>. Your section has not been decided yet —
+            your class page will fill in as soon as the school places you in one.
+          </div>
+        ) : (
+          <div className="alert alert-warning">
+            You haven&apos;t been assigned to a class yet. Please contact your school office.
+          </div>
+        )}
       </div>
     );
   }
