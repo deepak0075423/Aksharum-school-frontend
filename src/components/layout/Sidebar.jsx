@@ -1,5 +1,5 @@
 import { useRef, useLayoutEffect } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
 import { useChatNotify } from '../../contexts/ChatNotifyContext';
@@ -71,7 +71,7 @@ const ADMIN_NAV = [
   { to: '/admin/students',          icon: 'student', label: 'Students' },
   { to: '/admin/admins',            icon: 'user', label: 'Admins' },
   { to: '/admin/designations',      icon: 'badge', label: 'Designations' },
-  { to: '/admin/employee-directory/dashboard', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory' },
+  { to: '/admin/employee-directory/dashboard', match: '/admin/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory' },
   { section: 'Academics' },
   { to: '/admin/academic-years',    icon: 'calendar', label: 'Academic Years' },
   { to: '/admin/classes',           icon: 'building', label: 'Classes' },
@@ -82,14 +82,14 @@ const ADMIN_NAV = [
   { to: '/admin/attendance',        icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
   { to: '/admin/student-analytics', icon: 'compass', label: 'Student Analytics' },
   { section: 'Modules' },
-  { to: '/admin/fees/dashboard',    icon: 'wallet', label: 'Fees',          module: 'fees' },
-  { to: '/admin/payroll/dashboard', icon: 'banknote', label: 'Payroll',       module: 'payroll' },
-  { to: '/admin/library/dashboard', icon: 'bookOpen', label: 'Library',       module: 'library' },
-  { to: '/admin/inventory/dashboard', icon: 'package', label: 'Inventory',   module: 'inventory' },
-  { to: '/admin/transport/dashboard', icon: 'bus', label: 'Transport',   module: 'transport' },
-  { to: '/admin/hostel/dashboard',  icon: 'hotel', label: 'Hostel',        module: 'hostel' },
-  { to: '/admin/videos/browse',     icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
-  { to: '/admin/feedback/dashboard', icon: 'star', label: 'Teacher Feedback', module: 'feedback' },
+  { to: '/admin/fees/dashboard', match: '/admin/fees',    icon: 'wallet', label: 'Fees',          module: 'fees' },
+  { to: '/admin/payroll/dashboard', match: '/admin/payroll', icon: 'banknote', label: 'Payroll',       module: 'payroll' },
+  { to: '/admin/library/dashboard', match: '/admin/library', icon: 'bookOpen', label: 'Library',       module: 'library' },
+  { to: '/admin/inventory/dashboard', match: '/admin/inventory', icon: 'package', label: 'Inventory',   module: 'inventory' },
+  { to: '/admin/transport/dashboard', match: '/admin/transport', icon: 'bus', label: 'Transport',   module: 'transport' },
+  { to: '/admin/hostel/dashboard', match: '/admin/hostel',  icon: 'hotel', label: 'Hostel',        module: 'hostel' },
+  { to: '/admin/videos/browse', match: '/admin/videos',     icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
+  { to: '/admin/feedback/dashboard', match: '/admin/feedback', icon: 'star', label: 'Teacher Feedback', module: 'feedback' },
   { to: '/admin/leave',             icon: 'umbrella', label: 'Leave',         module: 'leave' },
   { to: '/admin/documents',         icon: 'files', label: 'Documents',     module: 'document' },
   { to: '/admin/holidays',          icon: 'party', label: 'Holidays',      module: 'holiday' },
@@ -111,20 +111,20 @@ const TEACHER_NAV = [
   { to: '/teacher/timetable',       icon: 'clock', label: 'Timetable',     module: 'timetable' },
   { to: '/teacher/substitutions',   icon: 'repeat', label: 'My Substitutions', module: 'timetable' },
   { to: '/teacher/student-analytics', icon: 'compass', label: 'Student Analytics' },
-  { to: '/teacher/employee-directory/employees', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory' },
+  { to: '/teacher/employee-directory/employees', match: '/teacher/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory' },
   { section: 'Academics' },
   { to: '/teacher/exams',           icon: 'fileCheck', label: 'Aptitude Exams', module: 'aptitudeExam' },
   { to: '/teacher/results',         icon: 'chart', label: 'Results',       module: 'result' },
   { section: 'Modules' },
   { to: '/teacher/leave',           icon: 'umbrella', label: 'My Leave',      module: 'leave' },
   { to: '/teacher/documents',       icon: 'files', label: 'Documents',     module: 'document' },
-  { to: '/teacher/payroll/ctc',     icon: 'banknote', label: 'Payroll',       module: 'payroll' },
+  { to: '/teacher/payroll/ctc', match: '/teacher/payroll',     icon: 'banknote', label: 'Payroll',       module: 'payroll' },
   { to: '/teacher/library',         icon: 'bookOpen', label: 'Library',       module: 'library' },
-  { to: '/teacher/manage-library/dashboard', icon: 'book', label: 'Manage Library', module: 'library', requires: 'isLibrarian' },
-  { to: '/teacher/inventory/requests', icon: 'package', label: 'Inventory',   module: 'inventory' },
-  { to: '/teacher/videos/catalog',  icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
-  { to: '/teacher/feedback/dashboard', icon: 'star', label: 'My Feedback', module: 'feedback' },
-  { to: '/teacher/feedback-review/dashboard', icon: 'school', label: 'Feedback Review', module: 'feedback', requires: 'isPrincipal' },
+  { to: '/teacher/manage-library/dashboard', match: '/teacher/manage-library', icon: 'book', label: 'Manage Library', module: 'library', requires: 'isLibrarian' },
+  { to: '/teacher/inventory/requests', match: '/teacher/inventory', icon: 'package', label: 'Inventory',   module: 'inventory' },
+  { to: '/teacher/videos/catalog', match: '/teacher/videos',  icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
+  { to: '/teacher/feedback/dashboard', match: '/teacher/feedback', icon: 'star', label: 'My Feedback', module: 'feedback' },
+  { to: '/teacher/feedback-review/dashboard', match: '/teacher/feedback-review', icon: 'school', label: 'Feedback Review', module: 'feedback', requires: 'isPrincipal' },
   { to: '/teacher/holidays',        icon: 'party', label: 'Holidays',      module: 'holiday' },
   { to: '/teacher/notifications',   icon: 'bell', label: 'Notifications', module: 'notification' },
   { to: '/chat',                    icon: 'chat', label: 'Chat',          module: 'chat' },
@@ -168,7 +168,7 @@ const PARENT_NAV = [
   { to: '/parent/documents',        icon: 'files', label: 'Documents',     module: 'document' },
   { to: '/parent/holidays',         icon: 'party', label: 'Holidays',      module: 'holiday' },
   { to: '/parent/child-fees',       icon: 'wallet', label: 'Fees',          module: 'fees' },
-  { to: '/parent/transport/track',  icon: 'bus', label: 'Transport',     module: 'transport' },
+  { to: '/parent/transport/track', match: '/parent/transport',  icon: 'bus', label: 'Transport',     module: 'transport' },
   { to: '/parent/hostel',           icon: 'hotel', label: 'Hostel',        module: 'hostel' },
   { to: '/parent/notifications',    icon: 'bell', label: 'Notifications', module: 'notification' },
   { to: '/chat',                    icon: 'chat', label: 'Chat',          module: 'chat' },
@@ -198,6 +198,7 @@ const NAV_MAP = {
 const TEACHER_OWN_ADMIN = new Set(['library', 'feedback']);
 
 export default function Sidebar({ onLinkClick, collapsed }) {
+  const { pathname } = useLocation();
   const { user } = useAuth();
   const { unreadTotal } = useChatNotify();
   const { modules, ready: modulesReady } = useModules();
@@ -286,7 +287,14 @@ export default function Sidebar({ onLinkClick, collapsed }) {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => `sidebar__link${isActive ? ' active' : ''}`}
+              // `match` marks an entry that opens one tab of a wider module, so
+              // the whole module stays lit while you move between its tabs.
+              className={({ isActive }) => {
+                const on = item.match
+                  ? pathname === item.match || pathname.startsWith(`${item.match}/`)
+                  : isActive;
+                return `sidebar__link${on ? ' active' : ''}`;
+              }}
               onClick={onLinkClick}
               title={collapsed ? item.label : undefined}
             >

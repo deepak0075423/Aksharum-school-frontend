@@ -48,6 +48,11 @@ export const markReservationReady= (id)         => api.post(`/library/reservatio
 export const cancelReservation   = (id, reason) => api.delete(`/library/reservations/${id}`, { data: { reason } });
 export const getFines            = (params)     => api.get('/library/fines', { params });
 export const collectFine         = (id)         => api.post(`/library/fines/${id}/collect`);
+// Settling several at once — each still gets its own receipt, because a receipt
+// covering three fines is not a document this module knows how to produce.
+export const collectFines        = (ids)        => api.post('/library/fines/collect', { ids });
+// Raising one by hand, against an existing loan.
+export const createFine          = (data)       => api.post('/library/fines', data);
 // `amount` omitted waives the whole outstanding balance; a number waives part.
 export const waiveFine           = (id, data)   => api.post(`/library/fines/${id}/waive`, data);
 export const getPolicy           = ()           => api.get('/library/policy');

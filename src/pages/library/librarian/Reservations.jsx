@@ -14,7 +14,7 @@
  * unreachable.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import {
@@ -43,9 +43,18 @@ export default function LibraryReservations() {
 
   // All by default — the queue is only half the story; expired and collected
   // rows are what a librarian checks when someone asks what happened.
+  // In the URL, so the tiles above filter the queue and a link to "what is on
+  // the hold shelf" survives being pasted to somebody else.
+  const [params, setParams] = useSearchParams();
+  const status = params.get('status') || '';
+  const setStatus = (value) => {
+    setParams((p) => { if (value) p.set('status', value); else p.delete('status'); return p; },
+      { replace: true });
+    setPage(1);
+  };
+
   const [search,  setSearch]  = useState('');
   const [term,    setTerm]    = useState('');
-  const [status,  setStatus]  = useState('');
   const [classId, setClassId] = useState('');
   const [range,   setRange]   = useState({ from: '', to: '' });
   const [page,    setPage]    = useState(1);
@@ -231,23 +240,23 @@ export default function LibraryReservations() {
         quote={heroQuote} />
 
       <div className="libd-tiles">
-        <Tile icon="checkCircle" tone="green" to={`${pathname}`}
+        <Tile icon="checkCircle" tone="green" to={`${pathname}?status=ready`}
           value={stats.ready ?? 0} label="On the hold shelf" caption="Called up and waiting to be collected"
           trend={stats.expiringSoon
             ? { dir: 'down', text: `${stats.expiringSoon} lapse within 2 days` }
             : note('None about to lapse')} />
 
-        <Tile icon="clock" tone="amber" to={`${pathname}`}
+        <Tile icon="clock" tone="amber" to={`${pathname}?status=pending`}
           value={stats.waiting ?? 0} label="Waiting in queue" caption="Queued behind a loan"
           trend={stats.longestWaitDays
             ? note(`Longest wait ${stats.longestWaitDays} day${stats.longestWaitDays === 1 ? '' : 's'}`)
             : note('Nobody waiting')} />
 
-        <Tile icon="repeat" tone="blue" to={`${pathname}`}
+        <Tile icon="repeat" tone="blue" to={`${pathname}?status=collected`}
           value={stats.collectedThisMonth ?? 0} label="Collected this month" caption="Holds that were picked up"
           trend={delta(stats.collectedThisMonth || 0, stats.collectedLastMonth || 0, 'last month')} />
 
-        <Tile icon="close" tone="pink" to={`${pathname}`}
+        <Tile icon="close" tone="pink" to={`${pathname}?status=cancelled`}
           value={stats.closedThisMonth ?? 0} label="Came to nothing" caption="Cancelled or lapsed this month"
           trend={delta(stats.closedThisMonth || 0, stats.closedLastMonth || 0, 'last month')} />
       </div>

@@ -37,12 +37,21 @@ export default function LibraryCirculation() {
   // exception is arriving from the dashboard's Overdue tile, which asks for a
   // status in the URL: reading "2 overdue" and landing on all two hundred
   // issuances is not an answer.
-  const [params] = useSearchParams();
-  const [statusFilter, setStatusFilter] = useState(() => params.get('status') || '');
+  // The status lives in the URL, not in state. It used to be read once into
+  // `useState` at mount, so arriving from the dashboard's Overdue tile worked
+  // but clicking a tile on THIS page changed the address bar and nothing else —
+  // the filter never moved. Reading it every render is what makes those tiles,
+  // the browser's Back button and a pasted link all do the same thing.
+  const [params, setParams] = useSearchParams();
+  const statusFilter = params.get('status') || '';
+  const setStatusFilter = (value) => {
+    setParams((p) => { if (value) p.set('status', value); else p.delete('status'); return p; },
+      { replace: true });
+    setPage(1);
+  };
   const [roleFilter,   setRoleFilter]   = useState('');
   const [classFilter,  setClassFilter]  = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
-  const [memberFilter, setMemberFilter] = useState('');   // one member's loans
   const [range,  setRange]  = useState({ from: '', to: '' });
   const [search, setSearch] = useState('');
   const [term,   setTerm]   = useState('');
@@ -63,11 +72,12 @@ export default function LibraryCirculation() {
     role:      roleFilter    || undefined,
     classId:   classFilter   || undefined,
     sectionId: sectionFilter || undefined,
-    userId:    memberFilter  || undefined,
     from:      range.from    || undefined,
     to:        range.to      || undefined,
     q:         term          || undefined,
-  }), [statusFilter, roleFilter, classFilter, sectionFilter, memberFilter, range, term]);
+    // The endpoint also takes `userId`; the search box finds one person's loans
+    // by name, which is how the question arrives at the desk.
+  }), [statusFilter, roleFilter, classFilter, sectionFilter, range, term]);
   const filterKey = JSON.stringify(filters);
 
   const { data, meta, loading, refetch } = useFetch(
@@ -106,14 +116,14 @@ export default function LibraryCirculation() {
 
   const resetAll = () => {
     setStatusFilter(''); setRoleFilter(''); setClassFilter(''); setSectionFilter('');
-    setMemberFilter(''); setRange({ from: '', to: '' }); setSearch(''); setTerm(''); setPage(1);
+    setRange({ from: '', to: '' }); setSearch(''); setTerm(''); setPage(1);
   };
 
   const resetFilters = () => {
     setStatusFilter(''); setRoleFilter(''); setClassFilter('');
     setSectionFilter(''); setMemberFilter(''); setPage(1);
   };
-  const filtersOn = !!(statusFilter || roleFilter || classFilter || sectionFilter || memberFilter
+  const filtersOn = !!(statusFilter || roleFilter || classFilter || sectionFilter
     || range.from || range.to || term);
 
   // format=xlsx is what makes this endpoint return a spreadsheet rather than the
@@ -391,8 +401,6 @@ export default function LibraryCirculation() {
           </select>
 
           <select className="form-control libc-sel" value={roleFilter} aria-label="Filter by who borrowed"
-            disabled={!!memberFilter}
-            title={memberFilter ? 'Clear the member to filter by role' : undefined}
             onChange={(e) => {
               setRoleFilter(e.target.value);
               // Class and section describe students only.
@@ -405,14 +413,13 @@ export default function LibraryCirculation() {
           {roleFilter !== 'teacher' && (
             <>
               <select className="form-control libc-sel" value={classFilter} aria-label="Filter by class"
-                disabled={!!memberFilter}
                 onChange={(e) => { setClassFilter(e.target.value); setSectionFilter(''); setPage(1); }}>
                 <option value="">All classes</option>
                 {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
 
               <select className="form-control libc-sel" value={sectionFilter} aria-label="Filter by section"
-                disabled={!classFilter || !!memberFilter}
+                disabled={!classFilter}
                 onChange={(e) => { setSectionFilter(e.target.value); setPage(1); }}>
                 <option value="">{classFilter ? 'All sections' : 'Pick a class first'}</option>
                 {sections.map((sec) => <option key={sec._id} value={sec._id}>{sec.name}</option>)}
@@ -424,11 +431,6 @@ export default function LibraryCirculation() {
             onChange={(r) => { setRange(r); setPage(1); }} />
 
           <SearchBox value={search} onChange={setSearch} />
-
-          {/* One named person's loans — the commonest thing a librarian is
-              asked for at the desk. */}
-          <MemberPicker compact placeholder="One member…" role={roleFilter || undefined}
-            value={memberFilter} onChange={(id) => { setMemberFilter(id); setPage(1); }} />
 
           <Button variant="secondary" onClick={exportList}
             title="Export what is filtered here, not just this page">

@@ -7361,9 +7361,12 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libd-tile__body  { flex: 1; min-width: 0; }
 .libd-tile__value { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
 .libd-tile__label { display: block; font-size: .82rem; font-weight: 600; margin-top: 2px; }
+/* Wraps to a second line rather than truncating: "Loans made since Monday"
+   cut to "Loans made since …" tells the reader nothing. */
 .libd-tile__cap   {
-  display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  font-size: .72rem; color: var(--text-muted); margin-top: 2px;
+  line-height: 1.35; overflow: hidden;
 }
 /* The direction is in the words as well as in the arrow and the colour. */
 .libd-trend {
@@ -7939,4 +7942,73 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 @media (max-width: 768px) {
   .libr-bar__acts { margin-left: 0; width: 100%; }
   .libr-bar__acts .btn { flex: 1; justify-content: center; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY FINES — the money register
+   ───────────────────────────────────────────────────────────────────────────
+   Shares the library header and tiles, the circulation filter bar and the
+   reservation status chips. Three statuses and no more: a written-off fine is
+   what "cancelled" would mean, so there is no chip for a state nothing can be
+   in. What is owed is arithmetic — amount − waived − paid — so a part-settled
+   fine shows its parts and its remainder rather than one misleading number.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.libf-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.libf-who__mark {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #ede9fe; color: var(--primary); font-size: .74rem; font-weight: 700;
+}
+.libf-who b     { display: block; font-size: .83rem; font-weight: 600; }
+.libf-who small { display: block; font-size: .71rem; color: var(--text-muted); margin-top: 1px; }
+
+.libf-book { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.libf-book b     { display: block; font-size: .83rem; font-weight: 600; line-height: 1.3; }
+.libf-book small {
+  display: block; font-size: .7rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;
+}
+/* No cover art in the catalogue, so a fine leads with the book's spine. */
+.libf-spine {
+  width: 28px; height: 36px; border-radius: 3px 5px 5px 3px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-left: 3px solid rgba(0, 0, 0, .22);
+  color: #fff; font-size: .78rem; font-weight: 700;
+}
+
+.libf-amount b     { display: block; font-size: .88rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.libf-amount small { display: block; font-size: .69rem; color: var(--text-muted); margin-top: 1px; }
+/* The remainder is the number somebody has to do something about. */
+.libf-amount em    { display: block; font-size: .7rem; font-style: normal; font-weight: 600; color: #dc2626; margin-top: 1px; }
+
+.libf-pay small {
+  display: block; font-size: .68rem; color: var(--text-muted); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;
+}
+
+.libf-late {
+  display: inline-block; min-width: 28px; text-align: center;
+  padding: 2px 8px; border-radius: 999px;
+  background: #fef3c7; color: #b45309;
+  font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+.libf-col-member { width: 175px; }
+.libf-col-book   { min-width: 190px; }
+.libf-col-date   { width: 120px; white-space: nowrap; }
+.libf-col-reason { width: 115px; }
+.libf-col-late   { width: 90px; }
+.libf-col-amount { width: 120px; }
+.libf-col-status { width: 130px; }
+
+/* The date window sits with the actions rather than in the filter row — it is
+   the period the money is being read over, not another way of narrowing. */
+.libfpg .libr-bar__acts { align-items: center; }
+
+.libf-add2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+@media (max-width: 768px) {
+  .libf-add2 { grid-template-columns: minmax(0, 1fr); }
 }
