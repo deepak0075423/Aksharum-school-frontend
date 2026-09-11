@@ -82,6 +82,10 @@ const PATHS = {
   logOut:      <><path d="M9 3.5H5.5A1.5 1.5 0 0 0 4 5v14a1.5 1.5 0 0 0 1.5 1.5H9" /><path d="M16 16.5 20.5 12 16 7.5" /><path d="M20.5 12h-11" /></>,
   checkCircle: <><circle cx="12" cy="12" r="9" /><path d="m8.2 12.3 2.6 2.6 5-5.3" /></>,
   alert:       <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.2" /><circle cx="12" cy="16.3" r=".95" fill="currentColor" stroke="none" /></>,
+  closeCircle: <><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6M15 9l-6 6" /></>,
+  heart:       <path d="M12 20.3 4.6 13a4.8 4.8 0 0 1 6.8-6.8l.6.6.6-.6A4.8 4.8 0 0 1 19.4 13z" />,
+  briefcase:   <><rect x="2.8" y="7.2" width="18.4" height="12.8" rx="2.4" /><path d="M8.6 7.2V5.6A1.8 1.8 0 0 1 10.4 3.8h3.2a1.8 1.8 0 0 1 1.8 1.8v1.6" /><path d="M2.8 12.4h18.4" /><path d="M10.4 12.4v2h3.2v-2" /></>,
+  info:        <><circle cx="12" cy="12" r="9" /><path d="M12 11.4v5" /><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none" /></>,
   megaphone:   <><path d="M3.5 10.2v3.6a1.8 1.8 0 0 0 1.8 1.8h1.4l1.2 4.3a1.2 1.2 0 0 0 1.2.9h.6a1 1 0 0 0 1-1.3l-1.1-3.9h.4L19 19V5l-8.8 4.4H5.3a1.8 1.8 0 0 0-1.8 1.8z" /><path d="M21 9.6v4.8" /></>,
   sparkle:     <><path d="m12 3.5 1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" /><path d="M18.6 16.4 19.4 18l1.6.8-1.6.8-.8 1.6-.8-1.6-1.6-.8 1.6-.8z" /></>,
   activity:    <path d="M3.5 12.5h4l2.4-6.8 4 13 2.5-6.2h4.1" />,
@@ -165,6 +169,47 @@ export const TrophyScene = ({ className = '' }) => (
       <rect x="32" y="91" width="76" height="11" rx="2.4" />
       <rect x="42" y="102" width="56" height="11" rx="2.4" />
       <path d="M48 80v11M52 91v11M56 102v11" opacity=".5" strokeWidth="1.6" />
+    </g>
+  </svg>
+);
+
+/**
+ * A wall calendar between a pair of potted plants — the leave header.
+ *
+ * The module is a calendar problem before it is anything else, and the drawing
+ * says so without repeating the title.
+ */
+export const LeaveScene = ({ className = '' }) => (
+  <svg viewBox="0 0 250 120" fill="none" className={className} aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* calendar body */}
+      <rect x="74" y="26" width="102" height="82" rx="7" />
+      <path d="M74 46h102" />
+      {/* rings */}
+      <path d="M96 18v14M126 18v14M156 18v14" />
+      {/* the month's squares — the two filled ones are the days off */}
+      <rect x="88" y="57" width="15" height="13" rx="2.2" opacity=".55" />
+      <rect x="110" y="57" width="15" height="13" rx="2.2" fill="currentColor" opacity=".22" stroke="none" />
+      <rect x="110" y="57" width="15" height="13" rx="2.2" opacity=".55" />
+      <rect x="132" y="57" width="15" height="13" rx="2.2" opacity=".55" />
+      <rect x="154" y="57" width="12" height="13" rx="2.2" opacity=".35" />
+      <rect x="88" y="78" width="15" height="13" rx="2.2" opacity=".55" />
+      <rect x="110" y="78" width="15" height="13" rx="2.2" opacity=".55" />
+      <rect x="132" y="78" width="15" height="13" rx="2.2" fill="currentColor" opacity=".22" stroke="none" />
+      <rect x="132" y="78" width="15" height="13" rx="2.2" opacity=".55" />
+      <rect x="154" y="78" width="12" height="13" rx="2.2" opacity=".35" />
+      {/* pot, left */}
+      <path d="M36 108h26l-3-20H39z" />
+      <path d="M49 88V72" />
+      <path d="M49 78c-4-1-9-5-9-11 5 0 9 4 9 11zM49 74c4-1.6 9-5.4 9-11-5 0-9 4-9 11z" />
+      {/* pot, right */}
+      <path d="M190 108h24l-2.6-18h-18.8z" />
+      <path d="M202 90V76" />
+      <path d="M202 82c-3.4-1-7.6-4.2-7.6-9.2 4.2 0 7.6 3.4 7.6 9.2zM202 79c3.4-1.4 7.6-4.6 7.6-9.4-4.2 0-7.6 3.4-7.6 9.4z" />
+      {/* books under the right pot */}
+      <rect x="186" y="99" width="34" height="9" rx="2.2" opacity=".7" />
+      {/* ground */}
+      <path d="M26 108h198" opacity=".45" />
     </g>
   </svg>
 );

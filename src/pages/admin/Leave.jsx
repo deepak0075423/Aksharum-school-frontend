@@ -2,14 +2,25 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Modal, Spinner, Pagination } from '../../components/ui/index';
-import { AdminCompOff, AdminCompOffPolicy } from './CompOff';
+import { Button, Modal, Spinner, Empty } from '../../components/ui/index';
+import Icon, { LeaveScene } from '../../components/ui/icons';
+import { AdminCompOff } from './CompOff';
 import AdminLeavePolicies from './LeavePolicies';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
 import { useSearchParams } from 'react-router-dom';
 import useFocusTarget, { useFocusFilterReset } from '../../hooks/useFocusTarget';
-
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+// The row menu is the one thing this page borrows from the account-list frame:
+// it is portalled, so it is never clipped by the table's scroll box.
+import { IconAction, MenuItem, MenuSep, RowActions, RowMenu, useSelection } from './listParts';
+// Everything that knows what a leave request is.
+import {
+  AllocChips, ApprovalStep, CardHead, DateRange, DecisionDialog, FilterRow, FilterSelect,
+  HeadField, LeaveHero, LeaveStat, LeaveStats, LeaveTabs, NotesPanel, Pager, PeriodCell,
+  QuickLinks, ReasonCell, ReportDrawer, RequestDrawer, STATUS_OPTIONS, SearchBox, SectionHead,
+  ShowingCount, SplitButton, StatusBadge, TeacherCell, Toggle, TrendBars, TypeNameCell,
+  ChartCard,
+  BalanceDrawer, BalancePill, HelpPanel, LeaveDonut, chipTones, dayNum, docUrl, donutSlices, fmtDate,
+} from './leaveParts';
 
 const STATUS_VARIANT = {
   pending: 'warning', approved: 'success', rejected: 'danger',
@@ -18,7 +29,7 @@ const STATUS_VARIANT = {
 
 // Identity and entitlement only — every rule lives in the type's LeavePolicy
 const EMPTY_TYPE = {
-  name: '', code: '', category: 'general', annualAllocation: 12, isActive: true,
+  name: '', code: '', description: '', category: 'general', annualAllocation: 12, isActive: true,
 };
 
 const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
@@ -88,23 +99,44 @@ export default function AdminLeave() {
   const [tab, setTab] = useState(
     ['requests', 'types', 'policies', 'allocations', 'balance', 'compoff', 'reports'].includes(wantedTab) ? wantedTab : 'requests');
 
+  // ── The landing figures ──────────────────────────────────────────────────────
+  // One call behind the tiles and the rail. Counted in Postgres — the page
+  // states five numbers about a table that holds years of applications, and
+  // paging that table into the browser to add them up is how the old screen
+  // ended up showing none of them.
+  const { data: ovData, loading: ovLoading, refetch: refetchOverview } = useFetch(api.getLeaveOverview);
+  const ov = ovData || {};
+
   // ── Requests ─────────────────────────────────────────────────────────────────
   const [reqPage,      setReqPage]      = useState(1);
+  // Fixed: this design has no rows-per-page control, so the page size is a
+  // constant rather than state nothing can change.
+  const reqLimit = 10;
+  const [reqSearch,    setReqSearch]    = useState('');
+  const [reqTerm,      setReqTerm]      = useState('');
   const [reqStatus,    setReqStatus]    = useState('');
   const [reqTeacher,   setReqTeacher]   = useState('');
   const [reqLeaveType, setReqLeaveType] = useState('');
   const [reqFromDate,  setReqFromDate]  = useState('');
   const [reqToDate,    setReqToDate]    = useState('');
-  const [actionModal, setActionModal] = useState(null); // { type, request }
+  const [detail,       setDetail]       = useState(null);  // the row in the drawer
+  const [decision,  setDecision]  = useState(null); // { kind, request, ids }
   const [comment,   setComment]   = useState('');
   const [actLoad,   setActLoad]   = useState(false);
+
+  // A request per keystroke is a request per keystroke; wait for a pause.
+  useEffect(() => {
+    const t = setTimeout(() => { setReqTerm(reqSearch.trim()); setReqPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [reqSearch]);
 
   // Following a notification: the server is told which request to show and
   // answers with the page holding it, instead of page 1 where it rarely is.
   const { focusId, release: releaseFocus } = useFocusTarget();
   const { data: reqData, meta: reqMeta, loading: reqLoading, refetch: refetchReq } = useFetch(
     () => api.getLeaveRequests({
-      page: reqPage, limit: 20,
+      page: reqPage, limit: reqLimit,
+      q:         reqTerm      || undefined,
       status:    reqStatus    || undefined,
       teacherId: reqTeacher   || undefined,
       leaveType: reqLeaveType || undefined,
@@ -112,11 +144,16 @@ export default function AdminLeave() {
       toDate:    reqToDate    || undefined,
       focus:     focusId      || undefined,
     }),
-    [reqPage, reqStatus, reqTeacher, reqLeaveType, reqFromDate, reqToDate, focusId],
+    [reqPage, reqLimit, reqTerm, reqStatus, reqTeacher, reqLeaveType,
+     reqFromDate, reqToDate, focusId],
   );
+  const requests = reqData || [];
+
+  const anyReqFilter = !!(reqTerm || reqStatus || reqTeacher || reqLeaveType || reqFromDate || reqToDate);
 
   const clearReqFilters = useCallback(() => {
     setReqStatus(''); setReqTeacher(''); setReqLeaveType('');
+    setReqSearch(''); setReqTerm('');
     setReqFromDate(''); setReqToDate(''); setReqPage(1);
   }, []);
   // The request exists but a filter in force hides it — clearing them is what
@@ -133,19 +170,24 @@ export default function AdminLeave() {
   const { data: teachers } = useFetch(api.getLeaveEmployees);
   const teacherList = teachers || [];
 
-  const handleAction = async () => {
-    if (!actionModal) return;
+  const askDecision = (kind, request) => { setComment(''); setDecision({ kind, request }); };
+
+  /** Approve, reject or reverse one request. */
+  const runDecision = async () => {
+    if (!decision) return;
+    const { kind, request } = decision;
+    const call = kind === 'approve' ? api.approveLeave
+      : kind === 'reject' ? api.rejectLeave
+      : api.reverseApprovedLeave;
+
     setActLoad(true);
     try {
-      const { type, request } = actionModal;
-      if (type === 'approve')   await api.approveLeave(request._id, { adminComment: comment });
-      else if (type === 'reject')  await api.rejectLeave(request._id, { adminComment: comment });
-      else if (type === 'reverse') await api.reverseApprovedLeave(request._id, { adminComment: comment });
-      toast.success(type === 'approve' ? 'Leave approved'
-        : type === 'reject'  ? 'Leave rejected'
+      await call(request._id, { adminComment: comment });
+      toast.success(kind === 'approve' ? 'Leave approved'
+        : kind === 'reject'  ? 'Leave rejected'
         : `Leave reversed — ${request.totalDays} day(s) restored`);
-      setActionModal(null); setComment('');
-      refetchReq();
+      setDecision(null); setComment(''); setDetail(null);
+      refetchReq(); refetchOverview();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setActLoad(false); }
   };
@@ -205,48 +247,117 @@ export default function AdminLeave() {
       await api.adminApplyLeave(fd);
       toast.success('Leave applied');
       closeApply();
-      refetchReq();
+      refetchReq(); refetchOverview();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setApplyLoad(false); }
   };
 
-  const reqColumns = [
-    { key: 'teacher',  label: 'Teacher',  render: r => <div><div style={{ fontWeight: 600 }}>{r.teacher?.name || '—'}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.teacher?.employeeId || ''}</div></div> },
-    { key: 'type',     label: 'Type',     render: r => r.leaveType?.name || '—' },
-    { key: 'dates',    label: 'Period',   render: r => (
-      <div>
-        <div>{fmtDate(r.fromDate)} – {fmtDate(r.toDate)}</div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-          {r.totalDays} day(s) · {r.leaveMode === 'half_day'
-            ? `half day (${r.halfDaySession === 'second' ? '2nd' : '1st'})`
-            : 'full day'}
+  /**
+   * The queue itself.
+   *
+   * Hand-written rather than driven through the shared ListTable: this design
+   * wants a numbered row, a days column of its own and labelled decision
+   * buttons, none of which that component does.
+   */
+  const RequestRows = () => {
+    if (reqLoading) {
+      return (
+        <div className="lvtable__state"><Spinner /></div>
+      );
+    }
+    if (!requests.length) {
+      return (
+        <div className="lvtable__state">
+          <Empty
+            icon={anyReqFilter ? '🔍' : '🏖️'}
+            title={anyReqFilter ? 'No requests match these filters' : 'No leave requests yet'}
+            message={anyReqFilter
+              ? 'Try a different status, teacher or date range.'
+              : 'Requests filed by staff land here for a decision. You can also file one on a teacher\u2019s behalf.'}
+            action={anyReqFilter
+              ? <Button variant="secondary" onClick={() => { releaseFocus(); clearReqFilters(); }}>Clear filters</Button>
+              : <Button onClick={openApply}>+ Apply Leave</Button>}
+          />
         </div>
-        {r.lopDays > 0 && (
-          <div style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600 }}>
-            {r.lopDays} day(s) loss of pay
-          </div>
-        )}
+      );
+    }
+    const start = ((reqMeta?.page || reqPage) - 1) * reqLimit;
+    return (
+      <div className="lvtable__wrap">
+        <table className="lvtable">
+          <thead>
+            <tr>
+              <th className="lvt-num">#</th>
+              <th>Teacher</th>
+              <th>Leave Type</th>
+              <th>Period</th>
+              <th className="lvt-days">Days</th>
+              <th>Status</th>
+              <th>Reason</th>
+              <th className="lvt-applied">Applied On</th>
+              <th className="lvt-acts">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((r, i) => (
+              // The row id goes on data-focus-id so a notification or the
+              // header's global search can flag the row it was about.
+              <tr key={r._id} data-focus-id={r._id}>
+                <td className="lvt-num">{start + i + 1}</td>
+                <td><TeacherCell request={r} /></td>
+                <td className="lvt-type">{r.leaveType?.name || '—'}</td>
+                <td><PeriodCell request={r} /></td>
+                <td className="lvt-days">{dayNum(r.totalDays)}</td>
+                <td>
+                  <StatusBadge status={r.status} />
+                  <ApprovalStep request={r} />
+                </td>
+                <td className="lvt-reason"><ReasonCell request={r} /></td>
+                <td className="lvt-applied">{fmtDate(r.appliedAt) || '—'}</td>
+                <td className="lvt-acts">
+                  <div className="lvrowacts">
+                    {/* The decision is the work and keeps its words; looking at
+                        the record is the same eye it is on every other list. */}
+                    {r.status === 'pending' && (
+                      <div className="lvacts">
+                        <button type="button" className="lvbtn lvbtn--approve"
+                          onClick={() => askDecision('approve', r)}>Approve</button>
+                        <button type="button" className="lvbtn lvbtn--reject"
+                          onClick={() => askDecision('reject', r)}>Reject</button>
+                      </div>
+                    )}
+                    <RowActions>
+                      <IconAction icon="eye" label="View request" onClick={() => setDetail(r)} />
+                      <RowMenu>
+                        <MenuItem icon="eye" onClick={() => setDetail(r)}>View full request</MenuItem>
+                      {r.document && (
+                        <MenuItem icon="files" onClick={() => window.open(docUrl(r.document), '_blank', 'noopener')}>
+                          Open attachment
+                        </MenuItem>
+                      )}
+                      <MenuItem icon="user" onClick={() => { releaseFocus(); setReqTeacher(r.teacher?._id || ''); setReqPage(1); }}>
+                        Only this teacher
+                      </MenuItem>
+                      {/* Undoing an approval is the only way the days go back. */}
+                      {r.status === 'approved' && (
+                        <>
+                          <MenuSep />
+                          <MenuItem icon="repeat" danger onClick={() => askDecision('reverse', r)}>
+                            Reverse approval
+                          </MenuItem>
+                        </>
+                      )}
+                      </RowMenu>
+                    </RowActions>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    )},
-    { key: 'status',   label: 'Status',   render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge> },
-    { key: 'reason',   label: 'Reason',   render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
-    { key: 'doc',      label: 'Doc',      render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
-    { key: 'actions',  label: '',         render: r => {
-      if (r.status === 'pending') return (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button className="btn btn-success btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'approve', request: r }); }}>Approve</button>
-          <button className="btn btn-danger btn-sm"  onClick={() => { setComment(''); setActionModal({ type: 'reject',  request: r }); }}>Reject</button>
-        </div>
-      );
-      // Undoing an approval is the only way to hand the days back — and the
-      // Comp Off screen refuses to withdraw a credit until the leave that spent
-      // it has been reversed here.
-      if (r.status === 'approved') return (
-        <button className="btn btn-secondary btn-sm" onClick={() => { setComment(''); setActionModal({ type: 'reverse', request: r }); }}>Reverse</button>
-      );
-      return null;
-    }},
-  ];
+    );
+  };
 
   // ── Leave Types ───────────────────────────────────────────────────────────────
   const [typeModal, setTypeModal] = useState(false);
@@ -257,8 +368,105 @@ export default function AdminLeave() {
   const [delLoad,   setDelLoad]   = useState(false);
   const [delImpact, setDelImpact] = useState(null);   // what the delete would wipe
   const [impactLoad, setImpactLoad] = useState(false);
-  const { data: typesData, refetch: refetchTypes } = useFetch(api.getLeaveTypes);
+  const { data: typesData, loading: typesLoading, refetch: refetchTypes } = useFetch(api.getLeaveTypes);
   const leaveTypes = typesData || [];
+
+  /**
+   * Whether this school runs Comp Off at all.
+   *
+   * The whole feature hangs off one leave type, so a school that has not
+   * created one has nothing behind that tab — no requests, no balances, no
+   * policy worth configuring. `category` is the contract; the COMPOFF code is
+   * honoured too, for types created before that field existed (the same pair
+   * compOffService.resolveContext tests).
+   *
+   * Deliberately not "is it *active*": an inactive type still holds history,
+   * and the tab is where an admin would switch it back on.
+   */
+  const hasCompOff = leaveTypes.some(
+    (t) => t.category === 'compoff' || String(t.code || '').toUpperCase() === 'COMPOFF',
+  );
+
+  // A deep link to ?tab=compoff at a school with no Comp Off type lands on the
+  // queue instead. Held until the types have actually arrived — on the first
+  // render nothing has loaded, and bouncing then would fight the link.
+  useEffect(() => {
+    if (typesData && tab === 'compoff' && !hasCompOff) setTab('requests');
+  }, [typesData, hasCompOff, tab]);
+
+  // The type list is a handful of rows that all arrive in one call, so the
+  // search, the status filter and the pager are worked out here rather than
+  // being a round trip each.
+  const [typeSearch, setTypeSearch] = useState('');
+  const [typeStatus, setTypeStatus] = useState('');
+  const [typePage,   setTypePage]   = useState(1);
+  const [toggling,   setToggling]   = useState(null);   // the type mid-switch
+  const TYPE_PAGE = 10;
+
+  const typeCounts = {
+    total:    leaveTypes.length,
+    active:   leaveTypes.filter((t) => t.isActive !== false).length,
+    inactive: leaveTypes.filter((t) => t.isActive === false).length,
+    // Comp off is earned, never allocated, so counting its zero in the annual
+    // total would be counting a figure that does not mean anything.
+    allocation: leaveTypes
+      .filter((t) => t.isActive !== false && t.category !== 'compoff')
+      .reduce((n, t) => n + (Number(t.annualAllocation) || 0), 0),
+  };
+
+  const typesFiltered = leaveTypes.filter((t) => {
+    if (typeStatus === 'active'   && t.isActive === false) return false;
+    if (typeStatus === 'inactive' && t.isActive !== false) return false;
+    const q = typeSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [t.name, t.code, t.description].filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  });
+  const typePages = Math.max(1, Math.ceil(typesFiltered.length / TYPE_PAGE));
+  const typePageNow = Math.min(typePage, typePages);
+  const typeRows = typesFiltered.slice((typePageNow - 1) * TYPE_PAGE, typePageNow * TYPE_PAGE);
+  const anyTypeFilter = !!(typeSearch.trim() || typeStatus);
+
+  /**
+   * Flip a type between active and inactive from the row.
+   *
+   * The switch is the whole edit, so it writes just `isActive` — sending the
+   * rest of the form back would let a stale row overwrite a policy saved on
+   * another tab. A refused flip (two live Comp Off types) is reported and the
+   * switch springs back, because the list is re-read either way.
+   */
+  const toggleTypeActive = async (t, next) => {
+    setToggling(t._id);
+    try {
+      await api.updateLeaveType(t._id, { isActive: next });
+      toast.success(`${t.name} is now ${next ? 'active' : 'inactive'}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setToggling(null);
+      refetchTypes();
+    }
+  };
+
+  /** The visible list, as a spreadsheet. There is no server export for types. */
+  const exportTypes = () => {
+    const rows = [
+      ['#', 'Leave Type', 'Code', 'Annual Allocation', 'Description', 'Status'],
+      ...typesFiltered.map((t, i) => [
+        i + 1, t.name, t.code,
+        t.category === 'compoff' ? 'Earned on approval' : `${t.annualAllocation || 0} days`,
+        t.description || '',
+        t.isActive === false ? 'Inactive' : 'Active',
+      ]),
+    ];
+    // Quotes doubled and the whole field wrapped — a description with a comma
+    // in it is the common case, not the edge one.
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'leave_types.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Refetch fresh data whenever the user switches to a tab.
   //
@@ -270,7 +478,9 @@ export default function AdminLeave() {
   // full page reload.
   useEffect(() => {
     if (tab === 'types')       refetchTypes();
-    if (tab === 'requests')  { refetchReq();   refetchTypes(); }
+    // The tiles count approvals and reversals that happened on another tab too,
+    // so they come back with the queue.
+    if (tab === 'requests')  { refetchReq();   refetchTypes(); refetchOverview(); }
     if (tab === 'allocations') { refetchAlloc(); refetchTypes(); }
     if (tab === 'balance')   { refetchAlloc(); refetchTypes(); }
   }, [tab]);
@@ -278,7 +488,8 @@ export default function AdminLeave() {
   const openCreateType = () => { setTypeForm(EMPTY_TYPE); setEditType(null); setTypeModal(true); };
   const openEditType   = (t) => {
     setTypeForm({
-      name: t.name, code: t.code, category: t.category || 'general',
+      name: t.name, code: t.code, description: t.description || '',
+      category: t.category || 'general',
       annualAllocation: t.annualAllocation,
       isActive: t.isActive !== false,
     });
@@ -325,24 +536,6 @@ export default function AdminLeave() {
     finally { setDelLoad(false); }
   };
 
-  const typeColumns = [
-    { key: 'name',  label: 'Leave Type', render: t => (
-      <div>
-        <strong>{t.name}</strong>
-        {t.category === 'compoff' && <Badge variant="info">Comp Off</Badge>}
-      </div>
-    )},
-    { key: 'code',  label: 'Code',       render: t => <code style={{ background: 'var(--bg-muted)', padding: '2px 6px', borderRadius: 4 }}>{t.code}</code> },
-    { key: 'alloc', label: 'Annual',     render: t => t.category === 'compoff' ? 'earned on approval' : `${t.annualAllocation} days` },
-    { key: 'status',label: 'Status',     render: t => <Badge variant={t.isActive ? 'success' : 'muted'}>{t.isActive ? 'Active' : 'Inactive'}</Badge> },
-    { key: 'actions', label: '', render: t => (
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => openEditType(t)}>Edit</button>
-        <button className="btn btn-danger btn-sm"    onClick={() => openDeleteType(t)}>Delete</button>
-      </div>
-    )},
-  ];
-
   // ── Allocations ───────────────────────────────────────────────────────────────
   const [allocModal,  setAllocModal]  = useState(false);
   const [allocForm,   setAllocForm]   = useState(EMPTY_ALLOC);
@@ -354,7 +547,13 @@ export default function AdminLeave() {
   const [importLoad,      setImportLoad]      = useState(false);
   const [allocImportModal, setAllocImportModal] = useState(false);
   const allocFileRef  = useRef();
-  const { data: allocData, meta: allocMeta, refetch: refetchAlloc } = useFetch(api.getLeaveAllocations);
+  // The year is a filter on the server, not on the rows: balances are stored
+  // per academic year, so asking for another year is another request.
+  const [allocYear, setAllocYear] = useState('');
+  const { data: allocData, meta: allocMeta, loading: allocLoading, refetch: refetchAlloc } = useFetch(
+    () => api.getLeaveAllocations(allocYear ? { academicYear: allocYear } : undefined),
+    [allocYear],
+  );
   const allocations = allocData || [];
 
   // Academic years ride along with the allocations payload — that endpoint is
@@ -449,24 +648,41 @@ export default function AdminLeave() {
 
 
   // ── Detail popups & filters ───────────────────────────────────────────────────
-  const [detailModal,    setDetailModal]    = useState(null); // { teacher, ay, balances }
-  const [repDetailModal, setRepDetailModal] = useState(null); // { teacher, apps }
+  const [balanceRow,     setBalanceRow]     = useState(null); // the row the balance drawer is open on
   const [allocFilter,    setAllocFilter]    = useState({ teacher: '', leaveType: '' });
 
   // ── Reports ───────────────────────────────────────────────────────────────────
   const [repStatus, setRepStatus] = useState('');
+  const [repYear,   setRepYear]   = useState('');
+  const [repDept,   setRepDept]   = useState('');
+  const [repType,   setRepType]   = useState('');
+  const [repSearch, setRepSearch] = useState('');
+  const [repPage,   setRepPage]   = useState(1);
+  const [repGrain,  setRepGrain]  = useState('monthly');
+  const REP_PAGE = 5;
   const [exportLoad,      setExportLoad]      = useState(false);
   const [reqExportLoad,   setReqExportLoad]   = useState(false);
   const [allocExportLoad, setAllocExportLoad] = useState(false);
+  // Every figure on this tab is counted in Postgres — the old screen pulled up
+  // to 5000 populated applications into the browser and summed them here.
   const { data: repData, loading: repLoading } = useFetch(
-    () => api.getLeaveReports({ status: repStatus || undefined }),
-    [repStatus],
+    () => api.getLeaveReports({
+      academicYear: repYear   || undefined,
+      department:   repDept   || undefined,
+      leaveType:    repType   || undefined,
+      status:       repStatus || undefined,
+    }),
+    [repYear, repDept, repType, repStatus],
   );
+  const rep = repData || {};
 
   const handleExport = async () => {
     setExportLoad(true);
     try {
-      const res = await api.exportLeaveReports({ status: repStatus || undefined });
+      const res = await api.exportLeaveReports({
+        academicYear: repYear   || undefined,
+        status:       repStatus || undefined,
+      });
       downloadBuffer(res?.data ?? res, 'leave_report.xlsx');
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setExportLoad(false); }
@@ -497,311 +713,1060 @@ export default function AdminLeave() {
   };
 
 
+  // ── The set-up tabs ─────────────────────────────────────────────────────────
+  // ── Allocations ─────────────────────────────────────────────────────────────
+  const [allocSearch, setAllocSearch] = useState('');
+  const [allocDept,   setAllocDept]   = useState('');
+  const [allocState,  setAllocState]  = useState('');   // '' | 'allocated' | 'none'
+  const [allocPage,   setAllocPage]   = useState(1);
+  const ALLOC_PAGE = 10;
+
+  // One chip colour per leave type, fixed by the type's position in the
+  // school's own list so a type keeps its colour from row to row and page to
+  // page rather than being coloured by where it happens to fall.
+  const chipTone = chipTones(allocMeta?.leaveTypes || leaveTypes);
+
+  /**
+   * One row per teacher — including the ones holding nothing.
+   *
+   * Grouping the balance rows alone would drop every unallocated teacher off
+   * the screen, which is exactly the set the "Not Allocated" tile is counting
+   * and the only set worth acting on. So the staff list leads, and balances are
+   * hung off it.
+   */
+  const allocRows = (() => {
+    const byTeacher = new Map();
+    teacherList.forEach((t) => byTeacher.set(String(t._id), {
+      _id: String(t._id), teacher: t, department: t.department || '', balances: [],
+    }));
+    allocations.forEach((b) => {
+      const id = String(b.teacher?._id || '');
+      if (!id) return;
+      // A balance for someone no longer on the staff list still has to show,
+      // or their days would be invisible and unrecoverable.
+      if (!byTeacher.has(id)) {
+        byTeacher.set(id, {
+          _id: id, teacher: b.teacher, department: b.teacher?.department || '', balances: [],
+        });
+      }
+      const row = byTeacher.get(id);
+      row.balances.push(b);
+      if (!row.department) row.department = b.teacher?.department || '';
+    });
+    return [...byTeacher.values()].map((r) => ({
+      ...r,
+      total: r.balances.reduce((n, b) => n + (b.totalAllocated || 0) + (b.carriedForward || 0), 0),
+    }));
+  })();
+
+  const allocDepts = [...new Set(allocRows.map((r) => r.department).filter(Boolean))].sort();
+
+  const allocCounts = {
+    teachers:  allocRows.length,
+    types:     leaveTypes.length,
+    allocated: allocRows.filter((r) => r.balances.length).length,
+    none:      allocRows.filter((r) => !r.balances.length).length,
+  };
+
+  const allocFiltered = allocRows.filter((r) => {
+    if (allocDept && r.department !== allocDept) return false;
+    if (allocState === 'allocated' && !r.balances.length) return false;
+    if (allocState === 'none'      &&  r.balances.length) return false;
+    const q = allocSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [r.teacher?.name, r.teacher?.employeeId, r.department,
+            ...r.balances.map((b) => b.leaveType?.name), ...r.balances.map((b) => b.leaveType?.code)]
+      .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+  });
+  const allocPages   = Math.max(1, Math.ceil(allocFiltered.length / ALLOC_PAGE));
+  const allocPageNow = Math.min(allocPage, allocPages);
+  const allocShown   = allocFiltered.slice((allocPageNow - 1) * ALLOC_PAGE, allocPageNow * ALLOC_PAGE);
+  const anyAllocFilter = !!(allocSearch.trim() || allocDept || allocState);
+
+  const allocSelection = useSelection(
+    allocShown,
+    `${allocPageNow}|${allocSearch}|${allocDept}|${allocState}|${allocYear}`,
+  );
+
+  /** Open one teacher's balances in the slide-over. */
+  const openBalances = (row) => setBalanceRow(row);
+
+  /** Open the allocate form aimed at a given set of teachers. */
+  const openAllocate = (ids) => {
+    setAllocForm(ids?.length
+      ? { ...EMPTY_ALLOC, teacherMode: 'select', checkedTeachers: ids }
+      : EMPTY_ALLOC);
+    setAllocModal(true);
+  };
+
+  // ── Balance Summary ─────────────────────────────────────────────────────────
+  // A balance is "low" at two days or fewer of a type. The tile, the pill and
+  // the row status all read that one number, so they can never disagree.
+  const LOW_BALANCE = 2;
+  const [balSearch, setBalSearch] = useState('');
+  const [balDept,   setBalDept]   = useState('');
+  const [balLow,    setBalLow]    = useState(false);
+  const [balPage,   setBalPage]   = useState(1);
+  const BAL_PAGE = 8;
+
+  // The columns of the balance table: the active types, in the school's own
+  // order, so every row lines up under the same headings.
+  const balTypes = (allocMeta?.leaveTypes || leaveTypes).filter((t) => t.isActive !== false);
+
+  const balRows = allocRows.map((r) => {
+    const byType = Object.fromEntries(r.balances.map((b) => [String(b.leaveType?._id), b]));
+    const cells = balTypes.map((t) => {
+      const b = byType[String(t._id)];
+      // What is actually left: allocated plus carried in, less taken and less
+      // the days already held by a pending request.
+      const left = b
+        ? Math.max(0, (b.totalAllocated || 0) + (b.carriedForward || 0) - (b.used || 0) - (b.pending || 0))
+        : null;
+      return { type: t, left, has: !!b };
+    });
+    const held = cells.filter((c) => c.has);
+    return {
+      ...r,
+      cells,
+      remaining: held.reduce((n, c) => n + c.left, 0),
+      low: held.some((c) => c.left <= LOW_BALANCE),
+      hasAny: held.length > 0,
+    };
+  });
+
+  const balCounts = {
+    teachers: balRows.length,
+    types:    balTypes.length,
+    withBal:  balRows.filter((r) => r.hasAny).length,
+    low:      balRows.filter((r) => r.low).length,
+  };
+
+  // Every type's remaining days across the school — the rail's ring.
+  const balTotals = balTypes.map((t) => ({
+    _id: String(t._id),
+    name: t.name,
+    days: balRows.reduce((n, r) => {
+      const c = r.cells.find((x) => String(x.type._id) === String(t._id));
+      return n + (c?.has ? c.left : 0);
+    }, 0),
+  }));
+  const balTotalDays = balTotals.reduce((n, t) => n + t.days, 0);
+
+  const balFiltered = balRows.filter((r) => {
+    if (balDept && r.department !== balDept) return false;
+    if (balLow && !r.low) return false;
+    const q = balSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [r.teacher?.name, r.teacher?.employeeId, r.department]
+      .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+  });
+  const balPages   = Math.max(1, Math.ceil(balFiltered.length / BAL_PAGE));
+  const balPageNow = Math.min(balPage, balPages);
+  const balShown   = balFiltered.slice((balPageNow - 1) * BAL_PAGE, balPageNow * BAL_PAGE);
+  const anyBalFilter = !!(balSearch.trim() || balDept || balLow);
+
+  // ── Reports ─────────────────────────────────────────────────────────────────
+  // The columns of the teacher table: the types that actually appear in the
+  // reported year, so a type nobody has taken does not get a column of zeroes.
+  const repTypes = rep.byType || [];
+  const repTone  = chipTones(repTypes);
+
+  const repRows = (rep.teachers || []).filter((t) => {
+    const q = repSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [t.name, t.employeeId, t.department]
+      .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+  });
+  const repPages   = Math.max(1, Math.ceil(repRows.length / REP_PAGE));
+  const repPageNow = Math.min(repPage, repPages);
+  const repShown   = repRows.slice((repPageNow - 1) * REP_PAGE, repPageNow * REP_PAGE);
+
+  /**
+   * The trend, at the grain the control asks for.
+   *
+   * Quarters are rolled up from the same months rather than fetched again —
+   * they are a different reading of one series, not a different series, and a
+   * round trip to re-add twelve numbers would be a round trip for nothing.
+   */
+  const repTrend = (() => {
+    const months = rep.trend || [];
+    if (repGrain !== 'quarterly') return months;
+    const out = [];
+    for (let i = 0; i < months.length; i += 3) {
+      const g = months.slice(i, i + 3);
+      if (!g.length) break;
+      out.push({
+        month: g[0].month,
+        // Named by the months it spans, so "Apr–Jun" is not mistaken for a
+        // calendar quarter when the academic year does not start in January.
+        label: g.length > 1 ? `${g[0].label}–${g[g.length - 1].label}` : g[0].label,
+        count: g.reduce((n, m) => n + m.count, 0),
+        days:  g.reduce((n, m) => n + m.days, 0),
+      });
+    }
+    return out;
+  })();
+
+  // ── The report drawer ───────────────────────────────────────────────────────
+  // The row carries the totals already; the applications behind them are
+  // fetched when the drawer opens rather than shipped with every row of the
+  // table. Same shape as the Subjects screen: pick a row, load its detail.
+  const [repRow,     setRepRow]     = useState(null);
+  const [repApps,    setRepApps]    = useState(null);
+  const [repAppsErr, setRepAppsErr] = useState('');
+  const [repAppsLoad, setRepAppsLoad] = useState(false);
+
+  useEffect(() => {
+    if (!repRow) { setRepApps(null); setRepAppsErr(''); return undefined; }
+    let alive = true;
+    setRepApps(null); setRepAppsErr(''); setRepAppsLoad(true);
+    api.getLeaveRequests({
+      teacherId: repRow._id,
+      // The same window the report is about, so the list cannot disagree with
+      // the totals sitting above it.
+      fromDate: rep.window?.startDate || undefined,
+      toDate:   rep.window?.endDate   || undefined,
+      status:   repStatus || undefined,
+      sort: 'recent', limit: 50, page: 1,
+    })
+      .then((res) => { if (alive) setRepApps(res?.data ?? res ?? []); })
+      .catch((err) => { if (alive) setRepAppsErr(err?.response?.data?.message || err.message); })
+      .finally(() => { if (alive) setRepAppsLoad(false); });
+    return () => { alive = false; };
+  }, [repRow, repStatus, rep.window?.startDate, rep.window?.endDate]);
+
+  // A share of the whole, for the tiles' bars. Guarded: a year with no
+  // applications must not put NaN% on the page.
+  const repShare = (n) => (rep.totals?.applications ? (n / rep.totals.applications) * 100 : 0);
+  const repPct   = (n) => `${Math.round(repShare(n))}% of total`;
+
   // ── Render ────────────────────────────────────────────────────────────────────
+
+  const openApply = () => { setApplyForm(EMPTY_APPLY); setPreview(null); setApplyModal(true); };
+
+  // The tiles are also the fastest way to narrow the queue — "Pending: 3" is a
+  // question, and pressing it should answer it. Pressing the one already in
+  // force clears it again.
+  const pickStatus = (value) => {
+    releaseFocus();
+    setReqStatus((cur) => (cur === value ? '' : value));
+    setReqPage(1);
+    if (tab !== 'requests') setTab('requests');
+  };
+
+  const onFilter = (setter) => (value) => { releaseFocus(); setReqPage(1); setter(value); };
+
+  const isQueue = tab === 'requests';
+  const pages = reqMeta?.pages || 1;
+
   return (
-    <div className="page">
-      <PageHeader title="Leave Management" subtitle="Manage leave types, requests, and allocations"
-        action={
-          <div style={{ display: 'flex', gap: 8 }}>
-            {tab === 'requests' && <>
-              <Button variant="secondary" onClick={handleExportRequests} loading={reqExportLoad}>Export Excel</Button>
-              <Button onClick={() => { setApplyForm(EMPTY_APPLY); setPreview(null); setApplyModal(true); }}>+ Apply Leave</Button>
-            </>}
-            {tab === 'types'    && <Button onClick={openCreateType}>+ Add Type</Button>}
-            {tab === 'allocations' && (
-              <>
-                <Button variant="secondary" onClick={() => setAllocImportModal(true)}>Import Excel</Button>
-                <Button variant="secondary" onClick={() => { setCfForm(defaultCarryForward(academicYears)); setCfModal(true); }}>Carry Forward</Button>
-                <Button variant="secondary" onClick={handleExportAllocations} loading={allocExportLoad}>Export Excel</Button>
-                <Button variant="secondary" onClick={handleRunAccrual} loading={accrualLoad}>Run Accrual</Button>
-                <Button variant="danger" onClick={() => { setClearForm(EMPTY_CLEAR); setClearModal(true); }}>Clear Allocation</Button>
-                <Button onClick={() => { setAllocForm(EMPTY_ALLOC); setAllocModal(true); }}>+ Allocate</Button>
-              </>
-            )}
-            {tab === 'balance' && (
-              <Button variant="secondary" onClick={handleExportAllocations} loading={allocExportLoad}>Export Excel</Button>
-            )}
-            {tab === 'reports' && <Button onClick={handleExport} loading={exportLoad}>Export Excel</Button>}
-          </div>
-        }
+    <div className="page leavepg">
+      <LeaveHero
+        icon="calendarDays"
+        title="Leave Management"
+        subtitle="Manage leave requests, types, policies and track teacher availability."
+        quote="Well-managed leaves build a healthier and happier team."
+        scene={LeaveScene}
       />
 
-      <div className="tabs">
-        {[['requests','Requests'],['types','Leave Types'],['policies','Policies'],['allocations','Allocations'],
-          ['balance','Balance Summary'],['compoff','Comp Off'],['reports','Reports']].map(([key, label]) => (
-          <button key={key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>{label}</button>
-        ))}
-      </div>
+      <LeaveTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: 'requests',    label: 'Requests',        icon: 'fileCheck' },
+          { value: 'types',       label: 'Leave Types',     icon: 'clipboard' },
+          { value: 'policies',    label: 'Policies',        icon: 'sliders' },
+          { value: 'allocations', label: 'Allocations',     icon: 'users' },
+          { value: 'balance',     label: 'Balance Summary', icon: 'chart' },
+          // Only where the school actually runs Comp Off — see hasCompOff.
+          ...(hasCompOff ? [{ value: 'compoff', label: 'Comp Off', icon: 'repeat' }] : []),
+          { value: 'reports',     label: 'Reports',         icon: 'files' },
+        ]}
+      />
 
-      {/* ── Comp Off (requests · balances · ledger · reports) ── */}
-      {tab === 'compoff'  && <AdminCompOff />}
+      {/* Under the tab row, not above it: the tiles describe the tab you are
+          on, so they sit inside its section the way Leave Types' four do.
+          These five count requests, so they belong to the queue. */}
+      {isQueue && (
+      <LeaveStats>
+        <LeaveStat icon="fileCheck" tone="blue" label="Total Requests"
+          value={ov.counts?.total ?? 0}
+          caption={ov.academicYear ? 'This Academic Year' : 'All time'}
+          on={!reqStatus} onClick={() => pickStatus('')} />
+        <LeaveStat icon="clock" tone="amber" label="Pending"
+          value={ov.counts?.pending ?? 0} caption="Awaiting approval"
+          on={reqStatus === 'pending'} onClick={() => pickStatus('pending')} />
+        <LeaveStat icon="checkCircle" tone="green" label="Approved"
+          value={ov.counts?.approved ?? 0} caption="This Year"
+          on={reqStatus === 'approved'} onClick={() => pickStatus('approved')} />
+        <LeaveStat icon="closeCircle" tone="red" label="Rejected"
+          value={ov.counts?.rejected ?? 0} caption="This Year"
+          on={reqStatus === 'rejected'} onClick={() => pickStatus('rejected')} />
+        {/* Not a filter: who is out today is a different question from which
+            requests are in which state, and there is no status that answers it. */}
+        <LeaveStat icon="calendar" tone="violet" label="On Leave Today"
+          value={ov.onLeaveToday ?? 0} caption="Teachers" />
+      </LeaveStats>
+      )}
 
-      {/* ── Policies — one configurable rule set per leave type ── */}
-      {/* A saved policy changes the rules the other tabs render from, so the
-          merged type list is pulled again the moment it is written. */}
-      {tab === 'policies' && <AdminLeavePolicies onSaved={() => { refetchTypes(); refetchAlloc(); }} />}
+      {/* ── Requests — the queue this page opens on ── */}
+      {isQueue && (
+        <section className="card lvcard">
+          <CardHead title="Leave Requests" subtitle="View and manage all leave requests from teachers.">
+            <Button variant="secondary" onClick={handleExportRequests} loading={reqExportLoad}>
+              <Icon name="download" size={16} /> Export Excel
+            </Button>
+            <Button onClick={openApply}>
+              <Icon name="plus" size={16} /> Apply Leave
+            </Button>
+          </CardHead>
 
-      {/* ── Requests ── */}
-      {tab === 'requests' && (
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select className="form-control" style={{ width: 150 }} value={reqStatus} onChange={e => onReqFilter(setReqStatus)(e.target.value)}>
-              <option value="">All Statuses</option>
-              {['pending','approved','rejected','cancelled'].map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <select className="form-control" style={{ width: 160 }} value={reqTeacher} onChange={e => onReqFilter(setReqTeacher)(e.target.value)}>
-              <option value="">All Teachers</option>
-              {teacherList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-            </select>
-            <select className="form-control" style={{ width: 150 }} value={reqLeaveType} onChange={e => onReqFilter(setReqLeaveType)(e.target.value)}>
-              <option value="">All Types</option>
-              {leaveTypes.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-            </select>
-            <input type="date" className="form-control" style={{ width: 140 }} value={reqFromDate}
-              onChange={e => onReqFilter(setReqFromDate)(e.target.value)} title="From date" />
-            <input type="date" className="form-control" style={{ width: 140 }} value={reqToDate}
-              onChange={e => onReqFilter(setReqToDate)(e.target.value)} title="To date" />
-            {(reqStatus || reqTeacher || reqLeaveType || reqFromDate || reqToDate) && (
-              <button className="btn btn-secondary btn-sm"
-                onClick={() => { releaseFocus(); clearReqFilters(); }}>Clear</button>
-            )}
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {reqLoading ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              : <Table columns={reqColumns} data={reqData || []} emptyIcon="🏖️" emptyTitle="No leave requests" />}
-          </div>
-          {reqMeta?.pages > 1 && (
-            <div className="card-footer">
-              <Pagination page={reqMeta.page || reqPage} pages={reqMeta.pages} total={reqMeta.total} onPage={onReqPage} />
+          <FilterRow>
+            <SearchBox value={reqSearch} onChange={setReqSearch}
+              placeholder="Search by teacher name, leave type or reason..." />
+            <FilterSelect label="Filter by status" value={reqStatus} all="All Statuses"
+              options={STATUS_OPTIONS} onChange={onFilter(setReqStatus)} />
+            <FilterSelect label="Filter by teacher" value={reqTeacher} all="All Teachers"
+              options={teacherList.map((t) => ({ value: t._id, label: t.name }))}
+              onChange={onFilter(setReqTeacher)} />
+            <FilterSelect label="Filter by leave type" value={reqLeaveType} all="All Types"
+              options={leaveTypes.map((t) => ({ value: t._id, label: t.name }))}
+              onChange={onFilter(setReqLeaveType)} />
+            <DateRange from={reqFromDate} to={reqToDate}
+              onFrom={onFilter(setReqFromDate)} onTo={onFilter(setReqToDate)} />
+          </FilterRow>
+
+          {/* The request the notification was about is not in this filtered set —
+              say so, rather than showing a page that does not hold it. */}
+          {focusId && reqMeta?.focusFound === false && (
+            <div className="lvnotice">
+              <Icon name="alert" size={15} />
+              That request is not in the current filters.
+              <button type="button" onClick={() => { releaseFocus(); clearReqFilters(); }}>Clear them</button>
             </div>
           )}
-        </div>
+
+          <RequestRows />
+
+          <div className="lvfoot">
+            <ShowingCount page={reqMeta?.page || reqPage} limit={reqLimit}
+              count={requests.length} total={reqMeta?.total ?? requests.length} />
+            <Pager page={reqMeta?.page || reqPage} pages={requests.length ? pages : 0} onPage={onReqPage} />
+          </div>
+        </section>
       )}
 
-      {/* ── Leave Types ── */}
+      {/* ── Leave Types ──
+          Its own layout: a section header on the page, four tiles, and the
+          table beside a rail of notes and shortcuts. */}
       {tab === 'types' && (
-        <div className="card">
-          <div className="card-body" style={{ padding: 0 }}>
-            <Table columns={typeColumns} data={leaveTypes} emptyIcon="📋" emptyTitle="No leave types yet" />
+        <div className="lvgrid">
+          <div className="lvgrid__main">
+            <LeaveStats className="lvstats--4">
+              <LeaveStat valueFirst icon="layers" tone="indigo" value={typeCounts.total}
+                label="Total Leave Types" caption="Active leave types"
+                on={!typeStatus} onClick={() => { setTypeStatus(''); setTypePage(1); }} />
+              <LeaveStat valueFirst icon="checkCircle" tone="green" value={typeCounts.active}
+                label="Active Types" caption="Available for use"
+                on={typeStatus === 'active'}
+                onClick={() => { setTypeStatus((c) => (c === 'active' ? '' : 'active')); setTypePage(1); }} />
+              <LeaveStat valueFirst icon="closeCircle" tone="red" value={typeCounts.inactive}
+                label={`Inactive Type${typeCounts.inactive === 1 ? '' : 's'}`} caption="Not available"
+                on={typeStatus === 'inactive'}
+                onClick={() => { setTypeStatus((c) => (c === 'inactive' ? '' : 'inactive')); setTypePage(1); }} />
+              {/* Not a filter: this is a sum of the column, not a subset of
+                  the rows, so there is nothing for a press to narrow to. */}
+              <LeaveStat valueFirst icon="users" tone="violet" value={typeCounts.allocation}
+                label="Total Allocation (Annual)" caption="Across all active types" />
+            </LeaveStats>
+
+            <section className="card lvcard">
+              <CardHead title="Leave Types" subtitle="Create and manage different types of leave for staff members.">
+                <Button onClick={openCreateType}><Icon name="plus" size={16} /> Add Leave Type</Button>
+              </CardHead>
+
+              <FilterRow>
+                <SearchBox value={typeSearch}
+                  onChange={(v) => { setTypeSearch(v); setTypePage(1); }}
+                  placeholder="Search leave type by name or code..." />
+                <FilterSelect label="Filter by status" value={typeStatus} all="All Statuses"
+                  options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
+                  onChange={(v) => { setTypeStatus(v); setTypePage(1); }} />
+              </FilterRow>
+
+              {typesLoading && !typesData ? (
+                <div className="lvtable__state"><Spinner /></div>
+              ) : !typeRows.length ? (
+                <div className="lvtable__state">
+                  <Empty
+                    icon={anyTypeFilter ? '🔍' : '📋'}
+                    title={anyTypeFilter ? 'No leave types match' : 'No leave types yet'}
+                    message={anyTypeFilter
+                      ? 'Try another name, code or status.'
+                      : 'Add the kinds of leave your staff can apply for — casual, sick, earned, and any the school runs itself.'}
+                    action={anyTypeFilter
+                      ? <Button variant="secondary" onClick={() => { setTypeSearch(''); setTypeStatus(''); setTypePage(1); }}>Clear filters</Button>
+                      : <Button onClick={openCreateType}>+ Add Leave Type</Button>}
+                  />
+                </div>
+              ) : (
+                <div className="lvtable__wrap">
+                  <table className="lvtable">
+                    <thead>
+                      <tr>
+                        <th className="lvt-num">#</th>
+                        <th>Leave Type</th>
+                        <th className="lvt-code">Code</th>
+                        <th className="lvt-alloc">Annual Allocation</th>
+                        <th>Description</th>
+                        <th className="lvt-status">Status</th>
+                        <th className="lvt-acts">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {typeRows.map((t, i) => (
+                        <tr key={t._id} data-focus-id={t._id}>
+                          <td className="lvt-num">{(typePageNow - 1) * TYPE_PAGE + i + 1}</td>
+                          <td><TypeNameCell type={t} /></td>
+                          <td className="lvt-code">{t.code}</td>
+                          <td className="lvt-alloc">
+                            {/* Comp off is credited by an approved request, so
+                                it has no annual figure to show. */}
+                            {t.category === 'compoff'
+                              ? <span className="lvmuted">Earned on approval</span>
+                              : `${t.annualAllocation || 0} days`}
+                          </td>
+                          <td className="lvt-desc">
+                            {t.description
+                              ? <span title={t.description}>{t.description}</span>
+                              : <span className="lvmuted">No description</span>}
+                          </td>
+                          <td className="lvt-status">
+                            <div className="lvstatuscell">
+                              <span className={`lvbadge is-${t.isActive === false ? 'rejected' : 'approved'}`}>
+                                {t.isActive === false ? 'Inactive' : 'Active'}
+                              </span>
+                              <Toggle on={t.isActive !== false} disabled={toggling === t._id}
+                                label={`${t.isActive === false ? 'Activate' : 'Deactivate'} ${t.name}`}
+                                onChange={(next) => toggleTypeActive(t, next)} />
+                            </div>
+                          </td>
+                          <td className="lvt-acts">
+                            <RowActions>
+                              <IconAction icon="pencil" label={`Edit ${t.name}`} variant="edit"
+                                onClick={() => openEditType(t)} />
+                              <IconAction icon="trash" label={`Delete ${t.name}`} variant="danger"
+                                onClick={() => openDeleteType(t)} />
+                            </RowActions>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="lvfoot">
+                <ShowingCount page={typePageNow} limit={TYPE_PAGE} count={typeRows.length}
+                  total={typesFiltered.length} noun="leave type" />
+                {/* Nothing to page through when the filter emptied the table. */}
+                <Pager page={typePageNow} pages={typesFiltered.length ? typePages : 0} onPage={setTypePage} />
+              </div>
+            </section>
           </div>
+
+          <aside className="lvgrid__side">
+            <NotesPanel title="Important Notes" notes={[
+              'Annual allocation is per teacher per academic year.',
+              'Inactive leave types will not be available for new requests.',
+              'You can customize leave policies for each type.',
+              'Changes will apply to future requests only.',
+            ]} />
+            <QuickLinks title="Quick Actions" items={[
+              { icon: 'sliders', tone: 'indigo', label: 'Leave Policies',
+                sub: 'Configure leave rules', onClick: () => setTab('policies') },
+              { icon: 'checkSquare', tone: 'violet', label: 'Manage Allocations',
+                sub: 'Set leave balance', onClick: () => setTab('allocations') },
+              { icon: 'download', tone: 'green', label: 'Download Report',
+                sub: 'Export leave type list', onClick: exportTypes },
+            ]} />
+          </aside>
         </div>
       )}
 
-      {/* ── Allocations (one row per teacher, inline leave types) ── */}
-      {tab === 'allocations' && (() => {
-        const filtered = (allocations || []).filter(a => {
-          if (allocFilter.teacher   && a.teacher?._id?.toString()   !== allocFilter.teacher)   return false;
-          if (allocFilter.leaveType && a.leaveType?._id?.toString() !== allocFilter.leaveType) return false;
-          return true;
-        });
-        const tmap = {}; const torder = [];
-        filtered.forEach(a => {
-          const tid = a.teacher?._id?.toString() || 'unknown';
-          if (!tmap[tid]) { tmap[tid] = { teacher: a.teacher, ay: a.academicYear, balances: [] }; torder.push(tid); }
-          tmap[tid].balances.push(a);
-        });
-        const groups = torder.map(tid => tmap[tid]);
+      {/* ── Allocations ──
+          Who holds how many days of what, for one academic year. Four tiles,
+          then a card whose header carries the year the whole table is about. */}
+      {tab === 'allocations' && (
+        <>
+          <LeaveStats className="lvstats--4">
+            <LeaveStat valueFirst icon="users" tone="indigo" value={allocCounts.teachers}
+              label="Total Teachers" caption="All departments"
+              on={!allocState} onClick={() => { setAllocState(''); setAllocPage(1); }} />
+            {/* Not a filter: the types are the columns of this table, not a
+                subset of its rows. */}
+            <LeaveStat valueFirst icon="fileCheck" tone="blue" value={allocCounts.types}
+              label="Leave Types" caption="Configured" />
+            <LeaveStat valueFirst icon="checkCircle" tone="green" value={allocCounts.allocated}
+              label="Allocated" caption="Teachers have allocation"
+              on={allocState === 'allocated'}
+              onClick={() => { setAllocState((c) => (c === 'allocated' ? '' : 'allocated')); setAllocPage(1); }} />
+            <LeaveStat valueFirst icon="alert" tone="red" value={allocCounts.none}
+              label="Not Allocated" caption="Ready to allocate"
+              on={allocState === 'none'}
+              onClick={() => { setAllocState((c) => (c === 'none' ? '' : 'none')); setAllocPage(1); }} />
+          </LeaveStats>
 
-        const inlineNums = (balances, field) => (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {balances.map(b => (
-              <span key={b.leaveType?._id} style={{ fontSize: '.82rem', whiteSpace: 'nowrap' }}>
-                <strong>{b.leaveType?.code}</strong>: {b[field] || 0}
-              </span>
-            ))}
-          </div>
-        );
+          <section className="card lvcard">
+            <CardHead icon="userPlus" title="Leave Type Allocation"
+              subtitle="Allocate annual leave balances to teachers for the selected academic year.">
+              <HeadField label="Academic Year">
+                <select className="form-control lvsel" value={allocYear || allocMeta?.academicYear || ''}
+                  onChange={(e) => { setAllocYear(e.target.value); setAllocPage(1); }}>
+                  {academicYears.map((y) => <option key={y.label} value={y.label}>{y.label}</option>)}
+                </select>
+              </HeadField>
+              <FilterSelect label="Filter by department" value={allocDept} all="All Departments"
+                options={allocDepts} onChange={(v) => { setAllocDept(v); setAllocPage(1); }} />
+              <SplitButton
+                label="Allocate" icon="plus"
+                onClick={() => openAllocate(allocSelection.ids)}
+                items={[
+                  { icon: 'repeat', label: 'Carry Forward', sub: 'Roll last year’s balances in',
+                    onClick: () => { setCfForm(defaultCarryForward(academicYears)); setCfModal(true); } },
+                  { icon: 'refresh', label: 'Run Accrual', sub: 'Credit this month’s days',
+                    onClick: handleRunAccrual },
+                  { icon: 'trash', label: 'Clear Allocation', danger: true, sub: 'Zero the days, keep the history',
+                    onClick: () => { setClearForm(EMPTY_CLEAR); setClearModal(true); } },
+                ]}
+              />
+            </CardHead>
 
-        const cols = [
-          { key: 'teacher',   label: 'Teacher',    render: g => <div><div style={{ fontWeight: 600 }}>{g.teacher?.name || '—'}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{g.teacher?.employeeId || ''}</div></div> },
-          { key: 'allocated', label: 'Allocated',  render: g => inlineNums(g.balances, 'totalAllocated') },
-          { key: 'cf',        label: 'Carry Fwd',  render: g => inlineNums(g.balances, 'carriedForward') },
-          { key: 'used',      label: 'Used',       render: g => inlineNums(g.balances, 'used') },
-          { key: 'remaining', label: 'Remaining',  render: g => (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {g.balances.map(b => {
-                const rem = Math.max(0, (b.totalAllocated||0)+(b.carriedForward||0)-(b.used||0)-(b.pending||0));
-                return (
-                  <span key={b.leaveType?._id} style={{ fontSize: '.82rem', fontWeight: 600, whiteSpace: 'nowrap', color: rem > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {b.leaveType?.code}: {rem}
-                  </span>
-                );
-              })}
-            </div>
-          )},
-          { key: 'ay',      label: 'Year',    render: g => g.ay || '—' },
-          { key: 'actions', label: '',        render: g => <button className="btn btn-secondary btn-sm" onClick={() => setDetailModal(g)}>Details</button> },
-        ];
+            <FilterRow>
+              <SearchBox value={allocSearch}
+                onChange={(v) => { setAllocSearch(v); setAllocPage(1); }}
+                placeholder="Search by teacher name, department or leave type..." />
+              {/* Acts on the ticked rows when there are any, and on everyone
+                  when there are not — the label says which. */}
+              <Button variant="secondary" onClick={() => openAllocate(allocSelection.ids)}>
+                <Icon name="layers" size={16} />
+                {allocSelection.ids.length ? `Allocate to ${allocSelection.ids.length}` : 'Bulk Allocate'}
+              </Button>
+              <Button variant="secondary" onClick={() => setAllocImportModal(true)}>
+                <Icon name="upload" size={16} /> Import Excel
+              </Button>
+              <Button variant="secondary" onClick={handleExportAllocations} loading={allocExportLoad}>
+                <Icon name="download" size={16} /> Export Excel
+              </Button>
+            </FilterRow>
 
-        return (
-          <div className="card">
-            <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select className="form-control" style={{ width: 180 }} value={allocFilter.teacher} onChange={e => setAllocFilter(f => ({ ...f, teacher: e.target.value }))}>
-                <option value="">All Teachers</option>
-                {teacherList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-              <select className="form-control" style={{ width: 160 }} value={allocFilter.leaveType} onChange={e => setAllocFilter(f => ({ ...f, leaveType: e.target.value }))}>
-                <option value="">All Leave Types</option>
-                {leaveTypes.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-              {(allocFilter.teacher || allocFilter.leaveType) && (
-                <button className="btn btn-secondary btn-sm" onClick={() => setAllocFilter({ teacher: '', leaveType: '' })}>Clear</button>
-              )}
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              <Table columns={cols} data={groups} emptyIcon="📊" emptyTitle="No allocations found" />
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Balance Summary (one row per teacher, inline remaining) ── */}
-      {tab === 'balance' && (() => {
-        const filtered = (allocations || []).filter(a => {
-          if (allocFilter.teacher   && a.teacher?._id?.toString()   !== allocFilter.teacher)   return false;
-          if (allocFilter.leaveType && a.leaveType?._id?.toString() !== allocFilter.leaveType) return false;
-          return true;
-        });
-        const tmap = {}; const torder = [];
-        filtered.forEach(a => {
-          const tid = a.teacher?._id?.toString() || 'unknown';
-          if (!tmap[tid]) { tmap[tid] = { teacher: a.teacher, ay: a.academicYear, balances: [] }; torder.push(tid); }
-          tmap[tid].balances.push(a);
-        });
-        const groups = torder.map(tid => tmap[tid]);
-
-        const balCols = [
-          { key: 'teacher', label: 'Teacher', render: g => <div><div style={{ fontWeight: 600 }}>{g.teacher?.name || '—'}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{g.teacher?.employeeId || ''}</div></div> },
-          { key: 'balance', label: 'Remaining / Allocated', render: g => (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {g.balances.map(b => {
-                const rem   = Math.max(0, (b.totalAllocated||0)+(b.carriedForward||0)-(b.used||0)-(b.pending||0));
-                const total = (b.totalAllocated||0) + (b.carriedForward||0);
-                return (
-                  <span key={b.leaveType?._id} style={{
-                    padding: '2px 10px', borderRadius: 12, fontSize: '.78rem', fontWeight: 600, whiteSpace: 'nowrap',
-                    border: `1px solid ${rem > 0 ? 'var(--success)' : 'var(--danger)'}`,
-                    color: rem > 0 ? 'var(--success)' : 'var(--danger)',
-                  }}>
-                    {b.leaveType?.code}: {rem}/{total}
-                  </span>
-                );
-              })}
-            </div>
-          )},
-          { key: 'used',    label: 'Used',    render: g => (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {g.balances.map(b => <span key={b.leaveType?._id} style={{ fontSize: '.82rem', whiteSpace: 'nowrap' }}><strong>{b.leaveType?.code}</strong>: {b.used||0}</span>)}
-            </div>
-          )},
-          { key: 'pending', label: 'Pending', render: g => (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {g.balances.map(b => <span key={b.leaveType?._id} style={{ fontSize: '.82rem', whiteSpace: 'nowrap' }}><strong>{b.leaveType?.code}</strong>: {b.pending||0}</span>)}
-            </div>
-          )},
-          { key: 'ay',      label: 'Year',    render: g => g.ay || '—' },
-          { key: 'actions', label: '',        render: g => <button className="btn btn-secondary btn-sm" onClick={() => setDetailModal(g)}>Details</button> },
-        ];
-
-        return (
-          <div className="card">
-            <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select className="form-control" style={{ width: 180 }} value={allocFilter.teacher} onChange={e => setAllocFilter(f => ({ ...f, teacher: e.target.value }))}>
-                <option value="">All Teachers</option>
-                {teacherList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-              <select className="form-control" style={{ width: 160 }} value={allocFilter.leaveType} onChange={e => setAllocFilter(f => ({ ...f, leaveType: e.target.value }))}>
-                <option value="">All Leave Types</option>
-                {leaveTypes.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-              {(allocFilter.teacher || allocFilter.leaveType) && (
-                <button className="btn btn-secondary btn-sm" onClick={() => setAllocFilter({ teacher: '', leaveType: '' })}>Clear</button>
-              )}
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              <Table columns={balCols} data={groups} emptyIcon="📊" emptyTitle="No balance data. Allocate leaves first." />
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Reports (one row per teacher from applications) ── */}
-      {tab === 'reports' && (() => {
-        const apps = repData?.applications || [];
-        const tmap = {}; const torder = [];
-        apps.forEach(a => {
-          const tid = a.teacher?._id?.toString() || 'unknown';
-          if (!tmap[tid]) { tmap[tid] = { teacher: a.teacher, apps: [] }; torder.push(tid); }
-          tmap[tid].apps.push(a);
-        });
-        const repGroups = torder.map(tid => tmap[tid]);
-
-        const repGroupCols = [
-          { key: 'teacher', label: 'Teacher', render: g => <div><div style={{ fontWeight: 600 }}>{g.teacher?.name || '—'}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{g.teacher?.employeeId || ''}</div></div> },
-          { key: 'summary', label: 'Applications (days per type)', render: g => {
-            const byType = {};
-            g.apps.forEach(a => { const c = a.leaveType?.code || '?'; byType[c] = (byType[c] || 0) + (a.totalDays || 0); });
-            return (
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {Object.entries(byType).map(([code, days]) => (
-                  <span key={code} style={{ fontSize: '.82rem', whiteSpace: 'nowrap' }}><strong>{code}</strong>: {days}d</span>
-                ))}
+            {allocLoading && !allocData ? (
+              <div className="lvtable__state"><Spinner /></div>
+            ) : !allocShown.length ? (
+              <div className="lvtable__state">
+                <Empty
+                  icon={anyAllocFilter ? '🔍' : '👥'}
+                  title={anyAllocFilter ? 'No teachers match' : 'No teachers yet'}
+                  message={anyAllocFilter
+                    ? 'Try another name, department or allocation state.'
+                    : 'Add staff before allocating leave to them.'}
+                  action={anyAllocFilter
+                    ? <Button variant="secondary" onClick={() => { setAllocSearch(''); setAllocDept(''); setAllocState(''); setAllocPage(1); }}>Clear filters</Button>
+                    : null}
+                />
               </div>
-            );
-          }},
-          { key: 'count',   label: 'Count',   render: g => `${g.apps.length} application(s)` },
-          { key: 'actions', label: '',         render: g => <button className="btn btn-secondary btn-sm" onClick={() => setRepDetailModal(g)}>View All</button> },
-        ];
-
-        return (
-          <div className="card">
-            <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <select className="form-control" style={{ width: 160 }} value={repStatus} onChange={e => setRepStatus(e.target.value)}>
-                <option value="">All Statuses</option>
-                {['pending','approved','rejected','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {repLoading
-                ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-                : <Table columns={repGroupCols} data={repGroups} emptyIcon="📄" emptyTitle="No applications" />
-              }
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Action Modal (Approve / Reject / Reverse) ── */}
-      <Modal open={!!actionModal} onClose={() => { setActionModal(null); setComment(''); }}
-        title={actionModal?.type === 'approve' ? 'Approve Leave'
-             : actionModal?.type === 'reject'  ? 'Reject Leave'
-             : 'Reverse Approved Leave'}
-        footer={<>
-          <Button variant="secondary" onClick={() => { setActionModal(null); setComment(''); }}>Cancel</Button>
-          <Button variant={actionModal?.type === 'approve' ? 'primary' : 'danger'} onClick={handleAction} loading={actLoad}>Confirm</Button>
-        </>}>
-        {actionModal && (
-          <div>
-            <p style={{ marginBottom: 12 }}>
-              <strong>{actionModal.request.teacher?.name}</strong> — {actionModal.request.leaveType?.name}<br />
-              <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>{fmtDate(actionModal.request.fromDate)} – {fmtDate(actionModal.request.toDate)} ({actionModal.request.totalDays} day(s))</span>
-            </p>
-            {actionModal.type === 'reverse' && (
-              <div className="alert alert-warning" style={{ marginBottom: 12, fontSize: '.82rem' }}>
-                This undoes the approval and returns {actionModal.request.totalDays} day(s) to the teacher's balance.
-                {actionModal.request.leaveType?.category === 'compoff' && ' The Comp Off days go back into the lots they were spent from.'}
+            ) : (
+              <div className="lvtable__wrap">
+                <table className="lvtable">
+                  <thead>
+                    <tr>
+                      <th className="lvt-tick">
+                        <input type="checkbox" checked={allocSelection.allOn}
+                          ref={(el) => { if (el) el.indeterminate = allocSelection.some; }}
+                          onChange={allocSelection.toggleAll}
+                          aria-label="Select every teacher on this page" />
+                      </th>
+                      <th className="lvt-num">#</th>
+                      <th>Teacher</th>
+                      <th className="lvt-dept">Department</th>
+                      <th>Leave Allocation</th>
+                      <th className="lvt-total">Total Allocated</th>
+                      <th className="lvt-status">Status</th>
+                      <th className="lvt-acts">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allocShown.map((r, i) => (
+                      <tr key={r._id} data-focus-id={r._id}
+                        className={allocSelection.has(r._id) ? 'is-picked' : undefined}>
+                        <td className="lvt-tick">
+                          <input type="checkbox" checked={allocSelection.has(r._id)}
+                            onChange={() => allocSelection.toggle(r._id)}
+                            aria-label={`Select ${r.teacher?.name || 'this teacher'}`} />
+                        </td>
+                        <td className="lvt-num">{(allocPageNow - 1) * ALLOC_PAGE + i + 1}</td>
+                        <td><TeacherCell request={r} /></td>
+                        <td className="lvt-dept">
+                          {r.department || <span className="lvmuted">No department</span>}
+                        </td>
+                        <td><AllocChips balances={r.balances} tones={chipTone} /></td>
+                        <td className="lvt-total">
+                          {r.balances.length ? `${dayNum(r.total)} days` : <span className="lvmuted">—</span>}
+                        </td>
+                        <td className="lvt-status">
+                          <span className={`lvbadge is-${r.balances.length ? 'approved' : 'pending'}`}>
+                            {r.balances.length ? 'Allocated' : 'Not allocated'}
+                          </span>
+                        </td>
+                        <td className="lvt-acts">
+                          <div className="lvrowacts">
+                            <RowActions>
+                              <IconAction icon="eye" disabled={!r.balances.length}
+                                label={`View ${r.teacher?.name || 'teacher'} balances`}
+                                onClick={() => openBalances(r)} />
+                              <IconAction icon="pencil" variant="edit"
+                                label={`Allocate to ${r.teacher?.name || 'this teacher'}`}
+                                onClick={() => openAllocate([r._id])} />
+                              <RowMenu>
+                              <MenuItem icon="plus" onClick={() => openAllocate([r._id])}>
+                                Allocate to this teacher
+                              </MenuItem>
+                              {r.department && (
+                                <MenuItem icon="users" onClick={() => { setAllocDept(r.department); setAllocPage(1); }}>
+                                  Only {r.department}
+                                </MenuItem>
+                              )}
+                              {r.balances.length > 0 && (
+                                <>
+                                  <MenuSep />
+                                  <MenuItem icon="trash" danger
+                                    onClick={() => { setClearForm({ ...EMPTY_CLEAR, teacherMode: 'select', checkedTeachers: [r._id] }); setClearModal(true); }}>
+                                    Clear allocation
+                                  </MenuItem>
+                                </>
+                              )}
+                              </RowMenu>
+                            </RowActions>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-            <div className="form-group">
-              <label className="form-label">Comment (optional)</label>
-              <textarea className="form-control" rows={3} value={comment}
-                onChange={e => setComment(e.target.value)} placeholder="Add a comment..." />
+
+            <div className="lvfoot">
+              <ShowingCount page={allocPageNow} limit={ALLOC_PAGE} count={allocShown.length}
+                total={allocFiltered.length} noun="teacher" />
+              <Pager page={allocPageNow} pages={allocFiltered.length ? allocPages : 0} onPage={setAllocPage} />
             </div>
+          </section>
+        </>
+      )}
+
+      {/* ── Balance Summary ──
+          What is left rather than what was given: four tiles, a grid of every
+          teacher against every leave type, and a rail that sums the year. */}
+      {tab === 'balance' && (
+        <>
+          <LeaveStats className="lvstats--4">
+            <LeaveStat valueFirst icon="users" tone="indigo" value={balCounts.teachers}
+              label="Total Teachers" caption="All departments"
+              on={!balLow} onClick={() => { setBalLow(false); setBalPage(1); }} />
+            {/* Not a filter: the types are the columns of this table, not a
+                subset of its rows. */}
+            <LeaveStat valueFirst icon="fileCheck" tone="blue" value={balCounts.types}
+              label="Leave Types" caption="Active types" />
+            <LeaveStat valueFirst icon="checkCircle" tone="green" value={balCounts.withBal}
+              label="Teachers with Balance"
+              caption={`For ${allocYear || allocMeta?.academicYear || 'this year'}`} />
+            <LeaveStat valueFirst icon="clock" tone="red" value={balCounts.low}
+              label="Low Balance" caption={`(≤ ${LOW_BALANCE} days)`}
+              on={balLow} onClick={() => { setBalLow((v) => !v); setBalPage(1); }} />
+          </LeaveStats>
+
+          <div className="lvgrid">
+            <div className="lvgrid__main">
+              <section className="card lvcard">
+                <CardHead icon="chart" title="Leave Balance Summary"
+                  subtitle="View and manage leave balances for all teachers.">
+                  <HeadField label="Academic Year">
+                    <select className="form-control lvsel" value={allocYear || allocMeta?.academicYear || ''}
+                      onChange={(e) => { setAllocYear(e.target.value); setBalPage(1); }}>
+                      {academicYears.map((y) => <option key={y.label} value={y.label}>{y.label}</option>)}
+                    </select>
+                  </HeadField>
+                  <HeadField label="Department">
+                    <FilterSelect label="Filter by department" value={balDept} all="All Departments"
+                      options={allocDepts} onChange={(v) => { setBalDept(v); setBalPage(1); }} />
+                  </HeadField>
+                  <Button variant="secondary" onClick={handleExportAllocations} loading={allocExportLoad}>
+                    <Icon name="download" size={16} /> Export Excel
+                  </Button>
+                </CardHead>
+
+                {allocLoading && !allocData ? (
+                  <div className="lvtable__state"><Spinner /></div>
+                ) : !balShown.length ? (
+                  <div className="lvtable__state">
+                    <Empty
+                      icon={anyBalFilter ? '🔍' : '📊'}
+                      title={anyBalFilter ? 'No teachers match' : 'No balances yet'}
+                      message={anyBalFilter
+                        ? 'Try another name, department, or turn the low-balance filter off.'
+                        : 'Allocate leave to your staff and their balances appear here.'}
+                      action={anyBalFilter
+                        ? <Button variant="secondary" onClick={() => { setBalSearch(''); setBalDept(''); setBalLow(false); setBalPage(1); }}>Clear filters</Button>
+                        : <Button onClick={() => setTab('allocations')}>Go to Allocations</Button>}
+                    />
+                  </div>
+                ) : (
+                  <div className="lvtable__wrap">
+                    <table className="lvtable lvtable--grouped">
+                      {/* Two header rows: the per-type columns are one group, and
+                          saying so once beats repeating "balance" four times. */}
+                      <thead>
+                        <tr>
+                          <th className="lvt-num" rowSpan={2}>#</th>
+                          <th rowSpan={2}>Teacher</th>
+                          <th className="lvt-dept" rowSpan={2}>Department</th>
+                          <th className="lvt-group" colSpan={Math.max(1, balTypes.length)}>Leave Balance</th>
+                          <th className="lvt-total" rowSpan={2}>Total</th>
+                          <th className="lvt-status" rowSpan={2}>Status</th>
+                          <th className="lvt-acts" rowSpan={2}>Actions</th>
+                        </tr>
+                        <tr>
+                          {balTypes.length
+                            ? balTypes.map((t) => (
+                                <th key={t._id} className="lvt-code lvt-sub" title={t.name}>{t.code}</th>
+                              ))
+                            : <th className="lvt-sub" />}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {balShown.map((r, i) => (
+                          <tr key={r._id} data-focus-id={r._id}>
+                            <td className="lvt-num">{(balPageNow - 1) * BAL_PAGE + i + 1}</td>
+                            <td><TeacherCell request={r} /></td>
+                            <td className="lvt-dept">
+                              {r.department || <span className="lvmuted">—</span>}
+                            </td>
+                            {r.cells.map((c) => (
+                              <td key={c.type._id} className="lvt-cell">
+                                {c.has
+                                  ? <BalancePill days={c.left} tone={chipTone[String(c.type._id)]}
+                                      low={c.left <= LOW_BALANCE}
+                                      title={`${c.type.name}: ${dayNum(c.left)} day(s) left`} />
+                                  : <span className="lvmuted">—</span>}
+                              </td>
+                            ))}
+                            <td className="lvt-total">
+                              {r.hasAny ? dayNum(r.remaining) : <span className="lvmuted">—</span>}
+                            </td>
+                            <td className="lvt-status">
+                              <span className={`lvbadge is-${!r.hasAny ? 'cancelled' : r.low ? 'rejected' : 'approved'}`}>
+                                {!r.hasAny ? 'No balance' : r.low ? 'Low Balance' : 'Healthy'}
+                              </span>
+                            </td>
+                            <td className="lvt-acts">
+                              <div className="lvrowacts">
+                                <RowActions>
+                                  <IconAction icon="eye" disabled={!r.hasAny}
+                                    label={`View ${r.teacher?.name || 'teacher'} balances`}
+                                    onClick={() => openBalances(r)} />
+                                  <IconAction icon="pencil" variant="edit"
+                                    label={`Adjust ${r.teacher?.name || 'this teacher'} allocation`}
+                                    onClick={() => openAllocate([r._id])} />
+                                  <RowMenu>
+                                  {r.department && (
+                                    <MenuItem icon="users" onClick={() => { setBalDept(r.department); setBalPage(1); }}>
+                                      Only {r.department}
+                                    </MenuItem>
+                                  )}
+                                  <MenuSep />
+                                  <MenuItem icon="fileCheck" onClick={() => { releaseFocus(); setReqTeacher(r._id); setReqPage(1); setTab('requests'); }}>
+                                    See their requests
+                                  </MenuItem>
+                                  </RowMenu>
+                                </RowActions>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="lvfoot">
+                  <ShowingCount page={balPageNow} limit={BAL_PAGE} count={balShown.length}
+                    total={balFiltered.length} noun="teacher" />
+                  <Pager page={balPageNow} pages={balFiltered.length ? balPages : 0} onPage={setBalPage} />
+                </div>
+              </section>
+            </div>
+
+            <aside className="lvgrid__side">
+              <section className="lvrail">
+                <header>
+                  <span className="lvrail__mark lvrail__mark--info"><Icon name="chart" size={17} /></span>
+                  <h3>Leave Type Totals</h3>
+                </header>
+                <LeaveDonut
+                  slices={donutSlices(balTotals, chipTone)}
+                  total={balTotalDays}
+                  caption="Total Days"
+                  emptyNote="Nothing allocated yet, so there is nothing left to count."
+                />
+              </section>
+
+              <QuickLinks title="Quick Actions" items={[
+                { icon: 'users', tone: 'indigo', label: 'Bulk Allocate',
+                  sub: 'Allocate leave to multiple teachers',
+                  onClick: () => { setTab('allocations'); openAllocate([]); } },
+                { icon: 'sliders', tone: 'violet', label: 'Adjust Balance',
+                  sub: 'Manually update teacher balance',
+                  onClick: () => { setTab('allocations'); openAllocate([]); } },
+                { icon: 'download', tone: 'green', label: 'Download Report',
+                  sub: 'Export balance summary', onClick: handleExportAllocations },
+              ]} />
+
+              <HelpPanel
+                title="Need Help?"
+                text="Learn how leave balance allocation works or check the leave policy."
+                action={(
+                  <Button variant="secondary" onClick={() => setTab('policies')}>
+                    <Icon name="fileCheck" size={16} /> View Leave Policy
+                  </Button>
+                )}
+              />
+            </aside>
           </div>
-        )}
-      </Modal>
+        </>
+      )}
+
+      {/* ── Reports ──
+          What the year came to: a header of its own, four tiles that carry
+          their share as well as their count, two charts, and the teacher table
+          under them. */}
+      {tab === 'reports' && (
+        <>
+          <SectionHead title="Leave Reports"
+            subtitle="Get insights on leave usage, trends, and teacher-wise summary.">
+            <HeadField label="Academic Year">
+              <select className="form-control lvsel" value={repYear || rep.academicYear || ''}
+                onChange={(e) => { setRepYear(e.target.value); setRepPage(1); }}>
+                {(rep.academicYears || academicYears).map((y) => (
+                  <option key={y.label} value={y.label}>{y.label}</option>
+                ))}
+              </select>
+            </HeadField>
+            <FilterSelect label="Filter by department" value={repDept} all="All Departments"
+              options={rep.departments || []} onChange={(v) => { setRepDept(v); setRepPage(1); }} />
+            <FilterSelect label="Filter by leave type" value={repType} all="All Leave Types"
+              options={leaveTypes.map((t) => ({ value: t._id, label: t.name }))}
+              onChange={(v) => { setRepType(v); setRepPage(1); }} />
+            <Button onClick={handleExport} loading={exportLoad}>
+              <Icon name="download" size={16} /> Export Excel
+            </Button>
+          </SectionHead>
+
+          <LeaveStats className="lvstats--4">
+            <LeaveStat icon="fileCheck" tone="blue" label="Total Leave Applications"
+              value={rep.totals?.applications ?? 0}
+              delta={rep.lastYear?.deltaPct ?? undefined}
+              caption={rep.lastYear?.deltaPct == null
+                ? (rep.academicYear ? `In ${rep.academicYear}` : 'All time')
+                : undefined} />
+            <LeaveStat icon="checkCircle" tone="green" label="Approved"
+              value={rep.totals?.approved ?? 0}
+              caption={repPct(rep.totals?.approved || 0)}
+              share={repShare(rep.totals?.approved || 0)} />
+            <LeaveStat icon="clock" tone="amber" label="Pending"
+              value={rep.totals?.pending ?? 0}
+              caption={repPct(rep.totals?.pending || 0)}
+              share={repShare(rep.totals?.pending || 0)} />
+            <LeaveStat icon="closeCircle" tone="red" label="Rejected"
+              value={rep.totals?.rejected ?? 0}
+              caption={repPct(rep.totals?.rejected || 0)}
+              share={repShare(rep.totals?.rejected || 0)} />
+          </LeaveStats>
+
+          <div className="lvcharts">
+            <ChartCard icon="chart" title="Leave Applications Trend"
+              subtitle={repType
+                ? 'Month-wise leave applications (one type)'
+                : 'Month-wise leave applications (all types)'}
+              control={(
+                <select className="form-control lvsel" value={repGrain}
+                  onChange={(e) => setRepGrain(e.target.value)} aria-label="Trend grain">
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+              )}>
+              {repLoading && !repData
+                ? <div className="lvtable__state"><Spinner /></div>
+                : <TrendBars data={repTrend}
+                    emptyNote="No leave was applied for in this year yet, so there is no trend to draw." />}
+            </ChartCard>
+
+            <ChartCard icon="target" tone="violet" title="Leave Type Distribution"
+              subtitle="Share of leave applications by type"
+              control={(
+                <select className="form-control lvsel" value={repYear || rep.academicYear || ''}
+                  onChange={(e) => { setRepYear(e.target.value); setRepPage(1); }}
+                  aria-label="Distribution year">
+                  {(rep.academicYears || academicYears).map((y) => (
+                    <option key={y.label} value={y.label}>{y.label}</option>
+                  ))}
+                </select>
+              )}>
+              {repLoading && !repData
+                ? <div className="lvtable__state"><Spinner /></div>
+                : <LeaveDonut showPct unit="applications"
+                    slices={donutSlices(
+                      repTypes.map((t) => ({ _id: t._id, name: t.name, days: t.count })),
+                      repTone, 4)}
+                    total={rep.totals?.applications ?? 0}
+                    caption="Applications"
+                    emptyNote="Nothing has been applied for in this year yet." />}
+            </ChartCard>
+          </div>
+
+          <section className="card lvcard">
+            <CardHead icon="users" title="Teacher-wise Leave Report"
+              subtitle="Detailed leave summary for each teacher.">
+              <SearchBox value={repSearch}
+                onChange={(v) => { setRepSearch(v); setRepPage(1); }}
+                placeholder="Search teacher..." />
+              <FilterSelect label="Filter by status" value={repStatus} all="All Statuses"
+                options={STATUS_OPTIONS} onChange={(v) => { setRepStatus(v); setRepPage(1); }} />
+            </CardHead>
+
+            {repLoading && !repData ? (
+              <div className="lvtable__state"><Spinner /></div>
+            ) : !repShown.length ? (
+              <div className="lvtable__state">
+                <Empty
+                  icon={repSearch ? '🔍' : '📄'}
+                  title={repSearch ? 'No teachers match' : 'Nothing to report yet'}
+                  message={repSearch
+                    ? 'Try another name, employee ID or department.'
+                    : 'Once staff start filing leave, their totals appear here.'}
+                  action={repSearch
+                    ? <Button variant="secondary" onClick={() => { setRepSearch(''); setRepPage(1); }}>Clear search</Button>
+                    : null}
+                />
+              </div>
+            ) : (
+              <div className="lvtable__wrap">
+                <table className="lvtable">
+                  <thead>
+                    <tr>
+                      <th className="lvt-num">#</th>
+                      <th>Teacher</th>
+                      <th className="lvt-dept">Department</th>
+                      {/* One column per type that actually appears this year —
+                          a type nobody took does not earn a column of zeroes. */}
+                      {repTypes.map((t) => (
+                        <th key={t._id} className="lvt-cell" title={`${t.name} — days taken`}>
+                          {t.name.replace(/\s*leave\s*$/i, '')}
+                        </th>
+                      ))}
+                      <th className="lvt-total">Total</th>
+                      <th className="lvt-acts">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {repShown.map((t, i) => (
+                      <tr key={t._id} data-focus-id={t._id}>
+                        <td className="lvt-num">{(repPageNow - 1) * REP_PAGE + i + 1}</td>
+                        <td><TeacherCell request={{ teacher: t }} /></td>
+                        <td className="lvt-dept">{t.department || <span className="lvmuted">—</span>}</td>
+                        {repTypes.map((ty) => {
+                          const d = t.perType?.[ty._id] || 0;
+                          return (
+                            <td key={ty._id} className="lvt-cell">
+                              {d ? dayNum(d) : <span className="lvmuted">0</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="lvt-total">{dayNum(t.days)}</td>
+                        <td className="lvt-acts">
+                          <RowActions>
+                            <IconAction icon="eye" label={`View ${t.name}'s leave`}
+                              onClick={() => setRepRow(t)} />
+                          </RowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="lvfoot">
+              <ShowingCount page={repPageNow} limit={REP_PAGE} count={repShown.length}
+                total={repRows.length} noun="teacher" />
+              <Pager page={repPageNow} pages={repRows.length ? repPages : 0} onPage={setRepPage} />
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* Comp Off and Policies bring tab strips and cards of their own, so they
+          sit under the tab row rather than inside a card that would nest. */}
+      {tab === 'compoff' && hasCompOff && <AdminCompOff />}
+
+      {/* A saved policy changes the rules the other tabs render from, so the
+          merged type list is pulled again the moment it is written. */}
+      {tab === 'policies' && (
+        <AdminLeavePolicies
+          onSaved={() => { refetchTypes(); refetchAlloc(); }}
+          // The type dialog lives on this page, so the policy editor's "Add
+          // Type" borrows it rather than growing a second one.
+          onAddType={openCreateType}
+        />
+      )}
+
+      <ReportDrawer
+        open={!!repRow}
+        teacher={repRow}
+        academicYear={rep.academicYear}
+        types={repTypes}
+        tones={repTone}
+        applications={repApps}
+        loading={repAppsLoad}
+        error={repAppsErr}
+        onClose={() => setRepRow(null)}
+        // Deciding on any of these happens in the queue, so the drawer hands
+        // over to it rather than growing its own approve buttons.
+        onSeeRequests={() => {
+          const id = repRow?._id;
+          setRepRow(null);
+          releaseFocus(); setReqTeacher(id); setReqPage(1); setTab('requests');
+        }}
+      />
+
+      <RequestDrawer
+        request={detail}
+        busy={actLoad}
+        onClose={() => setDetail(null)}
+        onDecide={(kind, r) => askDecision(kind, r)}
+      />
+
+      {/* ── Approve / Reject / Reverse ── */}
+      <DecisionDialog
+        open={!!decision}
+        kind={decision?.kind}
+        request={decision?.request}
+        comment={comment}
+        onComment={setComment}
+        loading={actLoad}
+        onClose={() => { setDecision(null); setComment(''); }}
+        onConfirm={runDecision}
+      />
 
       {/* ── Admin Apply Modal ── */}
       <Modal open={applyModal} onClose={closeApply} title="Apply Leave for Teacher" maxWidth={620}
@@ -1002,6 +1967,14 @@ export default function AdminLeave() {
               <input type="text" className="form-control" required value={typeForm.code}
                 onChange={e => setTypeForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. CL, SL" />
             </div>
+          </div>
+          {/* Shown beside the type wherever it is listed, so "CL" does not have
+              to be institutional knowledge. */}
+          <div className="form-group">
+            <label className="form-label">Description</label>
+            <input type="text" className="form-control" value={typeForm.description || ''}
+              maxLength={160} placeholder="e.g. For personal work and short leaves."
+              onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))} />
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
@@ -1478,60 +2451,20 @@ export default function AdminLeave() {
         </div>
       </Modal>
 
-      {/* ── Allocation / Balance Detail Modal ── */}
-      <Modal open={!!detailModal} onClose={() => setDetailModal(null)}
-        title={`Leave Details — ${detailModal?.teacher?.name || ''}`} maxWidth={720}
-        footer={<Button variant="secondary" onClick={() => setDetailModal(null)}>Close</Button>}>
-        {detailModal && (
-          <div>
-            <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 6 }}>
-              <div style={{ fontWeight: 600, fontSize: '1rem' }}>{detailModal.teacher?.name}</div>
-              <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                {detailModal.teacher?.email}
-                {detailModal.teacher?.employeeId && ` · ID: ${detailModal.teacher.employeeId}`}
-                {detailModal.ay && ` · Year: ${detailModal.ay}`}
-              </div>
-            </div>
-            <Table
-              columns={[
-                { key: 'type',      label: 'Leave Type', render: b => <strong>{b.leaveType?.name || '—'}</strong> },
-                { key: 'code',      label: 'Code',       render: b => <code style={{ background: 'var(--bg-muted)', padding: '2px 6px', borderRadius: 4 }}>{b.leaveType?.code}</code> },
-                { key: 'allocated', label: 'Allocated',  render: b => b.totalAllocated || 0 },
-                { key: 'cf',        label: 'Carry Fwd',  render: b => b.carriedForward || 0 },
-                { key: 'used',      label: 'Used',       render: b => b.used || 0 },
-                { key: 'pending',   label: 'Pending',    render: b => b.pending || 0 },
-                { key: 'remaining', label: 'Remaining',  render: b => {
-                  const rem = Math.max(0, (b.totalAllocated||0)+(b.carriedForward||0)-(b.used||0)-(b.pending||0));
-                  return <strong style={{ color: rem > 0 ? 'var(--success)' : 'var(--danger)' }}>{rem}</strong>;
-                }},
-              ]}
-              data={detailModal.balances}
-            />
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Report Applications Detail Modal ── */}
-      <Modal open={!!repDetailModal} onClose={() => setRepDetailModal(null)}
-        title={`Applications — ${repDetailModal?.teacher?.name || ''}`} maxWidth={820}
-        footer={<Button variant="secondary" onClick={() => setRepDetailModal(null)}>Close</Button>}>
-        {repDetailModal && (
-          <Table
-            columns={[
-              { key: 'type',    label: 'Type',       render: r => r.leaveType?.name || '—' },
-              { key: 'dates',   label: 'Period',     render: r => `${fmtDate(r.fromDate)} – ${fmtDate(r.toDate)}` },
-              { key: 'days',    label: 'Days',       render: r => r.totalDays },
-              { key: 'mode',    label: 'Mode',       render: r => r.leaveMode?.replace('_', ' ') },
-              { key: 'status',  label: 'Status',     render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status?.replace('_', ' ')}</Badge> },
-              { key: 'reason',  label: 'Reason',     render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
-              { key: 'comment', label: 'Admin Note', render: r => r.adminComment ? <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{r.adminComment}</span> : '—' },
-              { key: 'applied', label: 'Applied On', render: r => fmtDate(r.appliedAt) },
-              { key: 'doc',     label: 'Doc',        render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
-            ]}
-            data={repDetailModal.apps}
-          />
-        )}
-      </Modal>
+      {/* ── One teacher's balances, beside the table ──
+          A slide-over rather than a dialog, the same way a subject opens on the
+          Subjects screen: a modal would black out the list the admin filtered
+          their way to, just to show them one person. */}
+      <BalanceDrawer
+        open={!!balanceRow}
+        teacher={balanceRow?.teacher}
+        academicYear={allocYear || allocMeta?.academicYear}
+        balances={balanceRow?.balances || []}
+        tones={chipTone}
+        low={LOW_BALANCE}
+        onClose={() => setBalanceRow(null)}
+        onAdjust={() => { const id = balanceRow?._id; setBalanceRow(null); openAllocate([id]); }}
+      />
 
       {/* ── Carry Forward Modal ── */}
       {cfModal && (() => {

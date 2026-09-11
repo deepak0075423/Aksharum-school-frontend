@@ -72,14 +72,38 @@ export default function TeacherLeave() {
   // may or may not have an approvals queue — ask the server once for each.
   const [isCompOffApprover, setIsCompOffApprover] = useState(false);
   const [isLeaveApprover,   setIsLeaveApprover]   = useState(false);
+  /**
+   * Whether this school runs Comp Off at all.
+   *
+   * `null` until the server answers, and the tab is only drawn on `true`: a tab
+   * that appears a moment after the page does is a smaller surprise than one
+   * that vanishes under the pointer.
+   *
+   * The same reply already carries `enabled` — the server's single "is comp off
+   * available here?" check, which is false when the school never created a Comp
+   * Off leave type, when the type is inactive, or when the policy is switched
+   * off. All three mean the same thing to a teacher: there is nothing to do
+   * behind that tab, and it used to open on "Comp Off is not available".
+   */
+  const [compOffOn, setCompOffOn] = useState(null);
   useEffect(() => {
     getMyCompOff()
-      .then(res => setIsCompOffApprover(!!(res?.data ?? res)?.isApprover))
-      .catch(() => setIsCompOffApprover(false));
+      .then((res) => {
+        const d = res?.data ?? res;
+        setCompOffOn(!!d?.enabled);
+        setIsCompOffApprover(!!d?.isApprover);
+      })
+      .catch(() => { setCompOffOn(false); setIsCompOffApprover(false); });
     getLeaveApprovals()
       .then(res => setIsLeaveApprover(!!(res?.data ?? res)?.isApprover))
       .catch(() => setIsLeaveApprover(false));
   }, []);
+
+  // A notification or a bookmark pointing at a Comp Off tab this school does
+  // not run lands on the applications list instead.
+  useEffect(() => {
+    if (compOffOn === false && tab.startsWith('compoff')) setTab('my-leaves');
+  }, [compOffOn, tab]);
 
   // Per-leave-type rules: which types this employee qualifies for and why not
   const { data: policyData } = useFetch(getLeaveTypePolicies);
@@ -266,26 +290,28 @@ export default function TeacherLeave() {
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="page">
-      <PageHeader title="My Leave" subtitle="Leave applications, balance and Comp Off"
+      <PageHeader title="My Leave"
+        subtitle={compOffOn ? 'Leave applications, balance and Comp Off' : 'Leave applications and balance'}
         action={(tab.startsWith('compoff') || tab === 'approvals') ? null : <Button onClick={openModal}>+ Apply Leave</Button>}
       />
 
       <div className="tabs">
-        {[['my-leaves','My Applications'],['balance','Leave Balance'],['compoff','Comp Off'],
+        {[['my-leaves','My Applications'],['balance','Leave Balance'],
+          ...(compOffOn ? [['compoff','Comp Off']] : []),
           ...(isLeaveApprover   ? [['approvals','Leave Approvals']] : []),
-          ...(isCompOffApprover ? [['compoff-approvals','Comp Off Approvals']] : [])].map(([key, label]) => (
+          ...(compOffOn && isCompOffApprover ? [['compoff-approvals','Comp Off Approvals']] : [])].map(([key, label]) => (
           <button key={key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
 
-      {/* ── Comp Off ── */}
-      {tab === 'compoff' && <TeacherCompOff />}
+      {/* ── Comp Off — only where the school runs it ── */}
+      {tab === 'compoff' && compOffOn && <TeacherCompOff />}
 
       {/* ── Leave approvals — only for designation-based approvers ── */}
       {tab === 'approvals' && <TeacherLeaveApprovals />}
 
       {/* ── Comp Off approvals — only for designation-based approvers ── */}
-      {tab === 'compoff-approvals' && <TeacherCompOffApprovals />}
+      {tab === 'compoff-approvals' && compOffOn && <TeacherCompOffApprovals />}
 
       {/* ── My Applications ── */}
       {tab === 'my-leaves' && (

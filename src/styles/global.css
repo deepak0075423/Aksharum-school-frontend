@@ -10759,3 +10759,1106 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   font-size: .8rem; color: var(--text-muted);
 }
 .libpl-note > svg { color: var(--text-light); flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEAVE MANAGEMENT — admin
+   Its own design rather than the shared account-list frame: a hero with a
+   badge and a drawing, five tinted summary tiles, a row of pill tabs, and one
+   card holding a titled header, a flat filter row and the request table.
+
+   Prefixed `lv` throughout so nothing here reaches another page. It borrows
+   only .card, .btn, .form-control and the .ldrawer slide-over.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.leavepg { display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Hero ──────────────────────────────────────────────────────────────────
+   Four parts on one row: a badge, what the module is, a drawing that idles in
+   the middle, and a line about why the work matters. The drawing is the first
+   thing to go when the row gets tight — it carries no information. */
+.lvhero {
+  display:               grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(240px, 300px);
+  align-items:           center;
+  gap:                   22px;
+  background:            var(--bg-card);
+  border:                1px solid var(--border);
+  border-radius:         var(--radius-xl);
+  padding:               26px 28px;
+}
+.lvhero__badge {
+  width: 74px; height: 74px; border-radius: 20px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.lvhero__text h1 {
+  font-size: 1.85rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15;
+}
+.lvhero__text p { color: var(--text-muted); font-size: .92rem; margin-top: 8px; }
+
+.lvhero__art { width: 260px; flex-shrink: 0; color: var(--primary-light, #a5b4fc); }
+.lvhero__art svg { width: 100%; height: auto; }
+
+.lvhero__quote {
+  background:    #eef2ff;
+  border-radius: var(--radius-lg);
+  padding:       18px 20px;
+}
+.lvhero__quote p {
+  font-size: .92rem; font-weight: 600; line-height: 1.5; color: #4338ca;
+}
+/* The short rule under the quote — the mark that closes it. */
+.lvhero__quote span {
+  display: block; width: 34px; height: 3px; border-radius: 2px;
+  background: var(--primary); margin-top: 12px;
+}
+
+/* ── Summary tiles ─────────────────────────────────────────────────────────
+   Label over figure over caption: the label is what you are looking for, and
+   scanning five of them for the right one should not mean reading five
+   numbers first. */
+.lvstats {
+  display:               grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap:                   16px;
+}
+.lvstat {
+  display:       flex;
+  align-items:   center;
+  gap:           16px;
+  border:        1px solid transparent;
+  border-radius: var(--radius-lg);
+  padding:       18px 20px;
+  text-align:    left;
+  font:          inherit;
+  color:         inherit;
+  transition:    transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+button.lvstat { width: 100%; cursor: pointer; }
+button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.lvstat.is-on { border-color: currentColor; box-shadow: 0 0 0 3px rgba(79,70,229,.09); }
+
+.lvstat__icon {
+  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff;
+}
+.lvstat__body  { min-width: 0; }
+/* Each on its own line — they are spans, and an inline span in a blockified
+   flex item still flows inline beside its siblings. */
+.lvstat__label { display: block; font-size: .85rem; font-weight: 600; color: var(--text); }
+.lvstat__value { display: block; font-size: 1.85rem; font-weight: 700; line-height: 1.15; letter-spacing: -.02em; margin-top: 2px; }
+.lvstat__cap   { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 3px; }
+
+/* One hue per tile: a tinted ground, a matching border, and the icon in the
+   full-strength colour on white. */
+.lvstat--indigo { background: #eef2ff; border-color: #e0e7ff; color: #4f46e5; }
+.lvstat--blue   { background: #eff6ff; border-color: #dbeafe; color: #2563eb; }
+.lvstat--amber  { background: #fffbeb; border-color: #fde68a; color: #d97706; }
+.lvstat--green  { background: #f0fdf4; border-color: #bbf7d0; color: #059669; }
+.lvstat--red    { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.lvstat--violet { background: #f5f3ff; border-color: #ddd6fe; color: #7c3aed; }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────
+   The module's sections as pills in their own card. The active one is filled,
+   because at seven tabs an underline is too quiet to find. */
+.lvtabs {
+  display:       flex;
+  gap:           4px;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       8px;
+  overflow-x:    auto;
+  scrollbar-width: none;
+}
+.lvtabs::-webkit-scrollbar { display: none; }
+.lvtab {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           8px;
+  flex-shrink:   0;
+  padding:       11px 16px;
+  border:        none;
+  border-radius: var(--radius-lg);
+  background:    none;
+  font-size:     .87rem;
+  font-weight:   600;
+  color:         var(--text-muted);
+  white-space:   nowrap;
+  cursor:        pointer;
+  transition:    background var(--transition), color var(--transition);
+}
+.lvtab > svg { color: var(--text-light); transition: color var(--transition); }
+.lvtab:hover          { background: var(--bg); color: var(--text); }
+.lvtab:hover > svg    { color: var(--text-muted); }
+.lvtab.is-on          { background: var(--primary); color: #fff; }
+.lvtab.is-on > svg    { color: #fff; }
+.lvtab.is-on:hover    { background: var(--primary); color: #fff; }
+
+/* ── The card ──────────────────────────────────────────────────────────── */
+.lvcard { overflow: visible; }
+
+.lvcardhead {
+  display:         flex;
+  align-items:     flex-start;
+  justify-content: space-between;
+  gap:             16px;
+  flex-wrap:       wrap;
+  padding:         22px 24px 18px;
+}
+.lvcardhead h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em; }
+.lvcardhead p  { font-size: .86rem; color: var(--text-muted); margin-top: 5px; }
+.lvcardhead__acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── Filter row ────────────────────────────────────────────────────────────
+   Flat, not behind a button: five controls is few enough to keep on one line
+   at the widths this page is used at, and a filter you can see is a filter you
+   remember you set. */
+.lvfilters {
+  display:     flex;
+  align-items: center;
+  gap:         12px;
+  flex-wrap:   wrap;
+  padding:     0 24px 18px;
+}
+
+.lvsearch { position: relative; flex: 1 1 280px; min-width: 200px; }
+/* Direct child ONLY. The clear button holds an <svg> too, and as a descendant
+   selector this rule would take that one out of flow as well — leaving the
+   button collapsed to its own padding with the × hanging outside the field. */
+.lvsearch > svg {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+/* Room at both ends, so a long search term runs under neither. */
+.lvsearch input { padding-left: 40px; padding-right: 38px; height: 44px; border-radius: var(--radius-lg); }
+.lvsearch__clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; border: none; border-radius: 50%;
+  background: none; color: var(--text-light); cursor: pointer;
+}
+.lvsearch__clear:hover { background: var(--bg); color: var(--text); }
+
+.lvsel {
+  flex:          0 0 auto;
+  width:         auto;
+  min-width:     140px;
+  height:        44px;
+  border-radius: var(--radius-lg);
+  font-size:     .87rem;
+  cursor:        pointer;
+}
+/* A set filter is marked, so the row says at a glance which of its fields are
+   doing something. */
+.lvsel.is-set { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+/* Two native date inputs inside one control, so the pair reads as one range. */
+.lvrange {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  flex:          0 0 auto;
+  height:        44px;
+  padding:       0 12px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+}
+.lvrange > svg { color: var(--text-light); flex-shrink: 0; }
+.lvrange input {
+  border: none; background: none; outline: none; padding: 0;
+  font: inherit; font-size: .84rem; color: var(--text); width: 108px;
+}
+/* Safari/Chrome render an empty date input as dd/mm/yyyy in full black; this
+   keeps an unset end of the range as quiet as a placeholder should be. */
+.lvrange input:not(:valid), .lvrange input[value=""] { color: var(--text-light); }
+.lvrange > span { color: var(--text-light); font-size: .84rem; }
+.lvrange__clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
+  background: none; color: var(--text-light); cursor: pointer;
+}
+.lvrange__clear:hover { background: var(--bg); color: var(--text); }
+.lvrange.is-set { border-color: var(--primary); }
+.lvrange.is-set > svg { color: var(--primary); }
+
+/* ── The notice above the table ───────────────────────────────────────────── */
+.lvnotice {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 24px 16px; padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  background: #dbeafe; color: #1e40af;
+  font-size: .84rem;
+}
+.lvnotice > svg { flex-shrink: 0; }
+.lvnotice button {
+  background: none; border: none; padding: 0; font: inherit;
+  color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer;
+}
+
+/* ── The table ─────────────────────────────────────────────────────────────
+   Wide content scrolls inside its own box rather than pushing the page
+   sideways. */
+.lvtable__wrap  { overflow-x: auto; }
+.lvtable__state { display: flex; justify-content: center; padding: 56px 24px; }
+
+.lvtable { width: 100%; border-collapse: collapse; }
+.lvtable thead th {
+  padding:        13px 16px;
+  background:     var(--bg);
+  border-top:     1px solid var(--border);
+  border-bottom:  1px solid var(--border);
+  font-size:      .71rem;
+  font-weight:    700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color:          var(--text-muted);
+  text-align:     left;
+  white-space:    nowrap;
+}
+.lvtable tbody td {
+  padding:       16px;
+  border-bottom: 1px solid var(--border);
+  font-size:     .86rem;
+  vertical-align: middle;
+}
+.lvtable tbody tr:last-child td { border-bottom: none; }
+.lvtable tbody tr:hover { background: var(--bg); }
+
+.lvtable thead th:first-child, .lvtable tbody td:first-child { padding-left: 24px; }
+.lvtable thead th:last-child,  .lvtable tbody td:last-child  { padding-right: 24px; }
+
+.lvt-num     { width: 1%; color: var(--text-muted); }
+.lvt-days    { width: 1%; text-align: center; font-weight: 600; }
+.lvt-applied { width: 1%; white-space: nowrap; color: var(--text-muted); }
+.lvt-acts    { width: 1%; }
+.lvt-type    { font-weight: 500; white-space: nowrap; }
+.lvt-reason  { max-width: 220px; }
+
+/* Identity: initials on a coloured disc, the name beside it, the employee id
+   under it so two teachers of the same name stay apart. */
+.lvwho { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.lvavatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: .78rem; font-weight: 700;
+}
+.lvwho b     { display: block; font-size: .88rem; font-weight: 600; white-space: nowrap; }
+.lvwho small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+
+.lvperiod span  { display: block; white-space: nowrap; }
+.lvperiod small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+.lvperiod__lop  { color: var(--danger) !important; font-weight: 600; }
+
+.lvreason { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lvreason > span {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.lvdoc {
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+  font-size: .74rem; font-weight: 600; color: var(--primary); text-decoration: none;
+}
+.lvdoc:hover { text-decoration: underline; }
+
+/* ── Status ───────────────────────────────────────────────────────────────── */
+.lvbadge {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  font-size: .76rem; font-weight: 600; white-space: nowrap;
+}
+.lvbadge.is-pending   { background: #fef3c7; color: #b45309; }
+.lvbadge.is-approved  { background: #dcfce7; color: #047857; }
+.lvbadge.is-rejected  { background: #fee2e2; color: #b91c1c; }
+.lvbadge.is-cancelled { background: var(--bg); color: var(--text-muted); }
+
+.lvstep {
+  display: block; width: fit-content; margin-top: 5px; padding: 1px 7px;
+  border-radius: 6px; background: #eef2ff; color: var(--primary);
+  font-size: .7rem; font-weight: 600;
+}
+.lvtag {
+  font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 7px; color: var(--text-muted);
+}
+.lvlop { color: var(--danger); font-weight: 600; }
+
+/* ── Row actions ───────────────────────────────────────────────────────────
+   The decision is the work, so it sits on the row as a named button. The
+   overflow menu holds everything that is not. */
+.lvrowacts { display: flex; align-items: center; gap: 10px; }
+.lvacts    { display: flex; align-items: center; gap: 6px; }
+
+/* The row-action buttons, at the size the leave comps draw them: a larger,
+   softer square on a slate ground with no border until it is hovered.
+   Scoped to this page on purpose — `.lact` is shared with Students, Teachers,
+   Subjects, Holidays, Designations, the library screens and eight others, and
+   resizing it here would resize all of them. */
+.leavepg .lacts { gap: 10px; }
+.leavepg .lact {
+  width:         40px;
+  height:        40px;
+  border-radius: 12px;
+  background:    #f1f5f9;
+  border-color:  transparent;
+  color:         var(--text-muted);
+}
+/* The SVG carries width/height attributes, which a CSS rule outranks — so the
+   glyph can grow with the button without touching <IconAction size>. */
+.leavepg .lact > svg { width: 19px; height: 19px; }
+.leavepg .lact:hover:not(:disabled) { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
+.leavepg .lact--danger:hover:not(:disabled) { background: #fee2e2; border-color: #fecaca; color: #dc2626; }
+.lvbtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           6px;
+  padding:       7px 14px;
+  border-radius: var(--radius);
+  border:        1px solid transparent;
+  font-size:     .8rem;
+  font-weight:   600;
+  white-space:   nowrap;
+  cursor:        pointer;
+  transition:    background var(--transition), border-color var(--transition), color var(--transition);
+}
+.lvbtn--approve { background: var(--success); color: #fff; }
+.lvbtn--approve:hover { background: #047857; }
+.lvbtn--reject  { background: var(--danger); color: #fff; }
+.lvbtn--reject:hover  { background: #b91c1c; }
+.lvbtn:disabled { opacity: .45; cursor: not-allowed; }
+.lvbtn > svg { flex-shrink: 0; }
+
+/* ── Card footer ───────────────────────────────────────────────────────────
+   Rendered even for a single page, because the count sentence is the answer to
+   "did my filter do anything" and it should not vanish once the list is short. */
+.lvfoot {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             14px;
+  flex-wrap:       wrap;
+  padding:         16px 24px;
+  border-top:      1px solid var(--border);
+}
+.lvfoot__count { font-size: .84rem; color: var(--text-muted); }
+
+.lvpager { display: flex; align-items: center; gap: 6px; }
+.lvpage {
+  min-width:     36px;
+  height:        36px;
+  padding:       0 10px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius);
+  background:    var(--bg-card);
+  font-size:     .84rem;
+  font-weight:   600;
+  color:         var(--text-muted);
+  cursor:        pointer;
+  transition:    background var(--transition), border-color var(--transition), color var(--transition);
+}
+.lvpage:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.lvpage.is-on {
+  background: var(--primary); border-color: var(--primary); color: #fff;
+}
+.lvpage:disabled { opacity: .4; cursor: not-allowed; }
+.lvpager__gap { color: var(--text-light); font-size: .84rem; padding: 0 2px; }
+
+/* The set-up tabs keep their own toolbars inside the page card. */
+.lvtabacts { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px; justify-content: flex-end; }
+
+/* ═══ LEAVE TYPES ═══════════════════════════════════════════════════════════
+   Its own layout under the tab row: a section header on the page itself, four
+   tiles, and the table beside a rail of notes and shortcuts. */
+
+.lvgrid { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 20px; align-items: start; }
+.lvgrid__main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.lvgrid__side { display: flex; flex-direction: column; gap: 16px; }
+
+.lvstats--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* The glyph beside a type's name. Derived from the type, so the five every
+   school starts with get the mark you would draw for them. */
+.lvtypeicon {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lvtypeicon--green   { background: #dcfce7; color: #047857; }
+.lvtypeicon--blue    { background: #dbeafe; color: #1d4ed8; }
+.lvtypeicon--amber   { background: #fef3c7; color: #b45309; }
+.lvtypeicon--fuchsia { background: #fae8ff; color: #a21caf; }
+.lvtypeicon--pink    { background: #fce7f3; color: #db2777; }
+.lvtypeicon--lime    { background: #ecfccb; color: #65a30d; }
+.lvtypeicon--slate   { background: var(--bg); color: var(--text-muted); }
+
+.lvtypename { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lvtypename b { font-size: .89rem; font-weight: 600; white-space: nowrap; }
+
+.lvt-code   { width: 1%; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.lvt-alloc  { width: 1%; white-space: nowrap; }
+.lvt-status { width: 1%; }
+.lvt-desc   { max-width: 260px; color: var(--text-muted); }
+.lvt-desc span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lvmuted    { color: var(--text-light); font-style: italic; }
+
+.lvstatuscell { display: flex; align-items: center; gap: 10px; }
+
+/* A real checkbox under the paint, so the switch is reachable by keyboard and
+   reads as a control rather than as a coloured div. */
+.lvtoggle { position: relative; display: inline-flex; flex-shrink: 0; cursor: pointer; }
+.lvtoggle input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; opacity: 0; cursor: pointer;
+}
+.lvtoggle > span {
+  width: 40px; height: 22px; border-radius: 999px;
+  background: var(--border); position: relative;
+  transition: background var(--transition);
+}
+.lvtoggle > span::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.25);
+  transition: transform var(--transition);
+}
+.lvtoggle.is-on > span { background: var(--success); }
+.lvtoggle.is-on > span::after { transform: translateX(18px); }
+.lvtoggle input:focus-visible + span { box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
+.lvtoggle.is-busy { opacity: .55; pointer-events: none; }
+
+/* ═══ ALLOCATIONS ═══════════════════════════════════════════════════════════ */
+
+/* A card header that names a job rather than repeating the tab above it, and
+   carries the controls the whole table is scoped by. */
+.lvcardhead__id   { display: flex; align-items: flex-start; gap: 13px; min-width: 0; }
+.lvcardhead__mark {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.lvcardhead__acts { align-items: flex-end; }
+
+.lvheadfield { display: flex; flex-direction: column; gap: 5px; }
+.lvheadfield > span { font-size: .74rem; font-weight: 600; color: var(--text-muted); }
+
+/* The tick column, and the tint that says a row is in the selection. */
+.lvt-tick  { width: 1%; }
+.lvt-tick input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+.lvt-dept  { white-space: nowrap; color: var(--text-muted); }
+.lvt-total { width: 1%; white-space: nowrap; font-weight: 600; }
+.lvtable tbody tr.is-picked { background: #eef2ff; }
+.lvtable tbody tr.is-picked:hover { background: #e0e7ff; }
+
+/* What a teacher holds, one chip per leave type. */
+.lvchips { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.lvchip {
+  padding: 4px 10px; border-radius: 7px;
+  font-size: .75rem; font-weight: 600; white-space: nowrap;
+}
+/* One tint per hue in the validated leave-type palette — the ink is the exact
+   hex the donut fills with, so a chip, a legend dot and a slice agree. */
+.lvchip--green   { background: #dcfce7; color: #047857; }
+.lvchip--blue    { background: #dbeafe; color: #1d4ed8; }
+.lvchip--amber   { background: #fef3c7; color: #b45309; }
+.lvchip--fuchsia { background: #fae8ff; color: #a21caf; }
+.lvchip--pink    { background: #fce7f3; color: #db2777; }
+.lvchip--lime    { background: #ecfccb; color: #65a30d; }
+.lvchip--slate   { background: var(--bg); color: var(--text-muted); }
+
+/* The primary action, with the once-a-year ones folded in behind a caret. */
+.lvsplit { position: relative; display: inline-flex; }
+.lvsplit__main, .lvsplit__caret {
+  border: none; background: var(--primary); color: #fff;
+  font: inherit; font-size: .87rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition);
+}
+.lvsplit__main {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 0 16px; height: 44px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+.lvsplit__caret {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 44px;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  border-left: 1px solid rgba(255,255,255,.28);
+}
+.lvsplit__main:hover, .lvsplit__caret:hover { background: var(--primary-dark, #4338ca); }
+
+.lvsplit__menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+  min-width: 242px; padding: 6px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.lvsplit__item {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: 100%; padding: 9px 10px; text-align: left;
+  border: none; border-radius: var(--radius); background: none;
+  font: inherit; color: var(--text); cursor: pointer;
+}
+.lvsplit__item:hover { background: var(--bg); }
+.lvsplit__item > svg { flex-shrink: 0; margin-top: 2px; color: var(--text-light); }
+.lvsplit__item span  { font-size: .85rem; font-weight: 600; }
+.lvsplit__item small { display: block; font-size: .74rem; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+.lvsplit__item.is-danger { color: var(--danger); }
+.lvsplit__item.is-danger > svg { color: var(--danger); }
+.lvsplit__item.is-danger:hover { background: #fee2e2; }
+
+/* ═══ COMP OFF ══════════════════════════════════════════════════════════════ */
+
+.lvcompoff { display: flex; flex-direction: column; gap: 20px; }
+.lvsubtabcard { padding: 0 8px; }
+
+/* Underlined, not filled: the module's sections are the pill row above, and
+   one section's own views must not read as the same level of navigation. */
+.lvsubtabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.lvsubtabs::-webkit-scrollbar { display: none; }
+.lvsubtab {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           8px;
+  flex-shrink:   0;
+  padding:       15px 14px 13px;
+  border:        none;
+  border-bottom: 2px solid transparent;
+  background:    none;
+  font:          inherit;
+  font-size:     .87rem;
+  font-weight:   600;
+  color:         var(--text-muted);
+  white-space:   nowrap;
+  cursor:        pointer;
+  transition:    color var(--transition), border-color var(--transition);
+}
+.lvsubtab > svg { color: var(--text-light); transition: color var(--transition); }
+.lvsubtab:hover       { color: var(--text); }
+.lvsubtab:hover > svg { color: var(--text-muted); }
+.lvsubtab.is-on       { color: var(--primary); border-bottom-color: var(--primary); }
+.lvsubtab.is-on > svg { color: var(--primary); }
+
+/* The ticked rows and what may be done to them. Only ever appears with a
+   selection, and always says the count — a bulk action that does not tell you
+   how many records it is about is a trap. */
+.lvselbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 24px 16px; padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  background: #eef2ff; color: var(--primary);
+  font-size: .84rem; font-weight: 600;
+}
+.lvselbar > svg { flex-shrink: 0; }
+.lvselbar__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.lvselbar .lvmuted { font-weight: 400; font-style: normal; }
+
+/* A ledger row's sign is the whole meaning of it — +2 and −2 are opposite
+   facts, so the colour carries what the glyph already says. */
+.lvup   { color: #047857; }
+.lvdown { color: #b91c1c; }
+
+/* What is left of one earned lot, and when it lapses. */
+.lvlot       { font-size: .78rem; white-space: nowrap; }
+.lvlot small { display: block; font-size: .7rem; color: var(--text-muted); }
+
+/* The status split, for a panel where a ring would be three slices of nothing. */
+.lvstatuslist { display: flex; flex-direction: column; gap: 12px; padding: 6px 20px 20px; }
+.lvstatusrow  { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.lvstatusrow__bar {
+  height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden;
+}
+.lvstatusrow__bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+.lvstatusrow b { font-size: .88rem; font-variant-numeric: tabular-nums; }
+
+/* The policy notice, in its warning colour. */
+.lvnotice--warn { background: #fef3c7; color: #92400e; }
+
+/* "auto" beside a work type — this one was raised by the attendance sweep
+   rather than claimed by hand. */
+.lvsrc {
+  display: inline-block; margin-left: 7px; padding: 1px 6px;
+  border-radius: 5px; background: var(--bg); border: 1px solid var(--border);
+  font-size: .66rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+
+@media (max-width: 768px) {
+  .lvsubtabcard { padding: 0; }
+  .lvsubtabs { padding: 0 8px; }
+  .lvselbar { margin-left: 16px; margin-right: 16px; }
+}
+
+/* ═══ POLICIES ══════════════════════════════════════════════════════════════
+   A type picker on the left, its rules on the right as numbered cards. The
+   rules are answers to different questions, so they are grouped rather than
+   run together as one long form. */
+
+.lvpolgrid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+/* ── The picker ──────────────────────────────────────────────────────────── */
+.lvpolside { overflow: hidden; }
+.lvpolside > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 18px 18px 14px;
+}
+.lvpolside h3 { font-size: 1rem; font-weight: 700; }
+.lvpolside__add {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg-card);
+  font: inherit; font-size: .8rem; font-weight: 600; color: var(--primary);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--transition), border-color var(--transition);
+}
+.lvpolside__add:hover { background: #eef2ff; border-color: #c7d2fe; }
+
+.lvpollist { display: flex; flex-direction: column; padding: 0 10px 12px; gap: 2px; }
+.lvpolitem {
+  display:       flex;
+  align-items:   center;
+  gap:           11px;
+  width:         100%;
+  text-align:    left;
+  font:          inherit;
+  padding:       10px 10px;
+  border:        none;
+  /* The selected bar is drawn as a border so the row does not shift by 3px
+     when it becomes the selected one. */
+  border-left:   3px solid transparent;
+  border-radius: var(--radius-lg);
+  background:    none;
+  cursor:        pointer;
+  transition:    background var(--transition);
+}
+.lvpolitem:hover { background: var(--bg); }
+.lvpolitem.is-on { background: #eef2ff; border-left-color: var(--primary); }
+.lvpolitem > svg { color: var(--primary); flex-shrink: 0; margin-left: auto; }
+.lvpolitem__id   { min-width: 0; }
+.lvpolitem__id b { display: block; font-size: .87rem; font-weight: 600;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvpolitem__id small { display: block; font-size: .73rem; color: var(--text-muted); }
+.lvpolitem__tag {
+  margin-left: auto; flex-shrink: 0;
+  padding: 3px 8px; border-radius: 6px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: .68rem; font-weight: 600; color: var(--text-muted);
+}
+.lvpolitem__tag.is-off { background: #fee2e2; border-color: #fecaca; color: #b91c1c; }
+.lvpolitem.is-on > svg + .lvpolitem__tag { margin-left: 0; }
+
+/* ── The editor ──────────────────────────────────────────────────────────── */
+.lvpolmain { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+/* Sticky, because the save is at the top and the rules run past a screen. */
+.lvpolhead {
+  position: sticky; top: 0; z-index: 6;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 18px 20px;
+}
+.lvpolhead__icon {
+  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lvpolhead__id { flex: 1; min-width: 0; }
+.lvpolhead__id h2 {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em;
+}
+.lvpolhead__id h2 em { font-style: normal; color: var(--text-muted); font-weight: 600; }
+.lvpolhead__id p { font-size: .85rem; color: var(--text-muted); margin-top: 4px; }
+/* The badge is the control — pressing it suspends the type. */
+.lvpolhead__state {
+  padding: 4px 12px; border-radius: 999px; border: 1px solid transparent;
+  font: inherit; font-size: .74rem; font-weight: 600; cursor: pointer;
+}
+.lvpolhead__state.is-on  { background: #dcfce7; color: #047857; }
+.lvpolhead__state.is-off { background: #fee2e2; color: #b91c1c; }
+.lvpolhead__state:hover  { border-color: currentColor; }
+
+/* The notice, flattened for use inside a form rather than above a table. */
+.lvnotice--flat { margin: 0; }
+
+/* Two columns of rule cards; a card that holds a wide row takes both. */
+/* No align-items:start — the two cards in a row share a height, so a short
+   section sits in a card that matches its neighbour instead of leaving a
+   ragged gap under it. */
+.lvpolsecs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.lvpolsec--wide { grid-column: 1 / -1; }
+.lvpolsec { display: flex; flex-direction: column; }
+
+.lvpolsec > header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 0; }
+.lvpolsec h3 { font-size: .95rem; font-weight: 700; }
+.lvpolsec header p { font-size: .8rem; color: var(--text-muted); margin-top: 3px; }
+.lvpolsec__mark {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lvpolsec__mark--indigo { background: #eef2ff; color: #4f46e5; }
+.lvpolsec__mark--blue   { background: #dbeafe; color: #1d4ed8; }
+.lvpolsec__mark--green  { background: #dcfce7; color: #047857; }
+.lvpolsec__mark--amber  { background: #fef3c7; color: #b45309; }
+.lvpolsec__mark--pink   { background: #fce7f3; color: #be185d; }
+.lvpolsec__mark--violet { background: #f3e8ff; color: #7c3aed; }
+.lvpolsec__mark--teal   { background: #ccfbf1; color: #0f766e; }
+
+.lvpolsec__body {
+  flex: 1;
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 16px 20px 20px;
+}
+/* A note about the whole section settles at its foot rather than floating
+   wherever the fields above it happened to end. */
+.lvpolnote { font-size: .78rem; color: var(--text-muted); margin-top: auto; }
+.lvpolsec__body > .lvpolnote:only-child { margin-top: 0; }
+
+.lvpolrow { display: grid; gap: 12px 14px; }
+.lvpolrow--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lvpolrow--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Label, input and hint each get their own track across the whole row, so one
+   label wrapping to two lines pushes every input in the row down together
+   rather than leaving its neighbours floating half a line high.
+   Behind @supports because the fallback — each field laid out on its own — is
+   what the row did before and is still perfectly usable. */
+@supports (grid-template-rows: subgrid) {
+  .lvpolrow { grid-template-rows: auto auto auto; }
+  .lvpolrow > .lvfield {
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    gap: 6px;
+  }
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+.lvfield { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lvfield__label { font-size: .8rem; font-weight: 600; }
+.lvfield__hint  { font-size: .73rem; color: var(--text-muted); line-height: 1.45; }
+.lvfield__err   { font-size: .73rem; color: var(--danger); line-height: 1.45; }
+.lvfield .form-control.is-error { border-color: var(--danger); }
+
+.lvchecks { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.lvcheckitem, .lvcheck > label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .84rem; cursor: pointer;
+}
+.lvcheckitem input, .lvcheck input {
+  width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0;
+}
+.lvcheck { display: flex; flex-direction: column; }
+.lvcheck__hint {
+  font-size: .73rem; color: var(--text-muted); line-height: 1.45;
+  margin: 6px 0 0 24px;
+}
+/* The detail a rule needs once it is on, indented under it so the dependency
+   is visible rather than remembered. */
+.lvcheck__more {
+  margin: 12px 0 0 24px; padding-left: 14px;
+  border-left: 2px solid var(--border);
+  display: flex; flex-direction: column; gap: 12px;
+  max-width: 320px;
+}
+
+.lvpolfoot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; padding-bottom: 8px;
+}
+.lvpolfoot .lvmuted { font-size: .82rem; font-style: normal; }
+
+@media (max-width: 1400px) {
+  .lvpolsecs { grid-template-columns: 1fr; }
+}
+@media (max-width: 1000px) {
+  .lvpolgrid { grid-template-columns: 1fr; }
+  .lvpollist { flex-direction: row; overflow-x: auto; padding-bottom: 14px; }
+  .lvpolitem { width: auto; flex-shrink: 0; }
+}
+@media (max-width: 700px) {
+  .lvpolrow--2, .lvpolrow--3 { grid-template-columns: 1fr; }
+  .lvpolhead { position: static; }
+}
+
+/* ═══ REPORTS ═══════════════════════════════════════════════════════════════ */
+
+/* The page-level title and its controls, for a screen whose body is several
+   cards rather than one. */
+.lvsection {
+  display:         flex;
+  align-items:     flex-end;
+  justify-content: space-between;
+  gap:             16px;
+  flex-wrap:       wrap;
+}
+.lvsection h2 { font-size: 1.55rem; font-weight: 700; letter-spacing: -.02em; }
+.lvsection p  { font-size: .92rem; color: var(--text-muted); margin-top: 6px; }
+.lvsection__acts { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.lvsection__acts .btn { height: 44px; }
+
+/* The share this figure is of the whole, drawn once as a bar. The caption
+   already says the percentage in words; the bar is the shape of it. */
+.lvstat__bar {
+  display: block; height: 5px; border-radius: 999px;
+  background: rgba(15, 23, 42, .08); margin-top: 10px; overflow: hidden;
+}
+.lvstat__bar i { display: block; height: 100%; border-radius: 999px; background: currentColor; }
+
+.lvstat__delta {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
+  font-size: .75rem; font-weight: 600; color: #047857;
+}
+.lvstat__delta.is-down { color: #b91c1c; }
+.lvstat__delta em { font-style: normal; font-weight: 400; color: var(--text-muted); }
+
+/* Two charts side by side; the trend gets the width because twelve bars need
+   it and a ring does not. */
+.lvcharts { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.lvchartcard { display: flex; flex-direction: column; }
+.lvchart { padding: 4px 18px 18px; }
+.lvchart svg { display: block; overflow: visible; }
+.lvchart__empty { padding: 40px 24px; text-align: center; }
+.lvchartcard .lvdonut { padding: 4px 18px 20px; }
+
+.lvcardhead__mark--violet { background: #f3e8ff; color: #7c3aed; }
+
+/* The distribution's legend sits beside the ring once there is room for it. */
+@media (min-width: 1100px) {
+  .lvchartcard .lvdonut { flex-direction: row; align-items: center; gap: 18px; }
+  .lvchartcard .lvdonut__legend { flex: 1; }
+}
+
+/* ═══ BALANCE SUMMARY ═══════════════════════════════════════════════════════ */
+
+/* Two header rows: the per-type columns are one group, and saying so once
+   beats repeating "balance" over every code. */
+.lvtable--grouped thead th { vertical-align: bottom; }
+.lvt-group {
+  text-align: center !important;
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.lvt-sub {
+  text-align: center !important;
+  padding-top: 8px !important; padding-bottom: 10px !important;
+  border-left: 1px solid var(--border);
+}
+.lvt-sub:last-of-type { border-right: 1px solid var(--border); }
+.lvt-cell { width: 1%; text-align: center; }
+
+/* One leave type's remaining days. Low is the one state worth a colour of its
+   own, and it is the same two-day rule the tile and the row status use. */
+.lvpill {
+  display: inline-block; min-width: 38px; padding: 4px 9px;
+  border-radius: 8px; font-size: .78rem; font-weight: 600; text-align: center;
+}
+.lvpill--green   { background: #dcfce7; color: #047857; }
+.lvpill--blue    { background: #dbeafe; color: #1d4ed8; }
+.lvpill--amber   { background: #fef3c7; color: #b45309; }
+.lvpill--fuchsia { background: #fae8ff; color: #a21caf; }
+.lvpill--pink    { background: #fce7f3; color: #db2777; }
+.lvpill--lime    { background: #ecfccb; color: #65a30d; }
+.lvpill--slate   { background: var(--bg); color: var(--text-muted); }
+.lvpill--low     { background: #fee2e2; color: #b91c1c; }
+
+/* ── The ring ──────────────────────────────────────────────────────────────
+   The arcs are the index; the list beside them is the answer. Nobody reads a
+   number off an arc, so every slice is named and numbered. */
+.lvdonut { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.lvdonut__dial { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
+.lvdonut__center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.lvdonut__total { font-size: 1.5rem; font-weight: 700; line-height: 1.15; letter-spacing: -.02em; }
+.lvdonut__cap   { font-size: .7rem; color: var(--text-muted); }
+.lvdonut__legend {
+  list-style: none; margin: 0; padding: 0;
+  width: 100%; display: flex; flex-direction: column; gap: 9px;
+}
+.lvdonut__legend li { display: flex; align-items: center; gap: 9px; font-size: .78rem; }
+.lvdonut__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.lvdonut__k {
+  color: var(--text-muted); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lvdonut__v { margin-left: auto; font-weight: 600; white-space: nowrap; }
+.lvdonut__v small { font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+
+/* A teacher's applications, in the report drawer. */
+.lvapps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.lvapps li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px;
+  padding-bottom: 12px; border-bottom: 1px dashed var(--border);
+}
+.lvapps li:last-child { padding-bottom: 0; border-bottom: none; }
+.lvapps__when   { min-width: 0; }
+.lvapps__when b { display: block; font-size: .85rem; font-weight: 600; }
+.lvapps__when small { display: block; font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+.lvapps em {
+  grid-column: 1 / -1; font-style: italic; font-size: .78rem; color: var(--text-muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* One leave type's four figures, in the balance drawer. */
+.lvbal > h4 { display: flex; align-items: center; gap: 8px; }
+.lvbal > h4 em {
+  font-style: normal; letter-spacing: .04em; color: var(--text-light);
+}
+.lvbal > h4 .lvpill { margin-left: auto; }
+.lvbal__grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.lvbal__grid > div {
+  background: var(--bg-card); padding: 9px 12px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.lvbal__grid dt { font-size: .78rem; color: var(--text-muted); }
+.lvbal__grid dd { font-size: .88rem; font-weight: 600; }
+/* The answer, on its own row under the four figures that make it. */
+.lvbal__left { grid-column: 1 / -1; background: var(--bg) !important; }
+.lvbal__left dt { font-weight: 600; color: var(--text); }
+.lvbal__left dd { font-size: 1rem; }
+
+.lvrail__mark--help { background: #eef2ff; color: var(--primary); }
+.lvhelp { font-size: .82rem; line-height: 1.55; color: var(--text-muted); margin-bottom: 14px; }
+.lvrail .btn { width: 100%; justify-content: center; }
+
+/* ── The rail ─────────────────────────────────────────────────────────────── */
+.lvrail {
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       18px;
+}
+.lvrail > header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.lvrail h3 { font-size: .95rem; font-weight: 700; }
+.lvrail__mark {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lvrail__mark--info { background: #dbeafe; color: #2563eb; }
+.lvrail__mark--gear { background: #eef2ff; color: var(--primary); }
+
+.lvnotes {
+  display: flex; flex-direction: column; gap: 11px;
+  /* The dot is drawn by ::before; without this the browser's own marker sits
+     beside it and every note gets two bullets. */
+  list-style: none; margin: 0; padding: 0 0 0 4px;
+}
+.lvnotes li {
+  position: relative; padding-left: 16px;
+  font-size: .82rem; line-height: 1.5; color: var(--text-muted);
+}
+.lvnotes li::before {
+  content: ''; position: absolute; left: 0; top: .5em;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--text-light);
+}
+
+.lvlinks { display: flex; flex-direction: column; gap: 8px; }
+.lvlink {
+  display:       flex;
+  align-items:   center;
+  gap:           11px;
+  width:         100%;
+  text-align:    left;
+  font:          inherit;
+  padding:       11px 12px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+  cursor:        pointer;
+  transition:    border-color var(--transition), background var(--transition);
+}
+.lvlink:hover { border-color: var(--primary); background: var(--bg); }
+.lvlink > svg { color: var(--text-light); flex-shrink: 0; margin-left: auto; }
+.lvlink__icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lvlink__icon--indigo { background: #eef2ff; color: var(--primary); }
+.lvlink__icon--violet { background: #f3e8ff; color: #7c3aed; }
+.lvlink__icon--green  { background: #dcfce7; color: #059669; }
+.lvlink__text   { min-width: 0; }
+.lvlink__text b { display: block; font-size: .84rem; font-weight: 600; }
+.lvlink__text small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+
+/* ── The approval trail, in the drawer ────────────────────────────────────── */
+.lvtrail { display: flex; flex-direction: column; gap: 12px; }
+.lvtrail li {
+  padding-left: 13px; border-left: 2px solid var(--border);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.lvtrail b    { font-size: .82rem; }
+.lvtrail span { font-size: .78rem; color: var(--text-muted); }
+.lvtrail em   { font-size: .78rem; font-style: italic; color: var(--text-muted); }
+
+/* ── The decision dialog ──────────────────────────────────────────────────── */
+.lvdec__card {
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 12px 14px;
+}
+.lvdec__card b    { font-size: .9rem; }
+.lvdec__card span { font-size: .8rem; color: var(--text-muted); }
+.lvdec__card em   { font-size: .8rem; font-style: italic; color: var(--text-muted); margin-top: 4px; }
+.lvdec__note {
+  display: flex; align-items: flex-start; gap: 7px;
+  font-size: .79rem; color: var(--text-muted); line-height: 1.5;
+  margin: 14px 0 16px;
+}
+.lvdec__note > svg { flex-shrink: 0; margin-top: 2px; color: var(--text-light); }
+.lvdec__label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: 6px; }
+.lvdec__label span { font-weight: 400; color: var(--text-muted); }
+
+/* ── Narrower ─────────────────────────────────────────────────────────────── */
+@media (max-width: 1400px) {
+  .lvhero { grid-template-columns: auto minmax(0, 1fr) minmax(240px, 300px); }
+  .lvhero__art { display: none; }
+}
+@media (max-width: 1280px) {
+  /* The rail goes under the table: two 240px columns of notes squeeze the
+     description column out of the table long before they run out of room. */
+  .lvgrid { grid-template-columns: 1fr; }
+  .lvgrid__side { flex-direction: row; flex-wrap: wrap; }
+  .lvgrid__side > * { flex: 1 1 260px; }
+}
+@media (max-width: 1200px) {
+  .lvstats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lvstats--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lvcharts { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .lvhero { grid-template-columns: auto minmax(0, 1fr); }
+  .lvhero__quote { grid-column: 1 / -1; }
+  .lvstats, .lvstats--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+  .page.leavepg { padding: 16px; gap: 16px; }
+  .lvhero { padding: 20px; gap: 16px; }
+  .lvhero__badge { width: 56px; height: 56px; border-radius: 16px; }
+  .lvhero__text h1 { font-size: 1.45rem; }
+  .lvstat { padding: 14px 16px; gap: 12px; }
+  .lvstat__icon  { width: 44px; height: 44px; border-radius: 12px; }
+  .lvstat__value { font-size: 1.5rem; }
+  .lvcardhead, .lvfilters, .lvfoot { padding-left: 16px; padding-right: 16px; }
+  .lvnotice { margin-left: 16px; margin-right: 16px; }
+  .lvtable thead th:first-child, .lvtable tbody td:first-child { padding-left: 16px; }
+  .lvtable thead th:last-child,  .lvtable tbody td:last-child  { padding-right: 16px; }
+  .lvtabacts { padding-left: 16px; padding-right: 16px; }
+  .lvsearch { flex-basis: 100%; }
+  .lvsel, .lvrange { flex: 1 1 160px; }
+  .lvsection__acts { width: 100%; align-items: stretch; }
+  .lvsection__acts .btn, .lvsection__acts .lvheadfield, .lvsection__acts .lvsel { flex: 1 1 160px; }
+  .lvcardhead__acts { width: 100%; align-items: stretch; }
+  .lvcardhead__acts .btn { flex: 1; justify-content: center; }
+  .lvheadfield, .lvsplit { flex: 1 1 100%; }
+  .lvsplit__main { flex: 1; justify-content: center; }
+}
+@media (max-width: 768px) {
+  .lvgrid__side { flex-direction: column; }
+}
+@media (max-width: 560px) {
+  .lvstats, .lvstats--4 { grid-template-columns: 1fr; }
+  .lvfoot  { justify-content: center; }
+}
