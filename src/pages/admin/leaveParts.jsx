@@ -261,6 +261,14 @@ export const TeacherCell = ({ request: r }) => (
   </div>
 );
 
+/** The leave type: its name, with the code under it as the short form. */
+export const LeaveTypeCell = ({ request: r }) => (
+  <div className="lvtype">
+    <b>{r.leaveType?.name || '—'}</b>
+    {r.leaveType?.code ? <small>{r.leaveType.code}</small> : null}
+  </div>
+);
+
 /**
  * The period, and the reason the day count beside it differs from it.
  *
@@ -288,7 +296,15 @@ export const STATUS = {
   expired:   { label: 'Expired',        icon: 'clock' },
 };
 
-export const STATUS_OPTIONS = Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label }));
+/**
+ * The statuses a *leave application* can be in.
+ *
+ * Not every key of STATUS: `draft` and `expired` belong to Comp Off, whose own
+ * filter lists them explicitly. Deriving this from the whole map put two
+ * states into the leave filters that no leave application can ever be in.
+ */
+export const LEAVE_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'];
+export const STATUS_OPTIONS = LEAVE_STATUSES.map((value) => ({ value, label: STATUS[value].label }));
 
 export const StatusBadge = ({ status }) => {
   const s = STATUS[status];
@@ -333,7 +349,7 @@ export const ReasonCell = ({ request: r }) => (
  * A slide-over rather than a route: the admin filtered their way to this row,
  * and deciding on it should hand the queue straight back.
  */
-export function RequestDrawer({ request: r, onClose, onDecide, busy }) {
+export function RequestDrawer({ request: r, onClose, onDecide, onCancel, busy }) {
   if (!r) return null;
   const need  = Number(r.approvalsRequired) || 1;
   const trail = Array.isArray(r.approvals) ? r.approvals : [];
@@ -413,7 +429,11 @@ export function RequestDrawer({ request: r, onClose, onDecide, busy }) {
       </div>
 
       <DrawerFoot>
-        {r.status === 'pending' && (
+        {/* Only where deciding is possible. The same drawer shows an employee
+            their own application, and they must not be offered the approve
+            buttons — before this guard, opening it without `onDecide` rendered
+            them and threw the moment one was pressed. */}
+        {onDecide && r.status === 'pending' && (
           <>
             <Button variant="success" loading={busy} onClick={() => onDecide('approve', r)}>
               <Icon name="checkCircle" size={16} /> Approve
@@ -426,9 +446,16 @@ export function RequestDrawer({ request: r, onClose, onDecide, busy }) {
         {/* Undoing an approval is the only way the days go back — and Comp Off
             refuses to withdraw a credit until the leave that spent it is
             reversed here. */}
-        {r.status === 'approved' && (
+        {onDecide && r.status === 'approved' && (
           <Button variant="secondary" loading={busy} onClick={() => onDecide('reverse', r)}>
             <Icon name="repeat" size={16} /> Reverse approval
+          </Button>
+        )}
+        {/* Withdrawing your own application, which is a different act from an
+            admin deciding on it. */}
+        {onCancel && r.status === 'pending' && (
+          <Button variant="danger" loading={busy} onClick={() => onCancel(r)}>
+            <Icon name="close" size={16} /> Cancel application
           </Button>
         )}
         <Button variant="secondary" onClick={onClose}>Close</Button>
@@ -1269,7 +1296,7 @@ export const SignOffStep = ({ request: r }) => {
  * kind of day the engine decided it was, the hours behind the figure, and what
  * was actually credited once it was approved.
  */
-export function CompOffDrawer({ request: r, onClose, onDecide, onSeeRequests, busy }) {
+export function CompOffDrawer({ request: r, onClose, onDecide, onSeeRequests, onWithdraw, busy }) {
   if (!r) return null;
   const need  = Number(r.approvalsRequired) || 1;
   const day   = r.workDate ? new Date(r.workDate) : null;
@@ -1351,6 +1378,13 @@ export function CompOffDrawer({ request: r, onClose, onDecide, onSeeRequests, bu
         {onSeeRequests && (
           <Button onClick={() => onSeeRequests(r)}>
             <Icon name="fileCheck" size={16} /> Open in Requests
+          </Button>
+        )}
+        {/* Withdrawing your own claim, which is a different act from an
+            approver deciding on it. */}
+        {onWithdraw && (r.status === 'pending' || r.status === 'draft') && (
+          <Button variant="danger" loading={busy} onClick={() => onWithdraw(r)}>
+            <Icon name="close" size={16} /> Withdraw
           </Button>
         )}
         <Button variant="secondary" onClick={onClose}>Close</Button>
@@ -1606,3 +1640,360 @@ export function LedgerDrawer({ entry: e, labels = {}, tones = {}, onClose, onOnl
     </Drawer>
   );
 }
+
+// ── My Leave: balance ────────────────────────────────────────────────────────
+
+/**
+ * One leave type's balance, as a card.
+ *
+ * The figure people want is how many days are left, so that is the big one;
+ * the bar underneath says how much of the year's allowance it represents,
+ * because "12 left" means something different out of 12 than out of 90.
+ */
+export const BalanceCard = ({ balance: b, tone = 'indigo', onView }) => {
+  const type = b.leaveType || {};
+  const allocated = (b.totalAllocated || 0) + (b.carriedForward || 0);
+  const used = b.used || 0;
+  const left = b.remaining ?? Math.max(0, allocated - used - (b.pending || 0));
+  const pct  = allocated > 0 ? Math.min(100, (used / allocated) * 100) : 0;
+
+  return (
+    <section className="card lvbalcard">
+      <header>
+        <TypeIcon type={type} />
+        <div className="lvbalcard__id">
+          <b>{type.name || 'Leave'}</b>
+          <small>{[type.code, b.academicYear].filter(Boolean).join(' · ')}</small>
+        </div>
+        <div className="lvbalcard__left">
+          <strong>{dayNum(left)}</strong>
+          <small>day{Number(left) === 1 ? '' : 's'} left</small>
+        </div>
+      </header>
+
+      {/* Filled by what has been used, not by what is left — the bar is a
+          measure of the year spent, and it fills as the year goes on. */}
+      <div className="lvbalcard__bar" role="img"
+        aria-label={`${dayNum(used)} of ${dayNum(allocated)} days used`}>
+        <i className={`lvbalcard__fill lvbalcard__fill--${tone}`} style={{ width: `${Math.max(pct, used > 0 ? 4 : 0)}%` }} />
+      </div>
+      <div className="lvbalcard__nums">
+        <span><b>{dayNum(used)}</b> used of {dayNum(allocated)}</span>
+        <span>{dayNum(allocated)} allocated</span>
+      </div>
+
+      {onView && (
+        <button type="button" className="lvbalcard__more" onClick={onView}>
+          View Details <Icon name="arrowRight" size={15} />
+        </button>
+      )}
+    </section>
+  );
+};
+
+/** A label and a figure, for the summary panel. */
+export const SummaryRow = ({ label, value, strong }) => (
+  <div className={`lvsumrow${strong ? ' is-strong' : ''}`}>
+    <span>{label}</span>
+    <b>{value}</b>
+  </div>
+);
+
+/**
+ * One leave type, in full: the balance, and the rules that govern it.
+ *
+ * The rules are the half an employee cannot see anywhere else — how far ahead
+ * they must apply, whether a half day counts, what the office will ask for —
+ * and they are the reason an application gets refused.
+ */
+export function MyBalanceDrawer({ balance: b, policy, onClose, onApply }) {
+  if (!b) return null;
+  const type = b.leaveType || {};
+  const allocated = (b.totalAllocated || 0) + (b.carriedForward || 0);
+  const left = b.remaining ?? Math.max(0, allocated - (b.used || 0) - (b.pending || 0));
+  const cap = (n, unit) => (n > 0 ? `${dayNum(n)} ${unit}` : 'No limit');
+
+  return (
+    <Drawer open={!!b} onClose={onClose}>
+      <DrawerHead
+        name={type.name || 'Leave'}
+        sub={[type.code, b.academicYear].filter(Boolean).join(' · ')}
+        tone={typeLook(type).tone}
+        tags={[
+          <span key="l" className={`lvbadge is-${left > 0 ? 'approved' : 'cancelled'}`}>
+            {dayNum(left)} day{Number(left) === 1 ? '' : 's'} left
+          </span>,
+          policy && !policy.eligible
+            ? <span key="e" className="lvbadge is-rejected" title={policy.ineligibleReason}>Not available to you</span>
+            : null,
+        ].filter(Boolean)}
+        onClose={onClose}
+      />
+
+      <div className="ldrawer__body">
+        <section className="ldrawer__sec lvbal">
+          <h4>Your balance</h4>
+          <dl className="lvbal__grid">
+            <div><dt>Allocated</dt><dd>{dayNum(b.totalAllocated || 0)}</dd></div>
+            <div><dt>Carried in</dt><dd>{dayNum(b.carriedForward || 0)}</dd></div>
+            <div><dt>Used</dt><dd>{dayNum(b.used || 0)}</dd></div>
+            {/* Held by an application nobody has decided on — not spent, not
+                available, and the usual reason a figure looks short. */}
+            <div><dt>Pending</dt><dd>{dayNum(b.pending || 0)}</dd></div>
+            {b.expired ? <div><dt>Expired</dt><dd>{dayNum(b.expired)}</dd></div> : null}
+            <div className="lvbal__left"><dt>Remaining</dt><dd>{dayNum(left)}</dd></div>
+          </dl>
+        </section>
+
+        {policy && !policy.eligible && (
+          <div className="lvnotice lvnotice--warn lvnotice--flat">
+            <Icon name="alert" size={15} />
+            <span>{policy.ineligibleReason || 'You cannot apply for this leave type.'}</span>
+          </div>
+        )}
+
+        {policy && (
+          <>
+            <DrawerSection
+              title="Applying"
+              fields={[
+                ['Minimum per application', policy.minDaysPerApplication > 0 ? dayNum(policy.minDaysPerApplication) : 'No minimum'],
+                ['Longest single spell', cap(policy.maxConsecutiveDays, 'at a time')],
+                ['Notice needed', policy.advanceNoticeDays > 0
+                  ? `${dayNum(policy.advanceNoticeDays)} ahead` : 'None'],
+                ['Back-dated', policy.allowBackdated
+                  ? (policy.backdatedWithinDays > 0 ? `Within ${dayNum(policy.backdatedWithinDays)}` : 'Allowed')
+                  : 'Not allowed'],
+                ['Half days', policy.halfDayAllowed ? 'Allowed' : 'Not allowed'],
+                ['Document', policy.requiresDocument
+                  ? (policy.documentRequiredAfterDays > 0
+                    ? `Needed past ${dayNum(policy.documentRequiredAfterDays)}`
+                    : 'Always needed')
+                  : 'Not needed'],
+              ]}
+            />
+
+            <DrawerSection
+              title="How often"
+              fields={[
+                ['Per month', policy.maxApplicationsPerMonth > 0
+                  ? `${policy.maxApplicationsPerMonth} application(s)` : 'No cap'],
+                ['Days per month', cap(policy.maxDaysPerMonth, 'a month')],
+                ['Per year', policy.maxApplicationsPerYear > 0
+                  ? `${policy.maxApplicationsPerYear} application(s)` : 'No cap'],
+                // The sandwich rule is the one that surprises people: it charges
+                // the weekend in the middle of a Friday-to-Monday absence.
+                ['Sandwich rule', policy.sandwichRule
+                  ? 'On — holidays and weekly offs inside the leave are charged'
+                  : 'Off — weekends and holidays inside the leave are free'],
+              ]}
+            />
+
+            <DrawerSection
+              title="Year end"
+              fields={[
+                ['Carry forward', policy.carryForward?.enabled
+                  ? (policy.carryForward.maxDays > 0
+                    ? `Up to ${dayNum(policy.carryForward.maxDays)}`
+                    : 'Everything unused')
+                  : 'Unused days lapse'],
+                ['Encashable', policy.encashable ? 'Yes, on exit settlement' : 'No'],
+              ]}
+            />
+          </>
+        )}
+      </div>
+
+      <DrawerFoot>
+        {onApply && policy?.eligible !== false && (
+          <Button onClick={() => onApply(type)}>
+            <Icon name="plus" size={16} /> Apply for {type.name}
+          </Button>
+        )}
+        <Button variant="secondary" onClick={onClose}>Close</Button>
+      </DrawerFoot>
+    </Drawer>
+  );
+}
+
+/**
+ * The three things worth saying about Comp Off, under the list.
+ *
+ * Rules an employee is judged by should be readable where they are applied,
+ * not only in a policy screen they cannot reach.
+ */
+export const InfoPanels = ({ items }) => (
+  <section className="card lvinfo">
+    {items.map((it) => (
+      <div className="lvinfo__item" key={it.title}>
+        <span className={`lvinfo__mark lvinfo__mark--${it.tone || 'indigo'}`}>
+          <Icon name={it.icon} size={19} />
+        </span>
+        <div>
+          <b>{it.title}</b>
+          <p>{it.text}</p>
+        </div>
+      </div>
+    ))}
+  </section>
+);
+
+/** A column heading with the second line of its cells named under it. */
+export const ThSub = ({ children, sub, className }) => (
+  <th className={className}>
+    <span className="lvth">
+      {children}
+      {sub ? <small>{sub}</small> : null}
+    </span>
+  </th>
+);
+
+// ── Apply for leave ──────────────────────────────────────────────────────────
+
+/** A dialog's own title block: a mark, what it is, and what pressing submit does. */
+export const DialogHead = ({ icon, title, subtitle }) => (
+  <div className="lvdlghead">
+    <span className="lvdlghead__mark"><Icon name={icon} size={24} /></span>
+    <div>
+      <b>{title}</b>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </div>
+  </div>
+);
+
+/** One numbered step of a form. */
+export const FormStep = ({ n, title, note, children }) => (
+  <section className="lvstep-sec">
+    <header>
+      <span className="lvstep-sec__n">{n}</span>
+      <div>
+        <b>{title}</b>
+        {note ? <p>{note}</p> : null}
+      </div>
+    </header>
+    <div className="lvstep-sec__body">{children}</div>
+  </section>
+);
+
+/**
+ * A choice between two or three things, as cards rather than a dropdown.
+ *
+ * Full day or half day is the sort of decision a dropdown hides — there are
+ * two options, both matter, and one is nearly always right.
+ */
+export const ChoiceCards = ({ name, value, onChange, options }) => (
+  <div className="lvchoices" role="radiogroup">
+    {options.map((o) => (
+      <label key={o.value} className={`lvchoice${value === o.value ? ' is-on' : ''}${o.disabled ? ' is-off' : ''}`}
+        title={o.disabled ? o.disabledHint : undefined}>
+        <input type="radio" name={name} value={o.value} checked={value === o.value}
+          disabled={o.disabled} onChange={() => onChange(o.value)} />
+        <span className="lvchoice__dot" aria-hidden />
+        <span className="lvchoice__text">
+          {o.label}
+          {o.sub ? <small>{o.sub}</small> : null}
+        </span>
+      </label>
+    ))}
+  </div>
+);
+
+/** The file field, drawn as a drop target rather than a browse button. */
+export const DropZone = ({ inputRef, accept, hint, fileName, error, required, onPick }) => (
+  <div className={`lvdrop${error ? ' is-error' : ''}${fileName ? ' is-set' : ''}`}>
+    <input ref={inputRef} type="file" accept={accept} onChange={onPick}
+      aria-label={`Supporting document${required ? ' (required)' : ' (optional)'}`} />
+    <Icon name={fileName ? 'fileCheck' : 'upload'} size={26} />
+    <span className="lvdrop__text">
+      {fileName
+        ? <><b>{fileName}</b><small>Click to choose a different file</small></>
+        : <><b>Click to upload</b> or drag and drop<small>{hint}</small></>}
+    </span>
+  </div>
+);
+
+/**
+ * One ratio, drawn round, with the figure that matters in the middle.
+ *
+ * A meter rather than a chart — there is one number here, and the ring is the
+ * shape of it against the year's allowance.
+ */
+export const MiniRing = ({ value, total, caption, note, tone = '#4f46e5' }) => {
+  const R = 34;
+  const C = 2 * Math.PI * R;
+  const pct = total > 0 ? Math.max(0, Math.min(1, value / total)) : 0;
+  return (
+    <div className="lvring">
+      <svg width="86" height="86" viewBox="0 0 86 86" role="img"
+        aria-label={`${value} of ${total} ${caption}`}>
+        <circle cx="43" cy="43" r={R} fill="none" stroke="#eef1f6" strokeWidth="10" />
+        {pct > 0 && (
+          <circle cx="43" cy="43" r={R} fill="none" stroke={tone} strokeWidth="10"
+            strokeLinecap="round" strokeDasharray={`${C * pct} ${C}`}
+            transform="rotate(-90 43 43)" />
+        )}
+      </svg>
+      <div className="lvring__text">
+        <strong>{dayNum(value)}</strong>
+        <span>{caption}</span>
+        {note ? <small>{note}</small> : null}
+      </div>
+    </div>
+  );
+};
+
+/** A figure with an icon and a name, in the dialog's side panel. */
+export const FactRow = ({ icon, label, value, tone }) => (
+  <div className="lvfact">
+    <span className="lvfact__mark"><Icon name={icon} size={16} /></span>
+    <span className="lvfact__label">{label}</span>
+    <b className={tone ? `lv${tone}` : undefined}>{value}</b>
+  </div>
+);
+
+/** A note across the top of a dialog — the one thing to know before filling it in. */
+export const DialogNote = ({ children, tone = 'info' }) => (
+  <div className={`lvdlgnote lvdlgnote--${tone}`}>
+    <Icon name="alert" size={16} />
+    <span>{children}</span>
+  </div>
+);
+
+/** A label and a value, in a dialog's summary panel. `lead` marks the answer. */
+export const SummaryLine = ({ label, value, lead }) => (
+  <div className={`lvsumline${lead ? ' is-lead' : ''}`}>
+    <span>{label}</span>
+    <b>{value}</b>
+  </div>
+);
+
+/** The rules a form will be judged by, as a list beside it. */
+export const RulesNote = ({ title, items }) => (
+  <section className="lvrules">
+    <header><Icon name="alert" size={16} /><b>{title}</b></header>
+    <ul>
+      {items.filter(Boolean).map((t) => <li key={t}>{t}</li>)}
+    </ul>
+  </section>
+);
+
+/** "9h 30m" from a pair of HH:MM strings, or null when either is missing. */
+export function hoursBetween(from, to) {
+  if (!from || !to) return null;
+  const [fh, fm] = from.split(':').map(Number);
+  const [th, tm] = to.split(':').map(Number);
+  if ([fh, fm, th, tm].some((n) => Number.isNaN(n))) return null;
+  // A shift that ends "before" it starts ran past midnight.
+  const mins = (th * 60 + tm) - (fh * 60 + fm) + ((th * 60 + tm) < (fh * 60 + fm) ? 1440 : 0);
+  return mins / 60;
+}
+
+export const fmtHours = (h) =>
+  h == null ? '—' : `${Math.floor(h)}h ${Math.round((h - Math.floor(h)) * 60)}m`;
+
+/** The weekday a date falls on — half the reason a Comp Off claim is valid. */
+export const weekdayOf = (d) => {
+  if (!d) return '';
+  const x = new Date(`${d}T00:00:00Z`);
+  return Number.isNaN(x.getTime()) ? '' : x.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' });
+};

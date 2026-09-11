@@ -7,8 +7,9 @@ import { Button, Modal, Spinner, Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { IconAction, MenuItem, MenuSep, RowActions, RowMenu, useSelection } from './listParts';
 import {
-  CardHead, ChartCard, CompOffBalanceDrawer, CompOffDrawer, DateRange, EarnedCell,
-  FilterRow, FilterSelect, LedgerDrawer,
+  Avatar, CardHead, ChartCard, CompOffBalanceDrawer, CompOffDrawer, DateRange,
+  DialogHead, DialogNote, EarnedCell, FactRow, FilterRow, FilterSelect, FormStep,
+  LedgerDrawer, RulesNote, SummaryLine, fmtHours, hoursBetween, weekdayOf,
   LeaveDonut, LeaveStat, LeaveStats, Pager, PolicyHead, RuleCard, RuleCheck, RuleList,
   RuleNum, RulePick, STATUS, SearchBox, SectionHead, ShowingCount, SignOffStep, StatusBadge,
   SubTabs, TYPE_TONES, TeacherCell, WORK_TYPES, WorkDateCell,
@@ -440,8 +441,9 @@ export function AdminCompOff() {
                             <RowActions>
                               <IconAction icon="eye" label={`View ${r.teacher?.name || 'this'} request`}
                                 onClick={() => setDetail(r)} />
+                              {/* No "View full request" here — the eye beside
+                                  it already opens the whole record. */}
                               <RowMenu>
-                                <MenuItem icon="eye" onClick={() => setDetail(r)}>View full request</MenuItem>
                                 <MenuItem icon="user"
                                   onClick={() => { releaseFocus(); setFTeacher(r.teacher?._id || ''); setPage(1); }}>
                                   Only this employee
@@ -565,74 +567,196 @@ export function AdminCompOff() {
       </Modal>
 
       {/* ── Raise on behalf ── */}
-      <Modal open={applyModal} onClose={() => setApplyModal(false)} title="Raise Comp Off" maxWidth={620}
+      <Modal open={applyModal} onClose={() => setApplyModal(false)} maxWidth={980}
+        title={<DialogHead icon="clock" title="Raise Comp Off"
+          subtitle="Manually credit compensatory off for an employee based on their extra working hours." />}
         footer={<>
           <Button variant="secondary" onClick={() => setApplyModal(false)}>Cancel</Button>
-          <Button form="co-apply-form" type="submit" loading={applyLoad}>Submit</Button>
+          <Button form="co-apply-form" type="submit" loading={applyLoad}>
+            <Icon name="plus" size={16} /> Credit Comp Off
+          </Button>
         </>}>
-        <form id="co-apply-form" onSubmit={handleApply}>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Employee</label>
-              <select className="form-control" required value={applyForm.teacherId}
-                onChange={e => setApplyForm(f => ({ ...f, teacherId: e.target.value }))}>
-                <option value="">Select employee</option>
-                {employeeList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label required">Work Date</label>
-              <input type="date" className="form-control" required max={todayStr()} value={applyForm.workDate}
-                onChange={e => setApplyForm(f => ({ ...f, workDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label">Check In</label>
-              <input type="time" className="form-control" value={applyForm.checkIn}
-                onChange={e => setApplyForm(f => ({ ...f, checkIn: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Check Out</label>
-              <input type="time" className="form-control" value={applyForm.checkOut}
-                onChange={e => setApplyForm(f => ({ ...f, checkOut: e.target.value }))} />
-            </div>
-          </div>
+        {(() => {
+        const who   = employeeList.find((t) => t._id === applyForm.teacherId);
+        // The engine's figure when it has one, otherwise worked out from the
+        // times as they are typed, so the box moves with the form.
+        const hours = preview?.workedHours > 0
+          ? preview.workedHours
+          : hoursBetween(applyForm.checkIn, applyForm.checkOut);
+        // What will actually be credited: the admin's override if they typed
+        // one, else whatever the policy makes of the hours.
+        const credited = applyForm.compOffDays !== ''
+          ? Number(applyForm.compOffDays)
+          : preview?.compOffDays;
+        return (
+        <div className="lvapply">
+          <form id="co-apply-form" className="lvapply__form" onSubmit={handleApply} noValidate>
 
-          {preview && (
-            <div className={`alert alert-${preview.eligible ? 'success' : 'warning'}`} style={{ fontSize: '.82rem', marginBottom: 12 }}>
-              <div><strong>{DAY_LABEL[preview.dayCategory] || preview.dayCategory}</strong>{preview.dayLabel ? ` — ${preview.dayLabel}` : ''}</div>
-              {preview.workedHours > 0 && <div>{preview.workedHours} hour(s) → {preview.compOffDays ?? 0} Comp Off day(s)</div>}
-              {!preview.eligible && <div style={{ marginTop: 4 }}>{preview.message}</div>}
-              {!preview.holidayModule && (
-                <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>
-                  Holiday module is off — the day cannot be classified automatically, so this claim is judged manually.
+            <FormStep n={1} title="Select Employee" note="Choose the employee who worked extra hours.">
+              <label className="lvfield">
+                <span className="lvfield__label">Employee <i>*</i></span>
+                <select className="form-control" required value={applyForm.teacherId}
+                  onChange={(e) => setApplyForm((f) => ({ ...f, teacherId: e.target.value }))}>
+                  <option value="">Select employee</option>
+                  {employeeList.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}{t.employeeId ? ` · ${t.employeeId}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {who && (
+                <div className="lvwhofacts">
+                  <div><small>Department</small><b>{who.department || '—'}</b></div>
+                  <div><small>Designation</small><b>{who.designation || '—'}</b></div>
+                  <div><small>Employment</small><b>{who.employmentType
+                    ? who.employmentType[0].toUpperCase() + who.employmentType.slice(1)
+                    : '—'}</b></div>
+                  <div><small>Join Date</small><b>{who.joiningDate ? fmtDate(who.joiningDate) : '—'}</b></div>
                 </div>
               )}
-            </div>
-          )}
+            </FormStep>
 
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label">Comp Off Days</label>
-              <input type="number" className="form-control" min={0} step="0.5" value={applyForm.compOffDays}
-                placeholder={preview?.compOffDays != null ? String(preview.compOffDays) : 'auto from hours'}
-                onChange={e => setApplyForm(f => ({ ...f, compOffDays: e.target.value }))} />
-              <div className="form-hint">Leave blank to let the policy decide from the hours worked</div>
+            <FormStep n={2} title="Work Details" note="Enter the date and working hours.">
+              <label className="lvfield">
+                <span className="lvfield__label">Work Date <i>*</i></span>
+                <input type="date" className="form-control" required max={todayStr()}
+                  value={applyForm.workDate}
+                  onChange={(e) => setApplyForm((f) => ({ ...f, workDate: e.target.value }))} />
+                {/* Which day of the week it was is half the reason a claim is
+                    valid at all — a Saturday earns, a Tuesday usually does not. */}
+                {applyForm.workDate && <span className="lvfield__hint">{weekdayOf(applyForm.workDate)}</span>}
+              </label>
+
+              <div className="lvdates">
+                <label className="lvfield">
+                  <span className="lvfield__label">Check In</span>
+                  <input type="time" className="form-control" value={applyForm.checkIn}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, checkIn: e.target.value }))} />
+                </label>
+                <label className="lvfield">
+                  <span className="lvfield__label">Check Out</span>
+                  <input type="time" className="form-control" value={applyForm.checkOut}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, checkOut: e.target.value }))} />
+                </label>
+                <div className="lvduration">
+                  <Icon name="clock" size={16} />
+                  <span><small>Total Hours</small><b>{fmtHours(hours)}</b></span>
+                </div>
+              </div>
+              <p className="lvfield__hint">
+                {applyForm.checkIn || applyForm.checkOut
+                  ? 'Working hours are calculated from check-in and check-out time.'
+                  : 'Leave the times blank to read the recorded attendance for this date.'}
+              </p>
+
+              {preview && !preview.eligible && (
+                <div className="lvnotice lvnotice--warn lvnotice--flat">
+                  <Icon name="alert" size={15} />
+                  <span>
+                    {preview.message}
+                    {!preview.holidayModule && ' The holiday module is off, so the day cannot be classified automatically — this claim is judged manually.'}
+                  </span>
+                </div>
+              )}
+            </FormStep>
+
+            <FormStep n={3} title="Comp Off Days" note="Specify how many comp off days to credit.">
+              <div className="lvpolrow lvpolrow--2">
+                <label className="lvfield">
+                  <span className="lvfield__label">Comp Off Days <i>*</i></span>
+                  <input type="number" className="form-control" min={0} step="0.5"
+                    value={applyForm.compOffDays}
+                    placeholder={preview?.compOffDays != null ? String(preview.compOffDays) : 'auto from hours'}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, compOffDays: e.target.value }))} />
+                  <span className="lvfield__hint">
+                    Leave blank to let the policy decide from the hours worked.
+                  </span>
+                </label>
+                {policy && (
+                  <RulesNote title="Policy Guidelines" items={[
+                    policy.halfDayHours > 0 && `Minimum ${policy.halfDayHours} hours = 0.5 day comp off`,
+                    policy.fullDayHours > 0 && `Minimum ${policy.fullDayHours} hours = 1 day comp off`,
+                    policy.applyWithinDays > 0 && `Apply within ${policy.applyWithinDays} days of work date`,
+                    policy.validityDays > 0 && `Validity ${policy.validityDays} days from credit date`,
+                    policy.approval?.twoLevel
+                      ? 'Needs two sign-offs before crediting'
+                      : 'Subject to approval (if enabled)',
+                  ]} />
+                )}
+              </div>
+            </FormStep>
+
+            <FormStep n={4} title="Reason" note="Add a reason for crediting comp off.">
+              <textarea className="form-control" rows={3} required maxLength={500}
+                value={applyForm.reason}
+                onChange={(e) => setApplyForm((f) => ({ ...f, reason: e.target.value }))}
+                placeholder="E.g. Handled extra classes and event coordination." />
+              <div className="lvcount">
+                <span />
+                <span>{applyForm.reason.length} / 500</span>
+              </div>
+            </FormStep>
+          </form>
+
+          <aside className="lvapply__side">
+            <b className="lvsidetitle">Employee Summary</b>
+            {who ? (
+              <>
+                <div className="lvwho">
+                  <Avatar name={who.name} />
+                  <div>
+                    <b>{who.name}</b>
+                    <small>{[who.employeeId, who.designation].filter(Boolean).join(' · ') || who.email}</small>
+                  </div>
+                </div>
+                <div className="lvfacts">
+                  <FactRow icon="users" label="Department" value={who.department || '—'} />
+                  <FactRow icon="briefcase" label="Employment Type"
+                    value={who.employmentType
+                      ? who.employmentType[0].toUpperCase() + who.employmentType.slice(1)
+                      : '—'} />
+                  <FactRow icon="calendarDays" label="Join Date"
+                    value={who.joiningDate ? fmtDate(who.joiningDate) : '—'} />
+                </div>
+              </>
+            ) : (
+              <p className="lvrail__none">Pick an employee and their record appears here.</p>
+            )}
+
+            <b className="lvsidetitle lvsidetitle--sep">Comp Off Summary</b>
+            <div className="lvfacts">
+              <FactRow icon="calendarDays" label="Work Date"
+                value={applyForm.workDate
+                  ? `${fmtDate(applyForm.workDate)} (${weekdayOf(applyForm.workDate).slice(0, 3)})`
+                  : '—'} />
+              <FactRow icon="clock" label="Total Hours Worked" value={fmtHours(hours)} />
             </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Reason</label>
-            <textarea className="form-control" rows={3} required value={applyForm.reason}
-              onChange={e => setApplyForm(f => ({ ...f, reason: e.target.value }))} />
-          </div>
-          {policy && (
-            <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-              Policy: min {policy.minWorkingHours}h · half day at {policy.halfDayHours}h · full day at {policy.fullDayHours}h ·
-              apply within {policy.applyWithinDays || '∞'} day(s) · validity {policy.validityDays || '∞'} day(s)
+            <div className="lvsumlines">
+              {/* The figure the dialog exists to set, and the only one that
+                  reaches a balance. */}
+              <SummaryLine lead label="Comp Off Days to Credit"
+                value={credited != null && !Number.isNaN(credited)
+                  ? `${credited} day${credited === 1 ? '' : 's'}`
+                  : '—'} />
             </div>
-          )}
-        </form>
+            {applyForm.reason && (
+              <div className="lvfact lvfact--wrap">
+                <span className="lvfact__mark"><Icon name="files" size={16} /></span>
+                <span>
+                  <small>Reason</small>
+                  <em>{applyForm.reason}</em>
+                </span>
+              </div>
+            )}
+
+            <DialogNote>
+              This will add to the employee&rsquo;s comp off balance. They can use it later,
+              subject to the leave policy and approval workflow.
+            </DialogNote>
+          </aside>
+        </div>
+        ); })()}
       </Modal>
 
       {/* ── Generate from attendance ── */}

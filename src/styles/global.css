@@ -10858,6 +10858,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvstat--green  { background: #f0fdf4; border-color: #bbf7d0; color: #059669; }
 .lvstat--red    { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 .lvstat--violet { background: #f5f3ff; border-color: #ddd6fe; color: #7c3aed; }
+.lvstat--slate  { background: var(--bg); border-color: var(--border); color: var(--text-muted); }
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────
    The module's sections as pills in their own card. The active one is filled,
@@ -10922,6 +10923,15 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   flex-wrap:   wrap;
   padding:     0 24px 18px;
 }
+/* The row assumes a card header above it supplies the top padding. Where the
+   filters ARE the first thing in the card — the teacher's applications list —
+   it has to supply its own, or the controls sit flush against the card's top
+   edge with 18px hanging below them. */
+.lvcard > .lvfilters:first-child { padding-top: 18px; }
+/* Everything in the row is one height. `.btn` is ~34px on its own, and a 34px
+   button beside a 44px select is the whole of what reads as "uneven". */
+.lvfilters .btn,
+.lvcardhead__acts .btn { height: 44px; }
 
 .lvsearch { position: relative; flex: 1 1 280px; min-width: 200px; }
 /* Direct child ONLY. The clear button holds an <svg> too, and as a descendant
@@ -11047,6 +11057,10 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .lvwho b     { display: block; font-size: .88rem; font-weight: 600; white-space: nowrap; }
 .lvwho small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+
+/* A leave type: its name, with the code under it as the short form. */
+.lvtype b     { display: block; font-size: .87rem; font-weight: 600; white-space: nowrap; }
+.lvtype small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; letter-spacing: .02em; }
 
 .lvperiod span  { display: block; white-space: nowrap; }
 .lvperiod small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
@@ -11304,6 +11318,408 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvsplit__item.is-danger { color: var(--danger); }
 .lvsplit__item.is-danger > svg { color: var(--danger); }
 .lvsplit__item.is-danger:hover { background: #fee2e2; }
+
+/* ═══ MY LEAVE (teacher) ════════════════════════════════════════════════════
+   The same frame as the admin screens, with the tabs and the one thing you
+   came to do sharing a row. */
+
+.lvtabrow {
+  display:       flex;
+  align-items:   flex-end;
+  justify-content: space-between;
+  gap:           16px;
+  flex-wrap:     wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+/* The strip carries the underline itself; the row's border would double it. */
+.lvtabrow .lvsubtabs { border-bottom: none; margin-bottom: -1px; }
+.lvtabrow .btn { margin-bottom: 10px; }
+
+/* Pushes whatever follows it to the right of the filter row. */
+.lvfilters__sep { flex: 1 1 auto; }
+
+/* ── Leave Balance (teacher) ───────────────────────────────────────────────
+   One card per leave type, then the year's totals beside the last few
+   applications. */
+.lvbalcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+
+.lvbalcard { display: flex; flex-direction: column; padding: 18px 20px 16px; }
+.lvbalcard > header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.lvbalcard__id   { min-width: 0; flex: 1; }
+.lvbalcard__id b { display: block; font-size: .92rem; font-weight: 700;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvbalcard__id small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; }
+.lvbalcard__left   { text-align: right; flex-shrink: 0; }
+.lvbalcard__left strong { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.lvbalcard__left small  { display: block; font-size: .7rem; color: var(--text-muted); margin-top: 3px; }
+
+/* Filled by what has been used, so it fills as the year goes on. */
+.lvbalcard__bar { height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.lvbalcard__fill { display: block; height: 100%; border-radius: 999px; transition: width var(--transition); }
+.lvbalcard__fill--green   { background: #047857; }
+.lvbalcard__fill--blue    { background: #1d4ed8; }
+.lvbalcard__fill--amber   { background: #b45309; }
+.lvbalcard__fill--fuchsia { background: #a21caf; }
+.lvbalcard__fill--pink    { background: #db2777; }
+.lvbalcard__fill--lime    { background: #65a30d; }
+.lvbalcard__fill--slate   { background: var(--text-light); }
+.lvbalcard__fill--indigo  { background: var(--primary); }
+
+.lvbalcard__nums {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: .76rem; color: var(--text-muted); margin-top: 9px;
+}
+.lvbalcard__nums b { color: var(--text); font-weight: 600; }
+
+.lvbalcard__more {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; margin-top: auto; padding: 10px;
+  border: none; border-radius: var(--radius-lg);
+  background: var(--bg); color: var(--primary);
+  font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer;
+  transition: background var(--transition);
+}
+.lvbalcard__more:hover { background: #eef2ff; }
+/* Pushed down only once there is room; on a short card it sits under the
+   numbers rather than floating away from them. */
+.lvbalcard__more { margin-top: 16px; }
+
+.lvbalgrid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+
+.lvsumrows { padding: 0 24px; }
+.lvsumrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+  font-size: .87rem; color: var(--text-muted);
+}
+.lvsumrow b { font-size: .95rem; font-weight: 700; color: var(--text); }
+.lvsumrow.is-strong { border-bottom: none; }
+.lvsumrow.is-strong b { color: var(--primary); font-size: 1.05rem; }
+.lvsummary__note { margin: 16px 24px 20px; }
+
+@media (max-width: 1280px) {
+  .lvbalcards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lvbalgrid  { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .lvbalcards { grid-template-columns: 1fr; }
+}
+
+/* A column heading with the second line of its cells named under it. */
+.lvth { display: block; }
+.lvth small {
+  display: block; margin-top: 2px;
+  font-size: .66rem; font-weight: 500; letter-spacing: .04em;
+  color: var(--text-light); text-transform: none;
+}
+
+/* The three things worth saying about a feature, under its list. */
+.lvinfo {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0; padding: 4px 0;
+}
+.lvinfo__item { display: flex; align-items: flex-start; gap: 13px; padding: 18px 22px; }
+.lvinfo__item + .lvinfo__item { border-left: 1px solid var(--border); }
+.lvinfo__item b { display: block; font-size: .87rem; font-weight: 700; color: var(--primary); }
+.lvinfo__item p { font-size: .8rem; line-height: 1.55; color: var(--text-muted); margin-top: 5px; }
+.lvinfo__mark {
+  width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lvinfo__mark--indigo { background: #eef2ff; color: var(--primary); }
+.lvinfo__mark--blue   { background: #dbeafe; color: #1d4ed8; }
+.lvinfo__mark--green  { background: #dcfce7; color: #047857; }
+
+@media (max-width: 900px) {
+  .lvinfo { grid-template-columns: 1fr; }
+  .lvinfo__item + .lvinfo__item { border-left: none; border-top: 1px solid var(--border); }
+}
+
+/* ── Ready to apply (teacher) ──────────────────────────────────────────────
+   Comp Off the attendance sweep has prepared but not sent — a card each,
+   because each one is a separate decision to make. */
+.lvdraftgrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px; padding: 0 24px 22px;
+}
+.lvdraft { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 15px 16px; }
+.lvdraft__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.lvdraft__head b     { display: block; font-size: .92rem; font-weight: 700; }
+.lvdraft__head small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+.lvdraft__days { text-align: right; flex-shrink: 0; }
+.lvdraft__days strong { display: block; font-size: 1.3rem; font-weight: 700; color: var(--primary); line-height: 1; }
+.lvdraft__days small  { font-size: .68rem; color: var(--text-muted); }
+.lvdraft__hours { font-size: .78rem; color: var(--text-muted); margin-top: 10px; }
+.lvdraft__acts  { display: flex; gap: 8px; margin-top: 13px; }
+.lvdraft__acts .btn { flex: 1; justify-content: center; height: 38px; }
+/* The strip that says these were raised for you, not by you. */
+.lvdrafts { border-left: 3px solid var(--primary); }
+
+/* ═══ APPLY FOR LEAVE ═══════════════════════════════════════════════════════
+   The form on the left, and what it would do to your balance on the right. */
+
+.lvdlghead { display: flex; align-items: flex-start; gap: 14px; }
+.lvdlghead__mark {
+  width: 46px; height: 46px; border-radius: 13px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.lvdlghead b { display: block; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+.lvdlghead p { font-size: .84rem; color: var(--text-muted); margin-top: 4px; font-weight: 400; }
+
+.lvapply { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+.lvapply__form { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.lvapply__side {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 18px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.lvapply__side h4 { font-size: .95rem; font-weight: 700; }
+.lvapply__side h5 {
+  font-size: .72rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-muted);
+  padding-top: 14px; border-top: 1px solid var(--border);
+}
+
+/* ── A numbered step ─────────────────────────────────────────────────────── */
+.lvstep-sec { border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 18px; }
+.lvstep-sec > header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.lvstep-sec__n {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+  font-size: .85rem; font-weight: 700;
+}
+.lvstep-sec header b { display: block; font-size: .95rem; font-weight: 700; }
+.lvstep-sec header p { font-size: .79rem; color: var(--text-muted); margin-top: 2px; }
+.lvstep-sec__body { display: flex; flex-direction: column; gap: 14px; }
+.lvreq { font-style: normal; font-size: .78rem; font-weight: 600; color: var(--danger); }
+.lvopt { font-style: normal; font-size: .78rem; font-weight: 400; color: var(--text-muted); }
+.lvfield__label i { font-style: normal; color: var(--danger); }
+
+/* ── Full day / half day ─────────────────────────────────────────────────── */
+.lvchoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lvchoice {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 15px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  transition: border-color var(--transition), background var(--transition);
+}
+.lvchoice input { position: absolute; opacity: 0; width: 0; height: 0; }
+.lvchoice__dot {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border); position: relative;
+  transition: border-color var(--transition);
+}
+.lvchoice.is-on { border-color: var(--primary); background: #eef2ff; }
+.lvchoice.is-on .lvchoice__dot { border-color: var(--primary); }
+.lvchoice.is-on .lvchoice__dot::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--primary);
+}
+.lvchoice__text { font-size: .88rem; font-weight: 600; }
+.lvchoice__text small { display: block; font-size: .74rem; font-weight: 400; color: var(--text-muted); }
+.lvchoice:hover:not(.is-off) { border-color: #c7d2fe; }
+.lvchoice.is-off { opacity: .5; cursor: not-allowed; }
+
+/* ── Dates and what they cost ────────────────────────────────────────────── */
+.lvdates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+.lvduration {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 15px; height: 44px; margin-top: 25px;
+  border-radius: var(--radius-lg); background: #eef2ff; color: var(--primary);
+}
+.lvduration > svg { flex-shrink: 0; }
+.lvduration small { display: block; font-size: .68rem; opacity: .8; }
+.lvduration b     { display: block; font-size: .88rem; font-weight: 700; white-space: nowrap; }
+.lvduration.is-bad { background: #fee2e2; color: #b91c1c; }
+
+/* ── Reason ──────────────────────────────────────────────────────────────── */
+.lvcount {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font-size: .75rem; color: var(--text-muted);
+}
+.lvchip--pick {
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  cursor: pointer; font: inherit; font-size: .78rem; font-weight: 500;
+  padding: 6px 13px; border-radius: 999px;
+  transition: border-color var(--transition), background var(--transition);
+}
+.lvchip--pick:hover { border-color: var(--primary); background: #eef2ff; color: var(--primary); }
+
+/* ── The document ────────────────────────────────────────────────────────── */
+.lvdrop {
+  position: relative;
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px; text-align: left;
+  border: 1.5px dashed var(--border); border-radius: var(--radius-lg);
+  background: var(--bg); color: var(--text-muted);
+  transition: border-color var(--transition), background var(--transition);
+}
+/* The real input covers the box, so the whole area is the target and drag-and
+   drop keeps working — no click handler forwarding required. */
+.lvdrop input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer;
+}
+.lvdrop:hover { border-color: var(--primary); background: #eef2ff; }
+.lvdrop > svg { color: var(--primary); flex-shrink: 0; }
+.lvdrop__text       { font-size: .85rem; }
+.lvdrop__text b     { color: var(--primary); font-weight: 600; }
+.lvdrop__text small { display: block; font-size: .74rem; margin-top: 3px; }
+.lvdrop.is-set  { border-style: solid; border-color: var(--success); background: #f0fdf4; }
+.lvdrop.is-set > svg { color: var(--success); }
+.lvdrop.is-set .lvdrop__text b { color: var(--text); }
+.lvdrop.is-error { border-color: var(--danger); background: #fef2f2; }
+
+/* ── The balance panel ───────────────────────────────────────────────────── */
+.lvring { display: flex; align-items: center; gap: 14px; }
+.lvring svg { flex-shrink: 0; }
+.lvring__text strong { display: block; font-size: 1.8rem; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.lvring__text span   { display: block; font-size: .78rem; color: var(--text-muted); margin-top: 3px; }
+.lvring__text small  { display: block; font-size: .7rem; color: var(--text-light); margin-top: 5px; }
+
+.lvfacts { display: flex; flex-direction: column; gap: 12px; }
+.lvfact { display: flex; align-items: center; gap: 10px; font-size: .8rem; }
+.lvfact__mark {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted);
+}
+.lvfact__label { color: var(--text-muted); }
+.lvfact b { margin-left: auto; font-size: .88rem; font-weight: 700; white-space: nowrap; }
+
+@media (max-width: 820px) {
+  .lvapply { grid-template-columns: 1fr; }
+  .lvdates { grid-template-columns: 1fr 1fr; }
+  .lvduration { grid-column: 1 / -1; margin-top: 0; }
+}
+
+/* ── Apply Leave for Teacher (admin) ───────────────────────────────────────
+   Enough of the record beside the picker to be sure it is the right person. */
+.lvwhofacts {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
+  padding: 13px 15px; border-radius: var(--radius-lg); background: var(--bg);
+}
+.lvwhofacts small { display: block; font-size: .7rem; color: var(--text-muted); }
+.lvwhofacts b     { display: block; font-size: .84rem; font-weight: 600; margin-top: 3px;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lvsidehead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lvsidehead b     { font-size: .95rem; font-weight: 700; }
+.lvsidehead small { font-size: .74rem; font-weight: 400; color: var(--text-muted); }
+.lvsidehead .lvlink { font-size: .78rem; }
+
+/* The balance for the picked teacher and type — the figure the whole dialog
+   turns on, so it gets a box of its own. */
+.lvbalbox {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 15px; border-radius: var(--radius-lg);
+  background: #f0fdf4; border: 1px solid #bbf7d0;
+}
+.lvbalbox__id   { min-width: 0; flex: 1; }
+.lvbalbox__id b { display: block; font-size: .84rem; font-weight: 700;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvbalbox__id small { display: block; font-size: .72rem; color: var(--text-muted); }
+.lvbalbox__n { text-align: right; flex-shrink: 0; }
+.lvbalbox__n strong { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1; color: #047857; }
+.lvbalbox__n small  { display: block; font-size: .68rem; color: var(--text-muted); margin-top: 3px; }
+
+.lvpolbox { padding: 15px 16px; }
+.lvpolbox > header { display: flex; align-items: center; gap: 11px; margin-bottom: 6px; }
+.lvpolbox b { font-size: .92rem; font-weight: 700; }
+
+.lvnotice--bad { background: #fee2e2; color: #991b1b; }
+
+@media (max-width: 820px) {
+  .lvwhofacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ── Raise Comp Off (admin) ────────────────────────────────────────────── */
+.lvsidetitle { font-size: .95rem; font-weight: 700; }
+.lvsidetitle--sep { padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* A fact whose value is a sentence rather than a figure. */
+.lvfact--wrap { align-items: flex-start; }
+.lvfact--wrap small { display: block; font-size: .74rem; color: var(--text-muted); }
+.lvfact--wrap em {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  font-style: normal; font-size: .8rem; margin-top: 2px;
+}
+
+/* ── Apply for Comp Off ────────────────────────────────────────────────────
+   The same two-column dialog, with the engine's own verdict beside the form. */
+
+.lvdlgnote {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px 16px; margin-bottom: 18px;
+  border-radius: var(--radius-lg);
+  font-size: .84rem; line-height: 1.5;
+}
+.lvdlgnote--info { background: #eef2ff; color: #3730a3; }
+.lvdlgnote > svg { flex-shrink: 0; margin-top: 1px; }
+
+/* The hours the claim rests on, set apart from the fields that produce them. */
+.lvhours {
+  display: flex; align-items: center; gap: 13px;
+  padding: 14px 16px; border-radius: var(--radius-lg);
+  background: #eef2ff;
+}
+.lvhours__mark {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary); color: #fff;
+}
+.lvhours__body { flex: 1; min-width: 0; }
+.lvhours__body small { display: block; font-size: .74rem; color: var(--text-muted); }
+.lvhours__body b     { display: block; font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+.lvhours .btn { flex-shrink: 0; height: 38px; }
+
+/* ── The summary panel ───────────────────────────────────────────────────── */
+.lvsumhead { display: flex; align-items: center; gap: 12px; }
+.lvsumhead__mark {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.lvsumhead b { font-size: .98rem; font-weight: 700; }
+
+.lvsumlines { display: flex; flex-direction: column; }
+.lvsumline {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+  font-size: .82rem; color: var(--text-muted);
+}
+.lvsumline b { font-size: .86rem; font-weight: 600; color: var(--text); white-space: nowrap; }
+.lvsumline:last-child { border-bottom: none; }
+/* The answer the panel exists for. */
+.lvsumline.is-lead b {
+  background: #dcfce7; color: #047857;
+  padding: 4px 12px; border-radius: 8px; font-size: .95rem; font-weight: 700;
+}
+.lvsumnote { font-size: .72rem; color: var(--text-light); text-align: right; margin-top: -6px; }
+
+/* ── The rules beside the form ───────────────────────────────────────────── */
+.lvrules {
+  background: #eef2ff; border-radius: var(--radius-lg); padding: 14px 16px;
+}
+.lvrules > header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #3730a3; }
+.lvrules b { font-size: .86rem; font-weight: 700; }
+.lvrules ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.lvrules li {
+  position: relative; padding-left: 15px;
+  font-size: .78rem; line-height: 1.5; color: #4338ca;
+}
+.lvrules li::before {
+  content: ''; position: absolute; left: 0; top: .55em;
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .6;
+}
+
+@media (max-width: 820px) {
+  .lvhours { flex-wrap: wrap; }
+  .lvhours .btn { width: 100%; justify-content: center; }
+}
 
 /* ═══ COMP OFF ══════════════════════════════════════════════════════════════ */
 

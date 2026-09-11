@@ -19,7 +19,9 @@ import {
   QuickLinks, ReasonCell, ReportDrawer, RequestDrawer, STATUS_OPTIONS, SearchBox, SectionHead,
   ShowingCount, SplitButton, StatusBadge, TeacherCell, Toggle, TrendBars, TypeNameCell,
   ChartCard,
-  BalanceDrawer, BalancePill, HelpPanel, LeaveDonut, chipTones, dayNum, docUrl, donutSlices, fmtDate,
+  BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep,
+  HelpPanel, LeaveDonut, SummaryLine, TypeIcon,
+  chipTones, dayNum, docUrl, donutSlices, fmtDate,
 } from './leaveParts';
 
 const STATUS_VARIANT = {
@@ -197,6 +199,8 @@ export default function AdminLeave() {
   const [applyForm,  setApplyForm]  = useState(EMPTY_APPLY);
   const [applyLoad,  setApplyLoad]  = useState(false);
   const applyDocRef = useRef();
+  // The file input is uncontrolled, so its name is tracked for the drop zone.
+  const [applyDocName, setApplyDocName] = useState('');
 
   // Live answer to "how many days does this teacher have left of this type, and
   // what will these dates cost?" — computed server-side by the same helpers the
@@ -227,7 +231,7 @@ export default function AdminLeave() {
   }, [applyModal, applyForm.teacherId, applyForm.leaveTypeId, applyForm.fromDate, applyForm.toDate, applyForm.leaveMode]);
 
   const closeApply = () => {
-    setApplyModal(false); setApplyForm(EMPTY_APPLY); setPreview(null);
+    setApplyModal(false); setApplyForm(EMPTY_APPLY); setPreview(null); setApplyDocName('');
     if (applyDocRef.current) applyDocRef.current.value = '';
   };
 
@@ -942,7 +946,7 @@ export default function AdminLeave() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  const openApply = () => { setApplyForm(EMPTY_APPLY); setPreview(null); setApplyModal(true); };
+  const openApply = () => { setApplyForm(EMPTY_APPLY); setPreview(null); setApplyDocName(''); setApplyModal(true); };
 
   // The tiles are also the fastest way to narrow the queue — "Pending: 3" is a
   // question, and pressing it should answer it. Pressing the one already in
@@ -1769,183 +1773,265 @@ export default function AdminLeave() {
       />
 
       {/* ── Admin Apply Modal ── */}
-      <Modal open={applyModal} onClose={closeApply} title="Apply Leave for Teacher" maxWidth={620}
+      <Modal open={applyModal} onClose={closeApply} maxWidth={980}
+        title={<DialogHead icon="userPlus" title="Apply Leave for Teacher"
+          subtitle="Create a leave request on behalf of a teacher. It will be processed as per school policy." />}
         footer={<>
           <Button variant="secondary" onClick={closeApply}>Cancel</Button>
           {/* Every `warning` the preview returns is a rule the POST would reject
               outright (overlap, back-dating, eligibility), so submitting into a
               guaranteed failure is not offered. */}
           <Button form="admin-apply-form" type="submit" loading={applyLoad}
-            disabled={!!preview?.days?.error || preview?.sufficient === false || !!preview?.warning}>Apply</Button>
+            disabled={!!preview?.days?.error || preview?.sufficient === false || !!preview?.warning}>
+            <Icon name="arrowRight" size={16} /> Apply Leave
+          </Button>
         </>}>
         {(() => {
-        const applyLT     = leaveTypes.find(t => t._id === applyForm.leaveTypeId);
+        const applyLT     = leaveTypes.find((t) => t._id === applyForm.leaveTypeId);
         const applyBounds = leaveDateBounds(applyLT, { onBehalf: true });
         const applyHint   = leaveDateHint(applyLT, { onBehalf: true });
+        const who         = teacherList.find((t) => t._id === applyForm.teacherId);
+        const rules       = preview?.dateRules;
         return (
-        <form id="admin-apply-form" onSubmit={handleApply}>
-          <div className="form-group">
-            <label className="form-label required">Teacher</label>
-            <select className="form-control" required value={applyForm.teacherId}
-              onChange={e => setApplyForm(f => ({ ...f, teacherId: e.target.value }))}>
-              <option value="">Select teacher…</option>
-              {teacherList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Leave Type</label>
-            <select className="form-control" required value={applyForm.leaveTypeId}
-              onChange={e => setApplyForm(f => ({ ...f, leaveTypeId: e.target.value }))}>
-              <option value="">Select type…</option>
-              {leaveTypes.filter(t => t.isActive).map(t => <option key={t._id} value={t._id}>{t.name} ({t.code})</option>)}
-            </select>
-            {!applyForm.teacherId && applyForm.leaveTypeId &&
-              <div className="form-hint">Pick a teacher to see their balance for this type.</div>}
-          </div>
+        <div className="lvapply">
+          <form id="admin-apply-form" className="lvapply__form" onSubmit={handleApply} noValidate>
 
-          {/* Balance for the picked teacher + type. Appears as soon as both are
-              chosen, so the admin knows what is available before picking dates. */}
-          {(previewLoad || preview) && (
-            <div style={{
-              background: 'var(--bg-muted, #f8fafc)', border: '1px solid var(--border, #e2e8f0)',
-              borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: '.85rem',
-            }}>
-              {previewLoad && !preview ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
-                  <Spinner size="sm" /> Checking balance…
+            <FormStep n={1} title="Select Teacher" note="Choose the teacher for whom you want to apply leave.">
+              <label className="lvfield">
+                <span className="lvfield__label">Teacher <i>*</i></span>
+                <select className="form-control" required value={applyForm.teacherId}
+                  onChange={(e) => setApplyForm((f) => ({ ...f, teacherId: e.target.value }))}>
+                  <option value="">Select teacher…</option>
+                  {teacherList.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}{t.employeeId ? ` · ${t.employeeId}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {/* Enough of the record to be sure it is the right person before
+                  filing leave in their name. */}
+              {who && (
+                <div className="lvwhofacts">
+                  <div><small>Department</small><b>{who.department || '—'}</b></div>
+                  <div><small>Designation</small><b>{who.designation || '—'}</b></div>
+                  <div><small>Join Date</small><b>{who.joiningDate ? fmtDate(who.joiningDate) : '—'}</b></div>
+                  <div><small>Employment</small><b>{who.employmentType
+                    ? who.employmentType[0].toUpperCase() + who.employmentType.slice(1)
+                    : '—'}</b></div>
                 </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                    <strong>{preview.leaveType?.name} balance</strong>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '.78rem' }}>{preview.balance?.academicYear || '—'}</span>
-                  </div>
-                  {preview.balance?.allocated ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
-                      {[
-                        ['Allocated', (preview.balance.totalAllocated || 0) + (preview.balance.carriedForward || 0)],
-                        ['Used',      preview.balance.used],
-                        ['Pending',   preview.balance.pending],
-                        ['Available', preview.balance.remaining],
-                      ].map(([label, value], i) => (
-                        <div key={label}>
-                          <div style={{
-                            fontSize: '1.15rem', fontWeight: 700,
-                            color: i === 3 ? (value > 0 ? 'var(--success, #059669)' : 'var(--danger, #dc2626)') : 'inherit',
-                          }}>{value}</div>
-                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label}</div>
-                        </div>
-                      ))}
+              )}
+            </FormStep>
+
+            <FormStep n={2} title="Leave Details" note="Select leave type, dates and mode.">
+              <div className="lvpolrow lvpolrow--2">
+                <label className="lvfield">
+                  <span className="lvfield__label">Leave Type <i>*</i></span>
+                  <select className="form-control" required value={applyForm.leaveTypeId}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, leaveTypeId: e.target.value }))}>
+                    <option value="">Select type…</option>
+                    {leaveTypes.filter((t) => t.isActive).map((t) => (
+                      <option key={t._id} value={t._id}>{t.name} ({t.code})</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="lvfield">
+                  <span className="lvfield__label">Leave Mode <i>*</i></span>
+                  <ChoiceCards name="adminLeaveMode" value={applyForm.leaveMode}
+                    onChange={(v) => setApplyForm((f) => ({ ...f, leaveMode: v }))}
+                    options={[
+                      { value: 'full_day', label: 'Full Day' },
+                      { value: 'half_day', label: 'Half Day',
+                        disabled: rules ? rules.halfDayAllowed === false : false,
+                        disabledHint: 'This leave type does not allow half days' },
+                    ]} />
+                </div>
+              </div>
+
+              {/* Which half decides which periods need cover, so the substitute
+                  engine cannot arrange anything without it. */}
+              {applyForm.leaveMode === 'half_day' && (
+                <label className="lvfield">
+                  <span className="lvfield__label">Which half</span>
+                  <select className="form-control" value={applyForm.halfDaySession}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, halfDaySession: e.target.value }))}>
+                    <option value="first">First half (morning)</option>
+                    <option value="second">Second half (afternoon)</option>
+                  </select>
+                </label>
+              )}
+
+              <div className="lvdates">
+                <label className="lvfield">
+                  <span className="lvfield__label">From Date <i>*</i></span>
+                  <input type="date" className="form-control" required value={applyForm.fromDate}
+                    min={applyBounds.minFrom || undefined}
+                    onChange={(e) => {
+                      const fromDate = e.target.value;
+                      // A To date now earlier than From can only confuse — carry
+                      // it forward rather than leave an impossible range on screen.
+                      setApplyForm((f) => ({ ...f, fromDate, toDate: f.toDate && f.toDate < fromDate ? fromDate : f.toDate }));
+                    }} />
+                </label>
+                <label className="lvfield">
+                  <span className="lvfield__label">To Date <i>*</i></span>
+                  <input type="date" className="form-control" required value={applyForm.toDate}
+                    min={applyForm.fromDate || applyBounds.minFrom || undefined}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, toDate: e.target.value }))} />
+                </label>
+                <div className={`lvduration${preview?.days?.error ? ' is-bad' : ''}`}>
+                  <Icon name="calendar" size={16} />
+                  <span>
+                    <small>Total Days</small>
+                    <b>{preview?.days && !preview.days.error
+                      ? `${preview.days.totalDays} day${preview.days.totalDays === 1 ? '' : 's'}`
+                      : '—'}</b>
+                  </span>
+                </div>
+              </div>
+              {applyHint && <p className="lvfield__hint">{applyHint}</p>}
+
+              {/* What the picked dates actually cost. Weekends, school holidays
+                  and the type's sandwich rule all change the answer, so it comes
+                  from the server rather than being guessed in the browser. */}
+              {preview?.days && (
+                <div style={{ opacity: previewLoad ? 0.5 : 1, transition: 'opacity .15s' }}>
+                  {preview.days.error ? (
+                    <div className="lvnotice lvnotice--flat lvnotice--bad">
+                      <Icon name="alert" size={15} /><span>{preview.days.error}</span>
                     </div>
                   ) : (
-                    <div style={{ color: 'var(--text-muted)' }}>
-                      No allocation for this teacher this year — <strong>0 day(s) available</strong>.
-                      {preview.leaveType?.category === 'compoff'
-                        ? ' Comp Off days are credited only when a Comp Off request is approved.'
-                        : ' Allocate this leave type first under the Allocations tab.'}
+                    <div className={`lvnotice lvnotice--flat${preview.sufficient === false ? ' lvnotice--bad' : ''}`}>
+                      <Icon name="alert" size={15} />
+                      <span>
+                        {preview.days.totalDays} {preview.days.leaveMode === 'half_day' ? 'day (half day)' : 'working day(s)'}
+                        {' '}out of {preview.days.calendarDays} calendar day(s). {describeDayCount(preview.days)}
+                        {preview.days.lopDays > 0 && (
+                          <> <b>{preview.days.paidDays} paid · {preview.days.lopDays} loss of pay</b> — payroll deducts the unpaid days.</>
+                        )}
+                        {preview.sufficient === false && (
+                          <> <b>Insufficient balance</b> — {preview.days.totalDays} needed, {preview.balance?.spendable} available.</>
+                        )}
+                      </span>
                     </div>
                   )}
-                  {/* Overdraft is a policy setting — say so rather than let the
-                      admin wonder why more days than "Available" go through. */}
-                  {preview.balance?.allocated && preview.balance.spendable > preview.balance.remaining && (
-                    <div style={{ marginTop: 6, fontSize: '.78rem', color: 'var(--text-muted)' }}>
-                      Policy allows applying up to {preview.balance.spendable} day(s) (negative balance permitted).
-                    </div>
-                  )}
-                </>
+                </div>
               )}
-            </div>
-          )}
+              {preview?.warning && !preview?.days?.error && (
+                <div className="lvnotice lvnotice--warn lvnotice--flat">
+                  <Icon name="alert" size={15} /><span>{preview.warning}</span>
+                </div>
+              )}
+            </FormStep>
 
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">From</label>
-              <input type="date" className="form-control" required value={applyForm.fromDate}
-                min={applyBounds.minFrom || undefined}
-                onChange={e => {
-                  const fromDate = e.target.value;
-                  // A To date now earlier than From can only confuse — carry it
-                  // forward rather than leave an impossible range on screen.
-                  setApplyForm(f => ({ ...f, fromDate, toDate: f.toDate && f.toDate < fromDate ? fromDate : f.toDate }));
-                }} />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">To</label>
-              <input type="date" className="form-control" required value={applyForm.toDate}
-                min={applyForm.fromDate || applyBounds.minFrom || undefined}
-                onChange={e => setApplyForm(f => ({ ...f, toDate: e.target.value }))} />
-            </div>
-          </div>
-          {applyHint && <div className="form-hint" style={{ marginTop: -6, marginBottom: 12 }}>{applyHint}</div>}
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label">Leave Mode</label>
-              <select className="form-control" value={applyForm.leaveMode}
-                onChange={e => setApplyForm(f => ({ ...f, leaveMode: e.target.value }))}>
-                <option value="full_day">Full Day</option>
-                <option value="half_day">Half Day</option>
-              </select>
-            </div>
-            {/* Which half decides which periods need cover, so the substitute
-                engine cannot arrange anything without it. */}
-            {applyForm.leaveMode === 'half_day' && (
-              <div className="form-group">
-                <label className="form-label">Which half</label>
-                <select className="form-control" value={applyForm.halfDaySession}
-                  onChange={e => setApplyForm(f => ({ ...f, halfDaySession: e.target.value }))}>
-                  <option value="first">First half (morning)</option>
-                  <option value="second">Second half (afternoon)</option>
-                </select>
+            <FormStep n={3} title="Reason" note="Add a reason for the leave request.">
+              <textarea className="form-control" rows={3} required maxLength={500}
+                value={applyForm.reason}
+                onChange={(e) => setApplyForm((f) => ({ ...f, reason: e.target.value }))}
+                placeholder="Enter reason for leave (minimum 10 characters)…" />
+              <div className="lvcount">
+                <span />
+                <span>{applyForm.reason.length} / 500</span>
               </div>
-            )}
-          </div>
+            </FormStep>
 
-          {/* What the picked dates actually cost. Weekends, school holidays and
-              the type's sandwich rule all change the answer, so it comes from
-              the server rather than being guessed in the browser. */}
-          {preview?.days && (
-            <div style={{ opacity: previewLoad ? 0.5 : 1, transition: 'opacity .15s' }}>
-            {preview.days.error ? (
-              <div className="alert alert-danger" style={{ fontSize: '.85rem' }}>{preview.days.error}</div>
+            <FormStep n={4} title={<>Supporting Document <i className="lvopt">(Optional)</i></>}
+              note="Upload any relevant document (e.g. medical certificate, event invitation).">
+              <DropZone
+                inputRef={applyDocRef}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                hint="PDF, Word, or image (JPG, PNG) — max 5 MB"
+                fileName={applyDocName}
+                onPick={() => setApplyDocName(applyDocRef.current?.files?.[0]?.name || '')}
+              />
+            </FormStep>
+          </form>
+
+          <aside className="lvapply__side">
+            <div className="lvsidehead">
+              <b>Leave Balance <small>(Current Year)</small></b>
+              <button type="button" className="lvlink"
+                onClick={() => { closeApply(); setTab('balance'); }}>View Full Balance</button>
+            </div>
+
+            {previewLoad && !preview ? (
+              <div className="lvtable__state"><Spinner /></div>
+            ) : !preview ? (
+              <p className="lvrail__none">
+                Pick a teacher and a leave type, and their balance for it appears here.
+              </p>
+            ) : preview.balance?.allocated ? (
+              <>
+                <div className="lvbalbox">
+                  <TypeIcon type={preview.leaveType} />
+                  <div className="lvbalbox__id">
+                    <b>{preview.leaveType?.name} ({preview.leaveType?.code})</b>
+                    <small>{preview.balance.academicYear || '—'}</small>
+                  </div>
+                  <div className="lvbalbox__n">
+                    <strong>{dayNum(preview.balance.remaining)}</strong>
+                    <small>days remaining</small>
+                  </div>
+                </div>
+                {/* Overdraft is a policy setting — say so rather than let the
+                    admin wonder why more days than "remaining" go through. */}
+                {preview.balance.spendable > preview.balance.remaining && (
+                  <p className="lvfield__hint">
+                    Policy allows up to {preview.balance.spendable} day(s) — a negative balance is permitted.
+                  </p>
+                )}
+              </>
             ) : (
-              <div className={`alert ${preview.sufficient === false ? 'alert-danger' : 'alert-info'}`} style={{ fontSize: '.85rem' }}>
-                <div>
-                  Applying for <strong>{preview.days.totalDays} {preview.days.leaveMode === 'half_day' ? 'day (half day)' : 'working day(s)'}</strong>
-                  {' '}out of {preview.days.calendarDays} calendar day(s).
-                </div>
-                <div style={{ marginTop: 4, fontSize: '.78rem' }}>
-                  {describeDayCount(preview.days)}
-                </div>
-                {preview.days.lopDays > 0 && (
-                  <div style={{ marginTop: 6, fontWeight: 600 }}>
-                    {preview.days.paidDays} day(s) paid · {preview.days.lopDays} day(s) loss of pay
-                    — payroll will deduct the unpaid days.
-                  </div>
-                )}
-                {preview.sufficient === false && (
-                  <div style={{ marginTop: 6, fontWeight: 600 }}>
-                    Insufficient balance — {preview.days.totalDays} day(s) needed, {preview.balance?.spendable} available.
-                  </div>
-                )}
+              <div className="lvnotice lvnotice--warn lvnotice--flat">
+                <Icon name="alert" size={15} />
+                <span>
+                  No allocation this year — <b>0 days available</b>.
+                  {preview.leaveType?.category === 'compoff'
+                    ? ' Comp Off is credited only when a Comp Off request is approved.'
+                    : ' Allocate this leave type first, under the Allocations tab.'}
+                </span>
               </div>
             )}
-            </div>
-          )}
-          {preview?.warning && !preview?.days?.error && (
-            <div className="alert alert-warning" style={{ fontSize: '.85rem' }}>{preview.warning}</div>
-          )}
 
-          <div className="form-group">
-            <label className="form-label required">Reason</label>
-            <textarea className="form-control" rows={3} required value={applyForm.reason}
-              onChange={e => setApplyForm(f => ({ ...f, reason: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Supporting Document <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>(optional)</span></label>
-            <input ref={applyDocRef} type="file" className="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
-            <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>PDF, Word, or image — max 5 MB</span>
-          </div>
-        </form>
+            <DialogNote>
+              The leave balance shown is for the selected teacher for the current academic year.
+            </DialogNote>
+
+            {rules && (
+              <section className="card lvpolbox">
+                <header>
+                  <span className="lvsumhead__mark"><Icon name="fileCheck" size={18} /></span>
+                  <b>Policy Information</b>
+                </header>
+                <div className="lvsumlines">
+                  <SummaryLine label="Minimum days per application"
+                    value={rules.minDaysPerApplication > 0 ? `${dayNum(rules.minDaysPerApplication)} day(s)` : 'None'} />
+                  <SummaryLine label="Maximum consecutive days"
+                    value={rules.maxConsecutiveDays > 0 ? `${dayNum(rules.maxConsecutiveDays)} days` : 'No limit'} />
+                  {/* Waived for an admin filing on someone's behalf — the notice
+                      period is the employee's obligation, not the office's. */}
+                  <SummaryLine label="Advance notice required"
+                    value={rules.advanceNoticeDays > 0 ? `${dayNum(rules.advanceNoticeDays)} days` : 'Not for admins'} />
+                  <SummaryLine label="Allows half day" value={rules.halfDayAllowed ? 'Yes' : 'No'} />
+                  <SummaryLine label="Requires document"
+                    value={!rules.requiresDocument
+                      ? 'No'
+                      : rules.documentRequiredAfterDays > 0
+                        ? `Past ${dayNum(rules.documentRequiredAfterDays)} days`
+                        : 'Yes'} />
+                </div>
+              </section>
+            )}
+
+            <div className="lvnotice lvnotice--warn lvnotice--flat">
+              <Icon name="alert" size={15} />
+              <span>
+                This leave request will be submitted on behalf of the teacher and is subject
+                to the normal approval workflow.
+              </span>
+            </div>
+          </aside>
+        </div>
         ); })()}
       </Modal>
 

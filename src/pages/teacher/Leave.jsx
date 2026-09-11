@@ -2,14 +2,24 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getMyLeaves, getLeaveBalance, applyLeave, cancelLeave, getHolidays, getModules } from '../../api/teacher.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner } from '../../components/ui/index';
+import { Button, Modal, Confirm, Spinner, Empty } from '../../components/ui/index';
+import Icon, { LeaveScene } from '../../components/ui/icons';
+// The leave module's shared kit. It lives beside the admin screens because that
+// is where it was first needed; pages/teacher/Holidays.jsx reaches across the
+// same way for holidayParts.
+import { IconAction, RowActions } from '../admin/listParts';
+import {
+  BalanceCard, CardHead, ChoiceCards, DateRange, DialogHead, DropZone, FactRow,
+  FilterRow, FilterSelect, FormStep, LeaveHero, LeaveStat, MiniRing,
+  LeaveStats, LeaveTypeCell, MyBalanceDrawer, Pager, PeriodCell, RequestDrawer,
+  STATUS_OPTIONS, ShowingCount, StatusBadge, SubTabs, SummaryRow,
+  chipTones, dayNum, docUrl, fmtDate,
+} from '../admin/leaveParts';
 import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
 import TeacherLeaveApprovals from './LeaveApprovals';
 import { getMyCompOff, getLeaveTypePolicies, getLeaveApprovals } from '../../api/teacher.api';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
 import { useSearchParams } from 'react-router-dom';
-
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const STATUS_VARIANT = {
   pending: 'warning', approved: 'success', rejected: 'danger',
@@ -115,17 +125,66 @@ export default function TeacherLeave() {
 
   // ── My Leaves ─────────────────────────────────────────────────────────────────
   const [filterStatus, setFilterStatus] = useState('');
-  const { data: leavesData, loading: leavesLoading, refetch } = useFetch(
-    () => getMyLeaves({ status: filterStatus || undefined }),
-    [filterStatus],
+  const [filterType,   setFilterType]   = useState('');
+  const [filterMode,   setFilterMode]   = useState('');
+  const [filterFrom,   setFilterFrom]   = useState('');
+  const [filterTo,     setFilterTo]     = useState('');
+  const [leavePage,    setLeavePage]    = useState(1);
+  const [detail,       setDetail]       = useState(null);   // the row in the drawer
+  const LEAVE_PAGE = 5;
+
+  const { data: leavesData, meta: leavesMeta, loading: leavesLoading, refetch } = useFetch(
+    () => getMyLeaves({
+      status:    filterStatus || undefined,
+      leaveType: filterType   || undefined,
+      mode:      filterMode   || undefined,
+      fromDate:  filterFrom   || undefined,
+      toDate:    filterTo     || undefined,
+      page: leavePage, limit: LEAVE_PAGE,
+    }),
+    [filterStatus, filterType, filterMode, filterFrom, filterTo, leavePage],
   );
   const leaves = leavesData?.data || leavesData || [];
+  // These describe the whole history, not the filtered page — see the endpoint.
+  const leaveCounts = leavesMeta?.counts || {};
+  const leaveShare  = (n) => (leaveCounts.total ? Math.round((n / leaveCounts.total) * 100) : 0);
+
+  const anyLeaveFilter = !!(filterStatus || filterType || filterMode || filterFrom || filterTo);
+  const clearLeaveFilters = () => {
+    setFilterStatus(''); setFilterType(''); setFilterMode('');
+    setFilterFrom(''); setFilterTo(''); setLeavePage(1);
+  };
+  const onLeaveFilter = (setter) => (v) => { setLeavePage(1); setter(v); };
 
   // ── Balance ───────────────────────────────────────────────────────────────────
   const { data: balData, loading: balLoading, refetch: refetchBal } = useFetch(getLeaveBalance);
   // axios interceptor unwraps res.data, so useFetch receives { items, leaveSettings, academicYear }
   const balances      = balData?.items ?? [];
   const leaveSettings = balData?.leaveSettings || {};
+  const [balDetail, setBalDetail] = useState(null);   // the type in the drawer
+
+  // One colour per leave type, the same one it wears everywhere else.
+  const balTones = useMemo(
+    () => chipTones(balances.map((b) => b.leaveType).filter(Boolean)),
+    [balances],
+  );
+
+  const balTotals = useMemo(() => balances.reduce((t, b) => {
+    const allocated = (b.totalAllocated || 0) + (b.carriedForward || 0);
+    return {
+      types:     t.types + 1,
+      allocated: t.allocated + allocated,
+      used:      t.used + (b.used || 0),
+      pending:   t.pending + (b.pending || 0),
+      remaining: t.remaining + (b.remaining ?? Math.max(0, allocated - (b.used || 0) - (b.pending || 0))),
+    };
+  }, { types: 0, allocated: 0, used: 0, pending: 0, remaining: 0 }), [balances]);
+
+  // The activity panel is deliberately its own call: it shows the last few
+  // applications whatever the Applications tab is filtered to, so the two
+  // cannot disagree about what "recent" means.
+  const { data: recentData } = useFetch(() => getMyLeaves({ page: 1, limit: 5 }), []);
+  const recent = recentData?.data || recentData || [];
 
   // Fetch holidays only if holiday module is enabled for this school
   const [holidays, setHolidays] = useState([]);
@@ -190,6 +249,11 @@ export default function TeacherLeave() {
   const overBalance = remaining !== null && estDays > 0 && estDays > remaining;
   const overConsec  = selLT?.maxConsecutiveDays > 0 && estDays > selLT.maxConsecutiveDays && form.leaveMode !== 'half_day';
 
+  // The one figure this dialog exists to answer: what you would be left with.
+  const afterBalance = remaining === null ? null : remaining - (estDays || 0);
+  // The file input is uncontrolled, so its name is tracked for the drop zone.
+  const [docName, setDocName] = useState('');
+
   const docRequired = !!selLT?.requiresDocument && (
     selLT.documentRequiredAfterDays > 0
       ? estDays >= selLT.documentRequiredAfterDays
@@ -235,7 +299,7 @@ export default function TeacherLeave() {
     return e;
   };
 
-  const openModal = () => { setForm(EMPTY_FORM); setErrors({}); setModal(true); };
+  const openModal = () => { setForm(EMPTY_FORM); setErrors({}); setDocName(''); setModal(true); };
 
   const handleApply = async (e) => {
     e.preventDefault();
@@ -275,33 +339,38 @@ export default function TeacherLeave() {
     finally { setCancLoad(false); }
   };
 
-  const leaveColumns = [
-    { key: 'type',    label: 'Type',    render: r => r.leaveType?.name || '—' },
-    { key: 'dates',   label: 'Period',  render: r => <div><div>{fmtDate(r.fromDate)} – {fmtDate(r.toDate)}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.totalDays} day(s) · {r.leaveMode?.replace('_', ' ')}</div></div> },
-    { key: 'status',  label: 'Status',  render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge> },
-    { key: 'reason',  label: 'Reason',  render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
-    { key: 'comment', label: 'Admin Comment', render: r => r.adminComment ? <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{r.adminComment}</span> : '—' },
-    { key: 'doc',     label: 'Doc', render: r => r.document ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a> : '—' },
-    { key: 'actions', label: '', render: r => r.status === 'pending' ? (
-      <button className="btn btn-danger btn-sm" onClick={() => setCancelItem(r)}>Cancel</button>
-    ) : null },
-  ];
-
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="page">
-      <PageHeader title="My Leave"
+    <div className="page leavepg">
+      <LeaveHero
+        icon="umbrella"
+        title="My Leave"
         subtitle={compOffOn ? 'Leave applications, balance and Comp Off' : 'Leave applications and balance'}
-        action={(tab.startsWith('compoff') || tab === 'approvals') ? null : <Button onClick={openModal}>+ Apply Leave</Button>}
+        quote="Take time to rest, so you can give your best."
+        scene={LeaveScene}
       />
 
-      <div className="tabs">
-        {[['my-leaves','My Applications'],['balance','Leave Balance'],
-          ...(compOffOn ? [['compoff','Comp Off']] : []),
-          ...(isLeaveApprover   ? [['approvals','Leave Approvals']] : []),
-          ...(compOffOn && isCompOffApprover ? [['compoff-approvals','Comp Off Approvals']] : [])].map(([key, label]) => (
-          <button key={key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>{label}</button>
-        ))}
+      {/* The tabs and the one thing you came to do, on one row. */}
+      <div className="lvtabrow">
+        <SubTabs
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { value: 'my-leaves', label: 'My Applications', icon: 'fileCheck' },
+            { value: 'balance',   label: 'Leave Balance',   icon: 'chart' },
+            ...(compOffOn ? [{ value: 'compoff', label: 'Comp Off', icon: 'repeat' }] : []),
+            ...(isLeaveApprover ? [{ value: 'approvals', label: 'Leave Approvals', icon: 'checkSquare' }] : []),
+            ...(compOffOn && isCompOffApprover
+              ? [{ value: 'compoff-approvals', label: 'Comp Off Approvals', icon: 'checkSquare' }] : []),
+          ]}
+        />
+        {/* Hidden only on the two approval queues, where you are looking at
+            other people's requests rather than filing your own. The Comp Off
+            tab keeps it: its own "+ Apply Comp Off" claims a day you worked,
+            which is a different act from taking leave. */}
+        {tab !== 'approvals' && tab !== 'compoff-approvals' && (
+          <Button onClick={openModal}><Icon name="plus" size={16} /> Apply Leave</Button>
+        )}
       </div>
 
       {/* ── Comp Off — only where the school runs it ── */}
@@ -315,270 +384,473 @@ export default function TeacherLeave() {
 
       {/* ── My Applications ── */}
       {tab === 'my-leaves' && (
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', gap: 8 }}>
-            <select className="form-control" style={{ width: 160 }} value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}>
-              <option value="">All Statuses</option>
-              {['pending','approved','rejected','cancelled'].map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {leavesLoading
-              ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              : <Table columns={leaveColumns} data={leaves} emptyIcon="🏖️" emptyTitle="No leave applications" />}
-          </div>
-        </div>
+        <>
+          <LeaveStats className="lvstats--4">
+            <LeaveStat valueFirst icon="fileCheck" tone="indigo" value={leaveCounts.total ?? 0}
+              label="Total Applications" caption="All time"
+              on={!filterStatus} onClick={() => onLeaveFilter(setFilterStatus)('')} />
+            <LeaveStat valueFirst icon="checkCircle" tone="green" value={leaveCounts.approved ?? 0}
+              label="Approved" caption={`${leaveShare(leaveCounts.approved || 0)}% of total`}
+              on={filterStatus === 'approved'}
+              onClick={() => onLeaveFilter(setFilterStatus)(filterStatus === 'approved' ? '' : 'approved')} />
+            <LeaveStat valueFirst icon="clock" tone="amber" value={leaveCounts.pending ?? 0}
+              label="Pending" caption={`${leaveShare(leaveCounts.pending || 0)}% of total`}
+              on={filterStatus === 'pending'}
+              onClick={() => onLeaveFilter(setFilterStatus)(filterStatus === 'pending' ? '' : 'pending')} />
+            <LeaveStat valueFirst icon="closeCircle" tone="red" value={leaveCounts.rejected ?? 0}
+              label="Rejected" caption={`${leaveShare(leaveCounts.rejected || 0)}% of total`}
+              on={filterStatus === 'rejected'}
+              onClick={() => onLeaveFilter(setFilterStatus)(filterStatus === 'rejected' ? '' : 'rejected')} />
+          </LeaveStats>
+
+          <section className="card lvcard">
+            <FilterRow>
+              <FilterSelect label="Filter by status" value={filterStatus} all="All Statuses"
+                options={STATUS_OPTIONS} onChange={onLeaveFilter(setFilterStatus)} />
+              <FilterSelect label="Filter by leave type" value={filterType} all="All Leave Types"
+                options={policyList.map((p) => ({ value: p.leaveType?._id, label: p.leaveType?.name }))}
+                onChange={onLeaveFilter(setFilterType)} />
+              <DateRange from={filterFrom} to={filterTo}
+                onFrom={onLeaveFilter(setFilterFrom)} onTo={onLeaveFilter(setFilterTo)} />
+              <FilterSelect label="Filter by duration" value={filterMode} all="Full and half days"
+                options={[{ value: 'full_day', label: 'Full days only' }, { value: 'half_day', label: 'Half days only' }]}
+                onChange={onLeaveFilter(setFilterMode)} />
+              <span className="lvfilters__sep" />
+              <Button variant="secondary" onClick={clearLeaveFilters} disabled={!anyLeaveFilter}>
+                <Icon name="refresh" size={16} /> Reset
+              </Button>
+            </FilterRow>
+
+            {leavesLoading && !leavesData ? (
+              <div className="lvtable__state"><Spinner /></div>
+            ) : !leaves.length ? (
+              <div className="lvtable__state">
+                <Empty
+                  icon={anyLeaveFilter ? '🔍' : '🏖️'}
+                  title={anyLeaveFilter ? 'No applications match' : 'No leave applications yet'}
+                  message={anyLeaveFilter
+                    ? 'Try another status, type or date range.'
+                    : 'When you apply for leave it appears here, with whatever the office decides.'}
+                  action={anyLeaveFilter
+                    ? <Button variant="secondary" onClick={clearLeaveFilters}>Clear filters</Button>
+                    : <Button onClick={openModal}>+ Apply Leave</Button>}
+                />
+              </div>
+            ) : (
+              <div className="lvtable__wrap">
+                <table className="lvtable">
+                  <thead>
+                    <tr>
+                      <th className="lvt-num">#</th>
+                      <th>Leave Type</th>
+                      <th>Period</th>
+                      <th className="lvt-total">Duration</th>
+                      <th className="lvt-status">Status</th>
+                      <th className="lvt-reason">Reason</th>
+                      <th className="lvt-reason">Admin Comment</th>
+                      <th className="lvt-cell">Document</th>
+                      <th className="lvt-acts">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaves.map((r, i) => (
+                      <tr key={r._id} data-focus-id={r._id}>
+                        <td className="lvt-num">{((leavesMeta?.page || leavePage) - 1) * LEAVE_PAGE + i + 1}</td>
+                        <td><LeaveTypeCell request={r} /></td>
+                        <td><PeriodCell request={r} /></td>
+                        <td className="lvt-total">
+                          {dayNum(r.totalDays)} day{Number(r.totalDays) === 1 ? '' : 's'}
+                        </td>
+                        <td className="lvt-status"><StatusBadge status={r.status} /></td>
+                        <td className="lvt-reason">
+                          <div className="lvreason" title={r.reason || ''}><span>{r.reason || '—'}</span></div>
+                        </td>
+                        <td className="lvt-reason">
+                          {/* The office's answer, which is the thing you came
+                              back to this screen to read. */}
+                          {r.adminComment
+                            ? <div className="lvreason" title={r.adminComment}><span>{r.adminComment}</span></div>
+                            : <span className="lvmuted">—</span>}
+                        </td>
+                        <td className="lvt-cell">
+                          {r.document
+                            ? <a href={docUrl(r.document)} target="_blank" rel="noopener noreferrer" className="lvdoc">
+                                <Icon name="files" size={13} /> 1
+                              </a>
+                            : <span className="lvmuted">—</span>}
+                        </td>
+                        <td className="lvt-acts">
+                          <div className="lvrowacts">
+                            {/* Withdrawing keeps its word — it is the one action
+                                here that cannot be undone. */}
+                            {r.status === 'pending' && (
+                              <div className="lvacts">
+                                <button type="button" className="lvbtn lvbtn--reject"
+                                  onClick={() => setCancelItem(r)}>Cancel</button>
+                              </div>
+                            )}
+                            <RowActions>
+                              <IconAction icon="eye" label="View this application"
+                                onClick={() => setDetail(r)} />
+                            </RowActions>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="lvfoot">
+              <ShowingCount page={leavesMeta?.page || leavePage} limit={LEAVE_PAGE}
+                count={leaves.length} total={leavesMeta?.total ?? leaves.length}
+                noun="application" />
+              <Pager page={leavesMeta?.page || leavePage}
+                pages={leaves.length ? (leavesMeta?.pages || 1) : 0} onPage={setLeavePage} />
+            </div>
+          </section>
+
+          {/* Your own application, in full. No approve buttons — this is the
+              same drawer the office uses, without the decisions. */}
+          <RequestDrawer
+            request={detail}
+            onClose={() => setDetail(null)}
+            onCancel={(r) => { setDetail(null); setCancelItem(r); }}
+          />
+        </>
       )}
 
       {/* ── Balance ── */}
       {tab === 'balance' && (
-        <div>
-          {balLoading ? (
-            <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-          ) : balances.length === 0 ? (
-            <div className="card"><div className="card-body" style={{ textAlign: 'center', padding: 48 }}>
-              <span style={{ fontSize: 32 }}>📊</span>
-              <p style={{ marginTop: 8, color: 'var(--text-muted)' }}>No balance data available</p>
-            </div></div>
+        <>
+          {balLoading && !balData ? (
+            <div className="lvtable__state"><Spinner /></div>
+          ) : !balances.length ? (
+            <section className="card lvcard">
+              <div className="lvtable__state">
+                <Empty icon="📊" title="No balance yet"
+                  message="Your leave balance appears here once the office allocates it for this year." />
+              </div>
+            </section>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
-              {balances.map((b, i) => {
-                const allocated = b.totalAllocated || 0;
-                const carried   = b.carriedForward  || 0;
-                const used      = b.used            || 0;
-                const pending   = b.pending         || 0;
-                const rem       = b.remaining ?? Math.max(0, allocated + carried - used - pending);
-                const total     = allocated + carried;
-                const pct       = total > 0 ? Math.round((used / total) * 100) : 0;
-                return (
-                  <div key={i} className="card" style={{ padding: 0 }}>
-                    <div style={{ padding: '16px 20px 12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '1rem' }}>{b.leaveType?.name || '—'}</div>
-                          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{b.leaveType?.code} · {b.academicYear}</div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '1.6rem', fontWeight: 700, color: rem > 0 ? 'var(--success)' : 'var(--danger)', lineHeight: 1 }}>{rem}</span>
-                          <div style={{ fontSize: '.7rem', color: 'var(--text-muted)' }}>remaining</div>
-                        </div>
-                      </div>
-                      <div style={{ marginTop: 12, background: 'var(--bg-muted)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: pct > 80 ? 'var(--danger)' : pct > 50 ? 'var(--warning)' : 'var(--success)', transition: 'width .3s' }} />
-                      </div>
-                    </div>
-                    <div style={{ borderTop: '1px solid var(--border)', padding: '10px 20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: '.78rem', textAlign: 'center' }}>
-                      {[['Allocated', allocated], ['Carried', carried], ['Used', used], ['Pending', pending]].map(([label, val]) => (
-                        <div key={label}><div style={{ fontWeight: 600 }}>{val}</div><div style={{ color: 'var(--text-muted)' }}>{label}</div></div>
-                      ))}
-                    </div>
+            <>
+              <div className="lvbalcards">
+                {balances.map((b) => (
+                  <BalanceCard key={b.leaveType?._id || b._id}
+                    balance={b}
+                    tone={balTones[String(b.leaveType?._id)] || 'indigo'}
+                    onView={() => setBalDetail(b)} />
+                ))}
+              </div>
+
+              <div className="lvbalgrid">
+                <section className="card lvcard lvsummary">
+                  <CardHead title="Leave Summary" />
+                  <div className="lvsumrows">
+                    <SummaryRow label="Total Leave Types" value={balTotals.types} />
+                    <SummaryRow label="Total Allocated" value={`${dayNum(balTotals.allocated)} days`} />
+                    <SummaryRow label="Total Used" value={`${dayNum(balTotals.used)} day${balTotals.used === 1 ? '' : 's'}`} />
+                    <SummaryRow label="Total Pending" value={`${dayNum(balTotals.pending)} days`} />
+                    <SummaryRow strong label="Total Balance" value={`${dayNum(balTotals.remaining)} days`} />
                   </div>
-                );
-              })}
-            </div>
+                  <div className="lvnotice lvnotice--flat lvsummary__note">
+                    <Icon name="alert" size={15} />
+                    <span>
+                      Leave balances are for the academic year {balances[0]?.academicYear || ''} and
+                      are updated in real time.
+                    </span>
+                  </div>
+                </section>
+
+                <section className="card lvcard">
+                  <CardHead title="Recent Leave Activity"
+                    subtitle="Your last few applications, whatever their state.">
+                    <Button variant="secondary" onClick={() => { clearLeaveFilters(); setTab('my-leaves'); }}>
+                      View All
+                    </Button>
+                  </CardHead>
+
+                  {!recent.length ? (
+                    <div className="lvtable__state">
+                      <Empty icon="🏖️" title="Nothing yet"
+                        message="Your applications will show up here as you make them."
+                        action={<Button onClick={openModal}>+ Apply Leave</Button>} />
+                    </div>
+                  ) : (
+                    <div className="lvtable__wrap">
+                      <table className="lvtable">
+                        <thead>
+                          <tr>
+                            <th className="lvt-applied">Date</th>
+                            <th className="lvt-dept">Type</th>
+                            <th className="lvt-total">Duration</th>
+                            <th className="lvt-status">Status</th>
+                            <th className="lvt-reason">Reason</th>
+                            <th className="lvt-acts">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recent.map((r) => (
+                            <tr key={r._id}>
+                              <td className="lvt-applied">{fmtDate(r.fromDate)}</td>
+                              <td className="lvt-dept">{r.leaveType?.name || '—'}</td>
+                              <td className="lvt-total">
+                                {dayNum(r.totalDays)} day{Number(r.totalDays) === 1 ? '' : 's'}
+                              </td>
+                              <td className="lvt-status"><StatusBadge status={r.status} /></td>
+                              <td className="lvt-reason">
+                                <div className="lvreason" title={r.reason || ''}><span>{r.reason || '—'}</span></div>
+                              </td>
+                              <td className="lvt-acts">
+                                <RowActions>
+                                  <IconAction icon="eye" label="View this application"
+                                    onClick={() => setDetail(r)} />
+                                </RowActions>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              </div>
+            </>
           )}
-        </div>
+
+          {/* One leave type, with the rules that govern it — the half an
+              employee cannot read anywhere else. */}
+          <MyBalanceDrawer
+            balance={balDetail}
+            policy={balDetail ? policyMap[String(balDetail.leaveType?._id)] : null}
+            onClose={() => setBalDetail(null)}
+            onApply={(type) => {
+              setBalDetail(null);
+              setForm({ ...EMPTY_FORM, leaveTypeId: String(type._id) });
+              setErrors({});
+              setModal(true);
+            }}
+          />
+
+          {/* Reached from Recent Leave Activity. */}
+          <RequestDrawer
+            request={detail}
+            onClose={() => setDetail(null)}
+            onCancel={(r) => { setDetail(null); setCancelItem(r); }}
+          />
+        </>
       )}
 
       {/* ── Apply Modal ── */}
-      <Modal open={modal} onClose={() => setModal(false)} title="Apply for Leave"
+      <Modal open={modal} onClose={() => setModal(false)} maxWidth={920}
+        title={<DialogHead icon="calendarDays" title="Apply for Leave"
+          subtitle="Submit a leave request. It will be sent for approval as per school policy." />}
         footer={<>
           <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="leave-form" type="submit" loading={saving}>Submit</Button>
+          <Button form="leave-form" type="submit" loading={saving} disabled={!leaveTypes.length}>
+            <Icon name="arrowRight" size={16} /> Submit Request
+          </Button>
         </>}>
-        <form id="leave-form" onSubmit={handleApply} noValidate>
+        <div className="lvapply">
+          <form id="leave-form" className="lvapply__form" onSubmit={handleApply} noValidate>
 
-          {/* Leave Type */}
-          <div className="form-group">
-            <label className="form-label required">Leave Type</label>
-            {leaveTypes.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '.88rem', margin: 0 }}>
-                No leave types available. Please contact your administrator.
-              </p>
-            ) : (
-              <select
-                className={`form-control${errors.leaveTypeId ? ' is-invalid' : ''}`}
-                value={form.leaveTypeId}
-                onChange={e => setField('leaveTypeId', e.target.value)}
-              >
-                <option value="">Select type…</option>
-                {leaveTypes.map(t => {
-                  const bal = balanceMap[t._id?.toString()];
-                  const rem = bal
-                    ? (bal.remaining ?? Math.max(0, (bal.totalAllocated || 0) + (bal.carriedForward || 0) - (bal.used || 0) - (bal.pending || 0)))
-                    : (t.annualAllocation || 0);
-                  // The type's own policy decides eligibility, and may also let
-                  // this employee apply beyond their remaining balance.
-                  const pol = policyMap[t._id?.toString()];
-                  const noBalance = rem <= 0 && !pol?.allowNegativeBalance;
-                  const blocked = pol ? !pol.eligible : false;
-                  return (
-                    <option key={t._id} value={t._id} disabled={blocked || noBalance}>
-                      {t.name} ({t.code}) — {rem} day(s) remaining
-                      {blocked ? ` · ${pol.ineligibleReason}` : noBalance ? ' · No balance' : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            )}
-            {errors.leaveTypeId && <div className="invalid-feedback" style={{ display: 'block', color: 'var(--danger)', fontSize: '.8rem', marginTop: 4 }}>{errors.leaveTypeId}</div>}
+            <FormStep n={1} title="Leave Details" note="Choose the type and duration of your leave.">
+              <label className="lvfield">
+                <span className="lvfield__label">Leave Type <i>*</i></span>
+                {leaveTypes.length === 0 ? (
+                  <span className="lvfield__hint">
+                    No leave types available. Please contact your administrator.
+                  </span>
+                ) : (
+                  <select className={`form-control${errors.leaveTypeId ? ' is-error' : ''}`}
+                    value={form.leaveTypeId} onChange={(e) => setField('leaveTypeId', e.target.value)}>
+                    <option value="">Select type…</option>
+                    {leaveTypes.map((t) => {
+                      const bal = balanceMap[t._id?.toString()];
+                      const rem = bal
+                        ? (bal.remaining ?? Math.max(0, (bal.totalAllocated || 0) + (bal.carriedForward || 0) - (bal.used || 0) - (bal.pending || 0)))
+                        : (t.annualAllocation || 0);
+                      // The type's own policy decides eligibility, and may also
+                      // let this employee apply beyond their remaining balance.
+                      const pol = policyMap[t._id?.toString()];
+                      const noBalance = rem <= 0 && !pol?.allowNegativeBalance;
+                      const blocked = pol ? !pol.eligible : false;
+                      return (
+                        <option key={t._id} value={t._id} disabled={blocked || noBalance}>
+                          {t.name} ({t.code}) — {rem} day(s) remaining
+                          {blocked ? ` · ${pol.ineligibleReason || 'Not available to you'}` : noBalance ? ' · No balance' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+                {errors.leaveTypeId && <span className="lvfield__err">{errors.leaveTypeId}</span>}
+              </label>
 
-            {/* Inline balance info for selected type */}
-            {selBal && (
-              <div style={{ marginTop: 6, display: 'flex', gap: 12, fontSize: '.78rem', color: 'var(--text-muted)' }}>
-                <span>Allocated: <strong>{selBal.totalAllocated}</strong></span>
-                <span>Used: <strong>{selBal.used}</strong></span>
-                <span>Pending: <strong>{selBal.pending}</strong></span>
-                <span style={{ color: remaining > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>Remaining: {remaining}</span>
+              <div className="lvfield">
+                <span className="lvfield__label">Leave Mode <i>*</i></span>
+                <ChoiceCards name="leaveMode" value={form.leaveMode}
+                  onChange={(v) => setField('leaveMode', v)}
+                  options={[
+                    { value: 'full_day', label: 'Full Day' },
+                    // A type whose policy forbids half days must not offer one.
+                    { value: 'half_day', label: 'Half Day',
+                      disabled: selPolicy ? selPolicy.halfDayAllowed === false : false,
+                      disabledHint: 'This leave type does not allow half days' },
+                  ]} />
               </div>
-            )}
 
-            {/* The rules this type will actually be judged by — shown before
-                submitting, so a rejection is never a surprise. */}
-            {selPolicy && (
-              <div style={{ marginTop: 10, background: 'var(--bg-muted)', borderRadius: 6, padding: '10px 14px', fontSize: '.78rem', lineHeight: 1.7 }}>
-                <strong style={{ fontSize: '.8rem' }}>Policy for {selPolicy.leaveType?.name}</strong>
-                <div style={{ color: 'var(--text-muted)' }}>
-                  {[
-                    selPolicy.maxConsecutiveDays > 0    && `Max ${selPolicy.maxConsecutiveDays} consecutive day(s)`,
-                    selPolicy.minDaysPerApplication > 0 && `At least ${selPolicy.minDaysPerApplication} day(s) per application`,
-                    selPolicy.advanceNoticeDays > 0     && `${selPolicy.advanceNoticeDays} day(s) advance notice`,
-                    selPolicy.allowBackdated
-                      ? `Back-dating allowed${selPolicy.backdatedWithinDays > 0 ? ` within ${selPolicy.backdatedWithinDays} day(s)` : ''}`
-                      : 'No back-dated applications',
-                    !selPolicy.halfDayAllowed && 'No half days',
-                    selPolicy.sandwichRule    && 'Sandwich rule: holidays inside the leave are charged',
-                    selPolicy.requiresDocument && (selPolicy.documentRequiredAfterDays > 0
-                      ? `Document required beyond ${selPolicy.documentRequiredAfterDays} day(s)`
-                      : 'Supporting document required'),
-                    selPolicy.maxApplicationsPerMonth > 0 && `Max ${selPolicy.maxApplicationsPerMonth} application(s)/month`,
-                    selPolicy.maxDaysPerMonth > 0         && `Max ${selPolicy.maxDaysPerMonth} day(s)/month`,
-                    !selPolicy.allowCombineWithOtherLeaves && 'Cannot be combined with other leave types',
-                    selPolicy.allowNegativeBalance && `Overdraft allowed${selPolicy.maxNegativeDays > 0 ? ` up to ${selPolicy.maxNegativeDays} day(s)` : ''}`,
-                  ].filter(Boolean).join(' · ') || 'No special restrictions'}
+              {/* Which half decides which of your periods need cover. */}
+              {form.leaveMode === 'half_day' && (
+                <label className="lvfield">
+                  <span className="lvfield__label">Which half</span>
+                  <select className="form-control" value={form.halfDaySession}
+                    onChange={(e) => setField('halfDaySession', e.target.value)}>
+                    <option value="first">First half (morning)</option>
+                    <option value="second">Second half (afternoon)</option>
+                  </select>
+                </label>
+              )}
+
+              <div className="lvdates">
+                <label className="lvfield">
+                  <span className="lvfield__label">From Date <i>*</i></span>
+                  <input type="date" className={`form-control${errors.fromDate ? ' is-error' : ''}`}
+                    min={dateBounds.minFrom || undefined} value={form.fromDate}
+                    onChange={(e) => setField('fromDate', e.target.value)} />
+                  {errors.fromDate && <span className="lvfield__err">{errors.fromDate}</span>}
+                </label>
+                <label className="lvfield">
+                  <span className="lvfield__label">To Date <i>*</i></span>
+                  <input type="date" className={`form-control${errors.toDate ? ' is-error' : ''}`}
+                    min={form.fromDate || dateBounds.minFrom || undefined} value={form.toDate}
+                    disabled={form.leaveMode === 'half_day'}
+                    onChange={(e) => setField('toDate', e.target.value)} />
+                  {errors.toDate && <span className="lvfield__err">{errors.toDate}</span>}
+                </label>
+                {/* What it will actually cost, worked out the same way the
+                    server will — weekends and holidays are not charged unless
+                    the type's sandwich rule says so. */}
+                <div className={`lvduration${noWorkDays ? ' is-bad' : ''}`}>
+                  <Icon name="calendar" size={16} />
+                  <span>
+                    <small>Duration</small>
+                    <b>{!form.fromDate || !form.toDate
+                      ? '—'
+                      : noWorkDays
+                        ? 'No working days'
+                        : estDays === 0.5 ? 'Half day' : `${estDays} day${estDays === 1 ? '' : 's'}`}</b>
+                  </span>
                 </div>
               </div>
+              {dateHint && <p className="lvfield__hint">{dateHint}</p>}
+
+              {(overBalance || overConsec) && !noWorkDays && (
+                <div className="lvnotice lvnotice--warn lvnotice--flat">
+                  <Icon name="alert" size={15} />
+                  <span>
+                    {overBalance && `You have ${remaining} day(s) left but are applying for ${estDays}. `}
+                    {overConsec && `This type allows at most ${selLT.maxConsecutiveDays} consecutive day(s).`}
+                  </span>
+                </div>
+              )}
+            </FormStep>
+
+            <FormStep n={2} title="Reason" note="Let us know why you are taking leave.">
+              <textarea className={`form-control${errors.reason ? ' is-error' : ''}`}
+                rows={3} maxLength={500} value={form.reason}
+                onChange={(e) => setField('reason', e.target.value)}
+                placeholder="Enter reason for leave (minimum 10 characters)…" />
+              <div className="lvcount">
+                {errors.reason
+                  ? <span className="lvfield__err">{errors.reason}</span>
+                  : <span className="lvfield__hint">
+                      {form.reason.trim().length < 10
+                        ? `${10 - form.reason.trim().length} more character(s) needed`
+                        : 'Looks good.'}
+                    </span>}
+                <span>{form.reason.length} / 500</span>
+              </div>
+              {/* The four reasons people actually give, so the common case is
+                  one tap rather than a sentence. */}
+              <div className="lvchips">
+                {['Personal Work', 'Medical', 'Family Function', 'Other'].map((r) => (
+                  <button key={r} type="button" className="lvchip lvchip--pick"
+                    onClick={() => setField('reason', r)}>{r}</button>
+                ))}
+              </div>
+            </FormStep>
+
+            <FormStep n={3}
+              title={<>Supporting Document {docRequired
+                ? <i className="lvreq">(Required)</i>
+                : <i className="lvopt">(Optional)</i>}</>}
+              note={selLT?.requiresDocument && selLT.documentRequiredAfterDays > 0
+                ? `Required once the leave runs past ${selLT.documentRequiredAfterDays} day(s).`
+                : selLT?.requiresDocument
+                  ? 'This leave type always needs one.'
+                  : 'Attach any relevant document, if required.'}>
+              <DropZone
+                inputRef={docRef}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                hint="PDF, Word, or image (JPG, PNG) — max 5 MB"
+                fileName={docName}
+                required={docRequired}
+                error={errors.document}
+                onPick={() => {
+                  setDocName(docRef.current?.files?.[0]?.name || '');
+                  setErrors((e) => ({ ...e, document: '' }));
+                }}
+              />
+              {errors.document && <span className="lvfield__err">{errors.document}</span>}
+            </FormStep>
+          </form>
+
+          {/* ── What this leave will do to your balance ── */}
+          <aside className="lvapply__side">
+            <h4>Leave Balance</h4>
+            {selBal ? (
+              <>
+                <MiniRing
+                  value={remaining ?? 0}
+                  total={(selBal.totalAllocated || 0) + (selBal.carriedForward || 0)}
+                  caption="days remaining"
+                  note={`${selLT?.name} (${selLT?.code}) · ${selBal.academicYear || ''}`}
+                />
+
+                <h5>After this leave</h5>
+                <div className="lvfacts">
+                  {/* The figure that changes, first — everything else is the
+                      context for it. */}
+                  <FactRow icon="calendarDays" label="Remaining balance"
+                    tone={afterBalance < 0 ? 'down' : undefined}
+                    value={`${dayNum(Math.max(0, afterBalance))} day${afterBalance === 1 ? '' : 's'}`} />
+                  <FactRow icon="chart" label="Total allocated"
+                    value={`${dayNum((selBal.totalAllocated || 0) + (selBal.carriedForward || 0))} days`} />
+                  <FactRow icon="fileCheck" label="Total used"
+                    value={`${dayNum(selBal.used || 0)} days`} />
+                  <FactRow icon="clock" label="Pending requests"
+                    value={`${dayNum(selBal.pending || 0)} day${selBal.pending === 1 ? '' : 's'}`} />
+                </div>
+              </>
+            ) : (
+              <p className="lvrail__none">
+                Pick a leave type and your balance for it appears here, with what this
+                application would leave you.
+              </p>
             )}
-          </div>
 
-          {/* Leave Mode */}
-          <div className="form-group">
-            <label className="form-label">Leave Mode</label>
-            <select className="form-control" value={form.leaveMode}
-              onChange={e => setField('leaveMode', e.target.value)}>
-              <option value="full_day">Full Day</option>
-              <option value="half_day">Half Day</option>
-            </select>
-          </div>
-          {/* Which half decides which of your periods need cover. */}
-          {form.leaveMode === 'half_day' && (
-            <div className="form-group">
-              <label className="form-label">Which half</label>
-              <select className="form-control" value={form.halfDaySession}
-                onChange={e => setField('halfDaySession', e.target.value)}>
-                <option value="first">First half (morning)</option>
-                <option value="second">Second half (afternoon)</option>
-              </select>
-            </div>
-          )}
-
-          {/* Dates */}
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">From</label>
-              <input
-                type="date" className={`form-control${errors.fromDate ? ' is-invalid' : ''}`}
-                required min={dateBounds.minFrom || undefined} value={form.fromDate}
-                onChange={e => setField('fromDate', e.target.value)}
-              />
-              {errors.fromDate && <div style={{ color: 'var(--danger)', fontSize: '.8rem', marginTop: 4 }}>{errors.fromDate}</div>}
-            </div>
-            <div className="form-group">
-              <label className="form-label required">To</label>
-              <input
-                type="date" className={`form-control${errors.toDate ? ' is-invalid' : ''}`}
-                required
-                min={form.fromDate || dateBounds.minFrom || undefined}
-                value={form.toDate}
-                disabled={form.leaveMode === 'half_day'}
-                onChange={e => setField('toDate', e.target.value)}
-              />
-              {errors.toDate && <div style={{ color: 'var(--danger)', fontSize: '.8rem', marginTop: 4 }}>{errors.toDate}</div>}
-            </div>
-          </div>
-          {dateHint && <div className="form-hint" style={{ marginTop: -8, marginBottom: 10 }}>{dateHint}</div>}
-
-          {/* Day count pill */}
-          {form.fromDate && form.toDate && form.fromDate <= form.toDate && (
-            <div style={{ marginTop: -8, marginBottom: 12 }}>
-              {noWorkDays ? (
-                <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: 'var(--danger-light, #fee2e2)', color: 'var(--danger)', fontSize: '.78rem', fontWeight: 600 }}>
-                  ⚠ No working days in this range
-                </span>
-              ) : (
-                <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: 'var(--primary-light, #ede9fe)', color: 'var(--primary)', fontSize: '.78rem', fontWeight: 600 }}>
-                  {estDays === 0.5 ? 'Half day' : `${estDays} working day${estDays !== 1 ? 's' : ''}`}
-                </span>
-              )}
-              {overBalance && !noWorkDays && (
-                <span style={{ display: 'inline-block', marginLeft: 8, padding: '3px 10px', borderRadius: 20, background: 'var(--danger-light, #fee2e2)', color: 'var(--danger)', fontSize: '.78rem', fontWeight: 600 }}>
-                  ⚠ Exceeds balance ({remaining} remaining)
-                </span>
-              )}
-              {overConsec && !noWorkDays && (
-                <span style={{ display: 'inline-block', marginLeft: 8, padding: '3px 10px', borderRadius: 20, background: 'var(--danger-light, #fee2e2)', color: 'var(--danger)', fontSize: '.78rem', fontWeight: 600 }}>
-                  ⚠ Max {selLT.maxConsecutiveDays} consecutive day(s)
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Reason */}
-          <div className="form-group">
-            <label className="form-label required">Reason</label>
-            <textarea
-              className={`form-control${errors.reason ? ' is-invalid' : ''}`}
-              rows={3} required value={form.reason}
-              onChange={e => setField('reason', e.target.value)}
-              placeholder="State your reason for leave… (min 10 characters)"
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-              {errors.reason
-                ? <span style={{ color: 'var(--danger)', fontSize: '.8rem' }}>{errors.reason}</span>
-                : <span />}
-              <span style={{ fontSize: '.75rem', color: form.reason.length < 10 ? 'var(--text-muted)' : 'var(--success)' }}>
-                {form.reason.length} / 10 min
+            <div className="lvnotice lvnotice--flat">
+              <Icon name="alert" size={15} />
+              <span>
+                {selPolicy?.approval?.mode && selPolicy.approval.mode !== 'admin'
+                  ? 'Your request goes to the approvers your school has named for this leave type.'
+                  : "Your request will be sent to the appropriate approver as per the school's leave policy."}
               </span>
             </div>
-          </div>
-
-          {/* Supporting Document */}
-          <div className="form-group">
-            <label className="form-label">
-              Supporting Document
-              {docRequired
-                ? <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>
-                : <span style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginLeft: 4 }}>(optional)</span>}
-            </label>
-            <input ref={docRef} type="file"
-              className={`form-control${errors.document ? ' is-invalid' : ''}`}
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              onChange={() => setErrors(e => ({ ...e, document: '' }))}
-            />
-            {errors.document && <div style={{ color: 'var(--danger)', fontSize: '.8rem', marginTop: 4 }}>{errors.document}</div>}
-            <span style={{ fontSize: '.75rem', color: docRequired ? 'var(--danger)' : 'var(--text-muted)' }}>
-              {selLT?.requiresDocument && selLT.documentRequiredAfterDays > 0
-                ? `Required for ${selLT.documentRequiredAfterDays}+ days${estDays > 0 ? ` (you selected ${estDays} day(s))` : ''}`
-                : selLT?.requiresDocument
-                  ? 'Always required for this leave type'
-                  : 'PDF, Word, or image — max 5 MB'}
-            </span>
-          </div>
-
-        </form>
+          </aside>
+        </div>
       </Modal>
 
       {/* ── Cancel Confirm ── */}

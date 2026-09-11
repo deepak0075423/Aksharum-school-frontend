@@ -1,13 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/teacher.api';
 import { Table, Badge, Button, Modal, Spinner, Empty } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import { IconAction, MenuItem, RowActions, RowMenu } from '../admin/listParts';
+import {
+  CardHead, CompOffDrawer, DateRange, DialogHead, DialogNote, DropZone, FilterRow,
+  FilterSelect, FormStep, InfoPanels, LeaveStat, LeaveStats, LedgerDrawer, Pager,
+  RulesNote, STATUS, ShowingCount, SignOffStep, StatusBadge, SubTabs, SummaryLine,
+  ThSub, WORK_TYPES, fmtDate, fmtHours, hoursBetween, weekdayOf,
+} from '../admin/leaveParts';
 
 // Mounted as the "Comp Off" tab of pages/teacher/Leave.jsx — Comp Off stays
 // inside Leave Management rather than becoming its own nav item.
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const STATUS_VARIANT = {
@@ -20,9 +27,15 @@ const DAY_LABEL = {
   working_day: '💼 Working Day', unknown: '❔ Unclassified',
 };
 
-const ENTRY_VARIANT = {
-  EARNED: 'success', REVERSED: 'success', USED: 'info',
-  EXPIRED: 'muted', CANCELLED: 'danger', ADJUSTMENT: 'warning',
+// The six ledger entry types, in words and in the badge tones the rest of the
+// module uses.
+const ENTRY_LABEL = {
+  EARNED: 'Earned', USED: 'Used', EXPIRED: 'Expired',
+  CANCELLED: 'Cancelled', REVERSED: 'Reversed', ADJUSTMENT: 'Adjustment',
+};
+const ENTRY_TONE = {
+  EARNED: 'approved', REVERSED: 'approved', USED: 'pending',
+  EXPIRED: 'cancelled', CANCELLED: 'rejected', ADJUSTMENT: 'pending',
 };
 
 const EMPTY_FORM = { workDate: '', checkIn: '', checkOut: '', compOffDays: '', reason: '' };
@@ -42,6 +55,15 @@ export default function TeacherCompOff() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null);
+  const docRef = useRef();
+  const [docName, setDocName] = useState('');
+
+  // The engine's figure when it has one, otherwise worked out from the times as
+  // they are typed — so the box moves with the form rather than with the
+  // network.
+  const hoursWorked = preview?.workedHours > 0
+    ? preview.workedHours
+    : hoursBetween(form.checkIn, form.checkOut);
 
   // Live verdict from the same engine that will judge the submission, so the
   // employee is never surprised by a rejection they could have seen coming.
@@ -62,12 +84,33 @@ export default function TeacherCompOff() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.applyCompOff({
-        ...form,
-        compOffDays: form.compOffDays === '' ? undefined : Number(form.compOffDays),
-      });
+      const file = docRef.current?.files?.[0];
+      // The route has always run `uploadLeaveDoc.single('document')`, but this
+      // form posted a plain object — so a supporting document could never
+      // actually reach it. Multipart only when there is a file; a JSON body is
+      // smaller and the server reads either.
+      if (file) {
+        const fd = new FormData();
+        fd.append('workDate', form.workDate);
+        if (form.checkIn)  fd.append('checkIn',  form.checkIn);
+        if (form.checkOut) fd.append('checkOut', form.checkOut);
+        fd.append('reason', form.reason);
+        fd.append('document', file);
+        await api.applyCompOff(fd);
+      } else {
+        // compOffDays is deliberately not sent: the policy works it out from
+        // the hours, which is what the summary panel showed before submitting.
+        await api.applyCompOff({
+          workDate: form.workDate,
+          checkIn:  form.checkIn  || undefined,
+          checkOut: form.checkOut || undefined,
+          reason:   form.reason,
+        });
+      }
       toast.success('Comp Off applied — awaiting approval');
-      setModal(false); setForm(EMPTY_FORM); setPreview(null); refetch();
+      setModal(false); setForm(EMPTY_FORM); setPreview(null); setDocName('');
+      if (docRef.current) docRef.current.value = '';
+      refetch();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setSaving(false); }
   };
@@ -95,180 +138,360 @@ export default function TeacherCompOff() {
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
   };
 
-  const columns = [
-    { key: 'workDate', label: 'Work Date', render: r => (
-      <div>
-        <div>{fmtDate(r.workDate)}</div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-          {DAY_LABEL[r.dayCategory] || r.dayCategory}{r.dayLabel ? ` · ${r.dayLabel}` : ''}
-        </div>
-      </div>
-    )},
-    { key: 'hours', label: 'Worked', render: r => r.workedHours ? `${r.workedHours} h` : '—' },
-    { key: 'days', label: 'Comp Off', render: r => <strong>{r.compOffDays}</strong> },
-    { key: 'status', label: 'Status', render: r => (
-      <div>
-        <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge>
-        {r.approvalsRequired > 1 && r.status === 'pending' && (
-          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            sign-off {r.approvalLevel || 0}/{r.approvalsRequired}
-          </div>
-        )}
-      </div>
-    )},
-    { key: 'credited', label: 'Credited', render: r => r.creditedDays > 0
-      ? <div>
-          <strong style={{ color: 'var(--success)' }}>{r.creditedDays}</strong>
-          {r.expiresAt && <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>expires {fmtDate(r.expiresAt)}</div>}
-        </div>
-      : <span style={{ color: 'var(--text-muted)' }}>—</span> },
-    { key: 'comment', label: 'Comment', render: r => <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>{r.adminComment || '—'}</span> },
-    { key: 'actions', label: '', render: r => r.status === 'pending'
-      ? <button className="btn btn-danger btn-sm" onClick={() => cancelRequest(r)}>Withdraw</button>
-      : null },
-  ];
+  // ── The list ────────────────────────────────────────────────────────────────
+  // Everything arrives in one call, so the filters and the pager are worked out
+  // here rather than being a round trip each — an employee's own Comp Off
+  // history is a handful of rows, not a table.
+  const [fStatus, setFStatus] = useState('');
+  const [fType,   setFType]   = useState('');
+  const [fFrom,   setFFrom]   = useState('');
+  const [fTo,     setFTo]     = useState('');
+  const [page,    setPage]    = useState(1);
+  const [detail,  setDetail]  = useState(null);
+  const PAGE = 10;
 
-  if (loading) return <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>;
+  const anyFilter = !!(fStatus || fType || fFrom || fTo);
+  const clearFilters = () => { setFStatus(''); setFType(''); setFFrom(''); setFTo(''); setPage(1); };
+  const onFilter = (setter) => (v) => { setPage(1); setter(v); };
+
+  const filtered = requests.filter((r) => {
+    if (fStatus && r.status !== fStatus) return false;
+    if (fType   && r.dayCategory !== fType) return false;
+    const d = r.workDate ? String(r.workDate).slice(0, 10) : '';
+    if (fFrom && d < fFrom) return false;
+    if (fTo   && d > fTo)   return false;
+    return true;
+  });
+  const pages   = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const pageNow = Math.min(page, pages);
+  const shown   = filtered.slice((pageNow - 1) * PAGE, pageNow * PAGE);
+
+  if (loading && !data) return <div className="lvtable__state"><Spinner /></div>;
 
   if (!enabled) {
     return (
-      <div className="card"><div className="card-body">
-        <Empty icon="🕓" title="Comp Off is not available" message={data?.reason} />
-      </div></div>
+      <section className="card lvcard">
+        <div className="lvtable__state">
+          <Empty icon="🕓" title="Comp Off is not available" message={data?.reason} />
+        </div>
+      </section>
     );
   }
 
   return (
-    <div>
-      {/* ── Balance ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 16 }}>
-        {[['Available', balance?.remaining, 'var(--success)'], ['Earned', balance?.totalAllocated, 'var(--primary)'],
-          ['Used', balance?.used, 'var(--text)'], ['Pending', balance?.pending, 'var(--warning)'],
-          ['Expired', balance?.expired, 'var(--danger)']].map(([label, val, color]) => (
-          <div key={label} className="card"><div className="card-body" style={{ padding: '14px 18px' }}>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color, lineHeight: 1 }}>{val ?? 0}</div>
-            <div style={{ fontSize: '.76rem', color: 'var(--text-muted)', marginTop: 4 }}>{label}</div>
-          </div></div>
-        ))}
-      </div>
+    <>
+      <LeaveStats>
+        <LeaveStat valueFirst icon="calendarDays" tone="green" value={balance?.remaining ?? 0}
+          label="Available" caption="Can be applied" />
+        <LeaveStat valueFirst icon="checkCircle" tone="indigo" value={balance?.totalAllocated ?? 0}
+          label="Earned" caption="From extra working days" />
+        <LeaveStat valueFirst icon="logOut" tone="slate" value={balance?.used ?? 0}
+          label="Used" caption="Already availed" />
+        <LeaveStat valueFirst icon="clock" tone="amber" value={balance?.pending ?? 0}
+          label="Pending" caption="Awaiting approval" />
+        <LeaveStat valueFirst icon="closeCircle" tone="red" value={balance?.expired ?? 0}
+          label="Expired" caption="No longer valid" />
+      </LeaveStats>
 
-      {/* ── Ready to apply (auto-generated from approved attendance) ── */}
+      {/* ── Ready to apply — raised for you from approved attendance ── */}
       {drafts.length > 0 && (
-        <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid var(--primary)' }}>
-          <div className="card-header">
-            <h2 style={{ fontSize: '.95rem' }}>Ready to apply ({drafts.length})</h2>
-          </div>
-          <div className="card-body">
-            <p style={{ color: 'var(--text-muted)', fontSize: '.82rem', marginTop: 0 }}>
-              Your approved attendance on these days qualifies for Comp Off. Review the figures and apply —
-              your balance is credited only after an approver signs off.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-              {drafts.map(d => (
-                <div key={d._id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{fmtDate(d.workDate)}</div>
-                      <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-                        {DAY_LABEL[d.dayCategory] || d.dayCategory}{d.dayLabel ? ` · ${d.dayLabel}` : ''}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--primary)', lineHeight: 1 }}>{d.compOffDays}</div>
-                      <div style={{ fontSize: '.7rem', color: 'var(--text-muted)' }}>day(s)</div>
-                    </div>
+        <section className="card lvcard lvdrafts">
+          <CardHead icon="sparkle" title={`Ready to apply (${drafts.length})`}
+            subtitle="Your approved attendance on these days qualifies. Your balance is credited only after an approver signs off." />
+          <div className="lvdraftgrid">
+            {drafts.map((d) => (
+              <div className="lvdraft" key={d._id}>
+                <div className="lvdraft__head">
+                  <div>
+                    <b>{fmtDate(d.workDate)}</b>
+                    <small>{WORK_TYPES[d.dayCategory] || d.dayCategory}{d.dayLabel ? ` · ${d.dayLabel}` : ''}</small>
                   </div>
-                  <div style={{ marginTop: 10, fontSize: '.8rem', color: 'var(--text-muted)' }}>
-                    {d.checkIn || '—'} → {d.checkOut || '—'} · {d.workedHours} hour(s)
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }}
-                      onClick={() => { setDraftReason(d.reason || ''); setApplyDraft(d); }}>Apply</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => cancelRequest({ ...d, status: 'pending' })}>Dismiss</button>
+                  <div className="lvdraft__days">
+                    <strong>{d.compOffDays}</strong>
+                    <small>day{Number(d.compOffDays) === 1 ? '' : 's'}</small>
                   </div>
                 </div>
-              ))}
-            </div>
+                <p className="lvdraft__hours">
+                  {d.checkIn || '—'} → {d.checkOut || '—'} · {d.workedHours} hour(s)
+                </p>
+                <div className="lvdraft__acts">
+                  <Button onClick={() => { setDraftReason(d.reason || ''); setApplyDraft(d); }}>Apply</Button>
+                  <Button variant="secondary" onClick={() => cancelRequest({ ...d, status: 'pending' })}>Dismiss</Button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* ── History / ledger ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        <div className="tabs" style={{ margin: 0 }}>
-          {[['overview', 'My Requests'], ['ledger', 'Ledger']].map(([k, l]) => (
-            <button key={k} className={`tab${sub === k ? ' active' : ''}`} onClick={() => setSub(k)}>{l}</button>
-          ))}
-        </div>
-        <Button onClick={() => { setForm(EMPTY_FORM); setModal(true); }}>+ Apply Comp Off</Button>
+      <div className="lvtabrow">
+        <SubTabs value={sub} onChange={setSub} tabs={[
+          { value: 'overview', label: 'My Requests', icon: 'fileCheck' },
+          { value: 'ledger',   label: 'Ledger',      icon: 'clipboard' },
+        ]} />
+        <Button onClick={() => { setForm(EMPTY_FORM); setDocName(''); setModal(true); }}>
+          <Icon name="plus" size={16} /> Apply Comp Off
+        </Button>
       </div>
 
       {sub === 'overview' && (
-        <div className="card"><div className="card-body" style={{ padding: 0 }}>
-          <Table columns={columns} data={requests} emptyIcon="🕓" emptyTitle="No Comp Off requests yet" />
-        </div></div>
+        <section className="card lvcard">
+          <FilterRow>
+            <FilterSelect label="Filter by status" value={fStatus} all="All Statuses"
+              options={['draft', 'pending', 'approved', 'rejected', 'cancelled', 'expired']
+                .map((v) => ({ value: v, label: STATUS[v]?.label || v }))}
+              onChange={onFilter(setFStatus)} />
+            <DateRange from={fFrom} to={fTo} onFrom={onFilter(setFFrom)} onTo={onFilter(setFTo)} />
+            <FilterSelect label="Filter by work type" value={fType} all="All Work Types"
+              options={Object.entries(WORK_TYPES).map(([v, l]) => ({ value: v, label: l }))}
+              onChange={onFilter(setFType)} />
+            <span className="lvfilters__sep" />
+            <Button variant="secondary" onClick={clearFilters} disabled={!anyFilter}>
+              <Icon name="refresh" size={16} /> Reset
+            </Button>
+          </FilterRow>
+
+          {!shown.length ? (
+            <div className="lvtable__state">
+              <Empty icon="🕓"
+                title={anyFilter ? 'No requests match' : 'No Comp Off requests yet'}
+                message={anyFilter
+                  ? 'Try another status, work type or date range.'
+                  : 'Claim a day you worked outside your normal schedule and it appears here.'}
+                action={anyFilter
+                  ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
+                  : <Button onClick={() => { setForm(EMPTY_FORM); setDocName(''); setModal(true); }}>+ Apply Comp Off</Button>} />
+            </div>
+          ) : (
+            <div className="lvtable__wrap">
+              <table className="lvtable">
+                <thead>
+                  <tr>
+                    <th className="lvt-num">#</th>
+                    {/* The second line of each cell is named under the heading,
+                        so a two-line cell does not have to be decoded. */}
+                    <ThSub sub="Reason">Work Date</ThSub>
+                    <ThSub sub="Days" className="lvt-total">Comp Off</ThSub>
+                    <th className="lvt-status">Status</th>
+                    <ThSub sub="Valid Till" className="lvt-applied">Credited On</ThSub>
+                    <th className="lvt-reason">Admin Comment</th>
+                    <th className="lvt-acts">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((r, i) => (
+                    <tr key={r._id}>
+                      <td className="lvt-num">{(pageNow - 1) * PAGE + i + 1}</td>
+                      <td>
+                        <div className="lvperiod">
+                          <span>{fmtDate(r.workDate)}</span>
+                          <small>
+                            {WORK_TYPES[r.dayCategory] || r.dayCategory}
+                            {r.reason ? ` · ${r.reason}` : ''}
+                          </small>
+                        </div>
+                      </td>
+                      <td className="lvt-total">
+                        {r.compOffDays} day{Number(r.compOffDays) === 1 ? '' : 's'}
+                      </td>
+                      <td className="lvt-status">
+                        <div className="lvstatuscell">
+                          <StatusBadge status={r.status} />
+                          <SignOffStep request={r} />
+                        </div>
+                      </td>
+                      <td className="lvt-applied">
+                        {r.creditedDays > 0 ? (
+                          <div className="lvperiod">
+                            <span>{fmtDate(r.creditedAt || r.approvedAt)}</span>
+                            {/* The expiry is the thing to act on — credited days
+                                that lapse unused are simply lost. */}
+                            {r.expiresAt && <small>Valid till {fmtDate(r.expiresAt)}</small>}
+                          </div>
+                        ) : <span className="lvmuted">—</span>}
+                      </td>
+                      <td className="lvt-reason">
+                        {r.adminComment
+                          ? <div className="lvreason" title={r.adminComment}><span>{r.adminComment}</span></div>
+                          : <span className="lvmuted">—</span>}
+                      </td>
+                      <td className="lvt-acts">
+                        <RowActions>
+                          <IconAction icon="eye" label="View this Comp Off request"
+                            onClick={() => setDetail(r)} />
+                          {/* No "View full request" here — the eye beside it
+                              already opens the whole record. */}
+                          {r.status === 'pending' && (
+                            <RowMenu>
+                              <MenuItem icon="close" danger onClick={() => cancelRequest(r)}>
+                                Withdraw request
+                              </MenuItem>
+                            </RowMenu>
+                          )}
+                        </RowActions>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="lvfoot">
+            <ShowingCount page={pageNow} limit={PAGE} count={shown.length} total={filtered.length} />
+            <Pager page={pageNow} pages={filtered.length ? pages : 0} onPage={setPage} />
+          </div>
+        </section>
       )}
 
       {sub === 'ledger' && <MyLedger />}
 
+      <InfoPanels items={[
+        { icon: 'info', tone: 'indigo', title: 'How Comp Off Works',
+          text: 'Extra working days (e.g., on holidays or special events) are credited as Comp Off, which can be availed later.' },
+        { icon: 'calendarDays', tone: 'blue', title: 'Validity',
+          text: policy?.validityDays > 0
+            ? `Comp Off is valid for ${policy.validityDays} days from the day it is credited. Expired Comp Off cannot be used.`
+            : 'Comp Off is valid till the specified date. Expired Comp Off cannot be used.' },
+        { icon: 'files', tone: 'green', title: 'Need Help?',
+          text: 'If you find any discrepancy, please contact the school admin.' },
+      ]} />
+
+      <CompOffDrawer
+        request={detail}
+        onClose={() => setDetail(null)}
+        onWithdraw={(r) => { setDetail(null); cancelRequest(r); }}
+      />
+
       {/* ── Apply modal ── */}
-      <Modal open={modal} onClose={() => setModal(false)} title="Apply for Comp Off" maxWidth={580}
+      <Modal open={modal} onClose={() => setModal(false)} maxWidth={900}
+        title={<DialogHead icon="clock" title="Apply for Comp Off"
+          subtitle="Convert your eligible working hours into a comp off leave." />}
         footer={<>
           <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="co-form" type="submit" loading={saving} disabled={preview && preview.eligible === false}>Apply</Button>
+          <Button form="co-form" type="submit" loading={saving}
+            disabled={preview ? preview.eligible === false : false}>
+            <Icon name="arrowRight" size={16} /> Submit for Approval
+          </Button>
         </>}>
-        <form id="co-form" onSubmit={handleApply}>
-          <div className="form-group">
-            <label className="form-label required">Work Date</label>
-            <input type="date" className="form-control" required value={form.workDate}
-              max={policy?.advanceCompOffAllowed ? undefined : todayStr()}
-              onChange={e => setForm(f => ({ ...f, workDate: e.target.value }))} />
-          </div>
+        <DialogNote>Comp off will be credited as per school policy and subject to approval.</DialogNote>
 
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label">Check In</label>
-              <input type="time" className="form-control" value={form.checkIn}
-                onChange={e => setForm(f => ({ ...f, checkIn: e.target.value }))} />
+        <div className="lvapply">
+          <form id="co-form" className="lvapply__form" onSubmit={handleApply} noValidate>
+
+            <FormStep n={1} title="Work Details" note="Enter the date and hours you worked.">
+              <label className="lvfield">
+                <span className="lvfield__label">Work Date <i>*</i></span>
+                <input type="date" className="form-control" required value={form.workDate}
+                  max={policy?.advanceCompOffAllowed ? undefined : todayStr()}
+                  onChange={(e) => setForm((f) => ({ ...f, workDate: e.target.value }))} />
+                {/* Which day of the week it was is half the reason a claim is
+                    valid at all — a Saturday earns, a Tuesday usually does not. */}
+                {form.workDate && <span className="lvfield__hint">{weekdayOf(form.workDate)}</span>}
+              </label>
+
+              <div className="lvpolrow lvpolrow--2">
+                <label className="lvfield">
+                  <span className="lvfield__label">Check In</span>
+                  <input type="time" className="form-control" value={form.checkIn}
+                    onChange={(e) => setForm((f) => ({ ...f, checkIn: e.target.value }))} />
+                </label>
+                <label className="lvfield">
+                  <span className="lvfield__label">Check Out</span>
+                  <input type="time" className="form-control" value={form.checkOut}
+                    onChange={(e) => setForm((f) => ({ ...f, checkOut: e.target.value }))} />
+                </label>
+              </div>
+
+              <div className="lvhours">
+                <span className="lvhours__mark"><Icon name="clock" size={20} /></span>
+                <div className="lvhours__body">
+                  <small>Total Hours Worked</small>
+                  <b>{fmtHours(hoursWorked)}</b>
+                </div>
+                {/* Clears the times so the engine reads your recorded
+                    attendance for that date instead of what you typed. */}
+                <Button type="button" variant="secondary"
+                  disabled={!form.checkIn && !form.checkOut}
+                  onClick={() => setForm((f) => ({ ...f, checkIn: '', checkOut: '' }))}>
+                  Auto Calculate
+                </Button>
+              </div>
+              <p className="lvfield__hint">
+                {form.checkIn || form.checkOut
+                  ? 'Only extra hours beyond your standard working hours will be considered.'
+                  : 'Reading your recorded attendance for this date. Enter times above to override it.'}
+              </p>
+
+              {preview && preview.eligible === false && (
+                <div className="lvnotice lvnotice--warn lvnotice--flat">
+                  <Icon name="alert" size={15} />
+                  <span>{preview.message}</span>
+                </div>
+              )}
+            </FormStep>
+
+            <FormStep n={2} title="Reason" note="Tell us what you worked on that day.">
+              <textarea className="form-control" rows={3} required maxLength={200}
+                value={form.reason}
+                onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+                placeholder="E.g. Annual day preparation, extra classes, exam duty, etc." />
+              <div className="lvcount">
+                <span />
+                <span>{form.reason.length} / 200</span>
+              </div>
+            </FormStep>
+
+            <FormStep n={3} title={<>Supporting Document <i className="lvopt">(Optional)</i></>}
+              note="Upload any relevant document (e.g. duty order, event schedule).">
+              <DropZone
+                inputRef={docRef}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                hint="PDF, Word, or image (JPG, PNG) — max 5 MB"
+                fileName={docName}
+                onPick={() => setDocName(docRef.current?.files?.[0]?.name || '')}
+              />
+            </FormStep>
+          </form>
+
+          <aside className="lvapply__side">
+            <div className="lvsumhead">
+              <span className="lvsumhead__mark"><Icon name="calendarDays" size={20} /></span>
+              <b>Comp Off Summary</b>
             </div>
-            <div className="form-group">
-              <label className="form-label">Check Out</label>
-              <input type="time" className="form-control" value={form.checkOut}
-                onChange={e => setForm(f => ({ ...f, checkOut: e.target.value }))} />
+
+            <div className="lvsumlines">
+              <SummaryLine label="Work Date"
+                value={form.workDate
+                  ? `${fmtDate(form.workDate)} (${weekdayOf(form.workDate).slice(0, 3)})`
+                  : '—'} />
+              <SummaryLine label="Check In"  value={form.checkIn  || '—'} />
+              <SummaryLine label="Check Out" value={form.checkOut || '—'} />
+              <SummaryLine label="Total Hours" value={fmtHours(hoursWorked)} />
+              {/* The engine's own verdict, not a guess — the same call that
+                  will judge the submission. */}
+              <SummaryLine lead label="Eligible Comp Off"
+                value={preview?.compOffDays != null
+                  ? `${preview.compOffDays} day${preview.compOffDays === 1 ? '' : 's'}`
+                  : '—'} />
             </div>
-          </div>
+            <p className="lvsumnote">Based on school policy</p>
 
-          {preview && (
-            <div className={`alert alert-${preview.eligible ? 'success' : 'warning'}`} style={{ fontSize: '.82rem', marginBottom: 12 }}>
-              <div><strong>{DAY_LABEL[preview.dayCategory] || preview.dayCategory}</strong>{preview.dayLabel ? ` — ${preview.dayLabel}` : ''}</div>
-              {preview.workedHours > 0 && <div>{preview.workedHours} hour(s) → {preview.compOffDays ?? 0} Comp Off day(s)</div>}
-              {!preview.eligible && <div style={{ marginTop: 4 }}>{preview.message}</div>}
-            </div>
-          )}
-
-          <div className="form-group">
-            <label className="form-label">Comp Off Days</label>
-            <input type="number" className="form-control" min={0} step="0.5" value={form.compOffDays}
-              placeholder={preview?.compOffDays != null ? String(preview.compOffDays) : 'auto from hours worked'}
-              onChange={e => setForm(f => ({ ...f, compOffDays: e.target.value }))} />
-            <div className="form-hint">Leave blank to let the policy work it out from your hours</div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label required">Reason</label>
-            <textarea className="form-control" rows={3} required value={form.reason}
-              onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-              placeholder="What you worked on that day" />
-          </div>
-
-          {policy && (
-            <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Minimum {policy.minWorkingHours}h · half day from {policy.halfDayHours}h · full day from {policy.fullDayHours}h<br />
-              Apply within {policy.applyWithinDays || '∞'} day(s) of working · credited days valid for {policy.validityDays || '∞'} day(s)<br />
-              {policy.approvalsRequired > 1 ? 'Requires two approvals' : 'Requires approval'} — nothing is credited until then
-            </div>
-          )}
-        </form>
+            {policy && (
+              <RulesNote title="Important" items={[
+                policy.halfDayHours > 0 && `Minimum ${policy.halfDayHours} hours = Half day comp off`,
+                policy.fullDayHours > 0 && `Minimum ${policy.fullDayHours} hours = Full day comp off`,
+                policy.applyWithinDays > 0 && `Apply within ${policy.applyWithinDays} days of the work date`,
+                policy.approval?.twoLevel
+                  ? 'Needs two sign-offs before anything is credited'
+                  : 'Subject to approval by the school admin',
+                policy.validityDays > 0
+                  ? `Credited days lapse after ${policy.validityDays} days`
+                  : 'Comp off expiry as per school policy',
+              ]} />
+            )}
+          </aside>
+        </div>
       </Modal>
 
       {/* ── Draft confirmation ── */}
@@ -297,30 +520,143 @@ export default function TeacherCompOff() {
           </div>
         )}
       </Modal>
-    </div>
+    </>
   );
 }
 
 // ── My ledger ───────────────────────────────────────────────────────────────
+/**
+ * The employee's own Comp Off ledger.
+ *
+ * Every movement of every day, in order — what was credited, what was spent,
+ * what lapsed, and what the balance stood at afterwards. It answers the one
+ * question the requests list cannot: "why is my figure what it is?"
+ */
 function MyLedger() {
   const { data, loading } = useFetch(() => api.getMyCompOffLedger());
-  const columns = [
-    { key: 'when', label: 'When', render: r => fmtDate(r.createdAt) },
-    { key: 'type', label: 'Entry', render: r => <Badge variant={ENTRY_VARIANT[r.entryType] || 'muted'}>{r.entryType}</Badge> },
-    { key: 'delta', label: 'Days', render: r => (
-      <strong style={{ color: r.delta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-        {r.delta >= 0 ? '+' : ''}{r.delta}
-      </strong>
-    )},
-    { key: 'balance', label: 'Balance After', render: r => r.balanceAfter },
-    { key: 'expiry', label: 'Valid Until', render: r => r.expiresAt ? fmtDate(r.expiresAt) : '—' },
-    { key: 'desc', label: 'Description', render: r => <span style={{ fontSize: '.82rem' }}>{r.description || '—'}</span> },
-  ];
-  if (loading) return <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>;
+  const [fType, setFType] = useState('');
+  const [page,  setPage]  = useState(1);
+  const [detail, setDetail] = useState(null);
+  const PAGE = 10;
+
+  if (loading && !data) return <div className="lvtable__state"><Spinner /></div>;
+  if (data?.enabled === false) {
+    return (
+      <section className="card lvcard">
+        <div className="lvtable__state">
+          <Empty icon="🕓" title="Comp Off is not available" message={data.reason} />
+        </div>
+      </section>
+    );
+  }
+
+  const all = data?.entries || [];
+  // The whole year arrives in one call (the endpoint caps at 200), so the
+  // filter and the pager are worked out here rather than being a round trip.
+  const rows    = fType ? all.filter((e) => e.entryType === fType) : all;
+  const pages   = Math.max(1, Math.ceil(rows.length / PAGE));
+  const pageNow = Math.min(page, pages);
+  const shown   = rows.slice((pageNow - 1) * PAGE, pageNow * PAGE);
+
+  // Only the kinds this employee actually has, so the filter never offers one
+  // that would empty the table.
+  const kinds = [...new Set(all.map((e) => e.entryType))];
+
   return (
-    <div className="card"><div className="card-body" style={{ padding: 0 }}>
-      <Table columns={columns} data={data?.entries || []} emptyIcon="📒" emptyTitle="No Comp Off ledger entries yet" />
-    </div></div>
+    <section className="card lvcard">
+      <CardHead icon="clipboard" title="Comp Off Ledger"
+        subtitle={`Every credit, spend and expiry${data?.academicYear ? ` in ${data.academicYear}` : ''}, newest first.`}>
+        {kinds.length > 1 && (
+          <FilterSelect label="Filter by entry type" value={fType} all="All entry types"
+            options={kinds.map((v) => ({ value: v, label: ENTRY_LABEL[v] || v }))}
+            onChange={(v) => { setFType(v); setPage(1); }} />
+        )}
+      </CardHead>
+
+      {!shown.length ? (
+        <div className="lvtable__state">
+          <Empty icon="📒"
+            title={fType ? 'No entries of that kind' : 'Nothing in your ledger yet'}
+            message={fType
+              ? 'Try another entry type.'
+              : 'The first entry is written the moment a Comp Off request of yours is approved.'}
+            action={fType
+              ? <Button variant="secondary" onClick={() => { setFType(''); setPage(1); }}>Clear filter</Button>
+              : null} />
+        </div>
+      ) : (
+        <div className="lvtable__wrap">
+          <table className="lvtable">
+            <thead>
+              <tr>
+                <th className="lvt-num">#</th>
+                <th className="lvt-applied">When</th>
+                <th className="lvt-dept">Entry</th>
+                <th className="lvt-cell">Days</th>
+                <th className="lvt-total">Balance After</th>
+                <ThSub sub="Valid Till" className="lvt-dept">Lot</ThSub>
+                <th className="lvt-reason">Description</th>
+                <th className="lvt-acts">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r, i) => (
+                <tr key={r._id}>
+                  <td className="lvt-num">{(pageNow - 1) * PAGE + i + 1}</td>
+                  <td className="lvt-applied">{fmtDate(r.createdAt)}</td>
+                  <td className="lvt-dept">
+                    <span className={`lvbadge is-${ENTRY_TONE[r.entryType] || 'cancelled'}`}>
+                      {ENTRY_LABEL[r.entryType] || r.entryType}
+                    </span>
+                  </td>
+                  {/* The sign is the whole meaning of a ledger row — +1 and −1
+                      are opposite facts, so it is never dropped. */}
+                  <td className="lvt-cell">
+                    <strong className={r.delta >= 0 ? 'lvup' : 'lvdown'}>
+                      {r.delta >= 0 ? '+' : ''}{r.delta}
+                    </strong>
+                  </td>
+                  <td className="lvt-total">{r.balanceAfter}</td>
+                  <td className="lvt-dept">
+                    {r.entryType === 'EARNED' || r.remainingDays > 0
+                      ? <span className="lvlot">
+                          {r.remainingDays}/{r.days} left
+                          {r.expiresAt ? <small>{fmtDate(r.expiresAt)}</small> : null}
+                        </span>
+                      : <span className="lvmuted">—</span>}
+                  </td>
+                  <td className="lvt-reason">
+                    <div className="lvreason" title={r.description || ''}>
+                      <span>{r.description || '—'}</span>
+                    </div>
+                  </td>
+                  <td className="lvt-acts">
+                    <RowActions>
+                      <IconAction icon="eye"
+                        label={`View this ${(ENTRY_LABEL[r.entryType] || r.entryType).toLowerCase()} entry`}
+                        onClick={() => setDetail(r)} />
+                    </RowActions>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="lvfoot">
+        <ShowingCount page={pageNow} limit={PAGE} count={shown.length} total={rows.length}
+          noun="entry" plural="entries" />
+        <Pager page={pageNow} pages={rows.length ? pages : 0} onPage={setPage} />
+      </div>
+
+      <LedgerDrawer
+        entry={detail}
+        labels={ENTRY_LABEL}
+        tones={ENTRY_TONE}
+        onClose={() => setDetail(null)}
+      />
+    </section>
   );
 }
 

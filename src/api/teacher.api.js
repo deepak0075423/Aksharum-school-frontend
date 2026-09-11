@@ -38,6 +38,9 @@ export const getStudentResponse   = (id, studentId) => api.get(`/teacher/exams/$
 export const getResultApproval    = (id) => api.get(`/teacher/exams/${id}/result-approval`);
 export const subjectApproveResults= (id) => api.post(`/teacher/exams/${id}/subject-approve`);
 export const approveResults       = (id, data) => api.post(`/teacher/exams/${id}/result-approval`, data);
+// Accepts status, leaveType, mode, fromDate, toDate, page and limit. The reply
+// carries `counts` — this teacher's whole history by status, unaffected by the
+// filters, so the tiles above the list do not move when one is pressed.
 export const getMyLeaves     = (params) => api.get('/teacher/leave', { params });
 export const getLeaveBalance = ()       => api.get('/teacher/leave/balance');
 export const applyLeave      = (data)   => api.post('/teacher/leave/apply', data);
