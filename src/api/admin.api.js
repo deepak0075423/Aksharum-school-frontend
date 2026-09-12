@@ -256,11 +256,27 @@ export const downloadAllTimetables       = (params)            => api.get('/admi
 
 // Documents
 export const getDocuments    = (params)     => api.get('/admin/documents', { params });
+// The four tiles, the tab counts and the options behind every filter dropdown.
+export const getDocumentOverview = ()       => api.get('/admin/documents/overview');
 export const getDocument     = (id)         => api.get(`/admin/documents/${id}`);
 export const uploadDocument  = (data)       => api.post('/admin/documents', data);
 export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`, data);
 export const deleteDocument  = (id)         => api.delete(`/admin/documents/${id}`);
-export const archiveDocument = (id)         => api.post(`/admin/documents/${id}/archive`);
+// One endpoint both ways — `archived: false` takes a document back out again.
+export const archiveDocument = (id, archived = true) => api.post(`/admin/documents/${id}/archive`, { archived });
+// One document, opened — the four tabs of the detail page.
+export const getAssignmentDetail   = (id, params) => api.get(`/admin/documents/${id}/assignment`, { params });
+export const getAssignmentAnalytics = (id)        => api.get(`/admin/documents/${id}/assignment/analytics`);
+export const reviewSubmission      = (id, studentId, data) => api.post(`/admin/documents/${id}/submissions/${studentId}/review`, data);
+export const remindAssignment      = (id, data)   => api.post(`/admin/documents/${id}/remind`, data || {});
+export const duplicateDocument     = (id)         => api.post(`/admin/documents/${id}/duplicate`);
+// Comments hang off any document, not just an assignment.
+export const getDocumentComments   = (id, params) => api.get(`/admin/documents/${id}/comments`, { params });
+export const addDocumentComment    = (id, data)   => api.post(`/admin/documents/${id}/comments`, data);
+export const updateDocumentComment = (cid, data)  => api.patch(`/admin/documents/comments/${cid}`, data);
+export const deleteDocumentComment = (cid)        => api.delete(`/admin/documents/comments/${cid}`);
+export const likeDocumentComment   = (cid)        => api.post(`/admin/documents/comments/${cid}/like`);
+
 // Document Categories
 export const getDocumentCategories    = ()       => api.get('/admin/document-categories');
 export const createDocumentCategory   = (data)   => api.post('/admin/document-categories', data);

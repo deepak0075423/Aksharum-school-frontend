@@ -1,198 +1,250 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Admin → Documents.
+ *
+ * The school's shelf: notices, circulars, study material and assignments, and
+ * who each one went to. Built on documentParts.jsx — a marked header with the
+ * one action, four figures over the shelf, then a single card holding the tab
+ * strip, the filter bar, the list and its footer.
+ *
+ * Filtering, sorting and paging are all server-side. The list is a raw-SQL read
+ * that resolves the uploader and the class or section names behind each row's
+ * target in Postgres (see document.controller.js) — the alternative is pulling
+ * the classes and sections tables into the browser to label twenty rows.
+ *
+ * The tiles and the dropdown options come from their own call and describe the
+ * whole school, so switching a filter never makes the figures above the list
+ * move.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import useFetch from '../../hooks/useFetch';
 import {
-  getDocuments, uploadDocument, updateDocument, deleteDocument, archiveDocument,
-  getDocumentCategories, createDocumentCategory, deleteDocumentCategory,
+  getDocuments, getDocument, getDocumentOverview, uploadDocument, updateDocument, deleteDocument,
+  archiveDocument, getDocumentCategories, createDocumentCategory, deleteDocumentCategory,
   getClassesWithSections,
 } from '../../api/admin.api';
-import { PageHeader, Table, Badge, Button, Confirm, Modal, Spinner, Pagination } from '../../components/ui/index';
+import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import {
+  Crumbs, DocHero, DocStats, DocStat, DocTabs, DocTools, SearchField, Picker, SortMenu,
+  ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer, DocumentFields,
+  MenuItem, MenuSep, fileUrl,
+  TABS, SORTS, TARGET_FILTERS, DOC_TYPES,
+} from './documentParts';
 
-const TARGET_TYPES = [
-  { value: 'whole_school',   label: 'Whole School' },
-  { value: 'class',          label: 'By Class' },
-  { value: 'class_sections', label: 'By Section' },
-  { value: 'all_teachers',   label: 'All Teachers' },
-];
+const EMPTY_FORM = {
+  title: '', description: '', docType: 'notice', category: '',
+  targetType: 'whole_school', isAssignment: false, dueDate: '',
+};
 
-const EMPTY_FORM = { title: '', description: '', category: '', targetType: 'whole_school', isAssignment: false, dueDate: '' };
+// The axios interceptor resolves to the response body — { success, data, … } —
+// and only useFetch peels that off. These calls go straight to the api module,
+// so the payload is unwrapped here or every field reads one level too high.
+const unwrap = (res) => res?.data ?? res;
 
-// Uploads are served from the backend root (not under /api) — strip the /api suffix
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-
-function fileUrl(filePath) {
-  if (!filePath) return '';
-  const p = filePath.replace(/\\/g, '/');
-  const idx = p.indexOf('uploads/');
-  return idx !== -1 ? `${API_BASE}/${p.slice(idx)}` : `${API_BASE}/${p}`;
-}
-
-function FileLinks({ files }) {
-  if (!files?.length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {files.map((f, i) => (
-        <a key={i} href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-          style={{ fontSize: '.8rem', color: 'var(--primary)' }}>
-          {f.originalName}
-        </a>
-      ))}
-    </div>
-  );
-}
-
-// Multi-select checkboxes for classes or sections
-function TargetPicker({ targetType, classData, selectedClasses, onClassToggle, selectedSections, onSectionToggle }) {
-  if (targetType === 'class') {
-    return (
-      <div className="form-group">
-        <label className="form-label">Select Classes *</label>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 6, maxHeight: 200, overflowY: 'auto', padding: 8 }}>
-          {classData.length === 0
-            ? <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>No classes found</span>
-            : classData.map(c => (
-              <label key={c._id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer' }}>
-                <input type="checkbox" checked={selectedClasses.includes(c._id)}
-                  onChange={() => onClassToggle(c._id)} />
-                <span>Class {c.classNumber} — {c.className}</span>
-              </label>
-            ))}
-        </div>
-        {selectedClasses.length > 0 && (
-          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{selectedClasses.length} class(es) selected</div>
-        )}
-      </div>
-    );
-  }
-
-  if (targetType === 'class_sections') {
-    return (
-      <div className="form-group">
-        <label className="form-label">Select Sections *</label>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 6, maxHeight: 220, overflowY: 'auto', padding: 8 }}>
-          {classData.length === 0
-            ? <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>No sections found</span>
-            : classData.map(c => (
-              c.sections?.length > 0 && (
-                <div key={c._id} style={{ marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: '.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>Class {c.classNumber} — {c.className}</div>
-                  {c.sections.map(s => (
-                    <label key={s._id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', cursor: 'pointer', paddingLeft: 8 }}>
-                      <input type="checkbox" checked={selectedSections.includes(s._id)}
-                        onChange={() => onSectionToggle(s._id)} />
-                      <span>Section {s.sectionName}</span>
-                    </label>
-                  ))}
-                </div>
-              )
-            ))}
-        </div>
-        {selectedSections.length > 0 && (
-          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{selectedSections.length} section(s) selected</div>
-        )}
-      </div>
-    );
-  }
-
-  return null;
-}
+// How many rows a page holds. Server-side, so this is also the query's LIMIT.
+const PAGE_SIZE = 10;
 
 export default function Documents() {
-  const [page, setPage]       = useState(1);
-  const [search, setSearch]   = useState('');
-  const [catFilter, setCatFilter] = useState('');
+  const navigate = useNavigate();
+  const [urlParams, setUrlParams] = useSearchParams();
 
-  // Upload
+  // ── What the list is showing ───────────────────────────────────────────────
+  const [tab,      setTab]      = useState('all');
+  const [search,   setSearch]   = useState('');
+  const [term,     setTerm]     = useState('');
+  const [category, setCategory] = useState('');
+  const [target,   setTarget]   = useState('');
+  const [year,     setYear]     = useState('');
+  const [sort,     setSort]     = useState('newest');
+  const [view,     setView]     = useState('list');
+  const [page,     setPage]     = useState(1);
+
+  // ── Data ───────────────────────────────────────────────────────────────────
+  const [rows,    setRows]    = useState([]);
+  const [meta,    setMeta]    = useState({ total: 0, pages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+  const [over,    setOver]    = useState(null);
+  const [classes, setClasses] = useState([]);
+  const [cats,    setCats]    = useState([]);
+
+  // ── Overlays ───────────────────────────────────────────────────────────────
+  const [uploading, setUploading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [uploading, setUploading]   = useState(false);
-  const [form, setForm]             = useState(EMPTY_FORM);
-  const [files, setFiles]           = useState([]);
-  const [selClasses, setSelClasses]   = useState([]);
+  const [form, setForm]   = useState(EMPTY_FORM);
+  const [files, setFiles] = useState([]);
+  const [selClasses,  setSelClasses]  = useState([]);
   const [selSections, setSelSections] = useState([]);
 
-  // Edit
-  const [editDoc, setEditDoc]         = useState(null);
-  const [editForm, setEditForm]       = useState(EMPTY_FORM);
-  const [editFiles, setEditFiles]     = useState([]);
-  const [editClasses, setEditClasses]   = useState([]);
-  const [editSections, setEditSections] = useState([]);
-  const [saving, setSaving]           = useState(false);
+  const [editDoc, setEditDoc] = useState(null);
+  const [saving,  setSaving]  = useState(false);
 
-  // Delete / Archive
-  const [delDoc, setDelDoc]   = useState(null);
-  const [delLoad, setDelLoad] = useState(false);
-  const [archDoc, setArchDoc]   = useState(null);
-  const [archLoad, setArchLoad] = useState(false);
-
-  // View
   const [viewDoc, setViewDoc] = useState(null);
+  const [delDoc,  setDelDoc]  = useState(null);
+  const [busy,    setBusy]    = useState(false);
 
-  // Manage Categories
-  const [showCatMgr, setShowCatMgr] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [addingCat, setAddingCat]   = useState(false);
-  const [delCat, setDelCat]         = useState(null);
-  const [delCatLoad, setDelCatLoad] = useState(false);
+  const [showCats,  setShowCats]  = useState(false);
+  const [newCat,    setNewCat]    = useState('');
+  const [addingCat, setAddingCat] = useState(false);
+  const [delCat,    setDelCat]    = useState(null);
 
-  // Paginated docs — manual fetch so we keep total/pages metadata
-  const [docs, setDocs]     = useState([]);
-  const [total, setTotal]   = useState(0);
-  const [pages, setPages]   = useState(1);
-  const [loading, setLoading] = useState(false);
+  // ── Load ───────────────────────────────────────────────────────────────────
+  const loadSummary = useCallback(async () => {
+    try {
+      setOver(unwrap(await getDocumentOverview()));
+    } catch (err) {
+      // The tiles failing must not take the list down with them.
+      setOver(null);
+      setError(err?.response?.data?.message || err.message || 'Failed to load the summary');
+    }
+  }, []);
 
-  const refetch = useCallback(async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      // getDocuments resolves with the full response body: { success, data, total, page, pages }
-      const res = await getDocuments({ page, limit: 20, search: search || undefined, category: catFilter || undefined });
-      setDocs(res.data || []);
-      setTotal(res.total || 0);
-      setPages(res.pages || 1);
+      const res = await getDocuments({
+        tab,
+        page,
+        limit: PAGE_SIZE,
+        sort,
+        search: term || undefined,
+        category: category || undefined,
+        target: target || undefined,
+        academicYear: year || undefined,
+      });
+      setRows(res.data || []);
+      setMeta({ total: res.total || 0, pages: res.pages || 1 });
+      setError('');
     } catch (err) {
-      toast.error(err.message || 'Failed to load');
+      setRows([]);
+      setError(err?.response?.data?.message || err.message || 'Failed to load documents');
     } finally {
       setLoading(false);
     }
-  }, [page, search, catFilter]);
+  }, [tab, page, sort, term, category, target, year]);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { loadList(); }, [loadList]);
 
-  // Non-paginated — useFetch stores the inner array directly (res.data)
-  const { data: catData, refetch: refetchCats } = useFetch(getDocumentCategories);
-  const { data: classData }                     = useFetch(getClassesWithSections);
+  /**
+   * `?edit=<id>` opens the edit form on arrival — how the document's own page
+   * sends someone back here to change it, rather than keeping a second copy of
+   * this form over there.
+   */
+  useEffect(() => {
+    const wanted = urlParams.get('edit');
+    if (!wanted || editDoc) return;
+    (async () => {
+      try {
+        const hit = rows.find((r) => r._id === wanted) || unwrap(await getDocument(wanted));
+        if (hit) openEdit(hit);
+        else toast.error('That document could not be found');
+      } finally {
+        const next = new URLSearchParams(urlParams);
+        next.delete('edit');
+        setUrlParams(next, { replace: true });
+      }
+    })();
+  }, [urlParams, rows]);          // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadSummary(); }, [loadSummary]);
 
-  const categories = catData  || [];
-  const classes    = classData || [];
+  useEffect(() => {
+    (async () => {
+      try {
+        const [c, k] = await Promise.all([getClassesWithSections(), getDocumentCategories()]);
+        setClasses(unwrap(c) || []);
+        setCats(unwrap(k) || []);
+      } catch { /* the pickers just stay empty — the list is the page */ }
+    })();
+  }, []);
 
-  const toggleItem = (id, list, setList) => setList(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  // A keystroke is not a search; wait for a pause.
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search.trim()); setPage(1); }, 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const handleUpload = async () => {
-    if (!form.title.trim()) return toast.error('Title is required');
-    if (!form.category)     return toast.error('Category is required');
-    if (form.targetType === 'class'          && selClasses.length === 0)  return toast.error('Select at least one class');
-    if (form.targetType === 'class_sections' && selSections.length === 0) return toast.error('Select at least one section');
+  const refresh = () => { loadList(); loadSummary(); };
 
+  // ── Filter state ───────────────────────────────────────────────────────────
+  const filtered = !!(term || category || target || year);
+
+  const clearFilters = () => {
+    setSearch(''); setTerm(''); setCategory(''); setTarget(''); setYear(''); setPage(1);
+  };
+
+  const go = (fn) => (v) => { fn(v); setPage(1); };
+
+  const tiles = over?.tiles || {};
+  const counts = over?.counts || {};
+
+  // Archived is a state, not a kind, so it is not one of the four content tabs
+  // — but a document put away with no way back is a deleted one with extra
+  // steps. The tab appears only once there is something in there.
+  const tabs = useMemo(
+    () => (counts.archived > 0 ? [...TABS, { value: 'archived', label: `Archived (${counts.archived})` }] : TABS),
+    [counts.archived],
+  );
+
+  // A filter left pointing at the archive after the last archived document is
+  // restored would show an empty list with no tab to leave it by.
+  useEffect(() => {
+    if (tab === 'archived' && over && !counts.archived) setTab('all');
+  }, [tab, over, counts.archived]);
+
+  const categoryOptions = useMemo(
+    () => (over?.categories || []).map((c) => ({ value: c.name, label: c.name, count: c.count })),
+    [over],
+  );
+
+  const yearOptions = useMemo(
+    () => (over?.academicYears || []).map((y) => ({
+      value: y._id,
+      label: y.status === 'active' ? `${y.name} (current)` : y.name,
+      count: y.count,
+    })),
+    [over],
+  );
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  const resetForm = () => { setForm(EMPTY_FORM); setFiles([]); setSelClasses([]); setSelSections([]); };
+
+  const validate = (f) => {
+    if (!f.title.trim()) return 'Title is required';
+    if (!f.category)     return 'Category is required';
+    if (f.targetType === 'class'          && !selClasses.length)  return 'Select at least one class';
+    if (f.targetType === 'class_sections' && !selSections.length) return 'Select at least one section';
+    return '';
+  };
+
+  const bodyOf = (f) => {
+    const fd = new FormData();
+    fd.append('title', f.title.trim());
+    fd.append('description', f.description);
+    fd.append('docType', f.docType);
+    fd.append('category', f.category);
+    fd.append('targetType', f.targetType);
+    fd.append('targetClasses',  JSON.stringify(f.targetType === 'class'          ? selClasses  : []));
+    fd.append('targetSections', JSON.stringify(f.targetType === 'class_sections' ? selSections : []));
+    // Always sent, both ways: the edit endpoint reads `undefined` as "leave it
+    // alone", so an assignment un-ticked would otherwise stay an assignment.
+    fd.append('isAssignment', f.isAssignment ? 'true' : 'false');
+    fd.append('dueDate', f.isAssignment && f.dueDate ? f.dueDate : '');
+    files.forEach((file) => fd.append('files', file));
+    return fd;
+  };
+
+  const submitUpload = async () => {
+    const bad = validate(form);
+    if (bad) return toast.error(bad);
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('title',      form.title.trim());
-      fd.append('description',form.description);
-      fd.append('category',   form.category);
-      fd.append('targetType', form.targetType);
-      fd.append('targetClasses',  JSON.stringify(selClasses));
-      fd.append('targetSections', JSON.stringify(selSections));
-      fd.append('isAssignment', form.isAssignment ? 'true' : '');
-      if (form.isAssignment && form.dueDate) fd.append('dueDate', form.dueDate);
-      files.forEach(f => fd.append('files', f));
-
-      await uploadDocument(fd);
+      await uploadDocument(bodyOf(form));
       toast.success('Document uploaded');
       setShowUpload(false);
-      setForm(EMPTY_FORM);
-      setFiles([]);
-      setSelClasses([]);
-      setSelSections([]);
-      refetch();
+      resetForm();
+      setPage(1);
+      refresh();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
@@ -200,43 +252,34 @@ export default function Documents() {
     }
   };
 
+  // ── Edit ───────────────────────────────────────────────────────────────────
   const openEdit = (doc) => {
+    setViewDoc(null);
     setEditDoc(doc);
-    setEditForm({
+    setForm({
       title:       doc.title,
       description: doc.description || '',
-      category:    doc.category,
+      docType:     doc.docType || 'other',
+      category:    doc.category || '',
       targetType:  doc.targetType,
-      isAssignment: doc.isAssignment || false,
-      dueDate:     doc.dueDate ? doc.dueDate.slice(0, 10) : '',
+      isAssignment: !!doc.isAssignment,
+      dueDate:     doc.dueDate ? String(doc.dueDate).slice(0, 10) : '',
     });
-    setEditFiles([]);
-    setEditClasses((doc.targetClasses || []).map(c => c._id || c));
-    setEditSections((doc.targetSections || []).map(s => s._id || s));
+    setFiles([]);
+    setSelClasses((doc.targetClasses  || []).map((c) => c._id || c));
+    setSelSections((doc.targetSections || []).map((s) => s._id || s));
   };
 
-  const handleEdit = async () => {
-    if (!editForm.title.trim()) return toast.error('Title is required');
-    if (!editForm.category)     return toast.error('Category is required');
-    if (editForm.targetType === 'class'          && editClasses.length === 0)  return toast.error('Select at least one class');
-    if (editForm.targetType === 'class_sections' && editSections.length === 0) return toast.error('Select at least one section');
-
+  const submitEdit = async () => {
+    const bad = validate(form);
+    if (bad) return toast.error(bad);
     setSaving(true);
     try {
-      const fd = new FormData();
-      fd.append('title',          editForm.title.trim());
-      fd.append('description',    editForm.description);
-      fd.append('category',       editForm.category);
-      fd.append('targetType',     editForm.targetType);
-      fd.append('targetClasses',  JSON.stringify(editClasses));
-      fd.append('targetSections', JSON.stringify(editSections));
-      if (editForm.dueDate) fd.append('dueDate', editForm.dueDate);
-      editFiles.forEach(f => fd.append('files', f));
-
-      await updateDocument(editDoc._id, fd);
-      toast.success('Updated');
+      await updateDocument(editDoc._id, bodyOf(form));
+      toast.success('Document updated');
       setEditDoc(null);
-      refetch();
+      resetForm();
+      refresh();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
@@ -244,28 +287,45 @@ export default function Documents() {
     }
   };
 
-  const handleDelete = async () => {
-    setDelLoad(true);
-    try { await deleteDocument(delDoc._id); toast.success('Deleted'); setDelDoc(null); refetch(); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
-    finally { setDelLoad(false); }
+  // ── Archive / delete ───────────────────────────────────────────────────────
+  const toggleArchive = async (doc) => {
+    try {
+      await archiveDocument(doc._id, !doc.isArchived);
+      toast.success(doc.isArchived ? 'Document restored' : 'Document archived');
+      setViewDoc(null);
+      refresh();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    }
   };
 
-  const handleArchive = async () => {
-    setArchLoad(true);
-    try { await archiveDocument(archDoc._id); toast.success('Archived'); setArchDoc(null); refetch(); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
-    finally { setArchLoad(false); }
+  const confirmDelete = async () => {
+    setBusy(true);
+    try {
+      await deleteDocument(delDoc._id);
+      toast.success('Document deleted');
+      setDelDoc(null);
+      setViewDoc(null);
+      // Deleting the only row on the last page would otherwise strand the
+      // reader on an empty page with a pager that says there are more.
+      if (rows.length === 1 && page > 1) setPage(page - 1); else refresh();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) return toast.error('Name is required');
+  // ── Categories ─────────────────────────────────────────────────────────────
+  const addCategory = async () => {
+    if (!newCat.trim()) return toast.error('Name is required');
     setAddingCat(true);
     try {
-      await createDocumentCategory({ name: newCatName.trim() });
+      await createDocumentCategory({ name: newCat.trim() });
+      setNewCat('');
+      setCats(unwrap(await getDocumentCategories()) || []);
+      loadSummary();
       toast.success('Category added');
-      setNewCatName('');
-      refetchCats();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
@@ -273,222 +333,169 @@ export default function Documents() {
     }
   };
 
-  const handleDeleteCategory = async () => {
-    setDelCatLoad(true);
-    try { await deleteDocumentCategory(delCat._id); toast.success('Deleted'); setDelCat(null); refetchCats(); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
-    finally { setDelCatLoad(false); }
+  const removeCategory = async () => {
+    setBusy(true);
+    try {
+      await deleteDocumentCategory(delCat._id);
+      setDelCat(null);
+      setCats(unwrap(await getDocumentCategories()) || []);
+      loadSummary();
+      toast.success('Category deleted');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  // Shared form fields for upload & edit
-  const FormFields = ({ f, setF, selC, setSelC, selS, setSelS, fileList, setFileList, isEdit }) => (
+  // ── The overflow menu on a row ─────────────────────────────────────────────
+  const rowMenu = (r) => (
     <>
-      <div className="form-group">
-        <label className="form-label">Title *</label>
-        <input className="form-control" value={f.title} onChange={e => setF(p => ({ ...p, title: e.target.value }))} placeholder="Document title" />
-      </div>
-      <div className="form-group">
-        <label className="form-label">Description</label>
-        <textarea className="form-control" rows={2} value={f.description} onChange={e => setF(p => ({ ...p, description: e.target.value }))} placeholder="Optional" />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="form-group">
-          <label className="form-label">Category *</label>
-          <select className="form-control" value={f.category} onChange={e => setF(p => ({ ...p, category: e.target.value }))}>
-            <option value="">— Select —</option>
-            {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-          </select>
-          {categories.length === 0 && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>No categories yet. <button type="button" style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0, fontSize: '.75rem' }} onClick={() => setShowCatMgr(true)}>Manage Categories</button></div>}
-        </div>
-        <div className="form-group">
-          <label className="form-label">Target *</label>
-          <select className="form-control" value={f.targetType} onChange={e => { setF(p => ({ ...p, targetType: e.target.value })); setSelC([]); setSelS([]); }}>
-            {TARGET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-        </div>
-      </div>
-      <TargetPicker
-        targetType={f.targetType}
-        classData={classes}
-        selectedClasses={selC}
-        onClassToggle={id => toggleItem(id, selC, setSelC)}
-        selectedSections={selS}
-        onSectionToggle={id => toggleItem(id, selS, setSelS)}
-      />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <input type="checkbox" id={`isAssign-${isEdit ? 'edit' : 'new'}`} checked={f.isAssignment} onChange={e => setF(p => ({ ...p, isAssignment: e.target.checked }))} />
-        <label htmlFor={`isAssign-${isEdit ? 'edit' : 'new'}`} style={{ margin: 0, cursor: 'pointer' }}>This is an assignment</label>
-      </div>
-      {f.isAssignment && (
-        <div className="form-group">
-          <label className="form-label">Due Date</label>
-          <input type="date" className="form-control" value={f.dueDate} onChange={e => setF(p => ({ ...p, dueDate: e.target.value }))} />
-        </div>
+      <MenuItem icon="arrowRight" onClick={() => navigate(`/admin/documents/${r._id}`)}>Open document</MenuItem>
+      <MenuItem icon="eye" onClick={() => setViewDoc(r)}>Quick preview</MenuItem>
+      {r.files?.[0] && (
+        <MenuItem icon="download" href={fileUrl(r.files[0].filePath)}>
+          Open {r.fileCount > 1 ? 'first file' : 'file'}
+        </MenuItem>
       )}
-      <div className="form-group">
-        <label className="form-label">{isEdit ? 'Replace Files (leave empty to keep existing)' : 'Files'}</label>
-        <input type="file" className="form-control" multiple onChange={e => setFileList(Array.from(e.target.files))} />
-        {fileList.length > 0 && <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 4 }}>{fileList.length} file(s) selected</div>}
-      </div>
-      {isEdit && editDoc?.files?.length > 0 && fileList.length === 0 && (
-        <div>
-          <div style={{ fontWeight: 600, fontSize: '.85rem', marginBottom: 6 }}>Current Files</div>
-          <FileLinks files={editDoc.files} />
-        </div>
-      )}
+      <MenuSep />
+      <MenuItem icon="pencil" onClick={() => openEdit(r)}>Edit document</MenuItem>
+      <MenuItem icon={r.isArchived ? 'refresh' : 'package'} onClick={() => toggleArchive(r)}>
+        {r.isArchived ? 'Restore from archive' : 'Archive'}
+      </MenuItem>
+      <MenuSep />
+      <MenuItem icon="trash" danger onClick={() => setDelDoc(r)}>Delete document</MenuItem>
     </>
   );
 
-  const columns = [
-    {
-      key: 'title', label: 'Title',
-      render: r => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{r.title}</div>
-          {r.description && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{r.description}</div>}
-        </div>
-      ),
-    },
-    { key: 'category',  label: 'Category', render: r => <Badge variant="info">{r.category}</Badge> },
-    { key: 'target',    label: 'Target',   render: r => TARGET_TYPES.find(t => t.value === r.targetType)?.label || r.targetType },
-    { key: 'files',     label: 'Files',    render: r => r.files?.length || 0 },
-    { key: 'createdAt', label: 'Uploaded', render: r => new Date(r.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) },
-    {
-      key: 'actions', label: '',
-      render: r => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => setViewDoc(r)}>View</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>
-          <button className="btn btn-warning btn-sm"   onClick={() => setArchDoc(r)}>Archive</button>
-          <button className="btn btn-danger btn-sm"    onClick={() => setDelDoc(r)}>Delete</button>
-        </div>
-      ),
-    },
-  ];
+  const empty = <DocEmpty filtered={filtered} onClear={clearFilters} onUpload={() => setShowUpload(true)} />;
+  const List  = view === 'grid' ? DocGrid : DocTable;
+
+  const fields = (existing) => (
+    <DocumentFields
+      form={form} setForm={setForm}
+      categories={cats} classes={classes}
+      selClasses={selClasses} setSelClasses={setSelClasses}
+      selSections={selSections} setSelSections={setSelSections}
+      files={files} setFiles={setFiles}
+      existing={existing}
+      onManageCategories={() => setShowCats(true)}
+    />
+  );
 
   return (
-    <div className="page">
-      <PageHeader title="Documents" subtitle="Shared files and notices"
+    <div className="page docpg">
+      <Crumbs here="Documents" />
+
+      <DocHero
+        title="Documents"
+        subtitle="Share files, notices, assignments and study material with classes, teachers or the whole school."
         action={
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" onClick={() => setShowCatMgr(true)}>Manage Categories</Button>
-            <Button onClick={() => setShowUpload(true)}>+ Upload Document</Button>
-          </div>
+          <Button onClick={() => { resetForm(); setShowUpload(true); }}>
+            <Icon name="plus" size={16} /> Upload Document
+          </Button>
         }
       />
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        <input className="form-control" style={{ maxWidth: 260 }} placeholder="Search title…"
-          value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
-        <select className="form-control" style={{ maxWidth: 200 }}
-          value={catFilter} onChange={e => { setCatFilter(e.target.value); setPage(1); }}>
-          <option value="">All Categories</option>
-          {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-        </select>
-      </div>
+      <DocStats>
+        <DocStat icon="files" tone="indigo" label="Total Documents"
+          value={tiles.total?.value} change={tiles.total?.change} added={tiles.total?.added} />
+        <DocStat icon="users" tone="green" label="Shared with Classes"
+          value={tiles.classes?.value} change={tiles.classes?.change} added={tiles.classes?.added}
+          on={target === 'classes'} onClick={() => go(setTarget)(target === 'classes' ? '' : 'classes')} />
+        <DocStat icon="user" tone="amber" label="Shared with Teachers"
+          value={tiles.teachers?.value} change={tiles.teachers?.change} added={tiles.teachers?.added}
+          on={target === 'teachers'} onClick={() => go(setTarget)(target === 'teachers' ? '' : 'teachers')} />
+        <DocStat icon="clipboard" tone="red" label="Assignments"
+          value={tiles.assignments?.value} change={tiles.assignments?.change} added={tiles.assignments?.added}
+          on={tab === 'assignments'} onClick={() => { setTab(tab === 'assignments' ? 'all' : 'assignments'); setPage(1); }} />
+      </DocStats>
 
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          {loading
-            ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : <Table columns={columns} data={docs} emptyIcon="📁" emptyTitle="No documents uploaded" />}
-        </div>
-        {pages > 1 && (
-          <div className="card-footer">
-            <Pagination page={page} pages={pages} total={total} onPage={setPage} />
-          </div>
-        )}
-      </div>
+      {error && <Alert variant="danger">{error}</Alert>}
 
-      {/* View Modal */}
-      <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.title || 'Document'}>
-        {viewDoc && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {viewDoc.description && <p style={{ margin: 0, color: 'var(--text-muted)' }}>{viewDoc.description}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '.9rem' }}>
-              <div><span style={{ fontWeight: 600 }}>Category: </span><Badge variant="info">{viewDoc.category}</Badge></div>
-              <div><span style={{ fontWeight: 600 }}>Target: </span>{TARGET_TYPES.find(t => t.value === viewDoc.targetType)?.label || viewDoc.targetType}</div>
-              <div><span style={{ fontWeight: 600 }}>Uploaded by: </span>{viewDoc.uploadedBy?.name || '—'}</div>
-              {viewDoc.isAssignment && viewDoc.dueDate && (
-                <div><span style={{ fontWeight: 600 }}>Due: </span>{new Date(viewDoc.dueDate).toLocaleDateString('en-IN')}</div>
-              )}
-            </div>
-            {viewDoc.targetType === 'class' && (
-              <div style={{ fontSize: '.9rem' }}>
-                <span style={{ fontWeight: 600 }}>Classes: </span>
-                {viewDoc.targetClasses?.length
-                  ? viewDoc.targetClasses.map(c => `Class ${c.classNumber} — ${c.className}`).join(', ')
-                  : <span style={{ color: 'var(--danger, #dc3545)' }}>None selected — edit to fix</span>}
-              </div>
-            )}
-            {viewDoc.targetType === 'class_sections' && (
-              <div style={{ fontSize: '.9rem' }}>
-                <span style={{ fontWeight: 600 }}>Sections: </span>
-                {viewDoc.targetSections?.length
-                  ? viewDoc.targetSections.map(s => `Section ${s.sectionName}`).join(', ')
-                  : <span style={{ color: 'var(--danger, #dc3545)' }}>None selected — edit to fix</span>}
-              </div>
-            )}
-            <div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Files</div>
-              <FileLinks files={viewDoc.files} />
-            </div>
-          </div>
-        )}
-      </Modal>
+      <section className="card docpanel">
+        <DocTabs tabs={tabs} value={tab} onChange={(v) => { setTab(v); setPage(1); }} />
 
-      {/* Upload Modal */}
-      <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Upload Document" maxWidth={600}
+        <DocTools>
+          <SearchField value={search} onChange={setSearch} placeholder="Search documents…" />
+          <Picker value={category} onChange={go(setCategory)} all="All Categories"
+            options={categoryOptions} label="Filter by category" />
+          <Picker value={target} onChange={go(setTarget)} all="All Targets"
+            options={TARGET_FILTERS} label="Filter by who it was shared with" />
+          <Picker value={year} onChange={go(setYear)} all="All Academic Years"
+            options={yearOptions} label="Filter by academic year" />
+          <span className="doctools__sep" />
+          <SortMenu value={sort} onChange={go(setSort)} options={SORTS} />
+          <ViewSwitch value={view} onChange={setView} />
+        </DocTools>
+
+        <List rows={rows} loading={loading} empty={empty}
+          onOpen={(r) => navigate(`/admin/documents/${r._id}`)}
+          onView={setViewDoc} onEdit={openEdit} menu={rowMenu} />
+
+        <DocFoot page={page} pages={meta.pages} total={meta.total}
+          limit={PAGE_SIZE} count={rows.length} onPage={setPage} />
+      </section>
+
+      {/* ── Overlays ───────────────────────────────────────────────────────── */}
+
+      <DocumentDrawer doc={viewDoc} onClose={() => setViewDoc(null)}
+        onOpen={(d) => navigate(`/admin/documents/${d._id}`)}
+        onEdit={openEdit} onArchive={toggleArchive} onDelete={setDelDoc} />
+
+      <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Upload Document" maxWidth={640}
         footer={<>
           <Button variant="secondary" onClick={() => setShowUpload(false)}>Cancel</Button>
-          <Button onClick={handleUpload} loading={uploading}>Upload</Button>
+          <Button onClick={submitUpload} loading={uploading}>Upload</Button>
         </>}>
-        <FormFields f={form} setF={setForm} selC={selClasses} setSelC={setSelClasses} selS={selSections} setSelS={setSelSections} fileList={files} setFileList={setFiles} isEdit={false} />
+        {fields(null)}
       </Modal>
 
-      {/* Edit Modal */}
-      <Modal open={!!editDoc} onClose={() => setEditDoc(null)} title="Edit Document" maxWidth={600}
+      <Modal open={!!editDoc} onClose={() => setEditDoc(null)} title="Edit Document" maxWidth={640}
         footer={<>
           <Button variant="secondary" onClick={() => setEditDoc(null)}>Cancel</Button>
-          <Button onClick={handleEdit} loading={saving}>Save Changes</Button>
+          <Button onClick={submitEdit} loading={saving}>Save Changes</Button>
         </>}>
-        <FormFields f={editForm} setF={setEditForm} selC={editClasses} setSelC={setEditClasses} selS={editSections} setSelS={setEditSections} fileList={editFiles} setFileList={setEditFiles} isEdit={true} />
+        {fields(editDoc)}
       </Modal>
 
-      {/* Archive Confirm */}
-      <Confirm open={!!archDoc} onClose={() => setArchDoc(null)} onConfirm={handleArchive}
-        loading={archLoad} title="Archive Document" message={`Archive "${archDoc?.title}"? It will be hidden from users.`} />
-
-      {/* Delete Confirm */}
-      <Confirm open={!!delDoc} onClose={() => setDelDoc(null)} onConfirm={handleDelete}
-        loading={delLoad} title="Delete Document" message={`Permanently delete "${delDoc?.title}"?`} />
-
-      {/* Manage Categories Modal */}
-      <Modal open={showCatMgr} onClose={() => setShowCatMgr(false)} title="Manage Document Categories">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <input className="form-control" placeholder="New category name…" value={newCatName}
-            onChange={e => setNewCatName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddCategory()} />
-          <Button onClick={handleAddCategory} loading={addingCat} style={{ whiteSpace: 'nowrap' }}>Add</Button>
+      <Modal open={showCats} onClose={() => setShowCats(false)} title="Document Categories">
+        <p className="docmodal__lead">
+          Your school&rsquo;s own filing labels. They sit beside the fixed types
+          ({DOC_TYPES.map((t) => t.label).join(', ')}), which the tabs are built on.
+        </p>
+        <div className="docaddcat">
+          <input className="form-control" placeholder="New category name…" value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addCategory()} />
+          <Button onClick={addCategory} loading={addingCat}>Add</Button>
         </div>
-        {categories.length === 0
-          ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 16 }}>No categories yet</p>
+        {cats.length === 0
+          ? <p className="docnone" style={{ textAlign: 'center', padding: 16 }}>No categories yet</p>
           : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {categories.map(c => (
-                <div key={c._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-alt, #f8f9fa)', borderRadius: 6 }}>
-                  <span style={{ fontWeight: 500 }}>{c.name}</span>
-                  <button className="btn btn-danger btn-sm" onClick={() => setDelCat(c)}>Delete</button>
-                </div>
+            <ul className="doccats">
+              {cats.map((c) => (
+                <li key={c._id}>
+                  <span>{c.name}</span>
+                  <button type="button" className="docact docact--danger" onClick={() => setDelCat(c)}
+                    title={`Delete ${c.name}`} aria-label={`Delete ${c.name}`}>
+                    <Icon name="trash" size={15} />
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
       </Modal>
 
-      {/* Delete Category Confirm */}
-      <Confirm open={!!delCat} onClose={() => setDelCat(null)} onConfirm={handleDeleteCategory}
-        loading={delCatLoad} title="Delete Category" message={`Delete category "${delCat?.name}"?`} />
+      <Confirm open={!!delDoc} onClose={() => setDelDoc(null)} onConfirm={confirmDelete} loading={busy}
+        title="Delete Document"
+        message={delDoc
+          ? `Permanently delete “${delDoc.title}”? Its ${delDoc.fileCount || 0} file(s) and any submissions against it go with it.`
+          : ''} />
+
+      <Confirm open={!!delCat} onClose={() => setDelCat(null)} onConfirm={removeCategory} loading={busy}
+        title="Delete Category"
+        message={`Delete the category “${delCat?.name}”? Documents already filed under it keep the label.`} />
     </div>
   );
 }

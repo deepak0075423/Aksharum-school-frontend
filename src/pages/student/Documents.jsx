@@ -1,187 +1,190 @@
-import React, { useState } from 'react';
+/**
+ * Student → Documents.
+ *
+ * The shelf as the person who has to act on it sees it: what has been set, when
+ * it is due, whether they have handed it in and what they got for it. The
+ * figures at the top are the three questions a student actually has — is
+ * anything late, is anything due, has anything come back marked — and each one
+ * filters the list below it.
+ *
+ * Built on the shared viewer kit (pages/documents/viewerParts.jsx), so a PDF, a
+ * type pill and a due date read the same here as they do for a parent or in the
+ * office.
+ */
+import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getDocuments, submitAssignment } from '../../api/student.api';
-import { PageHeader, Table, Badge, Button, Modal, Spinner } from '../../components/ui/index';
-
-const BADGE = { notice: 'info', assignment: 'warning', circular: 'primary', resource: 'success', policy: 'danger', other: 'secondary' };
-
-const STATUS_BADGE = { submitted: 'success', late: 'warning', pending: 'secondary' };
-
-// Uploads are served from the backend root (not under /api) — strip the /api suffix
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-
-function fileUrl(filePath) {
-  if (!filePath) return '';
-  const p = filePath.replace(/\\/g, '/');
-  const idx = p.indexOf('uploads/');
-  return idx !== -1 ? `${API_BASE}/${p.slice(idx)}` : `${API_BASE}/${p}`;
-}
-
-function FileLinks({ files }) {
-  if (!files?.length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {files.map((f, i) => (
-        <a key={i} href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-          style={{ fontSize: '.8rem', color: 'var(--primary)' }}>
-          {f.originalName}
-        </a>
-      ))}
-    </div>
-  );
-}
+import { Alert, Button, Spinner } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import {
+  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
+  DocList, DocDrawer, NothingHere, StatePill, FileRows, Field,
+  TABS, SORTS, applyFilters, fmtDate, fileUrl,
+} from '../documents/viewerParts';
 
 export default function StudentDocuments() {
-  const { data, loading, refetch } = useFetch(getDocuments);
-  const docs = data || [];  // useFetch already unwraps res.data
+  const [year, setYear] = useState('');
+  const { data, meta, loading, error, refetch } = useFetch(
+    () => getDocuments(year ? { year } : undefined), [year],
+  );
 
-  // View detail modal
-  const [viewDoc, setViewDoc] = useState(null);
+  const docs     = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const counts   = meta?.counts || {};
+  const years    = meta?.years || [];
+  const myClass  = meta?.who?.label || '';
 
-  // Submit assignment modal
-  const [submitDoc, setSubmitDoc]   = useState(null);
-  const [subFiles, setSubFiles]     = useState([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [tab,      setTab]      = useState('all');
+  const [category, setCategory] = useState('');
+  const [search,   setSearch]   = useState('');
+  const [sort,     setSort]     = useState('newest');
+  const [state,    setState]    = useState('');   // set by the tiles
 
-  const handleSubmit = async () => {
-    if (!subFiles.length) return toast.error('Please attach at least one file');
-    setSubmitting(true);
+  const [open,     setOpen]     = useState(null); // the document in the drawer
+  const [files,    setFiles]    = useState([]);
+  const [sending,  setSending]  = useState(false);
+
+  const shown = useMemo(
+    () => applyFilters(docs, { tab, category, search, sort, state }),
+    [docs, tab, category, search, sort, state],
+  );
+
+  const filtered = !!(category || search || state);
+  const clear = () => { setCategory(''); setSearch(''); setState(''); setTab('all'); };
+
+  // The drawer holds a copy; re-point it at the refreshed row after a submit so
+  // it shows the submission that was just made rather than the state before it.
+  const live = open ? docs.find((d) => d._id === open._id) || open : null;
+
+  const submit = async () => {
+    if (!files.length) return toast.error('Attach at least one file');
+    setSending(true);
     try {
-      const fd = new FormData();
-      subFiles.forEach(f => fd.append('files', f));
-      await submitAssignment(submitDoc._id, fd);
-      toast.success('Assignment submitted');
-      setSubmitDoc(null);
-      setSubFiles([]);
-      refetch();
+      await submitAssignment(live._id, (() => {
+        const fd = new FormData();
+        files.forEach((f) => fd.append('files', f));
+        return fd;
+      })());
+      toast.success(live.state === 'missed' ? 'Submitted — it will be marked late' : 'Submitted');
+      setFiles([]);
+      await refetch();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
-      setSubmitting(false);
+      setSending(false);
     }
   };
 
-  const columns = [
-    {
-      key: 'title', label: 'Title',
-      render: r => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{r.title}</div>
-          {r.description && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{r.description}</div>}
-        </div>
-      ),
-    },
-    { key: 'category', label: 'Category', render: r => <Badge variant={BADGE[r.category] || 'info'}>{r.category}</Badge> },
-    {
-      key: 'due', label: 'Due',
-      render: r => r.isAssignment && r.dueDate
-        ? new Date(r.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-        : '—',
-    },
-    {
-      key: 'status', label: 'Status',
-      render: r => {
-        if (!r.isAssignment) return '—';
-        const sub = r.mySubmission;
-        if (!sub) return <Badge variant="secondary">Pending</Badge>;
-        return <Badge variant={STATUS_BADGE[sub.status] || 'secondary'}>{sub.status}</Badge>;
-      },
-    },
-    { key: 'files', label: 'Files', render: r => r.files?.length ? `${r.files.length} file(s)` : '—' },
-    {
-      key: 'actions', label: '',
-      render: r => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          {r.files?.length > 0 && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setViewDoc(r)}>View</button>
-          )}
-          {r.isAssignment && r.allowSubmission && !r.mySubmission && (
-            <button className="btn btn-primary btn-sm" onClick={() => { setSubmitDoc(r); setSubFiles([]); }}>Submit</button>
-          )}
-          {r.isAssignment && r.mySubmission && (
-            <button className="btn btn-secondary btn-sm" onClick={() => { setSubmitDoc(r); setSubFiles([]); }}>Re-submit</button>
-          )}
-        </div>
-      ),
-    },
-  ];
+  const pickState = (v) => { setState(state === v ? '' : v); setTab(state === v ? 'all' : 'assignments'); };
+
+  if (loading && !data) return <div className="loading-page"><Spinner /></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="Documents & Notices" subtitle="Files and assignments shared with you" />
+    <div className="page dvpg">
+      <ViewerHero
+        icon="files"
+        title="Documents & Assignments"
+        subtitle={myClass
+          ? `Everything shared with ${myClass} and with the whole school.`
+          : 'Everything shared with your class and with the whole school.'}
+        right={years.length > 1 && (
+          <Picker value={year} onChange={setYear} all="This year" label="Academic year"
+            options={[{ value: 'all', label: 'All years' },
+              ...years.map((y) => ({ value: y._id, label: y.name }))]} />
+        )}
+      />
 
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          {loading
-            ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : <Table columns={columns} data={docs} emptyIcon="📁" emptyTitle="No documents available" />}
-        </div>
-      </div>
+      {error && <Alert variant="danger">{error}</Alert>}
 
-      {/* View Detail Modal */}
-      <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.title || 'Document'}>
-        {viewDoc && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {viewDoc.description && <p style={{ margin: 0, color: 'var(--text-muted)' }}>{viewDoc.description}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '.9rem' }}>
-              <div><span style={{ fontWeight: 600 }}>Category: </span><Badge variant={BADGE[viewDoc.category] || 'info'}>{viewDoc.category}</Badge></div>
-              <div><span style={{ fontWeight: 600 }}>Uploaded by: </span>{viewDoc.uploadedBy?.name || '—'}</div>
-              {viewDoc.isAssignment && viewDoc.dueDate && (
-                <div><span style={{ fontWeight: 600 }}>Due: </span>{new Date(viewDoc.dueDate).toLocaleDateString('en-IN')}</div>
-              )}
-              {viewDoc.targetType === 'class' && viewDoc.targetClasses?.length > 0 && (
-                <div style={{ gridColumn: '1/-1' }}>
-                  <span style={{ fontWeight: 600 }}>For: </span>
-                  {viewDoc.targetClasses.map(c => `Class ${c.classNumber}${c.className ? ` — ${c.className}` : ''}`).join(', ')}
-                </div>
-              )}
-              {viewDoc.targetType === 'class_sections' && viewDoc.targetSections?.length > 0 && (
-                <div style={{ gridColumn: '1/-1' }}>
-                  <span style={{ fontWeight: 600 }}>For: </span>
-                  {viewDoc.targetSections.map(s => `Section ${s.sectionName}`).join(', ')}
-                </div>
-              )}
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Files</div>
-              <FileLinks files={viewDoc.files} />
-            </div>
-            {viewDoc.isAssignment && viewDoc.mySubmission && (
-              <div style={{ background: 'var(--bg-alt, #f8f9fa)', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Your Submission</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: '.85rem' }}>
-                  <div><span style={{ fontWeight: 600 }}>Status: </span><Badge variant={STATUS_BADGE[viewDoc.mySubmission.status] || 'secondary'}>{viewDoc.mySubmission.status}</Badge></div>
-                  {viewDoc.mySubmission.marks != null && <div><span style={{ fontWeight: 600 }}>Marks: </span>{viewDoc.mySubmission.marks}</div>}
-                  {viewDoc.mySubmission.feedback && <div style={{ gridColumn: '1/-1' }}><span style={{ fontWeight: 600 }}>Feedback: </span>{viewDoc.mySubmission.feedback}</div>}
-                </div>
+      <ViewerStats>
+        <ViewerStat icon="files" tone="indigo" value={counts.all} label="Shared with you"
+          caption={myClass || 'Your class and the school'} />
+        <ViewerStat icon="clock" tone="amber" value={counts.pending} label="Still to do"
+          caption="Assignments not handed in" on={state === 'pending'} onClick={() => pickState('pending')} />
+        <ViewerStat icon="alert" tone="red" value={counts.missed} label="Missed"
+          caption="Past their due date" on={state === 'missed'} onClick={() => pickState('missed')} />
+        <ViewerStat icon="star" tone="green" value={counts.marked} label="Marked"
+          caption="Feedback is waiting" on={state === 'marked'} onClick={() => pickState('marked')} />
+      </ViewerStats>
+
+      <section className="card dvpanel">
+        <ViewerTabs tabs={TABS} value={tab} counts={counts}
+          onChange={(v) => { setTab(v); setState(''); }} />
+
+        <ViewerTools>
+          <SearchField value={search} onChange={setSearch} />
+          <Picker value={category} onChange={setCategory} all="All categories"
+            options={meta?.categories || []} label="Filter by category" />
+          <span className="dvtools__sep" />
+          <Picker value={sort} onChange={setSort} options={SORTS} label="Sort documents" />
+        </ViewerTools>
+
+        <DocList
+          docs={shown} loading={loading}
+          onOpen={(d) => { setOpen(d); setFiles([]); }}
+          empty={<NothingHere filtered={filtered} onClear={clear} />}
+          badges={(d) => <StatePill state={d.state} />}
+        />
+      </section>
+
+      <DocDrawer
+        doc={live}
+        onClose={() => { setOpen(null); setFiles([]); }}
+        extra={live?.isAssignment && (
+          <section className="dvdrawer__sec">
+            <h4>Your submission</h4>
+
+            {live.mySubmission ? (
+              <>
+                <dl>
+                  <Field label="Status"><StatePill state={live.state} /></Field>
+                  <Field label="Handed in">{fmtDate(live.mySubmission.submittedAt)}</Field>
+                  {live.mySubmission.marks != null && (
+                    <Field label="Marks">
+                      <b>{live.mySubmission.marks}</b>{live.totalMarks ? ` / ${live.totalMarks}` : ''}
+                    </Field>
+                  )}
+                </dl>
+                <FileRows files={live.mySubmission.files} empty="Handed in with no files" />
+                {live.mySubmission.feedback && (
+                  <div className="dvfeedback">
+                    <h5><Icon name="chat" size={14} /> Teacher feedback</h5>
+                    <p>{live.mySubmission.feedback}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="dvnone">You have not handed anything in yet.</p>
+            )}
+
+            {live.allowSubmission ? (
+              <div className="dvsubmit">
+                <label className="form-label" htmlFor="dv-files">
+                  {live.mySubmission ? 'Replace what you handed in' : 'Attach your work'}
+                </label>
+                <input id="dv-files" type="file" className="form-control" multiple
+                  onChange={(e) => setFiles(Array.from(e.target.files))} />
+                {files.length > 0 && <div className="form-hint">{files.length} file(s) chosen</div>}
+                {live.state === 'missed' && (
+                  <p className="dvwarn">
+                    <Icon name="alert" size={14} /> The due date has passed — this will be marked late.
+                  </p>
+                )}
+                <Button onClick={submit} loading={sending} disabled={!files.length}>
+                  <Icon name="upload" size={15} /> {live.mySubmission ? 'Replace submission' : 'Submit'}
+                </Button>
               </div>
+            ) : (
+              <p className="dvnone">Submissions are closed for this one.</p>
             )}
-          </div>
+          </section>
         )}
-      </Modal>
-
-      {/* Submit Assignment Modal */}
-      <Modal open={!!submitDoc} onClose={() => setSubmitDoc(null)} title={`Submit — ${submitDoc?.title || ''}`}
-        footer={<>
-          <Button variant="secondary" onClick={() => setSubmitDoc(null)}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>Submit</Button>
-        </>}>
-        {submitDoc && (
-          <>
-            {submitDoc.dueDate && (
-              <p style={{ fontSize: '.85rem', color: new Date() > new Date(submitDoc.dueDate) ? 'var(--danger, #dc3545)' : 'var(--text-muted)', marginBottom: 12 }}>
-                {new Date() > new Date(submitDoc.dueDate) ? '⚠ Due date has passed — submission will be marked late.' : `Due: ${new Date(submitDoc.dueDate).toLocaleDateString('en-IN')}`}
-              </p>
-            )}
-            <div className="form-group">
-              <label className="form-label">Attach Files *</label>
-              <input type="file" className="form-control" multiple onChange={e => setSubFiles(Array.from(e.target.files))} />
-              {subFiles.length > 0 && <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 4 }}>{subFiles.length} file(s) selected</div>}
-            </div>
-          </>
+        foot={live?.files?.[0] && (
+          <a className="btn btn-secondary" href={fileUrl(live.files[0].filePath)} target="_blank" rel="noreferrer">
+            <Icon name="download" size={15} /> Open {live.fileCount > 1 ? 'first file' : 'the file'}
+          </a>
         )}
-      </Modal>
+      />
     </div>
   );
 }

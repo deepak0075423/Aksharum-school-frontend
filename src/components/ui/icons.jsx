@@ -60,6 +60,20 @@ const PATHS = {
   star:        <path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z" />,
   umbrella:    <><path d="M12 12v6.4a2.3 2.3 0 0 0 4.6 0" /><path d="M3 12a9 9 0 0 1 18 0z" /><path d="M12 3.2V12" /></>,
   files:       <><path d="M8 3.5h6.5L19 8v10.5A1.5 1.5 0 0 1 17.5 20h-9A1.5 1.5 0 0 1 7 18.5V5A1.5 1.5 0 0 1 8.5 3.5z" /><path d="M14 3.5V8h4.6" /><path d="M4.5 7.5v11A2.5 2.5 0 0 0 7 21h8" /></>,
+
+  /* One sheet of paper with a folded corner, and what is on it — the marks the
+     admin Documents list puts in a tinted square so a row's kind is readable
+     before its title is. Same body for all five so a column of them lines up;
+     only the contents differ. */
+  fileDoc:     <><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z" /><path d="M13.5 3v5.5H19" /><path d="M8.5 13h7M8.5 16.4h4.6" /></>,
+  filePdf:     <><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z" /><path d="M13.5 3v5.5H19" /><rect x="7.7" y="13.3" width="8.6" height="4.4" rx="1.3" fill="currentColor" stroke="none" /></>,
+  fileSheet:   <><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z" /><path d="M13.5 3v5.5H19" /><rect x="8.2" y="12.4" width="7.6" height="5.6" rx=".8" /><path d="M8.2 15.2h7.6M12 12.4V18" /></>,
+  fileSlides:  <><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z" /><path d="M13.5 3v5.5H19" /><rect x="8.2" y="12.6" width="7.6" height="5.2" rx=".9" /><path d="M10.4 15.2h3.2" /></>,
+  fileImage:   <><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z" /><path d="M13.5 3v5.5H19" /><circle cx="9.9" cy="13.6" r="1.1" /><path d="m8 18 2.7-2.8 2 1.9 1.7-1.7L16 17" /></>,
+
+  /* Rows with a leading bullet — the list half of the list/grid switch above
+     the documents table, opposite `grid`. */
+  list:        <><path d="M9 6.5h11M9 12h11M9 17.5h11" /><circle cx="4.8" cy="6.5" r="1.1" fill="currentColor" stroke="none" /><circle cx="4.8" cy="12" r="1.1" fill="currentColor" stroke="none" /><circle cx="4.8" cy="17.5" r="1.1" fill="currentColor" stroke="none" /></>,
   party:       <><path d="m3.5 20.5 4.4-12 8.1 8.1z" /><path d="M13.6 6.4a2.6 2.6 0 0 1 3.7 0M17 3.2a5.6 5.6 0 0 1 3.8 3.8M14.8 11.4a3.4 3.4 0 0 1 4.7-.6" /><circle cx="19.8" cy="14.6" r=".9" fill="currentColor" stroke="none" /></>,
   bell:        <><path d="M18 9a6 6 0 1 0-12 0c0 5.2-2 6.5-2 6.5h16S18 14.2 18 9" /><path d="M13.7 19.5a2 2 0 0 1-3.4 0" /></>,
   chat:        <><path d="M20.5 12.2a7.6 7.6 0 0 1-8.2 7.6l-5.1 1.7 1.7-4.2A7.6 7.6 0 1 1 20.5 12.2z" /><path d="M9 11.5h6M9 14.5h3.5" /></>,

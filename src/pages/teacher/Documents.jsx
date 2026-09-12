@@ -1,357 +1,406 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Teacher → Documents.
+ *
+ * Two halves of one shelf: what has been shared *with* this teacher — staff
+ * notices, school circulars, work set for a class they teach — and what they
+ * have shared themselves. The split is the first control on the page because it
+ * is the first question: am I reading, or am I looking after my own?
+ *
+ * Their own assignments carry the count of what has come in, and open the same
+ * four-tab screen the office gets (`/teacher/documents/:id`) — the submissions
+ * list, the marking form and the discussion. A teacher may read anything shared
+ * with them there and may only mark what they set; the routes enforce it.
+ *
+ * Built on the shared viewer kit, so a document looks the same to a teacher as
+ * it does to the class they set it for.
+ */
+import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
-  getDocuments, uploadDocument, deleteDocument,
-  getDocumentSubs, reviewSubmission, getMySection, getDocumentCategories,
+  getDocuments, uploadDocument, updateDocument, deleteDocument, getDocumentCategories,
 } from '../../api/teacher.api';
-import { PageHeader, Table, Badge, Button, Confirm, Modal, Spinner, Pagination } from '../../components/ui/index';
+import { Alert, Button, Confirm, Modal, Spinner } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import {
+  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
+  DocList, DocDrawer, NothingHere, Field,
+  TABS, SORTS, applyFilters, fmtDate, fileUrl, DOC_TYPES,
+} from '../documents/viewerParts';
 
-const BADGE = { notice: 'info', assignment: 'warning', circular: 'primary', resource: 'success', policy: 'danger', other: 'secondary' };
+const EMPTY = {
+  title: '', description: '', docType: 'notice', category: '',
+  sectionId: '', isAssignment: false, dueDate: '', totalMarks: '',
+};
 
-// Uploads are served from the backend root (not under /api) — strip the /api suffix
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+const SCOPES = [
+  { value: 'shared', label: 'Shared with me' },
+  { value: 'mine',   label: 'My uploads' },
+];
 
-function fileUrl(filePath) {
-  if (!filePath) return '';
-  const p = filePath.replace(/\\/g, '/');
-  const idx = p.indexOf('uploads/');
-  return idx !== -1 ? `${API_BASE}/${p.slice(idx)}` : `${API_BASE}/${p}`;
-}
-
-function FileLinks({ files }) {
-  if (!files?.length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {files.map((f, i) => (
-        <a key={i} href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-          style={{ fontSize: '.8rem', color: 'var(--primary)' }}>
-          {f.originalName}
-        </a>
-      ))}
-    </div>
+export default function TeacherDocuments() {
+  const navigate = useNavigate();
+  const [year, setYear] = useState('');
+  const { data, meta, loading, error, refetch } = useFetch(
+    () => getDocuments(year ? { year } : undefined), [year],
   );
-}
+  const { data: catData } = useFetch(getDocumentCategories);
 
-const EMPTY_FORM = { title: '', description: '', category: '', isAssignment: false, dueDate: '' };
+  const all      = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const counts   = meta?.counts || {};
+  const sections = meta?.sections || [];
+  const years    = meta?.years || [];
+  const categories = useMemo(
+    () => (catData || []).map((c) => c.name ?? c),
+    [catData],
+  );
 
-function UploadModal({ open, onClose, sectionId, sectionName, categories, onUploaded }) {
-  const [form, setForm]       = useState(EMPTY_FORM);
-  const [files, setFiles]     = useState([]);
-  const [uploading, setUploading] = useState(false);
+  const [scope,    setScope]    = useState('shared');
+  const [tab,      setTab]      = useState('all');
+  const [category, setCategory] = useState('');
+  const [search,   setSearch]   = useState('');
+  const [sort,     setSort]     = useState('newest');
+  const [open,     setOpen]     = useState(null);
 
-  const handleUpload = async () => {
+  const [form,     setForm]     = useState(EMPTY);
+  const [files,    setFiles]    = useState([]);
+  const [editing,  setEditing]  = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [del,      setDel]      = useState(null);
+  const [busy,     setBusy]     = useState(false);
+
+  const scoped = useMemo(
+    () => all.filter((d) => (scope === 'mine' ? d.mine : !d.mine)),
+    [all, scope],
+  );
+
+  const shown = useMemo(
+    () => applyFilters(scoped, { tab, category, search, sort }),
+    [scoped, tab, category, search, sort],
+  );
+
+  // The tab counts follow the scope, or they would promise rows the other half
+  // of the page is holding.
+  const tabCounts = useMemo(() => ({
+    all:         scoped.length,
+    assignments: scoped.filter((d) => d.isAssignment).length,
+    notices:     scoped.filter((d) => ['notice', 'circular'].includes(d.docType)).length,
+    study:       scoped.filter((d) => d.docType === 'study_material').length,
+  }), [scoped]);
+
+  const filtered = !!(category || search);
+  const clear = () => { setCategory(''); setSearch(''); setTab('all'); };
+  const live  = open ? all.find((d) => d._id === open._id) || open : null;
+
+  // ── Upload / edit ──────────────────────────────────────────────────────────
+  const startNew = () => {
+    setEditing(null);
+    setForm({ ...EMPTY, sectionId: sections[0]?._id || '' });
+    setFiles([]);
+    setShowForm(true);
+  };
+
+  const startEdit = (d) => {
+    setEditing(d);
+    setForm({
+      title: d.title,
+      description: d.description || '',
+      docType: d.docType || 'notice',
+      category: d.category || '',
+      sectionId: '',
+      isAssignment: !!d.isAssignment,
+      dueDate: d.dueDate ? String(d.dueDate).slice(0, 10) : '',
+      totalMarks: d.totalMarks == null ? '' : String(d.totalMarks),
+    });
+    setFiles([]);
+    setOpen(null);
+    setShowForm(true);
+  };
+
+  const save = async () => {
     if (!form.title.trim()) return toast.error('Title is required');
     if (!form.category)     return toast.error('Category is required');
-    if (!sectionId)         return toast.error('No class section assigned to you');
+    if (!editing && !form.sectionId) return toast.error('Choose the section this is for');
 
-    setUploading(true);
+    setSaving(true);
     try {
       const fd = new FormData();
       fd.append('title', form.title.trim());
       fd.append('description', form.description);
+      fd.append('docType', form.docType);
       fd.append('category', form.category);
-      fd.append('sectionId', sectionId);
-      fd.append('isAssignment', form.isAssignment ? 'true' : '');
-      if (form.isAssignment && form.dueDate) fd.append('dueDate', form.dueDate);
-      files.forEach(f => fd.append('files', f));
+      fd.append('isAssignment', form.isAssignment ? 'true' : 'false');
+      fd.append('dueDate', form.isAssignment && form.dueDate ? form.dueDate : '');
+      if (form.isAssignment && form.totalMarks) {
+        fd.append('totalMarks', form.totalMarks);
+        fd.append('marksEnabled', 'true');
+      }
+      files.forEach((f) => fd.append('files', f));
 
-      await uploadDocument(fd);
-      toast.success('Document uploaded');
-      setForm(EMPTY_FORM);
-      setFiles([]);
-      onClose();
-      onUploaded();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <Modal open={open} onClose={onClose} title="Upload Document"
-      footer={<>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={handleUpload} loading={uploading}>Upload</Button>
-      </>}>
-      <div className="form-group">
-        <label className="form-label">Title *</label>
-        <input className="form-control" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Document title" />
-      </div>
-      <div className="form-group">
-        <label className="form-label">Description</label>
-        <textarea className="form-control" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional" />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="form-group">
-          <label className="form-label">Category</label>
-          <select className="form-control" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-            <option value="">— Select —</option>
-            {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-          </select>
-          {categories.length === 0 && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>No categories available</div>}
-        </div>
-        <div className="form-group">
-          <label className="form-label">Target Section</label>
-          <input className="form-control" value={sectionName || 'No section assigned'} disabled />
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <input type="checkbox" id="isAssignment" checked={form.isAssignment} onChange={e => setForm(f => ({ ...f, isAssignment: e.target.checked }))} />
-        <label htmlFor="isAssignment" style={{ margin: 0, cursor: 'pointer' }}>This is an assignment</label>
-      </div>
-      {form.isAssignment && (
-        <div className="form-group">
-          <label className="form-label">Due Date</label>
-          <input type="date" className="form-control" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
-        </div>
-      )}
-      <div className="form-group">
-        <label className="form-label">Files</label>
-        <input type="file" className="form-control" multiple onChange={e => setFiles(Array.from(e.target.files))} />
-        {files.length > 0 && <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 4 }}>{files.length} file(s) selected</div>}
-      </div>
-    </Modal>
-  );
-}
-
-export default function TeacherDocuments() {
-  const [page, setPage] = useState(1);
-
-  const [showUpload, setShowUpload] = useState(false);
-
-  // Delete state
-  const [delDoc, setDelDoc]   = useState(null);
-  const [delLoad, setDelLoad] = useState(false);
-
-  // Detail modal
-  const [viewDoc, setViewDoc] = useState(null);
-
-  // Submissions modal
-  const [subsDoc, setSubsDoc]     = useState(null);
-  const [subs, setSubs]           = useState([]);
-  const [subsLoading, setSubsLoading] = useState(false);
-
-  // Review modal
-  const [reviewSub, setReviewSub] = useState(null);
-  const [reviewForm, setReviewForm] = useState({ marks: '', feedback: '' });
-  const [reviewing, setReviewing]   = useState(false);
-
-  const { data: secData } = useFetch(getMySection);
-  const { data: catData } = useFetch(getDocumentCategories);
-  const categories        = catData  || [];   // useFetch already unwraps res.data
-  const sectionId         = secData?.section?._id;
-  const sectionName       = secData?.section ? `${secData.section.class?.className || ''} - Section ${secData.section.sectionName || ''}`.trim() : '';
-
-  // Paginated docs — manual fetch to preserve total/pages
-  const [docs, setDocs]     = useState([]);
-  const [total, setTotal]   = useState(0);
-  const [pages, setPages]   = useState(1);
-  const [loading, setLoading] = useState(false);
-
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await getDocuments({ page, limit: 20 });
-      setDocs(res.data || []);
-      setTotal(res.total || 0);
-      setPages(res.pages || 1);
-    } catch (err) {
-      toast.error(err.message || 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
-
-  useEffect(() => { refetch(); }, [refetch]);
-
-  const handleDelete = async () => {
-    setDelLoad(true);
-    try {
-      await deleteDocument(delDoc._id);
-      toast.success('Deleted');
-      setDelDoc(null);
+      if (editing) {
+        await updateDocument(editing._id, fd);
+        toast.success('Updated');
+      } else {
+        // A teacher shares with one of their own sections; the section is the
+        // whole target, so the form never asks who instead of where.
+        fd.append('sectionId', form.sectionId);
+        await uploadDocument(fd);
+        toast.success('Shared with your section');
+      }
+      setShowForm(false);
+      setScope('mine');
       refetch();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
-      setDelLoad(false);
+      setSaving(false);
     }
   };
 
-  const openSubmissions = async (doc) => {
-    setSubsDoc(doc);
-    setSubs([]);
-    setSubsLoading(true);
+  const remove = async () => {
+    setBusy(true);
     try {
-      const res = await getDocumentSubs(doc._id);
-      setSubs(res.data || []);
+      await deleteDocument(del._id);
+      toast.success('Deleted');
+      setDel(null); setOpen(null);
+      refetch();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
-      setSubsLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleReview = async () => {
-    setReviewing(true);
-    try {
-      await reviewSubmission(reviewSub._id, { marks: reviewForm.marks, feedback: reviewForm.feedback });
-      toast.success('Review saved');
-      setReviewSub(null);
-      openSubmissions(subsDoc);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err.message);
-    } finally {
-      setReviewing(false);
-    }
-  };
-
-  const columns = [
-    {
-      key: 'title', label: 'Title',
-      render: r => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{r.title}</div>
-          {r.description && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{r.description}</div>}
-        </div>
-      ),
-    },
-    { key: 'category', label: 'Category', render: r => <Badge variant={BADGE[r.category] || 'info'}>{r.category}</Badge> },
-    { key: 'files',    label: 'Files',    render: r => r.files?.length || 0 },
-    { key: 'date',     label: 'Date',     render: r => new Date(r.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) },
-    {
-      key: 'actions', label: '',
-      render: r => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => setViewDoc(r)}>View</button>
-          {r.isAssignment && (
-            <button className="btn btn-primary btn-sm" onClick={() => openSubmissions(r)}>Submissions</button>
-          )}
-          {r.uploadedBy?._id === undefined || true ? (
-            <button className="btn btn-danger btn-sm" onClick={() => setDelDoc(r)}>Delete</button>
-          ) : null}
-        </div>
-      ),
-    },
-  ];
+  if (loading && !data) return <div className="loading-page"><Spinner /></div>;
 
   return (
-    <div className="page">
-      <PageHeader
+    <div className="page dvpg">
+      <ViewerHero
+        icon="files"
         title="Documents"
-        subtitle={sectionName ? `Class: ${sectionName}` : 'Shared files and assignments'}
-        action={<Button onClick={() => setShowUpload(true)}>+ Upload</Button>}
-      />
-
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          {loading
-            ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : <Table columns={columns} data={docs} emptyIcon="📁" emptyTitle="No documents yet" />}
-        </div>
-        {pages > 1 && (
-          <div className="card-footer">
-            <Pagination page={page} pages={pages} total={total} onPage={setPage} />
-          </div>
-        )}
-      </div>
-
-      {/* Upload Modal */}
-      <UploadModal
-        open={showUpload}
-        onClose={() => setShowUpload(false)}
-        sectionId={sectionId}
-        sectionName={sectionName}
-        categories={categories}
-        onUploaded={refetch}
-      />
-
-      {/* View Detail Modal */}
-      <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.title || 'Document'}>
-        {viewDoc && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {viewDoc.description && <p style={{ margin: 0, color: 'var(--text-muted)' }}>{viewDoc.description}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div><span style={{ fontWeight: 600 }}>Category: </span><Badge variant={BADGE[viewDoc.category] || 'info'}>{viewDoc.category}</Badge></div>
-              <div><span style={{ fontWeight: 600 }}>Uploaded: </span>{new Date(viewDoc.createdAt).toLocaleDateString('en-IN')}</div>
-              {viewDoc.isAssignment && viewDoc.dueDate && (
-                <div><span style={{ fontWeight: 600 }}>Due: </span>{new Date(viewDoc.dueDate).toLocaleDateString('en-IN')}</div>
-              )}
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Files</div>
-              <FileLinks files={viewDoc.files} />
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Delete Confirm */}
-      <Confirm open={!!delDoc} onClose={() => setDelDoc(null)} onConfirm={handleDelete}
-        loading={delLoad} title="Delete Document" message={`Delete "${delDoc?.title}"?`} />
-
-      {/* Submissions Modal */}
-      <Modal open={!!subsDoc} onClose={() => setSubsDoc(null)} title={`Submissions — ${subsDoc?.title || ''}`} maxWidth={700}>
-        {subsLoading
-          ? <div style={{ padding: 32, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-          : subs.length === 0
-            ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>No submissions yet</p>
-            : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Student', 'Status', 'Submitted', 'Marks', 'Feedback', ''].map(h => (
-                      <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {subs.map(s => (
-                    <tr key={s._id} data-focus-id={s._id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '8px 10px' }}>{s.student?.name || '—'}</td>
-                      <td style={{ padding: '8px 10px' }}>
-                        <Badge variant={s.status === 'submitted' ? 'success' : s.status === 'late' ? 'warning' : 'secondary'}>
-                          {s.status}
-                        </Badge>
-                      </td>
-                      <td style={{ padding: '8px 10px' }}>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-IN') : '—'}</td>
-                      <td style={{ padding: '8px 10px' }}>{s.marks ?? '—'}</td>
-                      <td style={{ padding: '8px 10px', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.feedback || '—'}</td>
-                      <td style={{ padding: '8px 10px' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => { setReviewSub(s); setReviewForm({ marks: s.marks ?? '', feedback: s.feedback || '' }); }}>
-                          Review
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        subtitle="Notices and material shared with you, and the work you have set your sections."
+        right={
+          <>
+            {years.length > 1 && (
+              <Picker value={year} onChange={setYear} all="This year" label="Academic year"
+                options={[{ value: 'all', label: 'All years' },
+                  ...years.map((y) => ({ value: y._id, label: y.name }))]} />
             )}
-      </Modal>
+            <Button onClick={startNew} disabled={!sections.length}>
+              <Icon name="plus" size={16} /> Share a document
+            </Button>
+          </>
+        }
+      />
 
-      {/* Review Modal */}
-      <Modal open={!!reviewSub} onClose={() => setReviewSub(null)} title={`Review — ${reviewSub?.student?.name || ''}`}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {!sections.length && (
+        <Alert variant="info">
+          You are not assigned to a section yet, so there is nowhere to share to.
+          You can still read everything shared with you.
+        </Alert>
+      )}
+
+      <ViewerStats>
+        <ViewerStat icon="files" tone="indigo" value={counts.shared} label="Shared with me"
+          caption="Notices, circulars and class material"
+          on={scope === 'shared'} onClick={() => { setScope('shared'); setTab('all'); }} />
+        <ViewerStat icon="upload" tone="purple" value={counts.mine} label="My uploads"
+          caption="What you have shared"
+          on={scope === 'mine'} onClick={() => { setScope('mine'); setTab('all'); }} />
+        <ViewerStat icon="clipboard" tone="green" value={counts.assignments} label="Assignments"
+          caption="Set across your sections" />
+        <ViewerStat icon="pencil" tone="amber" value={counts.toMark} label="To mark"
+          caption="Handed in, not yet marked" />
+      </ViewerStats>
+
+      <section className="card dvpanel">
+        <div className="dvscope" role="tablist" aria-label="Which documents">
+          {SCOPES.map((s) => (
+            <button key={s.value} type="button" role="tab" aria-selected={scope === s.value}
+              className={`dvscope__btn${scope === s.value ? ' is-on' : ''}`}
+              onClick={() => { setScope(s.value); setTab('all'); }}>
+              {s.label}<b>{s.value === 'mine' ? counts.mine ?? 0 : counts.shared ?? 0}</b>
+            </button>
+          ))}
+        </div>
+
+        <ViewerTabs tabs={TABS} value={tab} counts={tabCounts} onChange={setTab} />
+
+        <ViewerTools>
+          <SearchField value={search} onChange={setSearch} />
+          <Picker value={category} onChange={setCategory} all="All categories"
+            options={categories} label="Filter by category" />
+          <span className="dvtools__sep" />
+          <Picker value={sort} onChange={setSort} options={SORTS} label="Sort documents" />
+        </ViewerTools>
+
+        <DocList
+          docs={shown} loading={loading} onOpen={setOpen}
+          empty={<NothingHere filtered={filtered} onClear={clear}
+            what={scope === 'mine' ? 'uploads' : 'documents'} />}
+          badges={(d) => (d.isAssignment && d.mine
+            ? (
+              <span className={`dvpill dvpill--${d.submissionCount > d.markedCount ? 'warn' : 'yes'}`}>
+                <Icon name="checkCircle" size={12} /> {d.markedCount}/{d.submissionCount} marked
+              </span>
+            )
+            : null)}
+          actions={(d) => (
+            <>
+              {d.isAssignment && (
+                <button type="button" className="dvact" title="Open submissions"
+                  aria-label={`Open submissions for ${d.title}`}
+                  onClick={() => navigate(`/teacher/documents/${d._id}?tab=submissions`)}>
+                  <Icon name="users" size={15} />
+                </button>
+              )}
+              {d.mine && (
+                <button type="button" className="dvact" title="Edit" aria-label={`Edit ${d.title}`}
+                  onClick={() => startEdit(d)}>
+                  <Icon name="pencil" size={15} />
+                </button>
+              )}
+            </>
+          )}
+        />
+      </section>
+
+      <DocDrawer
+        doc={live}
+        onClose={() => setOpen(null)}
+        extra={live?.isAssignment && (
+          <section className="dvdrawer__sec">
+            <h4>Submissions</h4>
+            <dl>
+              <Field label="Handed in">{live.submissionCount}</Field>
+              <Field label="Marked">{live.markedCount}</Field>
+              {live.dueDate ? <Field label="Due">{fmtDate(live.dueDate)}</Field> : null}
+              {live.totalMarks ? <Field label="Out of">{live.totalMarks}</Field> : null}
+            </dl>
+            <Button variant="secondary" onClick={() => navigate(`/teacher/documents/${live._id}?tab=submissions`)}>
+              <Icon name="arrowRight" size={15} />
+              {live.mine ? 'Open marking screen' : 'Open submissions'}
+            </Button>
+          </section>
+        )}
+        foot={live && (
+          <>
+            {live.files?.[0] && (
+              <a className="btn btn-secondary" href={fileUrl(live.files[0].filePath)} target="_blank" rel="noreferrer">
+                <Icon name="download" size={15} /> Open the file
+              </a>
+            )}
+            {live.mine && (
+              <>
+                <button type="button" className="btn btn-danger" onClick={() => setDel(live)}>
+                  <Icon name="trash" size={15} /> Delete
+                </button>
+                <button type="button" className="btn btn-primary" onClick={() => startEdit(live)}>
+                  <Icon name="pencil" size={15} /> Edit
+                </button>
+              </>
+            )}
+          </>
+        )}
+      />
+
+      <Modal open={showForm} onClose={() => setShowForm(false)} maxWidth={560}
+        title={editing ? 'Edit document' : 'Share a document'}
         footer={<>
-          <Button variant="secondary" onClick={() => setReviewSub(null)}>Cancel</Button>
-          <Button onClick={handleReview} loading={reviewing}>Save</Button>
+          <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+          <Button onClick={save} loading={saving}>{editing ? 'Save changes' : 'Share'}</Button>
         </>}>
         <div className="form-group">
-          <label className="form-label">Marks</label>
-          <input type="number" className="form-control" value={reviewForm.marks} onChange={e => setReviewForm(f => ({ ...f, marks: e.target.value }))} placeholder="e.g. 18" />
+          <label className="form-label required">Title</label>
+          <input className="form-control" autoFocus maxLength={160} value={form.title}
+            placeholder="e.g. Chapter 5 — practice questions"
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
         </div>
+
         <div className="form-group">
-          <label className="form-label">Feedback</label>
-          <textarea className="form-control" rows={3} value={reviewForm.feedback} onChange={e => setReviewForm(f => ({ ...f, feedback: e.target.value }))} placeholder="Optional feedback" />
+          <label className="form-label">Description</label>
+          <textarea className="form-control" rows={2} maxLength={300} value={form.description}
+            placeholder="One line about what this is"
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </div>
-        {reviewSub?.files?.length > 0 && (
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Submitted Files</div>
-            <FileLinks files={reviewSub.files} />
+
+        <div className="dvform__row">
+          <div className="form-group">
+            <label className="form-label required">Type</label>
+            <select className="form-control" value={form.docType}
+              onChange={(e) => setForm((f) => ({
+                ...f,
+                docType: e.target.value,
+                isAssignment: e.target.value === 'assignment' ? true : f.isAssignment,
+              }))}>
+              {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label required">Category</label>
+            <select className="form-control" value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
+              <option value="">— Select —</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {!editing && (
+          <div className="form-group">
+            <label className="form-label required">Section</label>
+            <select className="form-control" value={form.sectionId}
+              onChange={(e) => setForm((f) => ({ ...f, sectionId: e.target.value }))}>
+              {sections.map((s) => <option key={s._id} value={s._id}>{s.label}</option>)}
+            </select>
+            <div className="form-hint">Everyone in that section sees it.</div>
           </div>
         )}
+
+        <label className="dvcheck">
+          <input type="checkbox" checked={form.isAssignment}
+            onChange={(e) => setForm((f) => ({
+              ...f,
+              isAssignment: e.target.checked,
+              docType: e.target.checked ? 'assignment' : (f.docType === 'assignment' ? 'other' : f.docType),
+            }))} />
+          <span>Students hand work in against this</span>
+        </label>
+
+        {form.isAssignment && (
+          <div className="dvform__row">
+            <div className="form-group">
+              <label className="form-label">Due date</label>
+              <input type="date" className="form-control" value={form.dueDate}
+                onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Out of</label>
+              <input type="number" min="1" className="form-control" value={form.totalMarks}
+                placeholder="e.g. 50"
+                onChange={(e) => setForm((f) => ({ ...f, totalMarks: e.target.value }))} />
+            </div>
+          </div>
+        )}
+
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">{editing ? 'Replace files' : 'Files'}</label>
+          <input type="file" className="form-control" multiple
+            onChange={(e) => setFiles(Array.from(e.target.files))} />
+          {files.length > 0
+            ? <div className="form-hint">{files.length} file(s) chosen</div>
+            : editing?.fileCount
+              ? <div className="form-hint">Leave empty to keep the {editing.fileCount} file(s) already attached.</div>
+              : null}
+        </div>
       </Modal>
+
+      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} loading={busy}
+        title="Delete document"
+        message={del ? `Delete “${del.title}”? Anything handed in against it goes with it.` : ''} />
     </div>
   );
 }

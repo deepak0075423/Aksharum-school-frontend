@@ -74,6 +74,18 @@ export const uploadDocument      = (data)   => api.post('/teacher/documents', da
 export const getDocument         = (id)     => api.get(`/teacher/documents/${id}`);
 export const updateDocument      = (id, data) => api.put(`/teacher/documents/${id}`, data);
 export const deleteDocument      = (id)     => api.delete(`/teacher/documents/${id}`);
+// One document, opened — the same four tabs the office gets, behind an access
+// check: a teacher reads anything shared with them, writes only their own.
+export const getAssignmentDetail    = (id, params) => api.get(`/teacher/documents/${id}/assignment`, { params });
+export const getAssignmentAnalytics = (id)        => api.get(`/teacher/documents/${id}/assignment/analytics`);
+export const reviewAssignment       = (id, studentId, data) => api.post(`/teacher/documents/${id}/submissions/${studentId}/review`, data);
+export const remindAssignment       = (id, data)  => api.post(`/teacher/documents/${id}/remind`, data || {});
+export const duplicateDocument      = (id)        => api.post(`/teacher/documents/${id}/duplicate`);
+export const getDocumentComments    = (id, params) => api.get(`/teacher/documents/${id}/comments`, { params });
+export const addDocumentComment     = (id, data)  => api.post(`/teacher/documents/${id}/comments`, data);
+export const updateDocumentComment  = (cid, data) => api.patch(`/teacher/documents/comments/${cid}`, data);
+export const deleteDocumentComment  = (cid)       => api.delete(`/teacher/documents/comments/${cid}`);
+export const likeDocumentComment    = (cid)       => api.post(`/teacher/documents/comments/${cid}/like`);
 export const getDocumentSubs     = (id)     => api.get(`/teacher/documents/${id}/submissions`);
 export const reviewSubmission    = (subId, data) => api.post(`/teacher/documents/submissions/${subId}/review`, data);
 export const getHolidays         = () => api.get('/teacher/holidays');

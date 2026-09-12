@@ -56,6 +56,7 @@ const ASubstitutions  = lazy(() => import('./pages/admin/Substitutions'));
 const AResults      = lazy(() => import('./pages/admin/Results'));
 const ALeave        = lazy(() => import('./pages/admin/Leave'));
 const ADocuments    = lazy(() => import('./pages/admin/Documents'));
+const ADocDetail    = lazy(() => import('./pages/admin/DocumentDetail'));
 const AHolidays     = lazy(() => import('./pages/admin/Holidays'));
 const AAttendance   = lazy(() => import('./pages/admin/Attendance'));
 const AExams        = lazy(() => import('./pages/admin/Exams'));
@@ -389,6 +390,7 @@ export default function App() {
             <Route path="results/*"       element={<AResults />} />
             <Route path="leave/*"         element={<ALeave />} />
             <Route path="documents"       element={<ADocuments />} />
+            <Route path="documents/:id"   element={<ADocDetail />} />
             <Route path="holidays"        element={<AHolidays />} />
             <Route path="attendance"      element={<AAttendance />} />
             <Route path="student-analytics"             element={<StudentAnalytics />} />
@@ -538,6 +540,7 @@ export default function App() {
             <Route path="results/*"    element={<TResults />} />
             <Route path="leave"        element={<TLeave />} />
             <Route path="documents"    element={<TDocuments />} />
+            <Route path="documents/:id" element={<ADocDetail />} />
             <Route path="payroll" element={<ModuleNav tabs={PAYROLL_TEACHER_TABS} />}>
               <Route index element={<Navigate to="ctc" replace />} />
               <Route path="ctc"      element={<PayMyCtc />} />
