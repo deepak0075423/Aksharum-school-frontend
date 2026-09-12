@@ -3,6 +3,10 @@ export const getDashboard    = () => api.get('/teacher/dashboard');
 export const getModules      = () => api.get('/teacher/modules');
 export const getSchoolConfig = () => api.get('/profile/school-config');
 export const getMySection   = () => api.get('/teacher/my-section');
+// Every section this teacher is attached to — class teacher, vice, or subject
+// teacher — which is exactly the set they may address a notification to.
+export const getMySections  = () => api.get('/teacher/sections');
+export const sendNotification = (data) => api.post('/teacher/notifications/send', data);
 export const getTeacherSection = (id) => api.get(`/teacher/sections/${id}`);
 export const createAnnouncement = (data) => api.post('/teacher/announcements', data);
 export const deleteAnnouncement = (id) => api.delete(`/teacher/announcements/${id}`);

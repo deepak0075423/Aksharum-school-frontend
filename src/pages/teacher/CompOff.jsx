@@ -280,7 +280,9 @@ export default function TeacherCompOff() {
                 </thead>
                 <tbody>
                   {shown.map((r, i) => (
-                    <tr key={r._id}>
+                    // data-focus-id so a comp-off notification can flag the request it
+                    // names — see hooks/useFocusHighlight.js.
+                    <tr key={r._id} data-focus-id={r._id}>
                       <td className="lvt-num">{(pageNow - 1) * PAGE + i + 1}</td>
                       <td>
                         <div className="lvperiod">
@@ -601,7 +603,7 @@ function MyLedger() {
             </thead>
             <tbody>
               {shown.map((r, i) => (
-                <tr key={r._id}>
+                <tr key={r._id} data-focus-id={r._id}>
                   <td className="lvt-num">{(pageNow - 1) * PAGE + i + 1}</td>
                   <td className="lvt-applied">{fmtDate(r.createdAt)}</td>
                   <td className="lvt-dept">

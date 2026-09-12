@@ -84,11 +84,13 @@ export function Avatar({ name, src, size = 38, tone = 'indigo' }) {
  *
  * `trail` carries the steps in between for a page that sits under another one —
  * a class's sections are reached through Classes, and the crumb has to be able
- * to say so.
+ * to say so. `home` is for the screens a teacher, student or parent also
+ * reaches — their Dashboard is not the admin one, and a crumb that walks
+ * someone into a page they cannot open is worse than no crumb.
  */
-export const Crumbs = ({ here, trail = [] }) => (
+export const Crumbs = ({ here, trail = [], home = '/admin/dashboard' }) => (
   <div className="breadcrumb">
-    <Link to="/admin/dashboard">Dashboard</Link>
+    <Link to={home}>Dashboard</Link>
     {trail.map((step) => (
       <React.Fragment key={step.to}>
         <span aria-hidden>›</span>

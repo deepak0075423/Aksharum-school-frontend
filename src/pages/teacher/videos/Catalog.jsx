@@ -56,7 +56,8 @@ export default function TeacherCatalog() {
           : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 16 }}>
               {data.items.map(v => (
-                <div key={v._id} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                // data-focus-id so a notification about one video can flag its card.
+                <div key={v._id} data-focus-id={v._id} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
                   <div style={{ aspectRatio: '16/9', background: v.thumbnailUrl ? `center/cover url(${v.thumbnailUrl})` : 'linear-gradient(135deg,#4f46e5,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!v.thumbnailUrl && <span style={{ fontSize: 30 }}>🎬</span>}</div>
                   <div style={{ padding: 12 }}>
                     <div style={{ fontWeight: 600, fontSize: '.9rem', minHeight: 38, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{v.title}</div>

@@ -342,7 +342,10 @@ export const HolidayRow = ({ h, types, onPick, meta }) => {
   const state = statusOf(h);
 
   return (
-    <li className="holtch-row">
+    // data-focus-id so a "new holiday" notification can flag this one — the
+    // student and parent holiday screens are card lists, not tables, and
+    // <ListTable> is what adds it everywhere else. See hooks/useFocusHighlight.
+    <li className="holtch-row" data-focus-id={h._id}>
       <span className="holtch-row__date">
         <b>{dd}</b>
         <small>{SHORT_MONTHS[Number(mm) - 1]}</small>

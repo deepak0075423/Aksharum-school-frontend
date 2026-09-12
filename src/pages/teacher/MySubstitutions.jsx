@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PageHeader, Card, Badge, Spinner, Empty, Input, StatCard } from '../../components/ui/index';
 import { getMySubstitutions } from '../../api/substitute.api';
@@ -70,8 +71,17 @@ function DutyRow({ d, mine }) {
 }
 
 export default function MySubstitutions() {
-  const [from, setFrom]       = useState(todayIso());
-  const [to, setTo]           = useState(plusDays(todayIso(), 14));
+  // The list opens on the next fortnight. A notification about a duty outside
+  // that window — last month's cover, or one two months out — would land on a
+  // range that does not contain it, so the range is widened to take in the day
+  // the notification names rather than replaced by it.
+  const [params] = useSearchParams();
+  const wanted   = params.get('date');
+  const [from, setFrom]       = useState(() => (wanted && wanted < todayIso() ? wanted : todayIso()));
+  const [to, setTo]           = useState(() => {
+    const fortnight = plusDays(todayIso(), 14);
+    return wanted && wanted > fortnight ? wanted : fortnight;
+  });
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
 

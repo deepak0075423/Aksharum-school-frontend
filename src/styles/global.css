@@ -12278,3 +12278,294 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .lvstats, .lvstats--4 { grid-template-columns: 1fr; }
   .lvfoot  { justify-content: center; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOTIFICATIONS — the admin mailbox
+   ───────────────────────────────────────────────────────────────────────────
+   Prefixed `nf-`/`nf`. Borrows the admin list frame's page, card, toolbar,
+   menu and footer (.listpg, .card, .ltools, .lmenu, .lfoot) and adds the parts
+   a mailbox needs that a table does not: a tab strip that carries counts, and
+   a row that leads with a headline rather than a column.
+
+   The only colours declared here are the three priority tints. They sit beside
+   the word — "High" is written on the pill — so the colour is a second channel
+   and never the only one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header ────────────────────────────────────────────────────────────────
+   The list frame's three-part header, with a marked badge in front of the
+   title: this page is reached from the bell, and the badge is what says the
+   two are the same thing. */
+.nfhero { grid-template-columns: minmax(0, 1fr) auto minmax(280px, 340px); }
+.nfhero__lead { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.nfhero__badge {
+  width: 62px; height: 62px; border-radius: 18px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #eef2ff; color: var(--primary);
+}
+.nfhero__art { width: 190px; }
+
+.nfhero__tip {
+  background:    #eef2ff;
+  border:        1px solid #c7d2fe;
+  border-radius: var(--radius-xl);
+  padding:       16px 20px;
+}
+.nfhero__tip h2 { font-size: .92rem; font-weight: 700; color: var(--primary-dark); }
+.nfhero__tip p  { font-size: .82rem; line-height: 1.55; color: #4338ca; margin-top: 6px; }
+/* A short rule under the text rather than a progress bar — nothing here is in
+   progress, and a bar that never moves is a lie about the state of something. */
+.nfhero__rule {
+  display: block; width: 54px; height: 3px; border-radius: 2px;
+  background: var(--primary); margin-top: 12px;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────
+   On the page rather than inside the card: they choose which mailbox the card
+   is showing, and the actions beside them apply to that choice. */
+.nftabs {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.nftabs__set {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 5px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.nftabs__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+.nftab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 9px;
+  border: 1px solid transparent; background: none;
+  font-size: .86rem; font-weight: 600; color: var(--text-muted);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.nftab svg   { color: currentColor; }
+.nftab:hover { color: var(--primary); background: var(--bg); }
+.nftab.is-on { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
+
+.nftab__n {
+  min-width: 21px; padding: 1px 7px; border-radius: 999px;
+  background: var(--bg); color: var(--text-muted);
+  font-size: .72rem; font-weight: 700; text-align: center;
+}
+/* The unread count is the one number on this strip that is asking for
+   something, so it is the one that is filled in. */
+.nftab__n--accent { background: var(--primary); color: #fff; }
+.nftab.is-on .nftab__n { background: #fff; color: var(--primary); }
+.nftab.is-on .nftab__n--accent { background: var(--primary); color: #fff; }
+
+/* ── The list ──────────────────────────────────────────────────────────────── */
+.nfloading { display: flex; justify-content: center; padding: 64px; }
+.nflist  { display: flex; flex-direction: column; }
+
+.nfrow {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 18px 0 0;
+  border-top: 1px solid var(--border);
+  transition: background var(--transition);
+}
+.nfrow:hover { background: var(--bg); }
+/* An unread row carries a rail on its leading edge as well as the dot — at a
+   glance down the list the rail is what reads, not eight small circles. */
+.nfrow.is-unread { background: #fafaff; box-shadow: inset 3px 0 0 var(--primary); }
+.nfrow.is-unread:hover { background: #f5f5ff; }
+
+/* The one just opened, and it stays marked after the panel closes: having read
+   one of forty near-identical rows, the question is which one that was. The
+   rail is thicker than the unread one and the tint is stronger, so an active
+   row that is also unread still reads as active. */
+.nfrow.is-active,
+.nfrow.is-active.is-unread { background: #eef2ff; box-shadow: inset 4px 0 0 var(--primary); }
+.nfrow.is-active:hover,
+.nfrow.is-active.is-unread:hover { background: #e6ebff; }
+
+/* A ticked row. Distinct from active, because they mean different things and
+   often overlap — one row can be both the one you opened and one of six you
+   are about to delete. */
+.nfrow.is-picked,
+.nfrow.is-picked.is-unread { background: #f5f3ff; }
+.nfrow.is-picked:hover { background: #ede9fe; }
+
+.nfrow__tick { display: flex; align-items: center; padding: 0 0 0 18px; cursor: pointer; }
+.nfrow__tick input {
+  width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); display: block;
+}
+/* The tick takes over the row's left inset, so the message does not shift. */
+.nfrow__tick + .nfrow__open { padding-left: 12px; }
+
+/* The whole row opens it; the trailing controls are the other actions. */
+.nfrow__open {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 8px 16px 18px;
+  background: none; border: none; font: inherit; color: inherit;
+  text-align: left; cursor: pointer;
+}
+.nfrow__dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--border); background: none;
+}
+.nfrow__dot.is-on { background: var(--primary); border-color: var(--primary); }
+
+.nfrow__icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center;
+}
+
+.nfrow__body  { display: block; min-width: 0; flex: 1; }
+.nfrow__title {
+  display: block; font-size: .9rem; font-weight: 600; line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nfrow.is-unread .nfrow__title { font-weight: 700; }
+/* One line, clipped. The body is read in the panel; here it is a reminder of
+   which notification this is, and a three-line row makes the list unscannable. */
+.nfrow__text {
+  display: block; margin-top: 3px;
+  font-size: .82rem; line-height: 1.45; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nfrow__meta {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  margin-top: 6px; font-size: .74rem; color: var(--text-light);
+}
+.nfrow__meta b    { font-weight: 600; color: var(--text-muted); }
+.nfrow__meta i    { font-style: normal; color: var(--border); }
+.nfrow__meta time { color: var(--text-light); }
+
+.nfrow__end { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.nfrow__act { white-space: nowrap; }
+.nfrow__act--on { border-color: #c7d2fe; color: var(--primary); }
+
+/* ── Select, then act ──────────────────────────────────────────────────────
+   One bar, always present above the list: the select-all tick lives here (a
+   tick that only appears once something is selected is a chicken-and-egg), and
+   the actions join it when there is something to act on. */
+.nfbulk {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-size: .82rem; color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.nfbulk.is-on {
+  background: #eef2ff; color: var(--primary-dark); font-weight: 600;
+  border-bottom: 1px solid #c7d2fe;
+}
+.nfbulk__tick { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.nfbulk__tick input {
+  width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); display: block;
+}
+.nfbulk__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+/* ── Priority ──────────────────────────────────────────────────────────────
+   The word is always printed; the tint is a second channel on top of it. */
+.nfprio {
+  display: inline-block; padding: 3px 11px; border-radius: 999px;
+  font-size: .73rem; font-weight: 700; white-space: nowrap;
+}
+.nfprio--high   { background: #ffe4e6; color: #be123c; }
+.nfprio--medium { background: #fef3c7; color: #b45309; }
+.nfprio--low    { background: #dcfce7; color: #047857; }
+
+/* ── One notification, opened ──────────────────────────────────────────────── */
+.nfdetail__head .nfrow__icon { width: 46px; height: 46px; }
+.nfdetail { padding: 20px 22px; overflow-y: auto; flex: 1; }
+.nfdetail__tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nfdetail__tag {
+  padding: 3px 11px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: .73rem; font-weight: 600; color: var(--text-muted);
+}
+/* The message, at reading size — this panel exists for notifications whose
+   body is the whole point. */
+.nfdetail__body {
+  margin-top: 16px; font-size: .94rem; line-height: 1.7;
+  color: var(--text); white-space: pre-wrap;
+}
+.nfdetail__facts {
+  margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border);
+}
+
+/* ── Sent ──────────────────────────────────────────────────────────────────── */
+.nfsent__what b {
+  display: block; font-size: .88rem; font-weight: 600; line-height: 1.35;
+}
+.nfsent__what small {
+  display: block; margin-top: 3px; max-width: 320px;
+  font-size: .77rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* How much of the audience opened it. The bar is the shape; the count beside
+   it is the answer, because a bar alone cannot say "12 of 340". */
+.nfread { min-width: 130px; }
+.nfread__bar {
+  height: 6px; border-radius: 3px; background: var(--border); overflow: hidden;
+}
+.nfread__bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px; }
+.nfread__n { display: block; margin-top: 5px; font-size: .74rem; color: var(--text-muted); }
+
+.nfcol-what { min-width: 260px; }
+.nfcol-aud  { width: 170px; }
+.nfcol-chan { width: 140px; }
+.nfcol-read { width: 160px; }
+.nfcol-when { width: 150px; }
+
+/* ── The composer's pickers ────────────────────────────────────────────────
+   Radios and checkboxes as pills, so a choice of three reads as three options
+   rather than as a paragraph with dots in it. */
+.nfpick { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
+.nfpick__opt {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  font-size: .85rem; cursor: pointer; user-select: none;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+.nfpick__opt:hover  { border-color: #c7d2fe; }
+.nfpick__opt.is-on  { border-color: var(--primary); background: #eef2ff; color: var(--primary-dark); font-weight: 600; }
+.nfpick__opt input  { accent-color: var(--primary); cursor: pointer; }
+
+/* A line of context above the form — who a teacher may write to, or why a
+   picker is empty. Never an error; it is the rule, stated before it is hit. */
+.nfnote {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 0 16px; padding: 10px 13px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: .8rem; line-height: 1.5; color: var(--text-muted);
+}
+.nfnote svg { flex-shrink: 0; margin-top: 2px; color: var(--text-light); }
+.nfnote--warn {
+  margin: 8px 0 0; background: #fffbeb; border-color: #fde68a; color: #92400e;
+}
+.nfnote--warn svg { color: #d97706; }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .nfhero { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
+  .nfhero__art { display: none; }
+}
+@media (max-width: 860px) {
+  .nfhero { grid-template-columns: 1fr; }
+  .nftabs__acts { margin-left: 0; width: 100%; }
+  .nftabs__acts .btn { flex: 1; justify-content: center; }
+  /* The row becomes two rows: the message, then what can be done about it. */
+  .nfrow { flex-wrap: wrap; padding-right: 0; }
+  .nfrow__open { padding-bottom: 8px; }
+  .nfrow__end  { width: 100%; padding: 0 18px 16px 61px; justify-content: flex-start; }
+  .nfrow__tick + .nfrow__open + .nfrow__end { padding-left: 87px; }
+}
+@media (max-width: 560px) {
+  .nfhero__badge { width: 50px; height: 50px; border-radius: 14px; }
+  .nfrow__open { gap: 11px; padding-left: 14px; }
+  .nfrow__icon { width: 36px; height: 36px; border-radius: 10px; }
+  .nfrow__end  { padding-left: 14px; flex-wrap: wrap; }
+  .nfrow__tick + .nfrow__open + .nfrow__end { padding-left: 14px; }
+  .nfrow__tick { padding-left: 14px; }
+  .nfbulk { padding: 10px 14px; }
+  .ltools .lsel { flex: 1 1 150px; width: auto; }
+}

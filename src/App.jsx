@@ -53,7 +53,6 @@ const TTRooms         = lazy(() => import('./pages/timetable/admin/Rooms'));
 const TTReports       = lazy(() => import('./pages/timetable/admin/Reports'));
 const TTConfiguration = lazy(() => import('./pages/timetable/admin/Configuration'));
 const ASubstitutions  = lazy(() => import('./pages/admin/Substitutions'));
-const ANotifications= lazy(() => import('./pages/admin/Notifications'));
 const AResults      = lazy(() => import('./pages/admin/Results'));
 const ALeave        = lazy(() => import('./pages/admin/Leave'));
 const ADocuments    = lazy(() => import('./pages/admin/Documents'));
@@ -385,7 +384,7 @@ export default function App() {
               <Route path="reports"           element={<TTReports />} />
               <Route path="configuration"     element={<TTConfiguration />} />
             </Route>
-            <Route path="notifications"   element={<ANotifications />} />
+            <Route path="notifications"   element={<SharedNotifications />} />
             <Route path="exams"           element={<AExams />} />
             <Route path="results/*"       element={<AResults />} />
             <Route path="leave/*"         element={<ALeave />} />

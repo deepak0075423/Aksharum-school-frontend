@@ -117,6 +117,8 @@ export function FinesView({
               <div className="libsr-tablewrap">
                 <table className="libsr-table libfn-table">
                   <thead>
+                    {/* Rows carry data-focus-id so a notification about one
+                        fine can flag it — see hooks/useFocusHighlight.js. */}
                     <tr>
                       <th className="libfn-num">#</th>
                       <th>Description</th>
@@ -129,7 +131,7 @@ export function FinesView({
                   </thead>
                   <tbody>
                     {pending.map((f, i) => (
-                      <tr key={f._id}>
+                      <tr key={f._id} data-focus-id={f._id}>
                         <td className="libfn-num">{i + 1}</td>
                         <td>
                           <strong>{TYPE_LABEL[f.fineType] || f.fineType}</strong>
@@ -199,7 +201,7 @@ export function FinesView({
                   </thead>
                   <tbody>
                     {settled.map((f, i) => (
-                      <tr key={f._id}>
+                      <tr key={f._id} data-focus-id={f._id}>
                         <td className="libfn-num">{i + 1}</td>
                         <td>
                           <strong>{TYPE_LABEL[f.fineType] || f.fineType}</strong>

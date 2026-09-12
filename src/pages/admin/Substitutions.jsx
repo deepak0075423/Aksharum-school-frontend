@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   PageHeader, Card, Button, Badge, Spinner, Modal, Empty, Table,
@@ -186,7 +187,11 @@ function CandidateModal({ assignment, onClose, onDone }) {
 function PeriodRow({ p, onPick, onCancel }) {
   const covered = p.status === 'assigned';
   return (
-    <div style={{
+    // `p._id` is the SubstituteAssignment, which is what a cover notification
+    // names — so data-focus-id lets it flag this exact period. The board is a
+    // card list rather than a table, so nothing adds this for it: the only
+    // <Table> on this page is the Workload tab, listing teachers.
+    <div data-focus-id={p._id} style={{
       display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
       borderTop: '1px solid var(--border)', flexWrap: 'wrap',
     }}>
@@ -700,8 +705,13 @@ const TABS = [
 ];
 
 export default function Substitutions() {
+  // A substitution notification carries the day it is about. The board opens on
+  // today, so without this the reader lands on a board that will never render
+  // the cover they were told about — and the ?focus= highlight waits for a row
+  // that cannot arrive.
+  const [params] = useSearchParams();
   const [tab, setTab]   = useState('board');
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(() => params.get('date') || todayIso());
 
   return (
     <div className="page">

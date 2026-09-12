@@ -11,7 +11,8 @@ const fmtDur = (s) => { if (!s) return ''; const m = Math.floor(s / 60), sec = s
 
 function VideoCard({ v, onClick, progress }) {
   return (
-    <div onClick={onClick} style={{ cursor: 'pointer', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface, #fff)', transition: 'transform .12s', display: 'flex', flexDirection: 'column' }}
+    // data-focus-id so a notification about one video can flag its card.
+    <div onClick={onClick} data-focus-id={v._id} style={{ cursor: 'pointer', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface, #fff)', transition: 'transform .12s', display: 'flex', flexDirection: 'column' }}
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
       onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
       <div style={{ position: 'relative', aspectRatio: '16/9', background: v.thumbnailUrl ? `center/cover url(${v.thumbnailUrl})` : 'linear-gradient(135deg,#4f46e5,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

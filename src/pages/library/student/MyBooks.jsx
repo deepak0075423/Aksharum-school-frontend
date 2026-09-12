@@ -223,8 +223,10 @@ export default function LibraryMyBooks() {
                 {slice.map((r, i) => {
                   const st  = STATUS[stateOf(r)] || { label: r.status || '—', tone: 'slate' };
                   const due = r.fineSummary?.outstanding || 0;
+                  // data-focus-id is how a notification about one loan finds
+                  // its row — see hooks/useFocusHighlight.js.
                   return (
-                    <tr key={r._id}>
+                    <tr key={r._id} data-focus-id={r._id}>
                       <td className="libmb-num">{from + i}</td>
                       <td>
                         <div className="libsr-book">
