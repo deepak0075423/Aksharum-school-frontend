@@ -391,6 +391,77 @@ export function DocDrawer({ doc, onClose, extra, foot }) {
   );
 }
 
+/**
+ * Choosing files, without a browse dialog being the only way in.
+ *
+ * A plain `<input type="file">` tells you nothing once you have picked: not
+ * what you chose, not how big it is, and there is no way to drop one back out
+ * without starting again. This shows the list, sizes it, and lets a file be
+ * removed — which matters most on the one screen where the wrong attachment
+ * goes to a whole class.
+ *
+ * Files accumulate rather than replace: picking twice adds to the list, because
+ * "choose 3 files" and "choose 1 file, then 2 more" are the same intention and
+ * only one of them used to work.
+ */
+export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
+  const [over, setOver] = useState(false);
+
+  const add = (picked) => {
+    const list = [...files];
+    for (const f of picked) {
+      // Same name and size twice is the same file picked twice, not two files.
+      if (!list.some((x) => x.name === f.name && x.size === f.size)) list.push(f);
+    }
+    onChange(list.slice(0, max));
+  };
+
+  const total = files.reduce((n, f) => n + f.size, 0);
+
+  return (
+    <div className="dvdrop">
+      <label
+        className={`dvdrop__zone${over ? ' is-over' : ''}`}
+        htmlFor={id}
+        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => { e.preventDefault(); setOver(false); add(Array.from(e.dataTransfer.files || [])); }}
+      >
+        <span className="dvdrop__icon"><Icon name="upload" size={20} /></span>
+        <span className="dvdrop__text">
+          <b>Drop files here, or browse</b>
+          <small>{hint || `Up to ${max} files`}</small>
+        </span>
+        <input id={id} type="file" multiple
+          onChange={(e) => { add(Array.from(e.target.files || [])); e.target.value = ''; }} />
+      </label>
+
+      {files.length > 0 && (
+        <>
+          <ul className="dvdrop__list">
+            {files.map((f) => (
+              <li key={`${f.name}-${f.size}`}>
+                <FileMark file={{ originalName: f.name, mimeType: f.type }} size={30} />
+                <span className="dvfiles__name" title={f.name}>{f.name}</span>
+                <span className="dvfiles__size">{fmtSize(f.size)}</span>
+                <button type="button" className="dvact" title={`Remove ${f.name}`}
+                  aria-label={`Remove ${f.name}`}
+                  onClick={() => onChange(files.filter((x) => !(x.name === f.name && x.size === f.size)))}>
+                  <Icon name="close" size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="dvdrop__sum">
+            {files.length} file{files.length === 1 ? '' : 's'} · {fmtSize(total)}
+            <button type="button" onClick={() => onChange([])}>Remove all</button>
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Filtering, shared by all three pages ─────────────────────────────────────
 
 const TAB_TYPES = {

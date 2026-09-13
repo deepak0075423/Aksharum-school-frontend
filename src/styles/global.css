@@ -14106,3 +14106,282 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .dvcard__sub { max-width: none; white-space: normal; }
   .dvcard__end { padding-left: 0; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARE A DOCUMENT — the teacher's upload form
+   ───────────────────────────────────────────────────────────────────────────
+   Four numbered blocks instead of a stack of labels: what it is, who gets it,
+   how it is filed, what is attached. The kind of document leads because it
+   decides what the rest of the form asks for.
+
+   Prefixed `sh`; the dropzone it uses is `dvdrop` in the shared viewer kit.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.shform { display: flex; flex-direction: column; gap: 6px; }
+
+.shblock { padding: 4px 0 18px; }
+.shblock + .shblock { border-top: 1px solid var(--border); padding-top: 18px; }
+.shblock > header { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 14px; }
+.shblock__step {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+  font-size: .76rem; font-weight: 700;
+}
+.shblock > header h4 { font-size: .95rem; font-weight: 700; line-height: 1.3; }
+.shblock > header p  { font-size: .79rem; color: var(--text-muted); margin-top: 2px; line-height: 1.5; }
+/* Indented to the step number's column, so the four blocks read as a sequence. */
+.shblock__body { padding-left: 35px; }
+
+/* ── The kind of document ──────────────────────────────────────────────────── */
+.shtypes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 9px;
+  margin-bottom: 16px;
+}
+.shtype {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  padding: 11px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card); text-align: left; font: inherit;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+.shtype:hover  { border-color: #c7d2fe; }
+.shtype.is-on  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); background: #f8faff; }
+.shtype__icon {
+  width: 32px; height: 32px; border-radius: 10px; margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.shtype b     { font-size: .82rem; font-weight: 600; line-height: 1.3; }
+.shtype small { font-size: .71rem; color: var(--text-muted); line-height: 1.35; }
+
+/* ── Sections ──────────────────────────────────────────────────────────────
+   Chips rather than a multi-select list: a teacher has two or three sections,
+   and a <select multiple> is the one control nobody knows how to use. */
+.shsections { display: flex; flex-wrap: wrap; gap: 8px; }
+.shsections.is-bad { outline: 2px solid #fecaca; outline-offset: 4px; border-radius: var(--radius); }
+.shchip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: 99px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  font-size: .84rem; font-weight: 500; color: var(--text);
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+.shchip svg { color: var(--text-light); flex-shrink: 0; }
+.shchip:hover { border-color: #c7d2fe; }
+.shchip.is-on {
+  background: #eef2ff; border-color: var(--primary); color: var(--primary-dark); font-weight: 600;
+}
+.shchip.is-on svg { color: var(--primary); }
+
+.shlink {
+  margin-top: 10px; padding: 0; background: none; border: none;
+  font-size: .8rem; font-weight: 600; color: var(--primary);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.shnone { font-size: .84rem; color: var(--text-muted); line-height: 1.55; }
+
+/* ── Rows and toggles ──────────────────────────────────────────────────────── */
+.shrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.shtoggle {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  cursor: pointer; transition: border-color var(--transition);
+}
+.shtoggle:hover { border-color: #c7d2fe; }
+.shtoggle input { accent-color: var(--primary); width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; }
+.shtoggle b     { display: block; font-size: .85rem; font-weight: 600; }
+.shtoggle small { display: block; font-size: .75rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45; }
+.shtoggle--sub  { border: none; padding: 10px 0 0; }
+
+/* The assignment fields, marked as belonging to the toggle above them. */
+.shassign {
+  margin-top: 12px; padding: 14px;
+  background: var(--bg); border-radius: var(--radius-lg);
+  border-left: 3px solid var(--primary-light);
+}
+.shassign .form-group:last-of-type { margin-bottom: 0; }
+
+/* ── Files already attached ────────────────────────────────────────────────── */
+.shkept { margin-top: 12px; }
+.shkept > p {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .77rem; color: var(--text-muted); margin-bottom: 7px;
+}
+.shkept ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.shkept li {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--bg); border-radius: var(--radius); padding: 6px 9px;
+}
+
+/* ── Errors ────────────────────────────────────────────────────────────────── */
+.sherr {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .76rem; font-weight: 500; color: var(--danger); margin-top: 5px;
+}
+.form-control.is-bad { border-color: #fca5a5; }
+.form-control.is-bad:focus { box-shadow: 0 0 0 3px rgba(239,68,68,.12); }
+
+/* What pressing the button will do, beside the button. */
+.shsummary {
+  display: inline-flex; align-items: center; gap: 6px; margin-right: auto;
+  font-size: .79rem; color: var(--text-muted);
+}
+.shsummary svg { color: var(--primary); flex-shrink: 0; }
+
+/* ── The dropzone (shared kit, styled here) ────────────────────────────────── */
+.dvdrop__zone {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px; cursor: pointer;
+  border: 1.5px dashed var(--border); border-radius: var(--radius-lg);
+  background: var(--bg);
+  transition: border-color var(--transition), background var(--transition);
+}
+.dvdrop__zone:hover, .dvdrop__zone.is-over {
+  border-color: var(--primary); background: #f8faff;
+}
+.dvdrop__zone input { display: none; }
+.dvdrop__icon {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.dvdrop__text b     { display: block; font-size: .86rem; font-weight: 600; }
+.dvdrop__text small { display: block; font-size: .75rem; color: var(--text-muted); margin-top: 1px; }
+
+.dvdrop__list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.dvdrop__list li {
+  display: flex; align-items: center; gap: 9px;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 8px;
+}
+.dvdrop__sum {
+  display: flex; align-items: center; gap: 10px;
+  font-size: .76rem; color: var(--text-muted); margin-top: 8px;
+}
+.dvdrop__sum button {
+  margin-left: auto; padding: 0; background: none; border: none;
+  font-size: .76rem; font-weight: 600; color: var(--danger);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* The step column costs more than it explains on a phone. */
+  .shblock__body { padding-left: 0; }
+  .shrow { grid-template-columns: 1fr; }
+  .shtypes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shsummary { order: -1; width: 100%; margin-right: 0; margin-bottom: 6px; }
+}
+
+/* ── Share a document: the office's extras ─────────────────────────────────
+   The admin form is the teacher's with a harder second question. A teacher
+   picks from two or three sections they stand in front of; an administrator is
+   aiming at a whole school, so the audience is chosen in two steps — how wide,
+   then exactly which — and the reach is stated before it is sent.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* How wide it goes. */
+.shaud {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: 9px;
+  margin-bottom: 14px;
+}
+.shaud__btn {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card); text-align: left; font: inherit;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+.shaud__btn:hover { border-color: #c7d2fe; }
+.shaud__btn.is-on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); background: #f8faff; }
+.shaud__btn > svg { color: var(--text-light); flex-shrink: 0; margin-top: 2px; }
+.shaud__btn.is-on > svg { color: var(--primary); }
+.shaud__btn b     { display: block; font-size: .84rem; font-weight: 600; }
+.shaud__btn small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 1px; line-height: 1.35; }
+
+/* Exactly which. Boxed and scrollable, because a school with thirty sections
+   would otherwise push the rest of the form off the bottom of the dialog. */
+.shpick {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 12px; background: var(--bg);
+}
+.shpick.is-bad { border-color: #fca5a5; }
+.shpick__bar { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+.shpick__find { position: relative; flex: 1; min-width: 0; }
+.shpick__find > svg {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.shpick__find input { padding-left: 32px; font-size: .84rem; background: var(--bg-card); }
+.shpick .shsections,
+.shpick .shrows { max-height: 232px; overflow-y: auto; }
+
+.shchip em {
+  font-style: normal; font-size: .72rem; font-weight: 700;
+  background: var(--bg); border-radius: 5px; padding: 1px 6px; color: var(--text-muted);
+}
+.shchip.is-on em { background: #dbe3ff; color: var(--primary-dark); }
+.shchip--sm { padding: 5px 11px; font-size: .8rem; }
+
+/* One class per row, its sections beside it. */
+.shrows { display: flex; flex-direction: column; gap: 8px; }
+.shrow2 {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 8px 10px;
+}
+.shrow2__head {
+  display: inline-flex; align-items: center; gap: 7px;
+  flex: 0 0 156px; padding: 4px 0;
+  font-size: .84rem; font-weight: 600; color: var(--text); text-align: left;
+  background: none; border: none;
+}
+.shrow2__head svg    { color: var(--text-light); flex-shrink: 0; }
+.shrow2__head small  { font-size: .7rem; font-weight: 500; color: var(--text-light); margin-left: auto; padding-right: 8px; }
+.shrow2__head.is-on       { color: var(--primary); }
+.shrow2__head.is-on svg   { color: var(--primary); }
+.shrow2__head.is-part svg { color: var(--warning); }
+.shrow2__secs { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+
+.shreach {
+  display: flex; align-items: center; gap: 7px; margin-top: 11px;
+  padding: 9px 12px; border-radius: var(--radius);
+  background: #eef2ff; color: var(--primary-dark); font-size: .82rem;
+}
+.shreach svg { color: var(--primary); flex-shrink: 0; }
+
+.shrow--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* ── The question breakdown ────────────────────────────────────────────────── */
+.shq {
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);
+}
+.shq > header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.shq > header b     { display: block; font-size: .84rem; font-weight: 600; }
+.shq > header small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+.shq__list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.shq__list li { display: flex; align-items: center; gap: 8px; }
+/* Name takes the room; the mark is a small box beside it. */
+.shq__list li > input:first-child { flex: 1; min-width: 0; }
+.shq__list li > input:nth-child(2) { flex: 0 0 92px; }
+.shq__sum {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 9px; font-size: .78rem; color: var(--text-muted);
+}
+/* Said, not enforced — a paper marked out of 50 with 45 in named questions and
+   5 for presentation is a real paper. */
+.shq__sum.is-off em {
+  font-style: normal; font-weight: 600; color: #b45309;
+  background: #fffbeb; border-radius: 6px; padding: 2px 8px;
+}
+
+@media (max-width: 640px) {
+  .shaud { grid-template-columns: 1fr; }
+  .shrow--3 { grid-template-columns: 1fr; }
+  .shrow2__head { flex: 1 1 100%; }
+}

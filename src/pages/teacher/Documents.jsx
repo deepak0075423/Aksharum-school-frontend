@@ -21,18 +21,14 @@ import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, uploadDocument, updateDocument, deleteDocument, getDocumentCategories,
 } from '../../api/teacher.api';
-import { Alert, Button, Confirm, Modal, Spinner } from '../../components/ui/index';
+import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
   DocList, DocDrawer, NothingHere, Field,
-  TABS, SORTS, applyFilters, fmtDate, fileUrl, DOC_TYPES,
+  TABS, SORTS, applyFilters, fmtDate, fileUrl,
 } from '../documents/viewerParts';
-
-const EMPTY = {
-  title: '', description: '', docType: 'notice', category: '',
-  sectionId: '', isAssignment: false, dueDate: '', totalMarks: '',
-};
+import ShareDocument from './ShareDocument';
 
 const SCOPES = [
   { value: 'shared', label: 'Shared with me' },
@@ -63,8 +59,6 @@ export default function TeacherDocuments() {
   const [sort,     setSort]     = useState('newest');
   const [open,     setOpen]     = useState(null);
 
-  const [form,     setForm]     = useState(EMPTY);
-  const [files,    setFiles]    = useState([]);
   const [editing,  setEditing]  = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -95,35 +89,10 @@ export default function TeacherDocuments() {
   const live  = open ? all.find((d) => d._id === open._id) || open : null;
 
   // ── Upload / edit ──────────────────────────────────────────────────────────
-  const startNew = () => {
-    setEditing(null);
-    setForm({ ...EMPTY, sectionId: sections[0]?._id || '' });
-    setFiles([]);
-    setShowForm(true);
-  };
+  const startNew  = () => { setEditing(null); setShowForm(true); };
+  const startEdit = (d)  => { setOpen(null); setEditing(d); setShowForm(true); };
 
-  const startEdit = (d) => {
-    setEditing(d);
-    setForm({
-      title: d.title,
-      description: d.description || '',
-      docType: d.docType || 'notice',
-      category: d.category || '',
-      sectionId: '',
-      isAssignment: !!d.isAssignment,
-      dueDate: d.dueDate ? String(d.dueDate).slice(0, 10) : '',
-      totalMarks: d.totalMarks == null ? '' : String(d.totalMarks),
-    });
-    setFiles([]);
-    setOpen(null);
-    setShowForm(true);
-  };
-
-  const save = async () => {
-    if (!form.title.trim()) return toast.error('Title is required');
-    if (!form.category)     return toast.error('Category is required');
-    if (!editing && !form.sectionId) return toast.error('Choose the section this is for');
-
+  const save = async (form, files) => {
     setSaving(true);
     try {
       const fd = new FormData();
@@ -131,23 +100,26 @@ export default function TeacherDocuments() {
       fd.append('description', form.description);
       fd.append('docType', form.docType);
       fd.append('category', form.category);
+      fd.append('subject', form.subject);
+      // Always sent both ways: the edit endpoint reads `undefined` as "leave it
+      // alone", so an assignment un-ticked would otherwise stay one.
       fd.append('isAssignment', form.isAssignment ? 'true' : 'false');
+      fd.append('allowSubmission', form.isAssignment && form.allowSubmission ? 'true' : 'false');
       fd.append('dueDate', form.isAssignment && form.dueDate ? form.dueDate : '');
-      if (form.isAssignment && form.totalMarks) {
-        fd.append('totalMarks', form.totalMarks);
-        fd.append('marksEnabled', 'true');
-      }
+      fd.append('totalMarks', form.isAssignment && form.totalMarks ? form.totalMarks : '');
+      // One document across every section it was set for, not a copy per
+      // section — it is marked in one place.
+      fd.append('sectionIds', JSON.stringify(form.sectionIds));
       files.forEach((f) => fd.append('files', f));
 
       if (editing) {
         await updateDocument(editing._id, fd);
         toast.success('Updated');
       } else {
-        // A teacher shares with one of their own sections; the section is the
-        // whole target, so the form never asks who instead of where.
-        fd.append('sectionId', form.sectionId);
         await uploadDocument(fd);
-        toast.success('Shared with your section');
+        toast.success(form.sectionIds.length > 1
+          ? `Shared with ${form.sectionIds.length} sections`
+          : 'Shared with your section');
       }
       setShowForm(false);
       setScope('mine');
@@ -307,96 +279,15 @@ export default function TeacherDocuments() {
         )}
       />
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} maxWidth={560}
-        title={editing ? 'Edit document' : 'Share a document'}
-        footer={<>
-          <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Save changes' : 'Share'}</Button>
-        </>}>
-        <div className="form-group">
-          <label className="form-label required">Title</label>
-          <input className="form-control" autoFocus maxLength={160} value={form.title}
-            placeholder="e.g. Chapter 5 — practice questions"
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Description</label>
-          <textarea className="form-control" rows={2} maxLength={300} value={form.description}
-            placeholder="One line about what this is"
-            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-        </div>
-
-        <div className="dvform__row">
-          <div className="form-group">
-            <label className="form-label required">Type</label>
-            <select className="form-control" value={form.docType}
-              onChange={(e) => setForm((f) => ({
-                ...f,
-                docType: e.target.value,
-                isAssignment: e.target.value === 'assignment' ? true : f.isAssignment,
-              }))}>
-              {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Category</label>
-            <select className="form-control" value={form.category}
-              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
-              <option value="">— Select —</option>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {!editing && (
-          <div className="form-group">
-            <label className="form-label required">Section</label>
-            <select className="form-control" value={form.sectionId}
-              onChange={(e) => setForm((f) => ({ ...f, sectionId: e.target.value }))}>
-              {sections.map((s) => <option key={s._id} value={s._id}>{s.label}</option>)}
-            </select>
-            <div className="form-hint">Everyone in that section sees it.</div>
-          </div>
-        )}
-
-        <label className="dvcheck">
-          <input type="checkbox" checked={form.isAssignment}
-            onChange={(e) => setForm((f) => ({
-              ...f,
-              isAssignment: e.target.checked,
-              docType: e.target.checked ? 'assignment' : (f.docType === 'assignment' ? 'other' : f.docType),
-            }))} />
-          <span>Students hand work in against this</span>
-        </label>
-
-        {form.isAssignment && (
-          <div className="dvform__row">
-            <div className="form-group">
-              <label className="form-label">Due date</label>
-              <input type="date" className="form-control" value={form.dueDate}
-                onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Out of</label>
-              <input type="number" min="1" className="form-control" value={form.totalMarks}
-                placeholder="e.g. 50"
-                onChange={(e) => setForm((f) => ({ ...f, totalMarks: e.target.value }))} />
-            </div>
-          </div>
-        )}
-
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">{editing ? 'Replace files' : 'Files'}</label>
-          <input type="file" className="form-control" multiple
-            onChange={(e) => setFiles(Array.from(e.target.files))} />
-          {files.length > 0
-            ? <div className="form-hint">{files.length} file(s) chosen</div>
-            : editing?.fileCount
-              ? <div className="form-hint">Leave empty to keep the {editing.fileCount} file(s) already attached.</div>
-              : null}
-        </div>
-      </Modal>
+      <ShareDocument
+        open={showForm}
+        editing={editing}
+        sections={sections}
+        categories={categories}
+        saving={saving}
+        onClose={() => setShowForm(false)}
+        onSave={save}
+      />
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} loading={busy}
         title="Delete document"

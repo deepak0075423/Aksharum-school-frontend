@@ -27,15 +27,11 @@ import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   Crumbs, DocHero, DocStats, DocStat, DocTabs, DocTools, SearchField, Picker, SortMenu,
-  ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer, DocumentFields,
+  ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer,
   MenuItem, MenuSep, fileUrl,
   TABS, SORTS, TARGET_FILTERS, DOC_TYPES,
 } from './documentParts';
-
-const EMPTY_FORM = {
-  title: '', description: '', docType: 'notice', category: '',
-  targetType: 'whole_school', isAssignment: false, dueDate: '',
-};
+import ShareDocument from './ShareDocument';
 
 // The axios interceptor resolves to the response body — { success, data, … } —
 // and only useFetch peels that off. These calls go straight to the api module,
@@ -70,15 +66,9 @@ export default function Documents() {
   const [cats,    setCats]    = useState([]);
 
   // ── Overlays ───────────────────────────────────────────────────────────────
-  const [uploading, setUploading] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [form, setForm]   = useState(EMPTY_FORM);
-  const [files, setFiles] = useState([]);
-  const [selClasses,  setSelClasses]  = useState([]);
-  const [selSections, setSelSections] = useState([]);
-
-  const [editDoc, setEditDoc] = useState(null);
-  const [saving,  setSaving]  = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editDoc,  setEditDoc]  = useState(null);
+  const [saving,   setSaving]   = useState(false);
 
   const [viewDoc, setViewDoc] = useState(null);
   const [delDoc,  setDelDoc]  = useState(null);
@@ -206,79 +196,41 @@ export default function Documents() {
     [over],
   );
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
-  const resetForm = () => { setForm(EMPTY_FORM); setFiles([]); setSelClasses([]); setSelSections([]); };
+  // ── Share / edit ───────────────────────────────────────────────────────────
+  const startNew  = () => { setEditDoc(null); setShowForm(true); };
+  const openEdit  = (doc) => { setViewDoc(null); setEditDoc(doc); setShowForm(true); };
 
-  const validate = (f) => {
-    if (!f.title.trim()) return 'Title is required';
-    if (!f.category)     return 'Category is required';
-    if (f.targetType === 'class'          && !selClasses.length)  return 'Select at least one class';
-    if (f.targetType === 'class_sections' && !selSections.length) return 'Select at least one section';
-    return '';
-  };
-
-  const bodyOf = (f) => {
-    const fd = new FormData();
-    fd.append('title', f.title.trim());
-    fd.append('description', f.description);
-    fd.append('docType', f.docType);
-    fd.append('category', f.category);
-    fd.append('targetType', f.targetType);
-    fd.append('targetClasses',  JSON.stringify(f.targetType === 'class'          ? selClasses  : []));
-    fd.append('targetSections', JSON.stringify(f.targetType === 'class_sections' ? selSections : []));
-    // Always sent, both ways: the edit endpoint reads `undefined` as "leave it
-    // alone", so an assignment un-ticked would otherwise stay an assignment.
-    fd.append('isAssignment', f.isAssignment ? 'true' : 'false');
-    fd.append('dueDate', f.isAssignment && f.dueDate ? f.dueDate : '');
-    files.forEach((file) => fd.append('files', file));
-    return fd;
-  };
-
-  const submitUpload = async () => {
-    const bad = validate(form);
-    if (bad) return toast.error(bad);
-    setUploading(true);
-    try {
-      await uploadDocument(bodyOf(form));
-      toast.success('Document uploaded');
-      setShowUpload(false);
-      resetForm();
-      setPage(1);
-      refresh();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // ── Edit ───────────────────────────────────────────────────────────────────
-  const openEdit = (doc) => {
-    setViewDoc(null);
-    setEditDoc(doc);
-    setForm({
-      title:       doc.title,
-      description: doc.description || '',
-      docType:     doc.docType || 'other',
-      category:    doc.category || '',
-      targetType:  doc.targetType,
-      isAssignment: !!doc.isAssignment,
-      dueDate:     doc.dueDate ? String(doc.dueDate).slice(0, 10) : '',
-    });
-    setFiles([]);
-    setSelClasses((doc.targetClasses  || []).map((c) => c._id || c));
-    setSelSections((doc.targetSections || []).map((s) => s._id || s));
-  };
-
-  const submitEdit = async () => {
-    const bad = validate(form);
-    if (bad) return toast.error(bad);
+  const submit = async (form, files) => {
     setSaving(true);
     try {
-      await updateDocument(editDoc._id, bodyOf(form));
-      toast.success('Document updated');
-      setEditDoc(null);
-      resetForm();
+      const fd = new FormData();
+      fd.append('title', form.title.trim());
+      fd.append('description', form.description);
+      fd.append('docType', form.docType);
+      fd.append('category', form.category);
+      fd.append('subject', form.subject);
+      fd.append('targetType', form.targetType);
+      fd.append('targetClasses',  JSON.stringify(form.targetType === 'class'          ? form.classIds   : []));
+      fd.append('targetSections', JSON.stringify(form.targetType === 'class_sections' ? form.sectionIds : []));
+      // Always sent, both ways: the edit endpoint reads `undefined` as "leave it
+      // alone", so an assignment un-ticked would otherwise stay an assignment.
+      fd.append('isAssignment', form.isAssignment ? 'true' : 'false');
+      fd.append('allowSubmission', form.isAssignment && form.allowSubmission ? 'true' : 'false');
+      fd.append('assignmentType', form.assignmentType);
+      fd.append('dueDate', form.isAssignment && form.dueDate ? form.dueDate : '');
+      fd.append('totalMarks', form.isAssignment && form.totalMarks ? form.totalMarks : '');
+      fd.append('questions', JSON.stringify(form.isAssignment ? form.questions : []));
+      files.forEach((f) => fd.append('files', f));
+
+      if (editDoc) {
+        await updateDocument(editDoc._id, fd);
+        toast.success('Document updated');
+      } else {
+        await uploadDocument(fd);
+        toast.success('Document shared');
+        setPage(1);
+      }
+      setShowForm(false);
       refresh();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
@@ -368,20 +320,8 @@ export default function Documents() {
     </>
   );
 
-  const empty = <DocEmpty filtered={filtered} onClear={clearFilters} onUpload={() => setShowUpload(true)} />;
+  const empty = <DocEmpty filtered={filtered} onClear={clearFilters} onUpload={startNew} />;
   const List  = view === 'grid' ? DocGrid : DocTable;
-
-  const fields = (existing) => (
-    <DocumentFields
-      form={form} setForm={setForm}
-      categories={cats} classes={classes}
-      selClasses={selClasses} setSelClasses={setSelClasses}
-      selSections={selSections} setSelSections={setSelSections}
-      files={files} setFiles={setFiles}
-      existing={existing}
-      onManageCategories={() => setShowCats(true)}
-    />
-  );
 
   return (
     <div className="page docpg">
@@ -391,8 +331,8 @@ export default function Documents() {
         title="Documents"
         subtitle="Share files, notices, assignments and study material with classes, teachers or the whole school."
         action={
-          <Button onClick={() => { resetForm(); setShowUpload(true); }}>
-            <Icon name="plus" size={16} /> Upload Document
+          <Button onClick={startNew}>
+            <Icon name="plus" size={16} /> Share a document
           </Button>
         }
       />
@@ -443,21 +383,16 @@ export default function Documents() {
         onOpen={(d) => navigate(`/admin/documents/${d._id}`)}
         onEdit={openEdit} onArchive={toggleArchive} onDelete={setDelDoc} />
 
-      <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Upload Document" maxWidth={640}
-        footer={<>
-          <Button variant="secondary" onClick={() => setShowUpload(false)}>Cancel</Button>
-          <Button onClick={submitUpload} loading={uploading}>Upload</Button>
-        </>}>
-        {fields(null)}
-      </Modal>
-
-      <Modal open={!!editDoc} onClose={() => setEditDoc(null)} title="Edit Document" maxWidth={640}
-        footer={<>
-          <Button variant="secondary" onClick={() => setEditDoc(null)}>Cancel</Button>
-          <Button onClick={submitEdit} loading={saving}>Save Changes</Button>
-        </>}>
-        {fields(editDoc)}
-      </Modal>
+      <ShareDocument
+        open={showForm}
+        editing={editDoc}
+        classes={classes}
+        categories={cats}
+        saving={saving}
+        onClose={() => setShowForm(false)}
+        onSave={submit}
+        onManageCategories={() => setShowCats(true)}
+      />
 
       <Modal open={showCats} onClose={() => setShowCats(false)} title="Document Categories">
         <p className="docmodal__lead">
