@@ -167,6 +167,7 @@ const PARENT_NAV = [
   { section: 'Resources' },
   { to: '/parent/documents',        icon: 'files', label: 'Documents',     module: 'document' },
   { to: '/parent/holidays',         icon: 'party', label: 'Holidays',      module: 'holiday' },
+  { to: '/parent/feedback',         icon: 'star', label: 'Teacher Feedback', module: 'feedback' },
   { to: '/parent/child-fees',       icon: 'wallet', label: 'Fees',          module: 'fees' },
   { to: '/parent/library', match: '/parent/library', icon: 'bookOpen', label: 'Library',       module: 'library' },
   { to: '/parent/transport/track', match: '/parent/transport',  icon: 'bus', label: 'Transport',     module: 'transport' },

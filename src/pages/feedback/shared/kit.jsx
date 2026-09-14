@@ -27,10 +27,16 @@ export const fmtDate = (d) => (d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
   : '—');
 
+// Whole calendar days until the closing date: 0 on the closing day itself,
+// negative once it has passed. Counted date-to-date — the hours left on the
+// clock never round a "2 days" up to 3. Campaign dates are stored as UTC
+// midnight, so the date part is read as written, not shifted into local time.
 export const daysLeft = (end) => {
   if (!end) return null;
-  const e = new Date(end); e.setHours(23, 59, 59, 999);
-  return Math.ceil((e - new Date()) / 86400000);
+  const [y, m, d] = String(end).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const now = new Date();
+  return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
 };
 
 // ── Score chip — "4.3 / 5.0" with its status colour and a word ───────────────

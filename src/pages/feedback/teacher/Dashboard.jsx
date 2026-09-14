@@ -1,13 +1,25 @@
+/**
+ * Teacher → My Feedback.
+ *
+ * What a teacher sees about themselves: combined results only, and only once
+ * the campaign's response floor has been reached. The server enforces the floor
+ * on every figure — the total, each category, each question — so this page
+ * renders whichever shape comes back and explains any gap in plain words rather
+ * than leaving a blank where a number was expected.
+ */
 import React, { useState } from 'react';
 import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/feedback.api';
-import { PageHeader, Card, Spinner, Alert, Empty, StatCard } from '../../../components/ui/index';
-import { Panel, Grid, RankBars } from '../../analytics/viz';
-import { Score, Stars, CategoryScores, LockedNotice, CampaignBadge, fmtDate } from '../shared/kit';
+import Icon from '../../../components/ui/icons';
+import { Spinner } from '../../../components/ui/index';
+import {
+  Bar, CatBars, Crumbs, EmptyState, Hero, Muted, NoteBar, Panel, Rating, Row,
+  Stars, Stat, Stats, Tag, fmtDate, ratingWord,
+} from '../admin/fbUI';
+import { CampaignSelect, Countdown, LockedResults, Withheld } from '../shared/roleParts';
 
-// What a teacher sees about themselves (spec §14): aggregates only, and only
-// once the campaign's minimum-response threshold has been met. The server
-// enforces both — this page just renders whichever shape came back.
+const TRAIL = [{ to: '/teacher/feedback/dashboard', label: 'My Feedback' }];
+
 export default function TeacherFeedbackDashboard() {
   const [campaignId, setCampaignId] = useState('');
   const { data, loading, error } = useFetch(
@@ -15,146 +27,184 @@ export default function TeacherFeedbackDashboard() {
     [campaignId],
   );
 
-  if (loading) return <div className="page"><div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div></div>;
-  if (error)   return <div className="page"><Alert variant="danger">{error}</Alert></div>;
+  if (loading) return <div className="fbpage"><div className="fbloading"><Spinner /></div></div>;
+  if (error) {
+    return (
+      <div className="fbpage">
+        <Crumbs trail={TRAIL} here="Results" />
+        <NoteBar tone="red" icon="alert">{error}</NoteBar>
+      </div>
+    );
+  }
 
   if (!data?.campaign) {
     return (
-      <div className="page">
-        <PageHeader title="My Feedback" subtitle="Aggregated student feedback about your teaching" />
-        <Empty icon="📋" title="No feedback campaigns yet"
-          message="Once your school runs a feedback campaign, your results will appear here." />
+      <div className="fbpage">
+        <Crumbs trail={TRAIL} here="Results" />
+        <Hero icon="star" title="My Feedback" subtitle="What your students said about your teaching — combined and anonymous." />
+        <div className="fbcard">
+          <EmptyState icon="📋" title="No feedback to show yet"
+            message="When your school runs a feedback campaign that includes you, your results appear here once enough students have answered." />
+        </div>
       </div>
     );
   }
 
   const s = data.summary;
+  const c = data.campaign;
+  const prev = data.previous;
+  const delta = s.averageRating != null && prev?.averageRating != null
+    ? Number((s.averageRating - prev.averageRating).toFixed(1)) : null;
+  const shownCats = (data.categories || []).filter((x) => x.average != null);
+  const hiddenCats = (data.categories || []).filter((x) => x.average == null);
 
   return (
-    <div className="page">
-      <PageHeader
-        title="My Feedback"
-        subtitle="Students answer anonymously — you see combined results only."
-        action={
-          <select className="form-control" style={{ maxWidth: 260 }}
-            value={campaignId || data.campaign._id}
-            onChange={(e) => setCampaignId(e.target.value)}>
-            {data.campaigns.map((c) => (
-              <option key={c._id} value={c._id}>{c.name}{c.term ? ` · ${c.term}` : ''}</option>
-            ))}
-          </select>
-        }
-      />
+    <div className="fbpage">
+      <Crumbs trail={TRAIL} here="Results" />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <CampaignBadge status={data.campaign.status} />
-        <span className="text-sm text-muted">
-          {fmtDate(data.campaign.startDate)} – {fmtDate(data.campaign.endDate)}
-        </span>
+      <Hero icon="star" tone="purple" title="My Feedback"
+        subtitle="What your students said about your teaching — combined and anonymous.">
+        <CampaignSelect campaigns={data.campaigns} value={campaignId || c._id} onChange={setCampaignId} />
+      </Hero>
+
+      <div className="fbtagrow">
+        <Tag tone={c.status === 'active' ? 'green' : 'blue'}>{c.status === 'active' ? 'Collecting' : 'Completed'}</Tag>
+        <Tag tone="slate" icon="calendar">{fmtDate(c.startDate)} – {fmtDate(c.endDate)}</Tag>
+        {c.status === 'active' ? <Countdown endDate={c.endDate} /> : null}
+        {c.isAnonymous ? <Tag tone="purple" icon="key">Anonymous</Tag> : null}
+        <Tag tone="slate">Shown from {s.minimumResponses} responses</Tag>
       </div>
 
       {s.locked ? (
-        <Card>
-          <LockedNotice responses={s.responses} minimum={s.minimumResponses} />
-        </Card>
+        <LockedResults responses={s.responses} minimum={s.minimumResponses} assigned={s.assigned}
+          campaignOpen={c.status === 'active'} />
       ) : (
         <>
-          <div className="stat-grid">
-            <StatCard icon="⭐" color="blue"   label="Overall Rating"
-              value={s.averageRating == null ? '—' : `${s.averageRating.toFixed(1)} / 5.0`} />
-            <StatCard icon="🗳" color="green"  label="Total Responses" value={s.responses} />
-            <StatCard icon="📈" color="orange" label="Response Rate"   value={`${s.responseRate}%`} />
-            <StatCard icon="🧑‍🎓" color="purple" label="Students Assigned" value={s.assigned} />
-          </div>
+          <Stats>
+            <Stat icon="star" tone="amber"
+              value={s.averageRating == null ? '—' : <>{s.averageRating.toFixed(1)}<em>/ 5</em></>}
+              label="Overall Rating" caption={ratingWord(s.averageRating) || 'No scored answers'}
+              {...(delta == null ? {} : { delta: Math.abs(delta).toFixed(1), deltaDir: delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat' })} />
+            <Stat icon="chat" tone="blue" value={s.responses} label="Responses"
+              caption={`from ${s.assigned} student${s.assigned === 1 ? '' : 's'} asked`} />
+            <Stat icon="trending" tone="green" value={`${s.responseRate}%`} label="Response Rate"
+              caption={s.responseRate >= 60 ? 'A solid sample' : 'A thin sample — read the rating with care'} />
+            <Stat icon="layers" tone="purple" value={shownCats.length} label="Categories Rated"
+              caption={hiddenCats.length ? `${hiddenCats.length} hidden — too few answers` : 'Every category has enough answers'} />
+          </Stats>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
-            <Score value={s.averageRating} size="lg" />
-            <Stars value={Math.round(s.averageRating || 0)} size={20} />
-          </div>
-
-          <Grid min={320}>
-            <Panel title="Category performance" subtitle="Average rating out of 5 per category">
-              <CategoryScores categories={data.categories} />
-            </Panel>
-
-            <Panel title="Strengths & improvement areas"
-              subtitle="Highest and lowest scoring categories in this campaign">
-              <div style={{ display: 'grid', gap: 16 }}>
-                <div>
-                  <h4 style={{ fontSize: '.8rem', color: 'var(--success)', marginBottom: 6 }}>Strengths</h4>
-                  {data.strengths?.length ? (
-                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: '.85rem' }}>
-                      {data.strengths.map((c) => <li key={c._id}>{c.name} — {c.average.toFixed(1)}</li>)}
-                    </ul>
-                  ) : <p className="text-sm text-muted">No category is above 4.0 yet.</p>}
-                </div>
-                <div>
-                  <h4 style={{ fontSize: '.8rem', color: 'var(--warning)', marginBottom: 6 }}>Improvement areas</h4>
-                  {data.improvements?.length ? (
-                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: '.85rem' }}>
-                      {data.improvements.map((c) => <li key={c._id}>{c.name} — {c.average.toFixed(1)}</li>)}
-                    </ul>
-                  ) : <p className="text-sm text-muted">Every category is at 4.0 or above.</p>}
-                </div>
+          <Row split="2">
+            <Panel icon="star" tone="amber" title="Overall"
+              subtitle={prev ? `Compared with ${prev.name}` : 'Your first campaign with results'}>
+              <div className="fbbigrate">
+                <Rating value={s.averageRating} big sub={undefined} />
+                <Stars value={Math.round(s.averageRating || 0)} size={24} />
+                <Bar value={s.responseRate} width={200} />
+                <Muted>
+                  {delta == null
+                    ? `Based on ${s.responses} responses.`
+                    : delta === 0
+                      ? `The same as ${prev.name}, on ${s.responses} responses.`
+                      : `${delta > 0 ? 'Up' : 'Down'} ${Math.abs(delta).toFixed(1)} since ${prev.name}, on ${s.responses} responses.`}
+                </Muted>
               </div>
             </Panel>
-          </Grid>
+
+            <Panel icon="layers" tone="purple" title="By Category" subtitle="Your average out of 5 for each theme">
+              {shownCats.length
+                ? <CatBars colored max={5} labelWidth={170}
+                    data={shownCats.map((x) => ({ label: x.name, value: Number(x.average.toFixed(1)) }))} />
+                : <Muted>No category has enough answers to show yet.</Muted>}
+              {hiddenCats.length > 0 && (
+                <p className="fbhiddennote">
+                  <Icon name="key" size={12} /> Not shown: {hiddenCats.map((x) => x.name).join(', ')} — answered by fewer
+                  than {s.minimumResponses} students.
+                </p>
+              )}
+            </Panel>
+          </Row>
+
+          <Row split="2">
+            <Panel icon="trophy" tone="green" title="Strengths" subtitle="Categories rated 4.0 and above">
+              {data.strengths?.length
+                ? <CatBars max={5} labelWidth={170} color="#22c55e"
+                    data={data.strengths.map((x) => ({ label: x.name, value: Number(x.average.toFixed(1)) }))} />
+                : <Muted>No category has reached 4.0 in this campaign yet.</Muted>}
+            </Panel>
+            <Panel icon="target" tone="amber" title="Where to Grow" subtitle="Your lowest-rated categories">
+              {data.improvements?.length
+                ? <CatBars max={5} labelWidth={170} color="#f59e0b"
+                    data={data.improvements.map((x) => ({ label: x.name, value: Number(x.average.toFixed(1)) }))} />
+                : <Muted>Every category is at 4.0 or above. Well done.</Muted>}
+            </Panel>
+          </Row>
 
           {!!data.questionBreakdown?.length && (
-            <Panel title="Question by question" subtitle="Average rating out of 5 for each question asked">
-              <RankBars data={data.questionBreakdown.map((q) => ({ label: q.question, value: q.average }))}
-                labelKey="label" valueKey="value" unit="" max={5} />
-              <table className="table" style={{ marginTop: 12 }}>
-                <thead><tr><th>Question</th><th className="text-right">Average</th><th className="text-right">Answers</th></tr></thead>
-                <tbody>
-                  {data.questionBreakdown.map((q) => (
-                    <tr key={q.question}>
-                      <td style={{ fontSize: '.82rem' }}>{q.question}</td>
-                      <td className="text-right"><Score value={q.average} size="sm" showLabel={false} /></td>
-                      <td className="text-right text-muted">{q.answers}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Panel>
-          )}
-
-          {!!data.options?.length && data.options.map((block) => (
-            <Panel key={block.question} title={block.question} subtitle="What students picked most often">
-              <ul style={{ display: 'grid', gap: 8, listStyle: 'none', margin: 0, padding: 0 }}>
-                {block.options.map((o) => (
-                  <li key={o.label}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', marginBottom: 3 }}>
-                      <span>{o.label}</span>
-                      <strong>{o.count} <span className="text-muted">({o.percent}%)</span></strong>
-                    </div>
-                    <div style={{ background: '#eef2f7', borderRadius: 99, height: 7, overflow: 'hidden' }}>
-                      <div style={{ width: `${o.percent}%`, height: '100%', background: 'var(--primary)', borderRadius: 99 }} />
-                    </div>
+            <Panel icon="checkSquare" tone="indigo" title="Question by Question"
+              subtitle="Your average for each rated question, in the order students saw them">
+              <ol className="fbqlist">
+                {data.questionBreakdown.map((q, i) => (
+                  <li key={q.question}>
+                    <span className="fbqlist__n">{i + 1}</span>
+                    <span className="fbqlist__q">
+                      <b>{q.question}</b>
+                      {q.category ? <small>{q.category}</small> : null}
+                    </span>
+                    <span className="fbqlist__bar" aria-hidden>
+                      <span style={{ width: q.average == null ? 0 : `${(q.average / 5) * 100}%` }} />
+                    </span>
+                    <span className="fbqlist__v">
+                      {q.withheld
+                        ? <Withheld reason="floor" responses={q.answers} minimum={s.minimumResponses} />
+                        : <Rating value={q.average} sub={`${q.answers} answers`} />}
+                    </span>
                   </li>
                 ))}
-              </ul>
-            </Panel>
-          ))}
-
-          {data.settings?.canSeeComments && (
-            <Panel title="Student comments" subtitle="Shown in random order and never linked to a student">
-              {data.comments?.length ? (
-                <ul style={{ display: 'grid', gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
-                  {data.comments.map((c, i) => (
-                    <li key={i} style={{
-                      background: 'var(--bg)', borderRadius: 'var(--radius)',
-                      padding: '10px 14px', fontSize: '.85rem', borderLeft: '3px solid var(--primary)',
-                    }}>
-                      {c.text}
-                    </li>
-                  ))}
-                </ul>
-              ) : <p className="text-sm text-muted">No written comments in this campaign.</p>}
+              </ol>
             </Panel>
           )}
+
+          {(data.options || []).length > 0 && (
+            <Row split="2">
+              {data.options.map((block) => (
+                <Panel key={block.question} icon="list" tone="teal" title={block.question}
+                  subtitle="What students picked, and how often">
+                  <ul className="fbtally">
+                    {block.options.map((o) => (
+                      <li key={o.label}>
+                        <span>{o.label}</span>
+                        <Bar value={o.percent} width={140} tone="#14b8a6" />
+                        <b>{o.count}</b>
+                      </li>
+                    ))}
+                  </ul>
+                </Panel>
+              ))}
+            </Row>
+          )}
+
+          <Panel icon="chat" tone="blue" title="What Students Wrote"
+            subtitle={data.settings?.canSeeComments ? 'In no particular order, never linked to a student' : 'Written comments'}>
+            {!data.settings?.canSeeComments ? (
+              <Muted>Your school shows teachers their scores but not written comments.</Muted>
+            ) : data.comments?.length ? (
+              <ul className="fbquotes">
+                {data.comments.map((cm, i) => (
+                  // Comments arrive deliberately unattributed — there is no id
+                  // to key on, and giving them one would be a way back to a student.
+                  // eslint-disable-next-line
+                  <li key={i}>{cm.text}</li>
+                ))}
+              </ul>
+            ) : <Muted>No written comments in this campaign.</Muted>}
+          </Panel>
         </>
       )}
+
+      <NoteBar tone="purple" icon="key">
+        Every figure here is combined across your students and hidden until at least <b>{s.minimumResponses}</b> of
+        them have answered — for the total, each category and each question. Nobody in the school can see who said what.
+      </NoteBar>
     </div>
   );
 }

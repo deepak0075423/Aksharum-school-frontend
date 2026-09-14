@@ -10,3 +10,6 @@ export const getResults       = () => api.get('/parent/results');
 export const getResultDetail  = (id) => api.get(`/parent/results/${id}`);
 export const getDocuments     = () => api.get('/parent/documents');
 export const getHolidays      = () => api.get('/parent/holidays');
+
+// Teacher feedback — each child's progress through open campaigns. Status only, never answers.
+export const getChildrenFeedback = () => api.get('/parent/feedback');

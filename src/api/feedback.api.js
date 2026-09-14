@@ -4,6 +4,8 @@ import api from './axios';
 export const getStudentSummary   = ()   => api.get('/feedback/student/summary');
 export const getPendingFeedback  = ()   => api.get('/feedback/student/pending');
 export const getCompletedFeedback= ()   => api.get('/feedback/student/completed');
+// Never submitted, and the window has closed — kept apart so the to-do list only holds what can still be done.
+export const getMissedFeedback   = ()   => api.get('/feedback/student/missed');
 export const getFeedbackForm     = (id) => api.get(`/feedback/student/assignments/${id}`);
 export const getMySubmission     = (id) => api.get(`/feedback/student/assignments/${id}/submission`);
 export const submitFeedback      = (id, d) => api.post(`/feedback/student/assignments/${id}/submit`, d);

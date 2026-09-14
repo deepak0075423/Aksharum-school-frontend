@@ -1,23 +1,40 @@
+/**
+ * Student → re-read what I sent.
+ *
+ * Read-only and forever: locked feedback stays visible to its own author, it
+ * just cannot be changed. This is the only screen anywhere that pairs a student
+ * with their answers, and it is theirs alone — the server scopes it to the
+ * signed-in student.
+ */
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/feedback.api';
-import { PageHeader, Button, Card, Spinner, Alert, Badge } from '../../../components/ui/index';
-import { Score, Stars, fmtDate, RATING_LABELS } from '../shared/kit';
+import Icon from '../../../components/ui/icons';
+import { Spinner } from '../../../components/ui/index';
+import { RATING_LABELS, EMOJI_SCALE } from '../shared/kit';
+import { Avatar, Crumbs, NoteBar, Stars, Tag, fmtDate } from '../admin/fbUI';
+import { categoryIcon } from '../admin/feedbackParts';
 
-// A read-only replay of what this student submitted. Locked feedback stays
-// visible to its own author forever — it just can no longer be changed.
+const TRAIL = [{ to: '/student/feedback', label: 'Teacher Feedback' }];
+
 export default function SubmissionDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { data, loading, error } = useFetch(() => api.getMySubmission(id), [id]);
 
-  if (loading) return <div className="page"><div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div></div>;
+  if (loading) return <div className="fbpage fbpage--narrow"><div className="fbloading"><Spinner /></div></div>;
   if (error) {
     return (
-      <div className="page page-sm">
-        <Alert variant="danger">{error}</Alert>
-        <Button variant="secondary" onClick={() => navigate('/student/feedback')} style={{ marginTop: 16 }}>Back to my feedback</Button>
+      <div className="fbpage fbpage--narrow">
+        <Crumbs trail={TRAIL} here="My feedback" />
+        <div className="fbcard">
+          <div className="fbempty">
+            <span aria-hidden>🔒</span>
+            <h3>This feedback cannot be shown</h3>
+            <p>{error}</p>
+            <Link to="/student/feedback" className="fbtb fbtb--primary">Back to my feedback</Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -26,67 +43,83 @@ export default function SubmissionDetail() {
   const answered = (data.answers || []).filter(
     (q) => q.ratingValue != null || q.textResponse || q.selectedOptions?.length,
   );
+  const groups = new Map();
+  for (const q of answered) {
+    const k = q.categoryName || (['text', 'multiple_choice', 'checkbox'].includes(q.questionType) ? 'A little more' : 'General');
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(q);
+  }
+  const place = [a.className, a.sectionName].filter(Boolean).join(' ');
 
   return (
-    <div className="page page-md">
-      <PageHeader
-        title="My Feedback"
-        subtitle={`Submitted on ${fmtDate(a.submittedAt)} — this feedback is locked and cannot be edited.`}
-        action={<Button variant="secondary" size="sm" onClick={() => navigate('/student/feedback')}>Back</Button>}
-      />
+    <div className="fbpage fbpage--narrow">
+      <Crumbs trail={TRAIL} here={a.teacher?.name || 'My feedback'} />
 
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>{a.teacher?.name}</div>
-            <div style={{ fontSize: '.84rem', color: 'var(--text-muted)' }}>
-              {[a.subject, a.className, a.sectionName].filter(Boolean).join(' · ')}
-            </div>
-            <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
-              <Badge variant="success">Completed</Badge>
-              {data.campaign?.isAnonymous && <Badge variant="info">Anonymous</Badge>}
-            </div>
+      <section className="fbformhead">
+        <Avatar name={a.teacher?.name} src={a.teacher?.photo} size={64} />
+        <div className="fbformhead__id">
+          <small>Your feedback to</small>
+          <h1>{a.teacher?.name}</h1>
+          <p>{[a.subject, place].filter(Boolean).join(' · ')}</p>
+          <div className="fbtagrow">
+            <Tag tone="green" icon="checkCircle">Sent {fmtDate(a.submittedAt)}</Tag>
+            {data.campaign?.name ? <Tag tone="slate" icon="megaphone">{data.campaign.name}</Tag> : null}
+            {data.campaign?.isAnonymous ? <Tag tone="purple" icon="key">Anonymous</Tag> : null}
           </div>
-          {a.overallRating != null && (
-            <div style={{ textAlign: 'right' }}>
-              <Score value={a.overallRating} size="lg" showLabel={false} />
-              <div style={{ marginTop: 4 }}><Stars value={Math.round(a.overallRating)} /></div>
-              <div className="text-xs text-muted">Your average rating</div>
-            </div>
-          )}
         </div>
-      </Card>
+        {a.overallRating != null && (
+          <div className="fbformhead__score">
+            <b>{Number(a.overallRating).toFixed(1)}</b>
+            <Stars value={Math.round(a.overallRating)} size={16} />
+            <small>your average</small>
+          </div>
+        )}
+      </section>
 
-      <div style={{ height: 16 }} />
-
-      <Card title="Your answers">
-        <ul style={{ display: 'grid', gap: 16, listStyle: 'none', margin: 0, padding: 0 }}>
-          {answered.map((q) => (
-            <li key={q._id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-              <div style={{ fontSize: '.85rem', marginBottom: 6 }}>
-                {q.questionText}
-                {q.categoryName && <span className="text-xs text-muted"> · {q.categoryName}</span>}
-              </div>
-              {q.ratingValue != null && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Stars value={q.ratingValue} />
-                  <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
-                    {q.ratingValue} — {RATING_LABELS[q.ratingValue]}
+      {[...groups.entries()].map(([name, qs]) => (
+        <section key={name} className="fbqcard">
+          <header>
+            <span className="fbqcard__icon tint-purple"><Icon name={categoryIcon(name)} size={16} /></span>
+            <b>{name}</b>
+            <small>{qs.length} answer{qs.length === 1 ? '' : 's'}</small>
+          </header>
+          {qs.map((q) => (
+            <div key={q._id} className="fbanswer">
+              <span className="fbanswer__q">{q.questionText}</span>
+              {q.ratingValue != null && q.questionType !== 'yes_no' && (
+                <span className="fbanswer__rating">
+                  <span className="fbanswer__dots" aria-label={`${q.ratingValue} out of 5`}>
+                    {[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= q.ratingValue ? 'is-on' : ''} />)}
                   </span>
-                </div>
+                  <b>{EMOJI_SCALE[q.ratingValue]} {q.ratingValue} · {RATING_LABELS[q.ratingValue]}</b>
+                </span>
+              )}
+              {q.questionType === 'yes_no' && (
+                <Tag tone={q.textResponse === 'yes' ? 'green' : 'slate'}>{q.textResponse === 'yes' ? 'Yes' : 'No'}</Tag>
               )}
               {!!q.selectedOptions?.length && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {q.selectedOptions.map((o) => <Badge key={o} variant="primary">{o}</Badge>)}
-                </div>
+                <span className="fbanswer__opts">
+                  {q.selectedOptions.map((o) => <Tag key={o} tone="indigo">{o}</Tag>)}
+                </span>
               )}
-              {q.textResponse && q.ratingValue == null && (
-                <p style={{ fontSize: '.85rem', whiteSpace: 'pre-wrap', color: 'var(--text)' }}>{q.textResponse}</p>
+              {q.textResponse && q.questionType !== 'yes_no' && (
+                <blockquote className="fbanswer__text">
+                  {q.questionType !== 'text' ? <small>Other: </small> : null}{q.textResponse}
+                </blockquote>
               )}
-            </li>
+            </div>
           ))}
-        </ul>
-      </Card>
+        </section>
+      ))}
+
+      <NoteBar tone="purple" icon="key" title="Only you can see this page.">
+        Your feedback is locked and cannot be edited. Your teacher sees your answers only as part of results combined
+        across many students, never on their own.
+      </NoteBar>
+
+      <div className="fbformbar fbformbar--static">
+        <Link to="/student/feedback" className="fbtb"><Icon name="chevronLeft" size={14} /> Back to my feedback</Link>
+      </div>
     </div>
   );
 }

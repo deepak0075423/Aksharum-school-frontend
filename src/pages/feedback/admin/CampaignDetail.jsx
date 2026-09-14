@@ -154,7 +154,7 @@ export default function CampaignDetail() {
         <Tag tone="blue">Floor: {c.minimumResponses} responses</Tag>
         {c.status === 'active' && left != null && (
           <Tag tone={left <= 3 ? 'amber' : 'slate'}>
-            {left >= 0 ? `${left} day${left === 1 ? '' : 's'} left` : 'Past its closing date'}
+            {left > 0 ? `${left} day${left === 1 ? '' : 's'} left` : left === 0 ? 'Closes today' : 'Past its closing date'}
           </Tag>
         )}
       </div>

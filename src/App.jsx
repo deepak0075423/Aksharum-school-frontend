@@ -269,6 +269,7 @@ const FbTchTrends      = lazy(() => import('./pages/feedback/teacher/Trends'));
 const FbStuList        = lazy(() => import('./pages/feedback/student/MyFeedback'));
 const FbStuForm        = lazy(() => import('./pages/feedback/student/FeedbackForm'));
 const FbStuDetail      = lazy(() => import('./pages/feedback/student/SubmissionDetail'));
+const FbParChild        = lazy(() => import('./pages/feedback/parent/ChildFeedback'));
 
 // ── Chat ─────────────────────────────────────────────────────────────────────
 const Chat = lazy(() => import('./pages/Chat'));
@@ -643,6 +644,7 @@ export default function App() {
             <Route path="results/*"        element={<PResults />} />
             <Route path="documents"        element={<PDocuments />} />
             <Route path="holidays"         element={<PHolidays />} />
+            <Route path="feedback"         element={<FbParChild />} />
             <Route path="child-fees"       element={<PFees />} />
             {/* Transport */}
             <Route path="transport" element={<ModuleNav tabs={TRANSPORT_PARENT_TABS} />}>

@@ -237,7 +237,7 @@ export default function Campaigns() {
             )
             : null}>
           {closingSoon.length === 1
-            ? <><b>{closingSoon[0].name}</b> closes in {daysLeft(closingSoon[0].endDate)} day(s) and{' '}
+            ? <><b>{closingSoon[0].name}</b> {daysLeft(closingSoon[0].endDate) ? `closes in ${daysLeft(closingSoon[0].endDate)} day(s)` : 'closes today'} and{' '}
               {closingSoon[0].assigned - closingSoon[0].submitted} student(s) have not answered.</>
             : <>{closingSoon.length} campaigns close within three days and still have outstanding responses.
               A reminder is in each row&rsquo;s menu.</>}
@@ -275,7 +275,7 @@ export default function Campaigns() {
                 return (
                   <Stack main={<span className="fbdate">{fmtDate(r.startDate)} – {fmtDate(r.endDate)}</span>}
                     sub={r.status === 'active' && left != null
-                      ? (left >= 0 ? `${left} day${left === 1 ? '' : 's'} left` : 'Past its closing date')
+                      ? (left > 0 ? `${left} day${left === 1 ? '' : 's'} left` : left === 0 ? 'Closes today' : 'Past its closing date')
                       : r.status === 'scheduled' ? `Opens ${fmtDate(r.startDate)}`
                       : r.status === 'draft' ? 'Not started' : 'Finished'} />
                 );

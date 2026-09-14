@@ -190,7 +190,7 @@ export const FEEDBACK_ADMIN_TABS = [
 
 export const FEEDBACK_TEACHER_TABS = [
   { to: '/teacher/feedback/dashboard', label: '⭐ My Feedback' },
-  { to: '/teacher/feedback/breakdown', label: '🔍 Where it came from' },
+  { to: '/teacher/feedback/breakdown', label: '📊 By subject & section' },
   { to: '/teacher/feedback/trends',    label: '📈 Trends' },
 ];
 

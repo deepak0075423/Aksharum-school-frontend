@@ -145,11 +145,13 @@ export const StatVs = ({ icon, tone = 'purple', label, value, unit, delta, delta
       <span className="fbstat__value">
         {value}{unit ? <em>{unit}</em> : null}
       </span>
-      {delta != null && (
+      {(delta != null || vs) && (
         <span className="fbstat__vs">
-          <span className={`fbstat__delta is-${deltaDir}`}>
-            <Icon name={deltaDir === 'down' ? 'arrowDown' : 'arrowUp'} size={11} />{delta}
-          </span>
+          {delta != null && (
+            <span className={`fbstat__delta is-${deltaDir}`}>
+              <Icon name={deltaDir === 'down' ? 'arrowDown' : 'arrowUp'} size={11} />{delta}
+            </span>
+          )}
           {vs ? <small>{vs}</small> : null}
         </span>
       )}
@@ -374,9 +376,20 @@ export const EmptyState = ({ icon = '📭', title, message, action }) => (
 
 // ── Cells ────────────────────────────────────────────────────────────────────
 
-export const Avatar = ({ name, tone = 'purple', size = 36 }) => {
+// Uploads are served from the backend root while VITE_API_URL points at /api.
+const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
+const fileUrl = (path) => (!path ? '' : /^https?:/.test(path) ? path : `${uploadBase}${path}`);
+
+export const Avatar = ({ name, tone = 'purple', size = 36, src }) => {
+  const [broken, setBroken] = useState(false);
   const initials = String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2)
     .map((w) => w[0]).join('').toUpperCase();
+  if (src && !broken) {
+    return (
+      <img className="fbav fbav--img" src={fileUrl(src)} alt="" loading="lazy"
+        style={{ width: size, height: size }} onError={() => setBroken(true)} />
+    );
+  }
   return (
     <span className={`fbav tint-${tone}`} style={{ width: size, height: size, fontSize: size * 0.34 }}
       aria-hidden>
@@ -386,10 +399,10 @@ export const Avatar = ({ name, tone = 'purple', size = 36 }) => {
 };
 
 /** Avatar, name, and the quieter line under it. */
-export const Who = ({ name, sub, to, tone = 'purple', size }) => {
+export const Who = ({ name, sub, to, tone = 'purple', size, src }) => {
   const body = (
     <>
-      <Avatar name={name} tone={tone} size={size} />
+      <Avatar name={name} tone={tone} size={size} src={src} />
       <span className="fbwho__id">
         <b>{name}</b>
         {sub ? <small title={sub}>{sub}</small> : null}
