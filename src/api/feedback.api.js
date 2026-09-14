@@ -54,6 +54,9 @@ export const downloadReport = async (params) => {
 
 // ── Campaigns ─────────────────────────────────────────────────────────────────
 export const getCampaigns      = (params) => api.get('/feedback/campaigns', { params });
+// The create/edit form's pickers: classes, sections, subjects and teachers of
+// the CURRENT academic year only, plus the links that decide who is reached.
+export const getCampaignOptions = ()      => api.get('/feedback/campaign-options');
 export const getCampaign       = (id)     => api.get(`/feedback/campaigns/${id}`);
 export const createCampaign    = (d)      => api.post('/feedback/campaigns', d);
 export const updateCampaign    = (id, d)  => api.put(`/feedback/campaigns/${id}`, d);

@@ -1,363 +1,409 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+/**
+ * Teacher Feedback → Campaigns.
+ *
+ * The register of every evaluation drive the school has run. A campaign is the
+ * only thing in this module with a lifecycle — Draft → Scheduled → Active →
+ * Completed → Archived — so a row's actions are not a fixed set of buttons:
+ * what you can do depends entirely on where it sits in that line, and a row
+ * offering "Close" to a draft would be offering nothing.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/feedback.api';
+import Icon from '../../../components/ui/icons';
+import { Spinner } from '../../../components/ui/index';
 import {
-  PageHeader, Table, Button, Modal, Badge, Pagination, Spinner,
-  Input, Select, Textarea, Confirm,
-} from '../../../components/ui/index';
-import { Score, CampaignBadge, fmtDate } from '../shared/kit';
+  Acts, Bar, Crumbs, EmptyState, Foot, Hero, IconBtn, Menu, MenuItem,
+  MenuSep, NoteBar, Pick, Rating, Search, SortBy, Spacer, Stack, Stat, Stats,
+  Table, Tag, TextBtn, Toolbar, daysLeft, fmtDate,
+} from './fbUI';
+import { CampaignPill, homeFor, useFeedbackBase } from './feedbackParts';
+import { CampaignConfirm, CampaignForm, blankCampaign, toCampaignForm } from './campaignParts';
 
-const STATUSES = ['draft', 'scheduled', 'active', 'closed', 'archived'];
-const todayIso = () => new Date().toISOString().slice(0, 10);
-const isoPlus = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+const STATUSES = [
+  { value: 'active',    label: 'Collecting now' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'draft',     label: 'Draft' },
+  { value: 'closed',    label: 'Completed' },
+  { value: 'archived',  label: 'Archived' },
+];
 
-// Campaign management (spec §4). Create / edit / duplicate / activate / close /
-// archive / delete-draft, plus the response-rate summary per campaign.
+const SORTS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'name',   label: 'Name (A–Z)' },
+  { value: 'rate',   label: 'Response rate' },
+  { value: 'rating', label: 'Average rating' },
+];
+
 export default function Campaigns() {
-  const [rows, setRows]     = useState([]);
-  const [pg, setPg]         = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoad]  = useState(true);
+  const base = useFeedbackBase();
+  const navigate = useNavigate();
+
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [meta, setMeta] = useState(null);
+  const [settings, setSettings] = useState(null);
+
+  const [search, setSearch] = useState('');
+  const [term, setTerm] = useState('');
   const [status, setStatus] = useState('');
-  const [meta, setMeta]     = useState(null);
-  const [form, setForm]     = useState(null);
-  const [busy, setBusy]     = useState('');
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [sort, setSort] = useState('newest');
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formErr, setFormErr] = useState('');
+  const [pending, setPending] = useState(null);
+  const [busy, setBusy] = useState('');
+
+  /**
+   * The whole register comes down once and filters in the browser.
+   *
+   * `includeArchived` is always on: the Archived filter has to be able to show
+   * something, and archived drives still belong in the counts above — a school
+   * that ran six campaigns and archived four did not run two. 100 is the
+   * server's ceiling per page; the total comes back too, and the page says so
+   * rather than quietly showing a prefix.
+   */
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
     try {
-      const res = await api.getCampaigns({ page, limit: 20, status, includeArchived: status === 'archived' });
-      const d = res.data ?? res;
-      setRows(d.data || []);
-      setPg({ page: d.page, pages: d.pages, total: d.total });
-    } catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [status]);
+      const body = (await api.getCampaigns({ limit: 100, includeArchived: true })).data;
+      setRows(body?.data || []);
+      setTotal(body?.total ?? (body?.data || []).length);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }, []);
 
-  useEffect(() => { load(1); }, [load]);
-  useEffect(() => { api.getMeta().then((r) => setMeta(r.data ?? r)).catch(() => {}); }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    api.getMeta().then((r) => setMeta(r.data ?? r)).catch(() => {});
+    api.getSettings().then((r) => setSettings(r.data ?? r)).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const id = setTimeout(() => { setTerm(search.trim().toLowerCase()); setPage(1); }, 250);
+    return () => clearTimeout(id);
+  }, [search]);
 
-  const act = async (row, action) => {
+  const counts = useMemo(() => ({
+    all: rows.length,
+    active: rows.filter((r) => r.status === 'active').length,
+    scheduled: rows.filter((r) => r.status === 'scheduled').length,
+    draft: rows.filter((r) => r.status === 'draft').length,
+    closed: rows.filter((r) => r.status === 'closed').length,
+    archived: rows.filter((r) => r.status === 'archived').length,
+    responses: rows.reduce((n, r) => n + (r.submitted || 0), 0),
+    asked: rows.reduce((n, r) => n + (r.assigned || 0), 0),
+  }), [rows]);
+
+  const filtered = useMemo(() => {
+    // Archived drives are hidden unless asked for by name. They are history the
+    // admin deliberately put away; leaving them in the default list would undo
+    // the only thing archiving does.
+    const out = rows.filter((r) => {
+      if (status) { if (r.status !== status) return false; }
+      else if (r.status === 'archived') return false;
+      if (term && !`${r.name} ${r.term || ''} ${r.description || ''}`.toLowerCase().includes(term)) return false;
+      return true;
+    });
+    return [...out].sort((a, b) => {
+      switch (sort) {
+        case 'oldest': return new Date(a.startDate) - new Date(b.startDate);
+        case 'name':   return a.name.localeCompare(b.name);
+        case 'rate':   return (b.responseRate || 0) - (a.responseRate || 0);
+        case 'rating': return (b.avgRating ?? -1) - (a.avgRating ?? -1);
+        default:       return new Date(b.startDate) - new Date(a.startDate);
+      }
+    });
+  }, [rows, status, term, sort]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / limit));
+  const start = (Math.min(page, pages) - 1) * limit;
+  const shown = filtered.slice(start, start + limit);
+  const anyFilter = !!term || !!status;
+  const clear = () => { setSearch(''); setTerm(''); setStatus(''); setPage(1); };
+  const pick = (v) => { setStatus(status === v ? '' : v); setPage(1); };
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const duplicate = async (row) => {
+    setBusy(row._id);
+    try {
+      await api.duplicateCampaign(row._id, {});
+      toast.success(`Copied — “${row.name}” is now a fresh draft you can edit`);
+      load();
+    } catch (e) { toast.error(e.message); } finally { setBusy(''); }
+  };
+
+  const run = async () => {
+    if (!pending) return;
+    const { row, action } = pending;
     setBusy(row._id);
     try {
       if (action === 'activate') {
-        const res = await api.activateCampaign(row._id);
-        const d = res.data ?? res;
-        toast.success(`Campaign ${d.status === 'scheduled' ? 'scheduled' : 'activated'} — ${d.created} assignment(s) created`);
-      } else if (action === 'close')     { await api.closeCampaign(row._id);   toast.success('Campaign closed'); }
-      else if (action === 'archive')     { await api.archiveCampaign(row._id); toast.success('Campaign archived'); }
-      else if (action === 'delete')      { await api.deleteCampaign(row._id);  toast.success('Draft campaign deleted'); }
-      else if (action === 'duplicate')   { await api.duplicateCampaign(row._id, {}); toast.success('Campaign duplicated'); }
-      else if (action === 'reminders')   {
-        const res = await api.sendReminders(row._id);
-        toast.success(`Reminder sent to ${(res.data ?? res).reminded} student(s)`);
+        const d = (await api.activateCampaign(row._id)).data;
+        toast.success(d?.status === 'scheduled'
+          ? `Scheduled — it opens on ${fmtDate(row.startDate)}`
+          : `Started — ${d?.created ?? 0} student assignment(s) created`);
+      } else if (action === 'close') {
+        await api.closeCampaign(row._id); toast.success('Closed — the results stay available');
+      } else if (action === 'archive') {
+        await api.archiveCampaign(row._id); toast.success('Archived');
+      } else if (action === 'delete') {
+        await api.deleteCampaign(row._id); toast.success('Draft deleted');
+      } else if (action === 'reminders') {
+        const d = (await api.sendReminders(row._id)).data;
+        toast.success(`Reminder sent to ${d?.reminded ?? 0} student(s)`);
+      } else if (action === 'sync') {
+        const d = (await api.syncAssignments(row._id)).data;
+        toast.success(d?.created
+          ? `${d.created} new assignment(s) created`
+          : 'Already up to date — no new students to add');
       }
-      load(pg.page);
-    } catch (err) { toast.error(err.message); } finally { setBusy(''); setConfirmAction(null); }
+      setPending(null);
+      load();
+    } catch (e) { toast.error(e.message); } finally { setBusy(''); }
   };
 
-  const columns = [
-    {
-      key: 'name', label: 'Campaign',
-      render: (r) => (
-        <div>
-          <Link to={`/admin/feedback/campaigns/${r._id}`} style={{ fontWeight: 600 }}>{r.name}</Link>
-          <div className="text-xs text-muted">
-            {[r.term, r.academicYear?.yearName, `${r.questionCount} questions`].filter(Boolean).join(' · ')}
-          </div>
-        </div>
-      ),
-    },
-    { key: 'status', label: 'Status', render: (r) => <CampaignBadge status={r.status} /> },
-    { key: 'window', label: 'Window', render: (r) => <span className="text-sm">{fmtDate(r.startDate)} – {fmtDate(r.endDate)}</span> },
-    { key: 'responses', label: 'Responses', render: (r) => `${r.submitted} / ${r.assigned}` },
-    {
-      key: 'rate', label: 'Response %',
-      render: (r) => (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ background: '#eef2f7', borderRadius: 99, height: 6, width: 52, overflow: 'hidden' }}>
-            <span style={{ display: 'block', width: `${r.responseRate}%`, height: '100%', background: 'var(--primary)' }} />
-          </span>
-          {r.responseRate}%
-        </span>
-      ),
-    },
-    { key: 'avg', label: 'Avg Rating', render: (r) => <Score value={r.avgRating} size="sm" showLabel={false} /> },
-    { key: 'anon', label: 'Privacy', render: (r) => <Badge variant={r.isAnonymous ? 'info' : 'muted'}>{r.isAnonymous ? 'Anonymous' : 'Named'}</Badge> },
-    {
-      key: 'actions', label: '',
-      render: (r) => (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {r.status === 'draft' && <>
-            <Button size="sm" onClick={() => setConfirmAction({ row: r, action: 'activate' })} loading={busy === r._id}>Activate</Button>
-            <Button size="sm" variant="secondary" onClick={() => setForm(toForm(r))}>Edit</Button>
-          </>}
-          {['scheduled', 'active'].includes(r.status) && <>
-            <Button size="sm" variant="secondary" onClick={() => setForm(toForm(r))}>Edit</Button>
-            {r.status === 'active' && <Button size="sm" variant="secondary" onClick={() => act(r, 'reminders')} loading={busy === r._id}>Remind</Button>}
-            <Button size="sm" variant="warning" onClick={() => setConfirmAction({ row: r, action: 'close' })}>Close</Button>
-          </>}
-          {r.status === 'closed' && <Button size="sm" variant="secondary" onClick={() => setConfirmAction({ row: r, action: 'archive' })}>Archive</Button>}
-          <Button size="sm" variant="secondary" onClick={() => act(r, 'duplicate')} loading={busy === r._id}>Duplicate</Button>
-          {r.status === 'draft' && <Button size="sm" variant="danger" onClick={() => setConfirmAction({ row: r, action: 'delete' })}>Delete</Button>}
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="page">
-      <PageHeader
-        title="Feedback Campaigns"
-        subtitle="Create and run teacher evaluation drives"
-        action={<Button onClick={() => setForm(blankForm(meta))}>+ New Campaign</Button>}
-      />
-
-      <div className="filters-bar" style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <select className="form-control" style={{ maxWidth: 190 }} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All (except archived)</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="📋" emptyTitle="No campaigns yet" />
-      </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
-
-      {form && (
-        <CampaignForm
-          form={form} setForm={setForm} meta={meta}
-          onSaved={() => { setForm(null); load(pg.page); }}
-        />
-      )}
-
-      <Confirm
-        open={!!confirmAction}
-        onClose={() => setConfirmAction(null)}
-        onConfirm={() => act(confirmAction.row, confirmAction.action)}
-        title={{
-          activate: 'Activate campaign?', close: 'Close campaign?',
-          archive: 'Archive campaign?', delete: 'Delete draft campaign?',
-        }[confirmAction?.action]}
-        message={{
-          activate: 'Feedback assignments will be generated for every matching student and they will be notified. Targeting can no longer be changed after this.',
-          close: 'Students will no longer be able to submit. Nothing is deleted — all collected feedback stays available.',
-          archive: 'The campaign is hidden from the default lists but all data is kept.',
-          delete: 'This draft and its generated assignments will be permanently removed.',
-        }[confirmAction?.action]}
-      />
-    </div>
-  );
-}
-
-// ── Create / edit form ───────────────────────────────────────────────────────
-const blankForm = (meta) => ({
-  _id: null,
-  name: '', academicYear: meta?.activeYear?._id || '', term: '',
-  feedbackType: 'student_teacher', description: '', instructions: '',
-  startDate: todayIso(), endDate: isoPlus(14),
-  isAnonymous: true, minimumResponses: 5,
-  targetClasses: [], targetSections: [], targetSubjects: [], targetTeachers: [],
-  template: meta?.templates?.find((t) => t.isDefault)?._id || meta?.templates?.[0]?._id || '',
-  reminderEnabled: true, reminderIntervalDays: 3, allowResubmission: false,
-});
-
-const toForm = (r) => ({
-  _id: r._id,
-  name: r.name || '',
-  academicYear: r.academicYear?._id || r.academicYear || '',
-  term: r.term || '',
-  feedbackType: r.feedbackType || 'student_teacher',
-  description: r.description || '', instructions: r.instructions || '',
-  startDate: r.startDate ? new Date(r.startDate).toISOString().slice(0, 10) : todayIso(),
-  endDate: r.endDate ? new Date(r.endDate).toISOString().slice(0, 10) : isoPlus(14),
-  isAnonymous: !!r.isAnonymous,
-  minimumResponses: r.minimumResponses ?? 5,
-  targetClasses: (r.targetClasses || []).map(String),
-  targetSections: (r.targetSections || []).map(String),
-  targetSubjects: (r.targetSubjects || []).map(String),
-  targetTeachers: (r.targetTeachers || []).map(String),
-  template: '',
-  reminderEnabled: r.reminderEnabled !== false,
-  reminderIntervalDays: r.reminderIntervalDays ?? 3,
-  allowResubmission: !!r.allowResubmission,
-  status: r.status,
-});
-
-function CampaignForm({ form, setForm, meta, onSaved }) {
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const live = ['active', 'scheduled'].includes(form.status);
-
-  const toggleIn = (key, id) => setForm((f) => ({
-    ...f,
-    [key]: f[key].includes(id) ? f[key].filter((x) => x !== id) : [...f[key], id],
-  }));
-
-  const save = async () => {
-    const e = {};
-    if (!form.name.trim()) e.name = 'Campaign name is required';
-    if (!form.startDate) e.startDate = 'Required';
-    if (!form.endDate) e.endDate = 'Required';
-    if (form.startDate && form.endDate && form.endDate < form.startDate) e.endDate = 'End date cannot be before the start date';
-    if (!form._id && !form.template) e.template = 'Pick a question template';
-    setErrors(e);
-    if (Object.keys(e).length) return;
-
-    setSaving(true);
+  const save = async (f) => {
+    setSaving(true); setFormErr('');
     try {
-      if (form._id) { await api.updateCampaign(form._id, form); toast.success('Campaign updated'); }
-      else          { await api.createCampaign(form);           toast.success('Campaign created as a draft'); }
-      onSaved();
-    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
+      if (f._id) { await api.updateCampaign(f._id, f); toast.success('Campaign saved'); }
+      else       { await api.createCampaign(f); toast.success('Created as a draft — start it when you are ready'); }
+      setForm(null);
+      load();
+    } catch (e) { setFormErr(e.message); } finally { setSaving(false); }
   };
 
-  // Sections narrow to the chosen classes so the picker cannot offer a section
-  // outside the campaign's own scope.
-  const sections = (meta?.sections || []).filter(
-    (s) => !form.targetClasses.length || form.targetClasses.includes(String(s.class)),
-  );
+  const closingSoon = rows.filter((r) => {
+    if (r.status !== 'active') return false;
+    const d = daysLeft(r.endDate);
+    return d != null && d >= 0 && d <= 3 && r.assigned > r.submitted;
+  });
+
+  if (loading && !rows.length) {
+    return <div className="fbpage"><div className="fbloading"><Spinner /></div></div>;
+  }
 
   return (
-    <Modal
-      open
-      onClose={() => setForm(null)}
-      title={form._id ? 'Edit Campaign' : 'New Feedback Campaign'}
-      maxWidth={760}
-      footer={<>
-        <Button variant="secondary" onClick={() => setForm(null)}>Cancel</Button>
-        <Button onClick={save} loading={saving}>{form._id ? 'Save changes' : 'Create draft'}</Button>
-      </>}
-    >
-      {live && (
-        <div className="alert alert-info" style={{ marginBottom: 12 }}>
-          This campaign is already live — only the name, description, deadline, privacy threshold and reminders can be changed.
-          Targeting is locked so responses already collected stay valid.
-        </div>
+    <div className="fbpage">
+      <Crumbs here="Campaigns" trail={[{ to: `${base}/overview`, label: 'Teacher Feedback' }]}
+        home={homeFor(base)} />
+
+      <Hero icon="megaphone" tone="purple" title="Feedback Campaigns"
+        subtitle="Create and run teacher evaluation drives, and see how many students have answered.">
+        <Link to={`${base}/questions?view=templates`} className="fbtb">
+          <Icon name="clipboard" size={14} /> Templates
+        </Link>
+        <button type="button" className="fbtb fbtb--primary" disabled={!meta}
+          onClick={() => { setFormErr(''); setForm(blankCampaign(meta, settings)); }}>
+          <Icon name="plus" size={15} /> New Campaign
+        </button>
+      </Hero>
+
+      <Stats>
+        <Stat icon="megaphone" tone="purple" value={counts.all} label="Total Campaigns"
+          caption={counts.archived ? `${counts.archived} archived` : 'None archived'}
+          onClick={() => pick('')} on={!status} />
+        <Stat icon="activity" tone="green" value={counts.active} label="Collecting Now"
+          caption={closingSoon.length ? `${closingSoon.length} closing within 3 days` : 'Students can answer these'}
+          onClick={() => pick('active')} on={status === 'active'} />
+        <Stat icon="clipboard" tone="amber" value={counts.draft} label="Drafts"
+          caption="Built but not started"
+          onClick={() => pick('draft')} on={status === 'draft'} />
+        <Stat icon="chat" tone="blue" value={counts.responses} label="Responses Collected"
+          caption={counts.asked ? `${Math.round((counts.responses / counts.asked) * 100)}% of everyone asked` : 'Nothing asked yet'} />
+      </Stats>
+
+      {error && <NoteBar tone="red" icon="alert">{error}</NoteBar>}
+
+      {total > rows.length && (
+        <NoteBar tone="blue" icon="info">
+          Showing the {rows.length} most recent of {total} campaigns. Older ones still count towards the
+          tiles above and still appear in Insights.
+        </NoteBar>
       )}
 
-      <div className="form-row form-row-2">
-        <Input label="Campaign Name" required value={form.name} error={errors.name}
-          onChange={(e) => set('name', e.target.value)} placeholder="e.g. Term 1 Teacher Feedback 2026" />
-        <Input label="Term" value={form.term} onChange={(e) => set('term', e.target.value)} placeholder="e.g. Term 1" />
-      </div>
-
-      <div className="form-row form-row-2">
-        <Select label="Academic Year" value={form.academicYear} disabled={live}
-          onChange={(e) => set('academicYear', e.target.value)}>
-          <option value="">Active year</option>
-          {(meta?.academicYears || []).map((y) => <option key={y._id} value={y._id}>{y.yearName}</option>)}
-        </Select>
-        <Select label="Feedback Type" value={form.feedbackType} disabled={live}
-          onChange={(e) => set('feedbackType', e.target.value)}>
-          <option value="student_teacher">Student → Teacher</option>
-          <option value="parent_teacher" disabled>Parent → Teacher (coming soon)</option>
-        </Select>
-      </div>
-
-      <div className="form-row form-row-2">
-        <Input label="Start Date" type="date" required value={form.startDate} error={errors.startDate}
-          disabled={live} onChange={(e) => set('startDate', e.target.value)} />
-        <Input label="End Date" type="date" required value={form.endDate} error={errors.endDate}
-          onChange={(e) => set('endDate', e.target.value)} />
-      </div>
-
-      <Textarea label="Description" value={form.description} rows={2}
-        onChange={(e) => set('description', e.target.value)} />
-      <Textarea label="Instructions shown to students" value={form.instructions} rows={2}
-        onChange={(e) => set('instructions', e.target.value)}
-        placeholder="Your feedback is confidential and helps your teachers improve…" />
-
-      {!form._id && (
-        <Select label="Question Template" required value={form.template} error={errors.template}
-          onChange={(e) => set('template', e.target.value)}>
-          <option value="">Select a template…</option>
-          {(meta?.templates || []).map((t) => (
-            <option key={t._id} value={t._id}>{t.name} ({t.questionCount} questions)</option>
-          ))}
-        </Select>
+      {!!closingSoon.length && (
+        <NoteBar tone="amber" icon="bell"
+          action={closingSoon.length === 1
+            ? (
+              <TextBtn icon="bell" onClick={() => setPending({ row: closingSoon[0], action: 'reminders' })}>
+                Send reminders
+              </TextBtn>
+            )
+            : null}>
+          {closingSoon.length === 1
+            ? <><b>{closingSoon[0].name}</b> closes in {daysLeft(closingSoon[0].endDate)} day(s) and{' '}
+              {closingSoon[0].assigned - closingSoon[0].submitted} student(s) have not answered.</>
+            : <>{closingSoon.length} campaigns close within three days and still have outstanding responses.
+              A reminder is in each row&rsquo;s menu.</>}
+        </NoteBar>
       )}
 
-      <div className="form-row form-row-2">
-        <div className="form-group">
-          <label className="form-label">Anonymous Feedback</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.85rem' }}>
-            <input type="checkbox" checked={form.isAnonymous} disabled={live}
-              onChange={(e) => set('isAnonymous', e.target.checked)} />
-            Hide student identity from teachers
-          </label>
-          <div className="form-hint">Submissions are always recorded internally for audit and duplicate prevention.</div>
+      <div className="fbcard">
+        <Toolbar>
+          <Search value={search} onChange={setSearch} placeholder="Search campaigns by name or term…" />
+          <Pick value={status} onChange={(v) => { setStatus(v); setPage(1); }}
+            all="All (except archived)" label="Status" options={STATUSES} />
+          <Spacer />
+          <SortBy value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={SORTS} dflt="newest" />
+        </Toolbar>
+
+        <Table
+          loading={loading}
+          startIndex={start}
+          rows={shown}
+          columns={[
+            {
+              key: 'name', className: 'fbq', label: 'Campaign',
+              render: (r) => (
+                <Stack main={r.name} to={`${base}/campaigns/${r._id}`}
+                  sub={[r.term, r.academicYear?.yearName,
+                    `${r.questionCount || 0} question${r.questionCount === 1 ? '' : 's'}`]
+                    .filter(Boolean).join(' · ')} />
+              ),
+            },
+            { key: 'status', label: 'Status', render: (r) => <CampaignPill status={r.status} /> },
+            {
+              key: 'window', label: 'Window',
+              render: (r) => {
+                const left = daysLeft(r.endDate);
+                return (
+                  <Stack main={<span className="fbdate">{fmtDate(r.startDate)} – {fmtDate(r.endDate)}</span>}
+                    sub={r.status === 'active' && left != null
+                      ? (left >= 0 ? `${left} day${left === 1 ? '' : 's'} left` : 'Past its closing date')
+                      : r.status === 'scheduled' ? `Opens ${fmtDate(r.startDate)}`
+                      : r.status === 'draft' ? 'Not started' : 'Finished'} />
+                );
+              },
+            },
+            { key: 'responses', label: 'Responses', render: (r) => `${r.submitted} / ${r.assigned}` },
+            { key: 'rate', label: 'Response %', render: (r) => <Bar value={r.responseRate} /> },
+            { key: 'rating', label: 'Avg Rating', render: (r) => <Rating value={r.avgRating} sub={undefined} /> },
+            {
+              key: 'privacy', label: 'Privacy',
+              render: (r) => (
+                <Tag tone={r.isAnonymous ? 'purple' : 'slate'}>
+                  {r.isAnonymous ? 'Anonymous' : 'Named'}
+                </Tag>
+              ),
+            },
+            {
+              key: 'a', className: 'fbtable__acts', label: 'Actions',
+              render: (r) => (
+                <Acts>
+                  <IconBtn icon="eye" label="Open campaign"
+                    onClick={() => navigate(`${base}/campaigns/${r._id}`)} />
+                  {/* The primary action is whatever this campaign's stage most
+                      likely brought the admin here to do. */}
+                  {r.status === 'draft' && (
+                    <IconBtn icon="power" label="Start collecting" disabled={busy === r._id}
+                      onClick={() => setPending({ row: r, action: 'activate' })} />
+                  )}
+                  {r.status === 'active' && (
+                    <IconBtn icon="bell" label="Send reminders" disabled={busy === r._id}
+                      onClick={() => setPending({ row: r, action: 'reminders' })} />
+                  )}
+                  <Menu>
+                    <MenuItem icon="eye" to={`${base}/campaigns/${r._id}`}>Open campaign</MenuItem>
+                    {['draft', 'scheduled', 'active'].includes(r.status) && (
+                      <MenuItem icon="pencil" onClick={() => { setFormErr(''); setForm(toCampaignForm(r)); }}>
+                        Edit details
+                      </MenuItem>
+                    )}
+                    {r.status === 'draft' && (
+                      <MenuItem icon="power" onClick={() => setPending({ row: r, action: 'activate' })}>
+                        Start collecting
+                      </MenuItem>
+                    )}
+                    {['scheduled', 'active'].includes(r.status) && (
+                      <MenuItem icon="refresh" onClick={() => setPending({ row: r, action: 'sync' })}>
+                        Sync assignments
+                      </MenuItem>
+                    )}
+                    {r.status === 'active' && (
+                      <MenuItem icon="bell" onClick={() => setPending({ row: r, action: 'reminders' })}>
+                        Send reminders
+                      </MenuItem>
+                    )}
+                    {['scheduled', 'active'].includes(r.status) && (
+                      <MenuItem icon="checkCircle" onClick={() => setPending({ row: r, action: 'close' })}>
+                        Close it
+                      </MenuItem>
+                    )}
+                    {r.status === 'closed' && (
+                      <MenuItem icon="folder" onClick={() => setPending({ row: r, action: 'archive' })}>
+                        Archive it
+                      </MenuItem>
+                    )}
+                    <MenuSep />
+                    <MenuItem icon="files" onClick={() => duplicate(r)}>Duplicate as a draft</MenuItem>
+                    {r.status === 'draft' && (
+                      <MenuItem icon="trash" danger onClick={() => setPending({ row: r, action: 'delete' })}>
+                        Delete draft
+                      </MenuItem>
+                    )}
+                  </Menu>
+                </Acts>
+              ),
+            },
+          ]}
+          empty={(
+            <EmptyState icon={anyFilter ? '🔍' : '📣'}
+              title={anyFilter ? 'No campaigns match these filters' : 'No campaigns yet'}
+              message={anyFilter
+                ? 'Try another status or search term.'
+                : 'A campaign asks one set of questions of one group of students over one window of dates. Create one as a draft, check it, then start it when you are ready.'}
+              action={anyFilter
+                ? <button type="button" className="fbtb" onClick={clear}>Clear filters</button>
+                : (
+                  <button type="button" className="fbtb fbtb--primary" disabled={!meta}
+                    onClick={() => { setFormErr(''); setForm(blankCampaign(meta, settings)); }}>
+                    Create the first campaign
+                  </button>
+                )} />
+          )}
+        />
+
+        <Foot page={Math.min(page, pages)} pages={pages} total={filtered.length} limit={limit}
+          count={shown.length} noun="campaign" onPage={setPage} />
+      </div>
+
+      <div className="fbcard">
+        <div className="fblife">
+          <h2>The life of a campaign</h2>
+          <ol>
+            <li><CampaignPill status="draft" />
+              <p>Built and editable. Nothing has been sent and no student can see it.</p></li>
+            <li><CampaignPill status="scheduled" />
+              <p>Started ahead of its opening date. It goes live on its own that morning.</p></li>
+            <li><CampaignPill status="active" />
+              <p>Collecting. Questions and targeting are frozen; the closing date and reminders are not.</p></li>
+            <li><CampaignPill status="closed" />
+              <p>No more submissions. Everything collected stays readable and counts towards trends.</p></li>
+            <li><CampaignPill status="archived" />
+              <p>Out of the lists and pickers, all data kept.</p></li>
+          </ol>
         </div>
-        <Input label="Minimum Responses" type="number" min={1} value={form.minimumResponses}
-          onChange={(e) => set('minimumResponses', e.target.value)}
-          hint="Teacher analytics stay hidden until this many students respond." />
       </div>
 
-      {!live && (
-        <>
-          <TargetPicker label="Target Classes" items={meta?.classes || []} idKey="_id"
-            labelOf={(c) => c.className} selected={form.targetClasses} onToggle={(id) => toggleIn('targetClasses', id)} />
-          <TargetPicker label="Target Sections" items={sections} idKey="_id"
-            labelOf={(s) => `${(meta?.classes || []).find((c) => c._id === s.class)?.className || ''} ${s.sectionName}`.trim()}
-            selected={form.targetSections} onToggle={(id) => toggleIn('targetSections', id)} />
-          <TargetPicker label="Target Subjects" items={meta?.subjects || []} idKey="_id"
-            labelOf={(s) => s.subjectName} selected={form.targetSubjects} onToggle={(id) => toggleIn('targetSubjects', id)} />
-          <TargetPicker label="Target Teachers" items={meta?.teachers || []} idKey="_id"
-            labelOf={(t) => t.name} selected={form.targetTeachers} onToggle={(id) => toggleIn('targetTeachers', id)} />
-          <p className="text-xs text-muted" style={{ marginTop: -6, marginBottom: 12 }}>
-            Leave a list empty to include everything. Students are matched to teachers automatically
-            from the section–subject–teacher allocations — nobody is assigned by hand.
-          </p>
-        </>
-      )}
+      <NoteBar tone="blue" icon="info">
+        Students are matched to their own teachers from the section–subject–teacher allocations, so a
+        campaign that reaches nobody usually means those allocations are missing rather than the targeting
+        being wrong. Use <b>Sync assignments</b> to pick up students who joined a section after a campaign
+        started.
+      </NoteBar>
 
-      <div className="form-row form-row-2">
-        <div className="form-group">
-          <label className="form-label">Reminders</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.85rem' }}>
-            <input type="checkbox" checked={form.reminderEnabled} onChange={(e) => set('reminderEnabled', e.target.checked)} />
-            Remind students who have not responded
-          </label>
-        </div>
-        <Input label="Reminder every (days)" type="number" min={1} value={form.reminderIntervalDays}
-          disabled={!form.reminderEnabled} onChange={(e) => set('reminderIntervalDays', e.target.value)} />
-      </div>
+      <CampaignForm open={!!form} form={form} setForm={setForm} meta={meta}
+        saving={saving} error={formErr}
+        onClose={() => { setForm(null); setFormErr(''); }} onSave={save} />
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.85rem' }}>
-        <input type="checkbox" checked={form.allowResubmission} onChange={(e) => set('allowResubmission', e.target.checked)} />
-        Allow an admin to reopen a submitted feedback for correction
-      </label>
-    </Modal>
-  );
-}
-
-function TargetPicker({ label, items, idKey, labelOf, selected, onToggle }) {
-  return (
-    <div className="form-group">
-      <label className="form-label">{label} <span className="text-muted text-xs">({selected.length ? `${selected.length} selected` : 'all'})</span></label>
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 108, overflowY: 'auto',
-        border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8,
-      }}>
-        {!items.length && <span className="text-xs text-muted">Nothing configured</span>}
-        {items.map((it) => {
-          const id = String(it[idKey]);
-          const active = selected.includes(id);
-          return (
-            <button key={id} type="button" onClick={() => onToggle(id)}
-              style={{
-                cursor: 'pointer', fontSize: '.76rem', padding: '4px 10px', borderRadius: 999,
-                border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-                background: active ? 'rgba(79,70,229,.08)' : '#fff',
-                color: active ? 'var(--primary)' : 'var(--text)',
-              }}>
-              {active ? '✓ ' : ''}{labelOf(it)}
-            </button>
-          );
-        })}
-      </div>
+      <CampaignConfirm action={pending?.action} campaign={pending?.row} busy={!!busy}
+        onClose={() => setPending(null)} onConfirm={run} />
     </div>
   );
 }

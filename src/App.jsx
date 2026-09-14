@@ -256,17 +256,12 @@ const VidStuDash      = lazy(() => import('./pages/student/videos/Dashboard'));
 const VidStuPlayer    = lazy(() => import('./pages/student/videos/Player'));
 
 // ── Teacher Feedback ──────────────────────────────────────────────────────────
-const FbAdmDashboard   = lazy(() => import('./pages/feedback/admin/Dashboard'));
+const FbAdmOverview    = lazy(() => import('./pages/feedback/admin/Overview'));
 const FbAdmCampaigns   = lazy(() => import('./pages/feedback/admin/Campaigns'));
 const FbAdmCampaign    = lazy(() => import('./pages/feedback/admin/CampaignDetail'));
-const FbAdmQuestions   = lazy(() => import('./pages/feedback/admin/QuestionBank'));
-const FbAdmCategories  = lazy(() => import('./pages/feedback/admin/Categories'));
-const FbAdmTeachers    = lazy(() => import('./pages/feedback/admin/TeacherFeedback'));
+const FbAdmQuestions   = lazy(() => import('./pages/feedback/admin/Questions'));
+const FbAdmInsights    = lazy(() => import('./pages/feedback/admin/Insights'));
 const FbAdmTeacher     = lazy(() => import('./pages/feedback/admin/TeacherDetail'));
-const FbAdmDepartments = lazy(() => import('./pages/feedback/admin/Departments'));
-const FbAdmTrends      = lazy(() => import('./pages/feedback/admin/Trends'));
-const FbAdmReports     = lazy(() => import('./pages/feedback/admin/Reports'));
-const FbAdmTemplates   = lazy(() => import('./pages/feedback/admin/Templates'));
 const FbAdmSettings    = lazy(() => import('./pages/feedback/admin/Settings'));
 const FbTchDashboard   = lazy(() => import('./pages/feedback/teacher/Dashboard'));
 const FbTchBreakdown   = lazy(() => import('./pages/feedback/teacher/Breakdown'));
@@ -506,21 +501,27 @@ export default function App() {
               <Route path="approvals" element={<VidAdmApprovals />} />
               <Route path="settings"  element={<VidAdmSettings />} />
             </Route>
-            {/* Teacher Feedback */}
+            {/* Teacher Feedback — five sections. The paths the old ten-tab rail
+                used still resolve: they are redirects rather than dead links,
+                because they are in notification links, bookmarks and the audit
+                log, and a 404 there would look like missing data. */}
             <Route path="feedback" element={<ModuleNav tabs={FEEDBACK_ADMIN_TABS} />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"     element={<FbAdmDashboard />} />
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview"      element={<FbAdmOverview />} />
               <Route path="campaigns"     element={<FbAdmCampaigns />} />
               <Route path="campaigns/:id" element={<FbAdmCampaign />} />
               <Route path="questions"     element={<FbAdmQuestions />} />
-              <Route path="categories"    element={<FbAdmCategories />} />
-              <Route path="teachers"      element={<FbAdmTeachers />} />
+              <Route path="insights"      element={<FbAdmInsights />} />
               <Route path="teachers/:id"  element={<FbAdmTeacher />} />
-              <Route path="departments"   element={<FbAdmDepartments />} />
-              <Route path="trends"        element={<FbAdmTrends />} />
-              <Route path="reports"       element={<FbAdmReports />} />
-              <Route path="templates"     element={<FbAdmTemplates />} />
               <Route path="settings"      element={<FbAdmSettings />} />
+
+              <Route path="dashboard"   element={<Navigate to="../overview" replace />} />
+              <Route path="teachers"    element={<Navigate to="../insights" replace />} />
+              <Route path="departments" element={<Navigate to="../insights?view=departments" replace />} />
+              <Route path="trends"      element={<Navigate to="../insights?view=trends" replace />} />
+              <Route path="reports"     element={<Navigate to="../insights?view=sources" replace />} />
+              <Route path="categories"  element={<Navigate to="../questions?view=categories" replace />} />
+              <Route path="templates"   element={<Navigate to="../questions?view=templates" replace />} />
             </Route>
           </Route>
 
@@ -587,13 +588,16 @@ export default function App() {
                 The backend re-checks the designation on every request, so these
                 routes are safe even if the nav item is reached directly. */}
             <Route path="feedback-review" element={<ModuleNav tabs={FEEDBACK_PRINCIPAL_TABS} />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"    element={<FbAdmDashboard />} />
-              <Route path="teachers"     element={<FbAdmTeachers />} />
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview"     element={<FbAdmOverview />} />
+              <Route path="insights"     element={<FbAdmInsights />} />
               <Route path="teachers/:id" element={<FbAdmTeacher />} />
-              <Route path="departments"  element={<FbAdmDepartments />} />
-              <Route path="trends"       element={<FbAdmTrends />} />
-              <Route path="reports"      element={<FbAdmReports />} />
+
+              <Route path="dashboard"    element={<Navigate to="../overview" replace />} />
+              <Route path="teachers"     element={<Navigate to="../insights" replace />} />
+              <Route path="departments"  element={<Navigate to="../insights?view=departments" replace />} />
+              <Route path="trends"       element={<Navigate to="../insights?view=trends" replace />} />
+              <Route path="reports"      element={<Navigate to="../insights?view=sources" replace />} />
             </Route>
             <Route path="holidays"         element={<THolidays />} />
             <Route path="notifications"    element={<SharedNotifications />} />

@@ -22,7 +22,7 @@ export const MODULES = [
   { key: 'transport',    label: 'Transport',        icon: 'bus', adminBase: '/admin/transport',   adminHome: '/admin/transport/dashboard' },
   { key: 'hostel',       label: 'Hostel',           icon: 'hotel', adminBase: '/admin/hostel',      adminHome: '/admin/hostel/dashboard' },
   { key: 'videoLibrary', label: 'Video Learning',   icon: 'video', adminBase: '/admin/videos',      adminHome: '/admin/videos/browse' },
-  { key: 'feedback',     label: 'Teacher Feedback', icon: 'star', adminBase: '/admin/feedback',    adminHome: '/admin/feedback/dashboard' },
+  { key: 'feedback',     label: 'Teacher Feedback', icon: 'star', adminBase: '/admin/feedback',    adminHome: '/admin/feedback/overview' },
   { key: 'leave',        label: 'Leave',            icon: 'umbrella', adminBase: '/admin/leave',       adminHome: '/admin/leave' },
   { key: 'document',     label: 'Documents',        icon: 'files', adminBase: '/admin/documents',   adminHome: '/admin/documents' },
   { key: 'holiday',      label: 'Holidays',         icon: 'party', adminBase: '/admin/holidays',    adminHome: '/admin/holidays' },

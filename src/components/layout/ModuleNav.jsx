@@ -174,16 +174,17 @@ export const VIDEO_TEACHER_TABS = [
 ];
 
 // ── Teacher Feedback ─────────────────────────────────────────────────────────
+//
+// Five sections, down from ten. The four that went are not missing: Question
+// Bank, Categories and Templates are three sizes of one job and are now views
+// of Questions, while Teacher Feedback, Departments, Trends and Reports were
+// four shapes of the same numbers and are now views of Insights — which also
+// exports each of them.
 export const FEEDBACK_ADMIN_TABS = [
-  { to: '/admin/feedback/dashboard', label: '🏠 Dashboard' },
+  { to: '/admin/feedback/overview',  label: '🏠 Overview' },
   { to: '/admin/feedback/campaigns', label: '📣 Campaigns' },
-  { to: '/admin/feedback/questions', label: '❓ Question Bank' },
-  { to: '/admin/feedback/categories', label: '🗂 Categories' },
-  { to: '/admin/feedback/teachers',  label: '👨‍🏫 Teacher Feedback' },
-  { to: '/admin/feedback/departments', label: '🏢 Departments' },
-  { to: '/admin/feedback/trends',    label: '📈 Trends' },
-  { to: '/admin/feedback/reports',   label: '📄 Reports' },
-  { to: '/admin/feedback/templates', label: '🧩 Templates' },
+  { to: '/admin/feedback/questions', label: '❓ Questions' },
+  { to: '/admin/feedback/insights',  label: '📊 Insights' },
   { to: '/admin/feedback/settings',  label: '⚙️ Settings' },
 ];
 
@@ -196,12 +197,13 @@ export const FEEDBACK_TEACHER_TABS = [
 // Principal view — same analytics pages as the admin, read-only, mounted under
 // the teacher tree because a principal signs in as a teacher (designation-based
 // RBAC, exactly like Manage Library for a Librarian).
+// The principal reads the same two analytics screens the admin does — Insights
+// carries the teacher, department, source and trend views that used to be four
+// separate tabs here. Campaigns, Questions and Settings are configuration and
+// stay with the admin; the server refuses them either way.
 export const FEEDBACK_PRINCIPAL_TABS = [
-  { to: '/teacher/feedback-review/dashboard',   label: '🏠 Dashboard' },
-  { to: '/teacher/feedback-review/teachers',    label: '👨‍🏫 Teacher Performance' },
-  { to: '/teacher/feedback-review/departments', label: '🏢 Department Performance' },
-  { to: '/teacher/feedback-review/trends',      label: '📈 Trends' },
-  { to: '/teacher/feedback-review/reports',     label: '📄 Reports' },
+  { to: '/teacher/feedback-review/overview', label: '🏠 Overview' },
+  { to: '/teacher/feedback-review/insights', label: '📊 Insights' },
 ];
 
 // Timetable — the index tab is the existing per-section editor, so the manual

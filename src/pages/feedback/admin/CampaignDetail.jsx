@@ -1,256 +1,506 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+/**
+ * One campaign, in full.
+ *
+ * Four tabs, in the order the questions get asked: what it has collected
+ * (Results), who it was about (Teachers), what it actually asked (Questions),
+ * and who still has not answered (Tracking).
+ *
+ * Tracking is the only screen in the whole module that names students, and it
+ * names them ONLY against a submission status. It never joins a student to the
+ * content of an answer — that pairing does not exist on any admin endpoint.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/feedback.api';
+import Icon from '../../../components/ui/icons';
+import { Spinner } from '../../../components/ui/index';
 import {
-  PageHeader, Card, Spinner, Alert, Table, Button, Badge, Pagination, StatCard, Confirm,
-} from '../../../components/ui/index';
-import { Panel, Grid, RankBars } from '../../analytics/viz';
-import { Score, CampaignBadge, LockedNotice, fmtDate } from '../shared/kit';
+  Bar, CatBars, Crumbs, Dash, Dot, EmptyState, Foot, Hero, Muted, NoteBar,
+  Panel, Pick, Rating, Row, Search, Spacer, Stack, Stars, Stat, Stats, Table,
+  Tag, Toolbar, Who, daysLeft, fmtDate, toneAt,
+} from './fbUI';
+import { CampaignPill, homeFor, minutesFor, typeShort, useFeedbackBase } from './feedbackParts';
+import { CampaignConfirm, CampaignForm, toCampaignForm } from './campaignParts';
 
-const TABS = ['overview', 'teachers', 'questions', 'responses'];
+const TABS = [
+  { value: 'results',   label: 'Results',       icon: 'chart' },
+  { value: 'teachers',  label: 'Teachers',      icon: 'users' },
+  { value: 'questions', label: 'Questions',     icon: 'checkSquare' },
+  { value: 'tracking',  label: 'Who responded', icon: 'clipboard' },
+];
 
-// One campaign in full: live statistics, the questionnaire that was snapshotted
-// onto it, per-teacher / subject / class analytics, and the submission tracker.
 export default function CampaignDetail() {
   const { id } = useParams();
-  const [tab, setTab] = useState('overview');
-  const [confirmAction, setConfirmAction] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const base = useFeedbackBase();
+  const navigate = useNavigate();
 
-  const campaign  = useFetch(() => api.getCampaign(id), [id]);
+  const [tab, setTab] = useState('results');
+  const [pending, setPending] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formErr, setFormErr] = useState('');
+  const [meta, setMeta] = useState(null);
+
+  const campaign = useFetch(() => api.getCampaign(id), [id]);
   const analytics = useFetch(() => api.getCampaignAnalytics(id), [id]);
 
-  const act = async (action) => {
+  useEffect(() => { api.getMeta().then((r) => setMeta(r.data ?? r)).catch(() => {}); }, []);
+
+  const run = async () => {
+    const action = pending;
     setBusy(true);
     try {
       if (action === 'activate') {
-        const r = await api.activateCampaign(id);
-        toast.success(`Activated — ${(r.data ?? r).created} assignment(s) created`);
-      } else if (action === 'close')   { await api.closeCampaign(id);   toast.success('Campaign closed'); }
-      else if (action === 'archive')   { await api.archiveCampaign(id); toast.success('Campaign archived'); }
-      else if (action === 'sync')      {
-        const r = await api.syncAssignments(id);
-        toast.success(`${(r.data ?? r).created} new assignment(s) created`);
+        const d = (await api.activateCampaign(id)).data;
+        toast.success(d?.status === 'scheduled'
+          ? 'Scheduled — it opens on its start date'
+          : `Started — ${d?.created ?? 0} student assignment(s) created`);
+      } else if (action === 'close') {
+        await api.closeCampaign(id); toast.success('Closed — the results stay available');
+      } else if (action === 'archive') {
+        await api.archiveCampaign(id); toast.success('Archived');
+      } else if (action === 'sync') {
+        const d = (await api.syncAssignments(id)).data;
+        toast.success(d?.created ? `${d.created} new assignment(s) created` : 'Already up to date');
       } else if (action === 'reminders') {
-        const r = await api.sendReminders(id);
-        toast.success(`Reminder sent to ${(r.data ?? r).reminded} student(s)`);
+        const d = (await api.sendReminders(id)).data;
+        toast.success(`Reminder sent to ${d?.reminded ?? 0} student(s)`);
       }
+      setPending(null);
       campaign.refetch(); analytics.refetch();
-    } catch (err) { toast.error(err.message); } finally { setBusy(false); setConfirmAction(null); }
+    } catch (e) { toast.error(e.message); } finally { setBusy(false); }
   };
 
-  if (campaign.loading) return <div className="page"><div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div></div>;
-  if (campaign.error)   return <div className="page"><Alert variant="danger">{campaign.error}</Alert></div>;
+  const save = async (f) => {
+    setSaving(true); setFormErr('');
+    try {
+      await api.updateCampaign(f._id, f);
+      toast.success('Campaign saved');
+      setForm(null);
+      campaign.refetch();
+    } catch (e) { setFormErr(e.message); } finally { setSaving(false); }
+  };
+
+  const trail = [
+    { to: `${base}/overview`, label: 'Teacher Feedback' },
+    { to: `${base}/campaigns`, label: 'Campaigns' },
+  ];
+
+  if (campaign.loading) return <div className="fbpage"><div className="fbloading"><Spinner /></div></div>;
+  if (campaign.error) {
+    return (
+      <div className="fbpage">
+        <Crumbs here="Campaign" trail={trail} home={homeFor(base)} />
+        <NoteBar tone="red" icon="alert">{campaign.error}</NoteBar>
+      </div>
+    );
+  }
 
   const c = campaign.data;
+  const left = daysLeft(c.endDate);
 
   return (
-    <div className="page">
-      <PageHeader
-        title={c.name}
-        subtitle={[c.term, c.academicYear?.yearName, `${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}`].filter(Boolean).join(' · ')}
-        action={
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Link to="/admin/feedback/campaigns"><Button variant="secondary" size="sm">← All campaigns</Button></Link>
-            {c.status === 'draft' && <Button size="sm" onClick={() => setConfirmAction('activate')} loading={busy}>Activate</Button>}
-            {['active', 'scheduled'].includes(c.status) && <>
-              <Button size="sm" variant="secondary" onClick={() => act('sync')} loading={busy}>Sync assignments</Button>
-              {c.status === 'active' && <Button size="sm" variant="secondary" onClick={() => act('reminders')} loading={busy}>Send reminders</Button>}
-              <Button size="sm" variant="warning" onClick={() => setConfirmAction('close')}>Close</Button>
-            </>}
-            {c.status === 'closed' && <Button size="sm" variant="secondary" onClick={() => setConfirmAction('archive')}>Archive</Button>}
-          </div>
-        }
-      />
+    <div className="fbpage">
+      <Crumbs here={c.name} trail={trail} home={homeFor(base)} />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <CampaignBadge status={c.status} />
-        <Badge variant={c.isAnonymous ? 'info' : 'muted'}>{c.isAnonymous ? 'Anonymous' : 'Named'}</Badge>
-        <Badge variant="muted">Min {c.minimumResponses} responses</Badge>
-        <Badge variant="muted">{c.questions?.length || 0} questions</Badge>
+      <Hero icon="megaphone" tone="purple" title={c.name}
+        subtitle={[c.term, c.academicYear?.yearName, `${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}`]
+          .filter(Boolean).join(' · ')}>
+        <button type="button" className="fbtb" onClick={() => navigate(`${base}/campaigns`)}>
+          <Icon name="chevronLeft" size={14} /> All campaigns
+        </button>
+        {['draft', 'scheduled', 'active'].includes(c.status) && (
+          <button type="button" className="fbtb"
+            onClick={() => { setFormErr(''); setForm(toCampaignForm(c)); }}>
+            <Icon name="pencil" size={14} /> Edit
+          </button>
+        )}
+        {c.status === 'draft' && (
+          <button type="button" className="fbtb fbtb--primary" disabled={busy}
+            onClick={() => setPending('activate')}>
+            <Icon name="power" size={15} /> Start collecting
+          </button>
+        )}
+        {['scheduled', 'active'].includes(c.status) && (
+          <>
+            <button type="button" className="fbtb" disabled={busy} onClick={() => setPending('sync')}>
+              <Icon name="refresh" size={14} /> Sync
+            </button>
+            {c.status === 'active' && (
+              <button type="button" className="fbtb" disabled={busy} onClick={() => setPending('reminders')}>
+                <Icon name="bell" size={14} /> Remind
+              </button>
+            )}
+            <button type="button" className="fbtb fbtb--primary" onClick={() => setPending('close')}>
+              Close
+            </button>
+          </>
+        )}
+        {c.status === 'closed' && (
+          <button type="button" className="fbtb" onClick={() => setPending('archive')}>
+            <Icon name="folder" size={14} /> Archive
+          </button>
+        )}
+      </Hero>
+
+      <div className="fbtagrow">
+        <CampaignPill status={c.status} />
+        <Tag tone={c.isAnonymous ? 'purple' : 'slate'}>{c.isAnonymous ? 'Anonymous' : 'Named'}</Tag>
+        <Tag tone="slate">{c.questions?.length || 0} questions</Tag>
+        <Tag tone="slate">~ {minutesFor(c.questions?.length || 0)} min to fill in</Tag>
+        <Tag tone="blue">Floor: {c.minimumResponses} responses</Tag>
+        {c.status === 'active' && left != null && (
+          <Tag tone={left <= 3 ? 'amber' : 'slate'}>
+            {left >= 0 ? `${left} day${left === 1 ? '' : 's'} left` : 'Past its closing date'}
+          </Tag>
+        )}
       </div>
 
-      <div className="stat-grid">
-        <StatCard icon="🧑‍🎓" color="blue"   label="Total Assigned"  value={c.assigned} />
-        <StatCard icon="✅"  color="green"  label="Submitted"       value={c.submitted} />
-        <StatCard icon="⏳"  color="orange" label="Pending"         value={c.pending} />
-        <StatCard icon="📈"  color="purple" label="Response Rate"   value={`${c.responseRate}%`} />
-        <StatCard icon="⭐"  color="orange" label="Average Rating"
-          value={c.avgRating == null ? '—' : `${c.avgRating.toFixed(1)} / 5.0`} />
+      <Stats>
+        <Stat icon="student" tone="blue" value={c.assigned} label="Students Asked"
+          caption="Matched from the section–subject–teacher allocations" />
+        <Stat icon="checkCircle" tone="green" value={c.submitted} label="Submitted"
+          caption={`${c.responseRate}% of everyone asked`} />
+        <Stat icon="clock" tone="amber" value={c.pending} label="Still Outstanding"
+          caption={c.status === 'active'
+            ? 'Can still be chased with a reminder'
+            : 'Marked expired when it closed'} />
+        <Stat icon="star" tone="purple"
+          value={c.avgRating == null ? '—' : <>{c.avgRating.toFixed(1)}<em>/ 5</em></>}
+          label="Average Rating"
+          caption={c.avgRating == null ? 'Nothing scored yet' : 'Out of 5, school-wide'} />
+      </Stats>
+
+      {c.status === 'draft' && (
+        <NoteBar tone="blue" icon="info">
+          This campaign has not started. Nothing has been sent and no student can see it — check the
+          questions and the targeting, then <b>Start collecting</b>. From that moment both are frozen.
+        </NoteBar>
+      )}
+
+      <div className="fbcard">
+        <div className="fbsubtabs" role="tablist">
+          {TABS.map((t) => (
+            <button key={t.value} type="button" role="tab" aria-selected={tab === t.value}
+              className={tab === t.value ? 'is-on' : ''} onClick={() => setTab(t.value)}>
+              <Icon name={t.icon} size={15} /> {t.label}
+              {t.value === 'teachers' && analytics.data?.byTeacher
+                ? <em>{analytics.data.byTeacher.length}</em> : null}
+              {t.value === 'questions' ? <em>{c.questions?.length || 0}</em> : null}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'results'   && <Results a={analytics} campaign={c} />}
+        {tab === 'teachers'  && <Teachers a={analytics} campaign={c} base={base} />}
+        {tab === 'questions' && <Questions questions={c.questions} />}
+        {tab === 'tracking'  && <Tracking id={id} campaign={c} />}
       </div>
 
-      <div className="tabs">
-        {TABS.map((t) => (
-          <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}
-            style={{ textTransform: 'capitalize' }}>{t}</button>
-        ))}
-      </div>
+      <NoteBar tone="purple" icon="key">
+        Per-teacher figures are withheld until <b>{c.minimumResponses}</b> students have answered about that
+        teacher. The totals above are averaged across every teacher at once, so they identify nobody
+        {c.isAnonymous ? ' — and this campaign is anonymous, so no answer is ever paired with the student who wrote it' : ''}.
+      </NoteBar>
 
-      {tab === 'overview'  && <Overview a={analytics} campaign={c} />}
-      {tab === 'teachers'  && <TeacherTable a={analytics} campaign={c} />}
-      {tab === 'questions' && <Questions questions={c.questions} />}
-      {tab === 'responses' && <Responses id={id} />}
+      <CampaignForm open={!!form} form={form} setForm={setForm} meta={meta}
+        saving={saving} error={formErr}
+        onClose={() => { setForm(null); setFormErr(''); }} onSave={save} />
 
-      <Confirm
-        open={!!confirmAction}
-        onClose={() => setConfirmAction(null)}
-        onConfirm={() => act(confirmAction)}
-        loading={busy}
-        title={{ activate: 'Activate campaign?', close: 'Close campaign?', archive: 'Archive campaign?' }[confirmAction]}
-        message={{
-          activate: 'Assignments will be generated for every matching student and they will be notified.',
-          close: 'Students can no longer submit. Nothing is deleted — collected feedback stays available.',
-          archive: 'The campaign is hidden from the default lists but all data is kept.',
-        }[confirmAction]}
-      />
+      <CampaignConfirm action={pending} campaign={c} busy={busy}
+        onClose={() => setPending(null)} onConfirm={run} />
     </div>
   );
 }
 
-function Overview({ a, campaign }) {
-  if (a.loading) return <Card><div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div></Card>;
-  if (a.error)   return <Alert variant="danger">{a.error}</Alert>;
+// ── Results ──────────────────────────────────────────────────────────────────
+
+function Results({ a, campaign }) {
+  if (a.loading) return <div className="fbloading"><Spinner /></div>;
+  if (a.error)   return <NoteBar tone="red" icon="alert">{a.error}</NoteBar>;
   const d = a.data;
 
-  const cut = (rows, label) => (
-    <Panel title={label}>
-      {rows?.length ? (
-        <RankBars data={rows.filter((r) => r.rating != null).map((r) => ({ label: r.name, value: r.rating }))}
-          labelKey="label" valueKey="value" unit="" max={5} />
-      ) : <p className="text-sm text-muted">No data yet.</p>}
+  const cut = (rows, title, subtitle, icon, tone) => (
+    <Panel icon={icon} tone={tone} title={title} subtitle={subtitle}>
+      {rows?.some((r) => r.rating != null)
+        ? (
+          <CatBars colored max={5} labelWidth={140}
+            data={rows.filter((r) => r.rating != null)
+              .map((r) => ({ label: r.name, value: Number(r.rating.toFixed(1)) }))} />
+        )
+        : <Muted>Nothing past the {campaign.minimumResponses}-response floor yet.</Muted>}
     </Panel>
   );
 
   return (
-    <>
-      <Grid min={330}>
-        <Panel title="Category performance" subtitle="School-wide average per category in this campaign">
-          {d.overall.categories?.length ? (
-            <RankBars data={d.overall.categories.map((c) => ({ label: c.name, value: c.average }))}
-              labelKey="label" valueKey="value" unit="" max={5} />
-          ) : <p className="text-sm text-muted">No scored responses yet.</p>}
+    <div className="fbtabbody">
+      <Row split="2">
+        <Panel icon="star" tone="amber" title="Overall"
+          subtitle="Every scored answer in this campaign, averaged">
+          <div className="fbbigrate">
+            <Rating value={d.overall.averageRating} big sub={undefined} />
+            <Stars value={Math.round(d.overall.averageRating || 0)} size={22} />
+            <Bar value={d.overall.responseRate} width={180} />
+            <Muted>
+              {d.overall.responses} of {d.overall.assigned} students answered. This figure is school-wide,
+              so it is shown whatever the floor.
+            </Muted>
+          </div>
         </Panel>
-        {cut(d.bySubject, 'Subject-wise rating')}
-        {cut(d.byClass, 'Class-wise rating')}
-        {cut(d.bySection, 'Section-wise rating')}
-      </Grid>
-      <Card>
-        <p className="text-xs text-muted" style={{ margin: 0 }}>
-          Per-teacher figures are withheld until {campaign.minimumResponses} responses exist for that teacher.
-          School-wide totals above are aggregated across all teachers, so they never identify anyone.
-        </p>
-      </Card>
+
+        <Panel icon="layers" tone="purple" title="By Category"
+          subtitle="Where this campaign says teaching is strongest">
+          {d.overall.categories?.some((x) => x.average != null)
+            ? (
+              <CatBars colored max={5} labelWidth={150}
+                data={d.overall.categories.filter((x) => x.average != null)
+                  .map((x) => ({ label: x.name, value: Number(x.average.toFixed(1)) }))} />
+            )
+            : <Muted>No scored answers yet — the categories fill in as students submit.</Muted>}
+        </Panel>
+      </Row>
+
+      <Row split="2">
+        {cut(d.bySubject, 'By Subject', 'Average rating out of 5', 'book', 'blue')}
+        {cut(d.byClass, 'By Class', 'Average rating out of 5', 'grid', 'teal')}
+      </Row>
+
+      {cut(d.bySection, 'By Section', 'Average rating out of 5, per class section', 'users', 'green')}
+    </div>
+  );
+}
+
+// ── Teachers ─────────────────────────────────────────────────────────────────
+
+function Teachers({ a, campaign, base }) {
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  const rows = useMemo(() => {
+    const src = a.data?.byTeacher || [];
+    const t = search.trim().toLowerCase();
+    return t ? src.filter((r) => r.name.toLowerCase().includes(t)) : src;
+  }, [a.data, search]);
+
+  if (a.loading) return <div className="fbloading"><Spinner /></div>;
+  if (a.error)   return <NoteBar tone="red" icon="alert">{a.error}</NoteBar>;
+
+  const pages = Math.max(1, Math.ceil(rows.length / limit));
+  const start = (Math.min(page, pages) - 1) * limit;
+  const shown = rows.slice(start, start + limit);
+
+  return (
+    <>
+      <Toolbar>
+        <Search value={search} onChange={(v) => { setSearch(v); setPage(1); }}
+          placeholder="Search teachers…" />
+        <Spacer />
+        <span className="fbmuted">
+          {rows.filter((r) => !r.locked).length} of {rows.length} are past the{' '}
+          {campaign.minimumResponses}-response floor
+        </span>
+      </Toolbar>
+
+      <Table
+        startIndex={start}
+        rows={shown}
+        columns={[
+          {
+            key: 'teacher', label: 'Teacher',
+            render: (r) => <Who name={r.name} to={`${base}/teachers/${r._id}`} tone={toneAt(rows.indexOf(r))} />,
+          },
+          { key: 'responses', label: 'Responses', render: (r) => `${r.responses} / ${r.assigned}` },
+          { key: 'rate', label: 'Response %', render: (r) => <Bar value={r.responseRate} /> },
+          {
+            key: 'rating', label: 'Avg Rating',
+            render: (r) => (
+              <Rating value={r.rating} locked={r.locked} responses={r.responses}
+                minimum={campaign.minimumResponses}
+                sub={r.rating == null ? undefined : `Based on ${r.responses} response${r.responses === 1 ? '' : 's'}`} />
+            ),
+          },
+        ]}
+        empty={(
+          <EmptyState icon="👨‍🏫"
+            title={search ? 'No teacher matches' : 'No teachers in this campaign'}
+            message={search
+              ? 'Try another name.'
+              : 'Assignments are built from the section–subject–teacher allocations when a campaign starts.'} />
+        )}
+      />
+
+      <Foot page={Math.min(page, pages)} pages={pages} total={rows.length} limit={limit}
+        count={shown.length} noun="teacher" onPage={setPage} />
     </>
   );
 }
 
-function TeacherTable({ a, campaign }) {
-  if (a.loading) return <Card><div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div></Card>;
-  if (a.error)   return <Alert variant="danger">{a.error}</Alert>;
+// ── Questions ────────────────────────────────────────────────────────────────
 
-  return (
-    <div className="card"><div className="card-body" style={{ padding: 0 }}>
-      <Table
-        columns={[
-          { key: 'name', label: 'Teacher', render: (r) => <Link to={`/admin/feedback/teachers/${r._id}`} style={{ fontWeight: 600 }}>{r.name}</Link> },
-          { key: 'responses', label: 'Responses', render: (r) => `${r.responses} / ${r.assigned}` },
-          { key: 'responseRate', label: 'Response %', render: (r) => `${r.responseRate}%` },
-          {
-            key: 'rating', label: 'Avg Rating',
-            render: (r) => (r.locked
-              ? <LockedNotice responses={r.responses} minimum={campaign.minimumResponses} compact />
-              : <Score value={r.rating} size="sm" showLabel={false} />),
-          },
-        ]}
-        data={a.data.byTeacher}
-        emptyIcon="👨‍🏫"
-        emptyTitle="No teachers in this campaign"
-      />
-    </div></div>
-  );
-}
-
+/**
+ * The exact questions this campaign asked.
+ *
+ * A snapshot, not a link to the bank: the bank can be edited freely and these
+ * do not move, which is the only reason a two-year-old campaign's results are
+ * still readable.
+ */
 function Questions({ questions }) {
-  return (
-    <Card title="Questionnaire snapshot">
-      <p className="text-xs text-muted" style={{ marginBottom: 12 }}>
-        These are the exact questions this campaign asked. Editing the question bank later never changes them,
-        so historical feedback always stays readable.
-      </p>
-      <ol style={{ display: 'grid', gap: 10, paddingLeft: 20 }}>
-        {(questions || []).map((q) => (
-          <li key={q._id}>
-            <div style={{ fontSize: '.87rem' }}>
-              {q.questionText}
-              {q.isRequired && <span style={{ color: 'var(--danger)' }}> *</span>}
-            </div>
-            <div className="text-xs text-muted">
-              {[q.categoryName, q.questionType.replace('_', ' ')].filter(Boolean).join(' · ')}
-              {!!q.options?.length && ` · ${q.options.length} options`}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </Card>
-  );
-}
-
-function Responses({ id }) {
-  const [rows, setRows] = useState([]);
-  const [pg, setPg]     = useState({ page: 1, pages: 1, total: 0 });
-  const [status, setStatus] = useState('');
-  const [loading, setLoad]  = useState(true);
-  const [anon, setAnon]     = useState(true);
-
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
-    try {
-      const res = await api.getCampaignAssignments(id, { page, limit: 50, status });
-      const d = res.data ?? res;
-      setRows(d.data || []); setAnon(d.isAnonymous);
-      setPg({ page: d.page, pages: d.pages, total: d.total });
-    } catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [id, status]);
-
-  useEffect(() => { load(1); }, [load]);
+  const rows = questions || [];
+  const scored = rows.filter((q) => q.includeInScore).length;
+  const mins = minutesFor(rows.length);
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <select className="form-control" style={{ maxWidth: 200 }} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="in_progress">In progress</option>
-          <option value="submitted">Submitted</option>
-          <option value="expired">Expired</option>
-        </select>
-        {anon && <span className="text-xs text-muted">🔒 Anonymous campaign — submission status is tracked, answers are never linked to a student.</span>}
-      </div>
+      <Toolbar>
+        <div className="fbtools__title">
+          <b>{rows.length} question{rows.length === 1 ? '' : 's'}</b>
+          <small>
+            {scored} count towards the rating · about {mins} minute{mins === 1 ? '' : 's'} to fill in
+          </small>
+        </div>
+        <Spacer />
+        <span className="fbmuted">
+          Frozen when the campaign was created — editing the question bank never changes these.
+        </span>
+      </Toolbar>
 
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table
-          columns={[
-            { key: 'student', label: 'Student', render: (r) => r.student?.name || '—' },
-            { key: 'teacher', label: 'Teacher' },
-            { key: 'subject', label: 'Subject' },
-            { key: 'section', label: 'Section' },
-            {
-              key: 'status', label: 'Status',
-              render: (r) => <Badge variant={{ submitted: 'success', pending: 'warning', in_progress: 'info', expired: 'muted' }[r.status]}>
-                {r.status.replace('_', ' ')}
-              </Badge>,
+      <Table
+        rows={rows}
+        columns={[
+          {
+            key: 'q', className: 'fbq', label: 'Question',
+            render: (q) => (
+              <Stack main={<>{q.questionText}{q.isRequired ? <em className="fbreq"> *</em> : null}</>}
+                sub={q.helpText || (q.options?.length ? q.options.map((o) => o.optionText).join(' · ') : '')} />
+            ),
+          },
+          {
+            key: 'category', label: 'Category',
+            render: (q) => (q.categoryName ? <Tag tone="purple">{q.categoryName}</Tag> : <Dash />),
+          },
+          { key: 'type', label: 'Type', render: (q) => <Tag tone="blue">{typeShort(q.questionType)}</Tag> },
+          {
+            key: 'scored', label: 'Scored',
+            render: (q) => (q.includeInScore
+              ? <span className="fbtick"><Icon name="checkCircle" size={16} /></span>
+              : <Dash />),
+          },
+        ]}
+        empty={(
+          <EmptyState icon="❓" title="No questions on this campaign"
+            message="A campaign is built from a template. This one appears to have been created without one." />
+        )}
+      />
+    </>
+  );
+}
+
+// ── Tracking ─────────────────────────────────────────────────────────────────
+
+const ASSIGNMENT = {
+  submitted:   { word: 'Submitted',   tone: 'green' },
+  pending:     { word: 'Not started', tone: 'amber' },
+  in_progress: { word: 'In progress', tone: 'blue' },
+  expired:     { word: 'Expired',     tone: 'slate' },
+};
+
+function Tracking({ id, campaign }) {
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [anon, setAnon] = useState(true);
+  const [search, setSearch] = useState('');
+  const [term, setTerm] = useState('');
+  const limit = 10;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = (await api.getCampaignAssignments(id, { page, limit, status })).data;
+      setRows(d?.data || []);
+      setAnon(d?.isAnonymous);
+      setTotal(d?.total || 0);
+      setPages(d?.pages || 1);
+    } catch (e) { toast.error(e.message); } finally { setLoading(false); }
+  }, [id, page, status]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(search.trim().toLowerCase()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const shown = useMemo(() => (term
+    ? rows.filter((r) => `${r.student?.name || ''} ${r.teacher || ''} ${r.subject || ''} ${r.section || ''}`
+      .toLowerCase().includes(term))
+    : rows), [rows, term]);
+
+  return (
+    <>
+      <Toolbar>
+        <Search value={search} onChange={setSearch}
+          placeholder="Search students, teachers or sections…" />
+        <Pick value={status} onChange={(v) => { setStatus(v); setPage(1); }} all="All statuses"
+          label="Submission status" options={[
+            { value: 'pending', label: 'Not started' },
+            { value: 'in_progress', label: 'In progress' },
+            { value: 'submitted', label: 'Submitted' },
+            { value: 'expired', label: 'Expired' },
+          ]} />
+        <Spacer />
+      </Toolbar>
+
+      {anon && (
+        <div style={{ padding: '0 18px 14px' }}>
+          <NoteBar tone="purple" icon="key">
+            This is a <b>submission register</b>, not a list of answers. It says who has responded so the
+            school can chase the rest — it never shows what anybody wrote, and this campaign is anonymous,
+            so no screen anywhere pairs a student with their answers.
+          </NoteBar>
+        </div>
+      )}
+
+      <Table
+        loading={loading}
+        startIndex={(page - 1) * limit}
+        rows={shown}
+        columns={[
+          {
+            key: 'student', label: 'Student',
+            render: (r) => (r.student?.name
+              ? <Who name={r.student.name} tone="blue" sub={r.section} />
+              : <Dash />),
+          },
+          { key: 'about', label: 'About', render: (r) => <Stack main={r.teacher} sub={r.subject} /> },
+          {
+            key: 'status', label: 'Status',
+            render: (r) => {
+              const s = ASSIGNMENT[r.status] || ASSIGNMENT.pending;
+              return <Dot tone={s.tone}>{s.word}</Dot>;
             },
-            { key: 'submittedAt', label: 'Submitted', render: (r) => (r.submittedAt ? fmtDate(r.submittedAt) : '—') },
-          ]}
-          data={rows}
-          loading={loading}
-          emptyIcon="🗳"
-          emptyTitle="No assignments"
-        />
-      </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
+          },
+          {
+            key: 'when', label: 'Submitted',
+            render: (r) => (r.submittedAt ? <span className="fbdate">{fmtDate(r.submittedAt)}</span> : <Dash />),
+          },
+        ]}
+        empty={(
+          <EmptyState icon="🗳" title={status || term ? 'Nothing matches' : 'No assignments'}
+            message={campaign.status === 'draft'
+              ? 'Assignments are generated when the campaign starts.'
+              : 'No student was matched to a teacher for this campaign. Check the section–subject–teacher allocations.'} />
+        )}
+      />
+
+      <Foot page={page} pages={pages} total={total} limit={limit}
+        count={shown.length} noun="assignment" onPage={setPage} />
     </>
   );
 }

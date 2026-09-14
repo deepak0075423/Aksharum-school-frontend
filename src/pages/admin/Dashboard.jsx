@@ -29,7 +29,7 @@ const ALL_MODULES = [
   { key: 'transport',         to: '/admin/transport/dashboard',            icon: 'bus',         tone: 'amber',  label: 'Transport',       sub: 'Routes & vehicles' },
   { key: 'hostel',            to: '/admin/hostel/dashboard',               icon: 'hotel',       tone: 'teal',   label: 'Hostel',          sub: 'Rooms & allocations' },
   { key: 'videoLibrary',      to: '/admin/videos/browse',                  icon: 'video',       tone: 'pink',   label: 'Video Learning',  sub: 'Lessons & assignments' },
-  { key: 'feedback',          to: '/admin/feedback/dashboard',             icon: 'star',        tone: 'purple', label: 'Teacher Feedback', sub: 'Campaigns & reports' },
+  { key: 'feedback',          to: '/admin/feedback/overview',              icon: 'star',        tone: 'purple', label: 'Teacher Feedback', sub: 'Campaigns & reports' },
   { key: 'employeeDirectory', to: '/admin/employee-directory/dashboard',   icon: 'folder',      tone: 'indigo', label: 'Employee Directory', sub: 'Staff records' },
   { key: 'document',          to: '/admin/documents',                      icon: 'files',       tone: 'orange', label: 'Documents',       sub: 'Files & certificates' },
   { key: 'holiday',           to: '/admin/holidays',                       icon: 'party',       tone: 'teal',   label: 'Holidays',        sub: 'Calendar & closures' },

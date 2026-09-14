@@ -78,10 +78,10 @@ export const REPORTS = [
   { group: 'people', module: 'employeeDirectory', icon: 'folder', to: '/admin/employee-directory/reports',
     label: 'Employee reports',
     desc: 'Headcount, departments, verification status and joining trends.' },
-  { group: 'people', module: 'feedback', icon: 'star', to: '/admin/feedback/reports',
+  { group: 'people', module: 'feedback', icon: 'star', to: '/admin/feedback/insights',
     label: 'Teacher feedback',
     desc: 'Campaign results per teacher, within the privacy threshold.' },
-  { group: 'people', module: 'feedback', icon: 'trending', to: '/admin/feedback/trends',
+  { group: 'people', module: 'feedback', icon: 'trending', to: '/admin/feedback/insights?view=trends',
     label: 'Feedback trends',
     desc: 'How scores have moved across campaigns and departments.' },
 
