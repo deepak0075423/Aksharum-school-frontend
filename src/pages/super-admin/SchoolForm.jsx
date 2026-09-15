@@ -7,8 +7,15 @@ import { schoolLogoUrl } from '../../utils/branding';
 
 const SCHOOL_BOARDS = ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge (IGCSE)', 'NIOS', 'Other'];
 
+// "State Board" and "Other" do not say which board — the school names it.
+// Same rule as the server (superAdmin.controller NAMED_BOARDS).
+const NAMED_BOARDS = {
+  'State Board': { label: 'State Board Name', placeholder: 'e.g. Maharashtra State Board (MSBSHSE)' },
+  'Other':       { label: 'Board Name',       placeholder: 'e.g. Bihar Sanskrit Shiksha Board' },
+};
+
 const initial = {
-  name: '', code: '', board: '', email: '', phone: '',
+  name: '', code: '', board: '', boardName: '', email: '', phone: '',
   address: '', city: '', state: '', country: 'India',
   website: '', isActive: true,
 };
@@ -24,6 +31,12 @@ function validate(form) {
   const errors = {};
   for (const field of REQUIRED_FIELDS) {
     if (!form[field]?.trim()) errors[field] = `${FIELD_LABELS[field]} is required`;
+  }
+  const named = NAMED_BOARDS[form.board];
+  if (named && !errors.board) {
+    const bn = form.boardName.trim();
+    if (!bn) errors.boardName = `${named.label} is required`;
+    else if (bn.length < 2 || bn.length > 100) errors.boardName = `${named.label} must be 2-100 characters`;
   }
   if (!errors.name && form.name.trim().length < 3) errors.name = 'School name must be at least 3 characters';
   if (!errors.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim())) errors.code = 'Code must be 2-20 letters, numbers, hyphens or underscores';
@@ -54,6 +67,7 @@ export default function SchoolForm() {
             name:     s.name    || '',
             code:     s.code    || '',
             board:    s.board   || '',
+            boardName: s.boardName || '',
             email:    s.email   || '',
             phone:    s.phone   || '',
             address:  s.address || '',
@@ -97,7 +111,12 @@ export default function SchoolForm() {
     setLoading(true);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      Object.entries(form).forEach(([k, v]) => {
+        // A name typed for "State Board" and then left behind by switching to
+        // CBSE is not sent; the server clears it as well.
+        if (k === 'boardName' && !NAMED_BOARDS[form.board]) v = '';
+        fd.append(k, v);
+      });
       if (logo) fd.append('logo', logo);
       else if (removeLogo) fd.append('removeLogo', 'true');   // clears it server-side
       if (isEdit) await api.updateSchool(id, fd);
@@ -191,9 +210,11 @@ export default function SchoolForm() {
               </select>
               {fieldError('board')}
             </div>
-            {inp('email', 'Email Address', 'email', 'admin@school.edu.in')}
+            {/* Beside the board it names, and only for the two that need naming. */}
+            {NAMED_BOARDS[form.board] && inp('boardName', NAMED_BOARDS[form.board].label, 'text', NAMED_BOARDS[form.board].placeholder)}
           </div>
           <div className="form-row form-row-2">
+            {inp('email', 'Email Address', 'email', 'admin@school.edu.in')}
             {inp('phone', 'Phone Number', 'tel', '+91 98765 43210')}
           </div>
 
