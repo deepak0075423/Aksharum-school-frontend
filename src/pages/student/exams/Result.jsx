@@ -1,70 +1,91 @@
+/**
+ * Student → one exam's result.
+ *
+ * The score as a ring and a sentence, whether it passed and against what pass
+ * mark, how the answers split, and then every question with the student's
+ * answer and the correct one marked in words as well as colour — filterable to
+ * just the ones they got wrong or skipped.
+ */
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useFetch from '../../../hooks/useFetch';
 import { getExamResult } from '../../../api/student.api';
-import { PageHeader, Badge, Button, Spinner, StatCard } from '../../../components/ui/index';
+import { Button, Spinner } from '../../../components/ui/index';
+import Icon from '../../../components/ui/icons';
+import { ExamMark, fmtExamDay } from '../../admin/examParts';
+import {
+  BackLink, ScoreRing, Outcome, Pills, QuestionReview, useReviewFilter, fmtSpent, fmtStamp, plural,
+} from '../../exams/examShared';
 
 export default function StudentExamResult() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data, loading, error } = useFetch(() => getExamResult(id), [id]);
+  const review = useReviewFilter(data?.questions);
 
   if (loading) return <div className="loading-page"><Spinner /></div>;
-  if (error || !data) {
+  if (error || !data?.exam) {
     return (
-      <div className="page">
-        <div className="card"><div className="card-body" style={{ textAlign: 'center', padding: 48 }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>⏳</div>
-          <h3 style={{ marginBottom: 8 }}>Result not available</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{error || 'Results are not published yet.'}</p>
-          <Button variant="secondary" onClick={() => navigate('/student/exams')}>← Back to exams</Button>
-        </div></div>
+      <div className="page apxpg">
+        <BackLink to="/student/exams">My Aptitude Exams</BackLink>
+        <div className="card apxqe__empty">
+          <Icon name="clock" size={32} />
+          <h3>Result not available yet</h3>
+          <p>{error || 'Results are not published yet.'}</p>
+          <Button variant="secondary" onClick={() => navigate('/student/exams')}>Back to my exams</Button>
+        </div>
       </div>
     );
   }
 
+  const exam = data.exam;
   return (
-    <div className="page">
-      <PageHeader title={`Result — ${data.exam?.title}`}
-        subtitle={data.submittedAt ? `Submitted ${new Date(data.submittedAt).toLocaleString('en-IN')}` : ''}
-        action={<Button variant="secondary" onClick={() => navigate('/student/exams')}>← Back</Button>} />
+    <div className="page apxpg">
+      <BackLink to="/student/exams">My Aptitude Exams</BackLink>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <StatCard icon="🎯" label="Score"      value={`${data.score}/${data.exam?.totalMarks}`} />
-        <StatCard icon="📊" label="Percentage" value={`${data.percentage}%`} />
-        <StatCard icon={data.passed ? '✅' : '❌'} label="Outcome" value={data.passed ? 'Passed' : 'Failed'} color={data.passed ? 'green' : 'red'} />
-      </div>
-
-      {(data.questions || []).map((q, i) => (
-        <div key={q._id} className="card" style={{ marginBottom: 12 }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-              <strong>Q{i + 1}.</strong>
-              <Badge variant={q.selected?.length === 0 ? 'muted' : q.isCorrect ? 'success' : 'danger'}>
-                {q.selected?.length === 0 ? 'Unanswered' : q.isCorrect ? `Correct +${q.earnedMarks}` : 'Incorrect'}
-              </Badge>
-              <Badge variant="muted">{q.marks} mark{q.marks !== 1 ? 's' : ''}</Badge>
-            </div>
-            <div style={{ marginBottom: 10, whiteSpace: 'pre-wrap' }}>{q.questionText}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6 }}>
-              {(q.options || []).map(o => {
-                const isSel = (q.selected || []).includes(o.optionId);
-                const isCor = (q.correctAnswers || []).includes(o.optionId);
-                return (
-                  <div key={o.optionId} style={{
-                    padding: '6px 12px', borderRadius: 8, fontSize: '.88rem',
-                    border: `1px solid ${isCor ? 'var(--success, #22c55e)' : isSel ? 'var(--danger, #ef4444)' : 'var(--border)'}`,
-                    background: isCor ? 'rgba(34,197,94,.08)' : isSel ? 'rgba(239,68,68,.06)' : 'transparent',
-                  }}>
-                    <strong style={{ textTransform: 'uppercase' }}>{o.optionId}.</strong> {o.text}
-                    {isCor && ' ✓'}{isSel && !isCor && ' ✗ (your answer)'}{isSel && isCor && ' (your answer)'}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+      <section className="card apxresult">
+        <ScoreRing value={data.percentage}>
+          <strong>{data.percentage}%</strong>
+          <small>score</small>
+        </ScoreRing>
+        <div className="apxresult__main">
+          <p className="apxresult__exam"><ExamMark exam={{ title: exam.title, subjectName: exam.subjectName }} size={30} />{exam.subjectName || 'General Aptitude'} · {fmtExamDay(exam)}</p>
+          <h1>{exam.title}</h1>
+          <p className="apxresult__line">
+            <span>You scored <b>{data.score}</b> out of <b>{exam.totalMarks}</b></span>
+            <Outcome passed={data.passed} />
+          </p>
+          <small className="apxmuted">
+            Pass mark {data.passMark} · submitted {fmtStamp(data.submittedAt)} · took {fmtSpent(data.timeTaken)}
+          </small>
+          {data.status === 'auto_submitted' && (
+            <p className="apxwarn"><Icon name="alert" size={15} />This paper was submitted automatically{data.violationCount ? ` after ${plural(data.violationCount, 'tab switch', 'tab switches')}` : ' when time ran out'}.</p>
+          )}
         </div>
-      ))}
+        <ul className="apxresult__split">
+          <li className="is-correct"><Icon name="checkCircle" size={20} /><b>{data.correct}</b><span>Correct</span></li>
+          <li className="is-incorrect"><Icon name="closeCircle" size={20} /><b>{data.incorrect}</b><span>Incorrect</span></li>
+          <li className="is-unanswered"><Icon name="info" size={20} /><b>{data.unanswered}</b><span>Not answered</span></li>
+        </ul>
+      </section>
+
+      <section className="card apxpanel">
+        <header className="apxpanel__head">
+          <span className="apxpanel__mark"><Icon name="list" size={20} /></span>
+          <div className="apxpanel__title">
+            <h2>Question review</h2>
+            <p>Your answer and the correct answer for every question</p>
+          </div>
+          <div className="apxpanel__act">
+            <Pills label="Filter questions" value={review.filter} onChange={review.setFilter} items={review.pills} />
+          </div>
+        </header>
+        <div className="apxqe__list apxqe__list--panel">
+          {review.shown.length === 0
+            ? <p className="apxempty">No questions in this group.</p>
+            : review.shown.map(({ q, i }) => <QuestionReview key={q._id} q={q} index={i} viewer="student" />)}
+        </div>
+      </section>
     </div>
   );
 }

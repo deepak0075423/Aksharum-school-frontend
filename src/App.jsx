@@ -382,7 +382,7 @@ export default function App() {
               <Route path="configuration"     element={<TTConfiguration />} />
             </Route>
             <Route path="notifications"   element={<SharedNotifications />} />
-            <Route path="exams"           element={<AExams />} />
+            <Route path="exams/*"         element={<AExams />} />
             <Route path="results/*"       element={<AResults />} />
             <Route path="leave/*"         element={<ALeave />} />
             <Route path="documents"       element={<ADocuments />} />

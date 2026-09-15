@@ -5,7 +5,8 @@ export const getModules      = () => api.get('/parent/modules');
 export const getSchoolConfig = () => api.get('/profile/school-config');
 export const getChildClass    = () => api.get('/parent/child-class');
 export const getChildAttendance = (params) => api.get('/parent/child-attendance', { params });
-export const getExams         = () => api.get('/parent/exams');
+// `child` picks which child; the reply lists `children` to switch between.
+export const getExams         = (params) => api.get('/parent/exams', { params });
 export const getResults       = () => api.get('/parent/results');
 export const getResultDetail  = (id) => api.get(`/parent/results/${id}`);
 export const getDocuments     = () => api.get('/parent/documents');

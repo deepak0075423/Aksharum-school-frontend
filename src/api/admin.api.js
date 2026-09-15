@@ -298,8 +298,38 @@ export const exportHolidays         = ()         => api.get('/admin/holidays/exp
 export const downloadHolidayTemplate= ()         => api.get('/admin/holidays/template', { responseType: 'arraybuffer' }).then(r => r.data ?? r);
 export const getHolidayAuditLog     = (params)   => api.get('/admin/holidays/audit', { params });
 
-// Aptitude Exams (overview)
-export const getExams = (params) => api.get('/admin/exams', { params });
+// Aptitude Exams
+export const getExams            = (params) => api.get('/admin/exams', { params });
+export const getExamOverview     = ()       => api.get('/admin/exams/overview');
+export const getExamInsights     = (period) => api.get('/admin/exams/insights', { params: { period } });
+// Analytics: `year` ('' current / 'all' / id), `subject`, `classNumber`; and one exam in depth.
+export const getExamAnalytics    = (params) => api.get('/admin/exams/analytics', { params });
+export const getExamReport       = (id)     => api.get(`/admin/exams/${id}/report`);
+export const getAptitudeExamMeta = ()       => api.get('/admin/exams/meta');
+export const getAptitudeExam     = (id)     => api.get(`/admin/exams/${id}`);
+export const createAptitudeExam  = (data)   => api.post('/admin/exams', data);
+export const updateAptitudeExam  = (id, data) => api.put(`/admin/exams/${id}`, data);
+export const deleteAptitudeExam  = (id)     => api.delete(`/admin/exams/${id}`);
+export const duplicateAptitudeExam = (id)   => api.post(`/admin/exams/${id}/duplicate`);
+export const publishAptitudeExam   = (id)   => api.post(`/admin/exams/${id}/publish`);
+export const unpublishAptitudeExam = (id)   => api.post(`/admin/exams/${id}/unpublish`);
+export const cancelAptitudeExam    = (id)   => api.post(`/admin/exams/${id}/cancel`);
+export const decideAptitudeResults = (id, data) => api.post(`/admin/exams/${id}/results`, data);
+export const importAptitudeQuestions = (id, file, preview) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post(`/admin/exams/${id}/questions/import`, fd, { params: preview ? { preview: '1' } : {} });
+};
+export const getAptitudeQuestionTemplate = () =>
+  api.get('/admin/exams/questions/template', { responseType: 'blob' });
+// The question editor is the teacher's page, pointed at these instead.
+export const aptitudeQuestionApi = {
+  getExam:        (id)           => api.get(`/admin/exams/${id}`),
+  getQuestions:   (id)           => api.get(`/admin/exams/${id}/questions`),
+  addQuestion:    (id, data)     => api.post(`/admin/exams/${id}/questions`, data),
+  updateQuestion: (id, qid, data) => api.put(`/admin/exams/${id}/questions/${qid}`, data),
+  deleteQuestion: (id, qid)      => api.delete(`/admin/exams/${id}/questions/${qid}`),
+};
 
 // Results
 export const getFormalExams = (params) => api.get('/admin/results/exams', { params });

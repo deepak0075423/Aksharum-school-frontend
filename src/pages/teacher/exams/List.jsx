@@ -1,220 +1,278 @@
-import React, { useState } from 'react';
+/**
+ * Teacher → Aptitude Exams (landing).
+ *
+ * The same frame as the admin screen: marked header with Import and Create,
+ * figures, then the list — scoped to the exams this teacher wrote and the ones
+ * set for a section they class-teach. Between the two sits "Needs your
+ * attention": results waiting on this teacher's approval, drafts that cannot
+ * be published yet and why, and exams running right now.
+ *
+ * One read (`/teacher/exams/board`) carries rows and figures; filtering is
+ * client-side because a teacher's own exams are a short list.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/teacher.api';
-import { PageHeader, Table, Badge, Button, Modal, Confirm, Spinner } from '../../../components/ui/index';
+import { Alert, Button, Confirm, Empty } from '../../../components/ui/index';
+import Icon from '../../../components/ui/icons';
+import { SearchField, MenuItem, MenuSep } from '../../admin/documentParts';
+import {
+  ExamHero, ExamStats, ExamStat, Panel, ExamTable, ExamGrid, ViewSwitch, ExamMark, StagePill,
+  fmtExamDay, fmtClock, fmtShortDate,
+} from '../../admin/examParts';
+import ExamForm from '../../admin/ExamForm';
+import ImportQuestions from '../../admin/ImportQuestions';
+import { Pills, PublishMenuItem, YearPicker, plural } from '../../exams/examShared';
 
-const STATUS_COLOR = { draft: 'muted', published: 'success', completed: 'info', cancelled: 'danger' };
+const unwrap = (res) => res?.data ?? res;
+const errText = (err) => err?.data?.message || err?.message || 'Something went wrong';
 
-const EMPTY_FORM = {
-  title: '', sectionId: '', subjectId: '', examDate: '', startTime: '10:00',
-  duration: 60, totalQuestions: 10, totalMarks: 100, maxViolations: 3,
+export const TEACHER_IMPORT_API = {
+  listDrafts: async () => (unwrap(await api.getExamBoard())?.exams || []).filter((e) => e.stage === 'draft' && e.isAuthor),
+  importQuestions: api.importExamQuestions,
+  template: api.getExamQuestionTemplate,
+};
+
+const FILTERS = {
+  all:       () => true,
+  draft:     (e) => e.stage === 'draft',
+  upcoming:  (e) => ['scheduled', 'live'].includes(e.stage),
+  completed: (e) => e.stage === 'completed',
+  cancelled: (e) => e.stage === 'cancelled',
 };
 
 export default function TeacherExamsList() {
   const navigate = useNavigate();
-  const { data: exams, loading, refetch } = useFetch(api.getExams);
-  const { data: meta } = useFetch(api.getExamMeta);
+  const [board, setBoard] = useState(null);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [view, setView] = useState('list');
+  const [year, setYear] = useState('');   // '' = the current academic year
 
-  const [modal, setModal]     = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [del, setDel]         = useState(null);
-  const [saving, setSaving]   = useState(false);
-  const [delLoad, setDL]      = useState(false);
-  const [form, setForm]       = useState(EMPTY_FORM);
+  const [meta, setMeta] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [importFor, setImportFor] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  const sections = meta?.sections || [];
-  const subjects = meta?.subjects || [];
+  const load = useCallback(async () => {
+    try { setBoard(unwrap(await api.getExamBoard(year ? { year } : undefined))); setError(''); }
+    catch (err) { setError(errText(err)); setBoard({ exams: [], tiles: {} }); }
+  }, [year]);
+  useEffect(() => { load(); }, [load]);
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setModal(true); };
-  const openEdit = (exam) => {
-    setEditing(exam);
-    setForm({
-      title:          exam.title,
-      sectionId:      exam.section?._id || exam.section || '',
-      subjectId:      exam.subject?._id || exam.subject || '',
-      examDate:       exam.examDate ? new Date(exam.examDate).toISOString().slice(0, 10) : '',
-      startTime:      exam.startTime || '10:00',
-      duration:       exam.duration,
-      totalQuestions: exam.totalQuestions,
-      totalMarks:     exam.totalMarks,
-      maxViolations:  exam.maxViolations || 3,
-    });
-    setModal(true);
+  const exams = board?.exams || [];
+  const t = board?.tiles || {};
+  const open = (e, tab = '') => navigate(`/teacher/exams/${e._id}${tab ? `/${tab}` : ''}`);
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return exams.filter(FILTERS[filter]).filter((e) => !q
+      || e.title.toLowerCase().includes(q) || (e.subjectName || '').toLowerCase().includes(q)
+      || (e.audience?.label || '').toLowerCase().includes(q));
+  }, [exams, filter, search]);
+
+  const count = (k) => exams.filter(FILTERS[k]).length;
+
+  // ── Needs your attention ───────────────────────────────────────────────────
+  const attention = useMemo(() => {
+    const items = [];
+    exams.filter((e) => e.task).forEach((e) => items.push({
+      e, icon: 'checkCircle', tone: 'violet', tab: 'results', cta: 'Review results',
+      text: e.task === 'subject' ? 'Confirm the scores before the class teacher publishes them' : 'Approve and publish the results',
+    }));
+    exams.filter((e) => e.stage === 'live').forEach((e) => items.push({
+      e, icon: 'activity', tone: 'green', tab: 'submissions', cta: 'Watch submissions',
+      text: `Live now — ${e.submitted} of ${plural(e.eligible, 'student')} submitted`,
+    }));
+    exams.filter((e) => e.stage === 'draft' && e.isAuthor && !e.readiness?.ready).forEach((e) => items.push({
+      e, icon: 'alert', tone: 'amber', tab: 'questions', cta: 'Finish exam',
+      text: `Not ready to publish — ${e.readiness.checks.find((c) => !c.ok)?.detail}`,
+    }));
+    return items.slice(0, 5);
+  }, [exams]);
+
+  // ── Create / edit ──────────────────────────────────────────────────────────
+  const ensureMeta = async () => {
+    if (meta) return;
+    try { setMeta(unwrap(await api.getExamMeta())); } catch (err) { toast.error(errText(err)); }
+  };
+  const openCreate = () => { setEditing(null); setFormOpen(true); ensureMeta(); };
+  const openEdit = (e) => {
+    if (!e.isAuthor || e.stage !== 'draft') return;
+    setEditing(e); setFormOpen(true); ensureMeta();
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
+  const save = async (body) => {
     setSaving(true);
     try {
       if (editing) {
-        await api.updateExam(editing._id, form);
+        await api.updateExam(editing._id, body);
         toast.success('Exam updated');
+        setFormOpen(false);
+        load();
       } else {
-        await api.createExam(form);
-        toast.success('Exam created — now add questions');
+        const created = unwrap(await api.createExam(body));
+        toast.success('Draft created — now add its questions');
+        setFormOpen(false);
+        navigate(`/teacher/exams/${created._id}/questions`);
       }
-      setModal(false);
-      refetch();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) { toast.error(errText(err)); }
     finally { setSaving(false); }
   };
 
-  const handlePublish = async (exam) => {
-    if ((exam.questionCount || 0) < exam.totalQuestions) {
-      return toast.error(`Add ${exam.totalQuestions - (exam.questionCount || 0)} more question(s) before publishing`);
+  const runConfirm = async () => {
+    setBusy(true);
+    try {
+      if (confirm.kind === 'publish') { await api.publishExam(confirm.exam._id); toast.success('Exam published'); }
+      else { await api.deleteExam(confirm.exam._id); toast.success('Draft deleted'); }
+      setConfirm(null);
+      load();
+    } catch (err) { toast.error(errText(err)); }
+    finally { setBusy(false); }
+  };
+
+  /** Publishing an incomplete exam says what is missing and opens its checklist. */
+  const askPublish = (e) => {
+    if (!e.readiness?.ready) {
+      toast.error(e.readiness?.message || 'This exam is not ready to publish', { duration: 6000 });
+      open(e, 'questions');
+      return;
     }
-    try { await api.publishExam(exam._id); toast.success('Exam published'); refetch(); }
-    catch (err) { toast.error(err.message); }
+    setConfirm({ kind: 'publish', exam: e });
   };
 
-  const handleDelete = async () => {
-    setDL(true);
-    try { await api.deleteExam(del._id); toast.success('Deleted'); setDel(null); refetch(); }
-    catch (err) { toast.error(err.message); }
-    finally { setDL(false); }
-  };
+  const menu = (e) => (
+    <>
+      <MenuItem icon="eye" onClick={() => open(e)}>Open exam</MenuItem>
+      <MenuItem icon="list" onClick={() => open(e, 'questions')}>{e.stage === 'draft' && e.isAuthor ? 'Manage questions' : 'View questions'}</MenuItem>
+      {e.stage === 'draft' && e.isAuthor && <MenuItem icon="upload" onClick={() => setImportFor(e._id)}>Import questions</MenuItem>}
+      {e.stage === 'draft' && e.isAuthor && <PublishMenuItem exam={e} onPublish={() => askPublish(e)} />}
+      {e.stage !== 'draft' && (
+        <>
+          <MenuSep />
+          <MenuItem icon="users" onClick={() => open(e, 'submissions')}>Submissions</MenuItem>
+          <MenuItem icon="chart" onClick={() => open(e, 'analytics')}>Analytics</MenuItem>
+          <MenuItem icon="checkCircle" onClick={() => open(e, 'results')}>Results approval</MenuItem>
+        </>
+      )}
+      {e.stage === 'draft' && e.isAuthor && (
+        <><MenuSep /><MenuItem icon="trash" danger onClick={() => setConfirm({ kind: 'delete', exam: e })}>Delete draft</MenuItem></>
+      )}
+    </>
+  );
 
-  const columns = [
-    { key: 'title',    label: 'Exam', render: r => (
-      <div>
-        <strong>{r.title}</strong>
-        <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
-          {r.section?.sectionName || ''}{r.subject?.subjectName ? ` · ${r.subject.subjectName}` : ''}
-        </div>
-      </div>
-    )},
-    { key: 'examDate', label: 'Date', render: r => (
-      <div>
-        {r.examDate ? new Date(r.examDate).toLocaleDateString('en-IN') : '—'}
-        <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{r.startTime} · {r.duration} min</div>
-      </div>
-    )},
-    { key: 'questions', label: 'Questions', render: r => `${r.questionCount || 0}/${r.totalQuestions}` },
-    { key: 'marks',     label: 'Marks',     render: r => r.totalMarks },
-    { key: 'status',    label: 'Status',    render: r => (
-      <div>
-        <Badge variant={STATUS_COLOR[r.status] || 'muted'}>{r.status || 'draft'}</Badge>
-        {r.status === 'completed' && (
-          <div style={{ marginTop: 2 }}>
-            <Badge variant={r.resultApprovalStatus === 'approved' ? 'success' : r.resultApprovalStatus === 'rejected' ? 'danger' : 'warning'}>
-              result: {r.resultApprovalStatus || 'pending'}
-            </Badge>
-          </div>
-        )}
-      </div>
-    )},
-    { key: 'actions', label: 'Actions', render: r => (
-      <div className="actions" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {r.status === 'draft' && (
-          <>
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate(`${r._id}/questions`)}>Questions</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>
-            <button className="btn btn-success btn-sm" onClick={() => handlePublish(r)}>Publish</button>
-            <button className="btn btn-danger btn-sm" onClick={() => setDel(r)}>Delete</button>
-          </>
-        )}
-        {['published', 'completed'].includes(r.status) && (
-          <>
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate(`${r._id}/submissions`)}>Submissions</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate(`${r._id}/analytics`)}>Analytics</button>
-          </>
-        )}
-        {r.status === 'completed' && (
-          <button className="btn btn-primary btn-sm" onClick={() => navigate(`${r._id}/approval`)}>Result Approval</button>
-        )}
-      </div>
-    )},
-  ];
-
-  if (loading) return <div className="loading-page"><Spinner /></div>;
+  const filtered = !!search || filter !== 'all';
+  const List = view === 'grid' ? ExamGrid : ExamTable;
+  const empty = (
+    <Empty icon={filtered ? '🔍' : '📝'}
+      title={filtered ? 'No exams match' : year === 'all' ? 'No aptitude exams yet' : 'No exams in this academic year'}
+      message={filtered ? 'Try another filter or search term.' : 'Create an exam for your sections, add its questions, then publish it.'}
+      action={filtered
+        ? <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setFilter('all'); }}>Clear filters</button>
+        : <button type="button" className="btn btn-primary" onClick={openCreate}><Icon name="plus" size={16} /> Create Exam</button>} />
+  );
+  const next = exams.find((e) => e.stage === 'scheduled');
 
   return (
-    <div className="page">
-      <PageHeader title="Aptitude Exams" subtitle={`${exams?.length ?? 0} exams`}
-        action={<Button onClick={openCreate}>+ Create Exam</Button>} />
+    <div className="page apxpg">
+      <ExamHero title="Aptitude Exams" subtitle="Create exams for your sections, add questions and follow every result"
+        actions={
+          <>
+            <Button variant="secondary" className="btn btn-secondary apxhero__btn" onClick={() => navigate('/teacher/exams/analytics')}>
+              <Icon name="chart" size={17} /> Analytics
+            </Button>
+            <Button variant="secondary" className="btn btn-secondary apxhero__btn" onClick={() => setImportFor('')}>
+              <Icon name="upload" size={17} /> Import Questions
+            </Button>
+            <Button className="btn btn-primary apxhero__btn" onClick={openCreate}>
+              <Icon name="plus" size={17} /> Create Exam
+            </Button>
+          </>
+        } />
 
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <Table columns={columns} data={exams} emptyIcon="📝" emptyTitle="No exams created yet" />
+      <ExamStats>
+        <ExamStat icon="fileDoc" tone="indigo" label="My Exams" value={board ? t.total : null}
+          chip={{ text: `${t.authored || 0} written by you`, tone: 'flat' }} />
+        <ExamStat icon="pencil" tone="amber" label="Drafts" value={board ? t.drafts : null}
+          chip={t.notReady ? { text: `${t.notReady} not ready`, tone: 'warn' } : { text: t.drafts ? 'all ready' : '—', tone: t.drafts ? 'up' : 'flat' }}
+          on={filter === 'draft'} onClick={() => setFilter(filter === 'draft' ? 'all' : 'draft')} />
+        <ExamStat icon="calendar" tone="blue" label="Scheduled" value={board ? t.scheduled : null}
+          chip={t.live ? { text: `${t.live} live now`, tone: 'up' } : next ? { text: `next ${fmtShortDate(next.startsAt)}`, tone: 'flat' } : { text: '—', tone: 'flat' }}
+          on={filter === 'upcoming'} onClick={() => setFilter(filter === 'upcoming' ? 'all' : 'upcoming')} />
+        <ExamStat icon="checkCircle" tone="green" label="Awaiting You" value={board ? t.tasks : null}
+          chip={t.tasks ? { text: 'results to approve', tone: 'warn' } : { text: 'nothing pending', tone: 'flat' }}
+          on={filter === 'completed'} onClick={() => setFilter(filter === 'completed' ? 'all' : 'completed')} />
+        <ExamStat icon="trophy" tone="violet" label="Average Score" value={t.average == null ? '—' : `${t.average}%`}
+          chip={{ text: 'closed exams', tone: 'flat' }} />
+      </ExamStats>
+
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      {attention.length > 0 && (
+        <Panel icon="bell" title="Needs your attention" subtitle="Waiting on you, most urgent first">
+          <ul className="apxtodo">
+            {attention.map(({ e, icon, tone, text, tab, cta }) => (
+              <li key={`${e._id}-${tab}`}>
+                <span className={`apxtodo__icon apxtodo__icon--${tone}`}><Icon name={icon} size={17} /></span>
+                <ExamMark exam={e} size={38} />
+                <span className="apxtodo__text">
+                  <button type="button" className="apxlink" onClick={() => open(e)}>{e.title}</button>
+                  <small>{text}</small>
+                </span>
+                <span className="apxtodo__when">{fmtExamDay(e)} · {fmtClock(e.startTime)}</span>
+                <StagePill stage={e.stage} />
+                <button type="button" className="btn btn-secondary apxup__btn" onClick={() => open(e, tab)}>{cta}</button>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      <Panel icon="fileDoc" title="My Exams" className="apxall"
+        subtitle={`${year === 'all' ? 'Every academic year' : (board?.academicYears || []).find((y) => (year ? y._id === year : y.current))?.name || 'This academic year'} · exams you wrote, and exams for the sections you class-teach`}
+        action={
+          <div className="apxtools">
+            <SearchField value={search} onChange={setSearch} placeholder="Search exams…" />
+            <YearPicker years={board?.academicYears} value={year} onChange={setYear} />
+            <ViewSwitch value={view} onChange={setView} />
+          </div>
+        }>
+        <div className="apxsubbar">
+          <Pills label="Filter exams" value={filter} onChange={setFilter} items={[
+            { value: 'all', label: 'All', count: exams.length },
+            { value: 'draft', label: 'Drafts', count: count('draft') },
+            { value: 'upcoming', label: 'Scheduled & live', count: count('upcoming') },
+            { value: 'completed', label: 'Completed', count: count('completed') },
+            ...(count('cancelled') ? [{ value: 'cancelled', label: 'Cancelled', count: count('cancelled') }] : []),
+          ]} />
         </div>
-      </div>
+        <List rows={shown} loading={!board} empty={empty}
+          onView={(e) => open(e)} onEdit={openEdit} menu={menu}
+          canEdit={(e) => e.isAuthor} tag={(e) => (e.isAuthor ? null : 'Your class')} />
+        {board && (
+          <div className="apxfoot">
+            <span>Showing {plural(shown.length, 'exam')}{shown.length !== exams.length ? ` of ${exams.length}` : ''}</span>
+          </div>
+        )}
+      </Panel>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Edit Exam' : 'Create Exam'}
-        footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="exam-form" type="submit" loading={saving}>{editing ? 'Save' : 'Create'}</Button>
-        </>}>
-        <form id="exam-form" onSubmit={handleSave}>
-          <div className="form-group">
-            <label className="form-label required">Exam Title</label>
-            <input className="form-control" required value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Section</label>
-              <select className="form-control" required value={form.sectionId}
-                onChange={e => setForm(f => ({ ...f, sectionId: e.target.value }))}>
-                <option value="">Select section…</option>
-                {sections.map(s => (
-                  <option key={s._id} value={s._id}>
-                    {s.class?.className ? `${s.class.className} — ` : ''}{s.sectionName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Subject (optional)</label>
-              <select className="form-control" value={form.subjectId}
-                onChange={e => setForm(f => ({ ...f, subjectId: e.target.value }))}>
-                <option value="">General / none</option>
-                {subjects.map(s => <option key={s._id} value={s._id}>{s.subjectName}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Exam Date</label>
-              <input type="date" className="form-control" required value={form.examDate}
-                onChange={e => setForm(f => ({ ...f, examDate: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">Start Time</label>
-              <input type="time" className="form-control" required value={form.startTime}
-                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
-            </div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Duration (minutes)</label>
-              <input type="number" min="5" className="form-control" required value={form.duration}
-                onChange={e => setForm(f => ({ ...f, duration: +e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">Total Questions</label>
-              <input type="number" min="1" className="form-control" required value={form.totalQuestions}
-                onChange={e => setForm(f => ({ ...f, totalQuestions: +e.target.value }))} />
-            </div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Total Marks</label>
-              <input type="number" min="1" className="form-control" required value={form.totalMarks}
-                onChange={e => setForm(f => ({ ...f, totalMarks: +e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Max Violations (anti-cheat)</label>
-              <input type="number" min="1" max="10" className="form-control" value={form.maxViolations}
-                onChange={e => setForm(f => ({ ...f, maxViolations: +e.target.value }))} />
-            </div>
-          </div>
-        </form>
-      </Modal>
+      <ExamForm open={formOpen} editing={editing} meta={meta} metaLoading={formOpen && !meta}
+        saving={saving} onClose={() => setFormOpen(false)} onSave={save} />
 
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
-        loading={delLoad} title="Delete Exam" message={`Delete "${del?.title}"? All its questions and attempts will be removed.`} />
+      <ImportQuestions open={importFor !== null} examId={importFor || ''} api={TEACHER_IMPORT_API}
+        onClose={() => setImportFor(null)} onImported={load} />
+
+      <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={runConfirm} loading={busy}
+        title={confirm?.kind === 'publish' ? 'Publish exam' : 'Delete draft'}
+        confirmLabel={confirm?.kind === 'publish' ? 'Publish' : 'Delete'}
+        message={confirm?.kind === 'publish'
+          ? `Publish “${confirm.exam.title}”? ${plural(confirm.exam.eligible, 'student')} will see it, and it opens on ${fmtExamDay(confirm.exam)} at ${fmtClock(confirm.exam.startTime)}. Its questions lock once published.`
+          : confirm ? `Delete the draft “${confirm.exam.title}” and its ${plural(confirm.exam.questionCount, 'question')}?` : ''} />
     </div>
   );
 }

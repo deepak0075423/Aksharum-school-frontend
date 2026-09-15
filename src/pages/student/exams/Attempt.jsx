@@ -1,15 +1,47 @@
+/**
+ * Student → sitting an aptitude exam.
+ *
+ * The rules this screen enforces are unchanged: the countdown is the server's
+ * `serverEndTime` and submits at zero; leaving the tab is reported and the
+ * server auto-submits past the limit; every choice is saved the moment it is
+ * made. What changed is how it reads while a student is under time pressure:
+ *
+ *   • one question at a time, options as large tiles lettered by POSITION —
+ *     options arrive shuffled per student, so showing each option's stored id
+ *     ("C." first) used to look like a mistake;
+ *   • a palette that tells answered, marked-for-review and untouched apart by
+ *     shape as well as colour, with counts;
+ *   • Clear response, Mark for review, and ← / → keys between questions;
+ *   • a saving indicator, and a submit dialog that lists what is unanswered
+ *     or still marked, each a jump back to that question.
+ *
+ * "Marked for review" is the student's own note to themselves — kept in this
+ * tab's session storage, never sent to the server or scored.
+ */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/student.api';
-import { Spinner, Button, Confirm, Badge } from '../../../components/ui/index';
+import { Spinner, Button, Modal } from '../../../components/ui/index';
+import Icon from '../../../components/ui/icons';
+import { ExamMark, QUESTION_TYPE_LABEL } from '../../admin/examParts';
+import { BackLink, plural } from '../../exams/examShared';
 
-function fmtClock(ms) {
+function fmtTimer(ms) {
   if (ms < 0) ms = 0;
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return (h ? `${String(h).padStart(2, '0')}:` : '') + `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
+
+const letter = (i) => String.fromCharCode(65 + i);
+
+const readMarks = (id) => {
+  try { return new Set(JSON.parse(sessionStorage.getItem(`apx-review-${id}`) || '[]')); } catch { return new Set(); }
+};
+const writeMarks = (id, set) => {
+  try { sessionStorage.setItem(`apx-review-${id}`, JSON.stringify([...set])); } catch { /* private mode — the marks just don't survive a refresh */ }
+};
 
 export default function StudentExamAttempt() {
   const { id } = useParams();
@@ -24,9 +56,11 @@ export default function StudentExamAttempt() {
   const [violations, setViolations] = useState(0);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [review, setReview] = useState(() => readMarks(id));
+  const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | failed
 
   const submittedRef = useRef(false);
-  const savingRef    = useRef({});
+  const pendingRef   = useRef(0);
 
   // ── Load attempt ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -57,6 +91,7 @@ export default function StudentExamAttempt() {
       // Already auto-submitted server-side is fine — anything else, surface it
       if (!/no active attempt/i.test(err.message || '')) toast.error(err.message);
     } finally {
+      try { sessionStorage.removeItem(`apx-review-${id}`); } catch { /* ignore */ }
       navigate('/student/exams', { replace: true });
     }
   }, [id, navigate]);
@@ -88,7 +123,7 @@ export default function StudentExamAttempt() {
           toast.error('Too many violations — exam auto-submitted');
           navigate('/student/exams', { replace: true });
         } else {
-          toast.error(`⚠️ Tab switch detected! Violation ${res.violationCount}/${data.exam.maxViolations}`, { duration: 5000 });
+          toast.error(`Tab switch detected — violation ${res.violationCount} of ${data.exam.maxViolations}`, { duration: 5000 });
         }
       } catch { /* attempt may already be closed */ }
     };
@@ -103,7 +138,24 @@ export default function StudentExamAttempt() {
   }, [data, id, navigate]);
 
   // ── Answer selection (saves immediately) ──────────────────────────────────
-  const select = async (q, optionId) => {
+  const persist = async (qid, next) => {
+    pendingRef.current += 1;
+    setSaveState('saving');
+    try {
+      await api.saveAnswer(id, { questionId: qid, selectedOptions: next });
+      setSaveState(pendingRef.current > 1 ? 'saving' : 'saved');
+    } catch (err) {
+      if (/auto submitted|time ended/i.test(err.message || '')) {
+        toast.error('Time is up — exam submitted');
+        navigate('/student/exams', { replace: true });
+      } else {
+        setSaveState('failed');
+        toast.error('Could not save answer — check your connection');
+      }
+    } finally { pendingRef.current -= 1; }
+  };
+
+  const select = (q, optionId) => {
     const qid = String(q._id);
     let next;
     if (q.questionType === 'mcq_multiple') {
@@ -113,30 +165,48 @@ export default function StudentExamAttempt() {
       next = [optionId];
     }
     setAnswers(a => ({ ...a, [qid]: next }));
-    savingRef.current[qid] = true;
-    try {
-      await api.saveAnswer(id, { questionId: qid, selectedOptions: next });
-    } catch (err) {
-      if (/auto submitted|time ended/i.test(err.message || '')) {
-        toast.error('Time is up — exam submitted');
-        navigate('/student/exams', { replace: true });
-      } else {
-        toast.error('Could not save answer — check your connection');
-      }
-    } finally { savingRef.current[qid] = false; }
+    persist(qid, next);
   };
+
+  const clear = (q) => {
+    const qid = String(q._id);
+    if (!(answers[qid] || []).length) return;
+    setAnswers(a => ({ ...a, [qid]: [] }));
+    persist(qid, []);
+  };
+
+  const toggleReview = (q) => setReview((prev) => {
+    const next = new Set(prev);
+    const qid = String(q._id);
+    if (next.has(qid)) next.delete(qid); else next.add(qid);
+    writeMarks(id, next);
+    return next;
+  });
+
+  // ← / → between questions.
+  useEffect(() => {
+    if (!data) return undefined;
+    const onKey = (e) => {
+      if (confirmSubmit || e.target.closest?.('input, textarea, select')) return;
+      if (e.key === 'ArrowRight') setCurrent((c) => Math.min(data.questions.length - 1, c + 1));
+      if (e.key === 'ArrowLeft') setCurrent((c) => Math.max(0, c - 1));
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [data, confirmSubmit]);
 
   // ── Render states ─────────────────────────────────────────────────────────
   if (loading) return <div className="loading-page"><Spinner /></div>;
   if (error) {
     return (
-      <div className="page">
-        <div className="card"><div className="card-body" style={{ textAlign: 'center', padding: 48 }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🚫</div>
-          <h3 style={{ marginBottom: 8 }}>Cannot start exam</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{error}</p>
-          <Button variant="secondary" onClick={() => navigate('/student/exams')}>← Back to exams</Button>
-        </div></div>
+      <div className="page apxpg">
+        <BackLink to="/student/exams">My Aptitude Exams</BackLink>
+        <div className="card apxqe__empty">
+          <Icon name="alert" size={32} />
+          <h3>This exam can’t be opened</h3>
+          <p>{error}</p>
+          <Button variant="secondary" onClick={() => navigate('/student/exams')}>Back to my exams</Button>
+        </div>
       </div>
     );
   }
@@ -144,110 +214,158 @@ export default function StudentExamAttempt() {
 
   const { exam, questions } = data;
   const q = questions[current];
-  const answeredCount = questions.filter(x => (answers[String(x._id)] || []).length > 0).length;
-  const lowTime = remaining !== null && remaining < 5 * 60 * 1000;
+  const qid = String(q._id);
+  const isAnswered = (x) => (answers[String(x._id)] || []).length > 0;
+  const answeredCount = questions.filter(isAnswered).length;
+  const marked = questions.filter((x) => review.has(String(x._id)));
+  const unanswered = questions.map((x, i) => ({ x, i })).filter(({ x }) => !isAnswered(x));
+  const timeTone = remaining === null ? '' : remaining < 60 * 1000 ? ' is-critical' : remaining < 5 * 60 * 1000 ? ' is-low' : '';
+  const last = current === questions.length - 1;
 
   return (
-    <div className="page" style={{ userSelect: 'none' }}>
-      {/* Sticky header */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-primary)',
-        borderBottom: '1px solid var(--border)', padding: '10px 4px', marginBottom: 16,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8,
-      }}>
-        <div>
+    <div className="page apxpg apxsit" style={{ userSelect: 'none' }}>
+      <header className="card apxsit__bar">
+        <ExamMark exam={{ title: exam.title, subjectName: exam.subjectName }} size={42} />
+        <div className="apxsit__title">
           <strong>{exam.title}</strong>
-          <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-            {answeredCount}/{questions.length} answered · {exam.totalMarks} marks
-          </div>
+          <small>{exam.subjectName || 'General Aptitude'} · {exam.totalMarks} marks</small>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {violations > 0 && (
-            <Badge variant="danger">⚠ {violations}/{exam.maxViolations} violations</Badge>
-          )}
-          <div style={{
-            fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: '1.15rem',
-            color: lowTime ? 'var(--danger, #ef4444)' : 'inherit',
-            padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 8,
-          }}>
-            ⏱ {remaining === null ? '—' : fmtClock(remaining)}
-          </div>
-          <Button variant="danger" onClick={() => setConfirmSubmit(true)} loading={submitting}>Submit Exam</Button>
+        <div className="apxsit__progress" aria-label={`${answeredCount} of ${questions.length} answered`}>
+          <span><b>{answeredCount}</b> of {questions.length} answered</span>
+          <span className="apxsit__track"><span style={{ width: `${(answeredCount / questions.length) * 100}%` }} /></span>
         </div>
-      </div>
+        <span className={`apxsit__save is-${saveState}`} aria-live="polite">
+          {saveState === 'saving' && <><Spinner size="sm" /> Saving…</>}
+          {saveState === 'saved' && <><Icon name="checkCircle" size={15} /> Saved</>}
+          {saveState === 'failed' && <><Icon name="alert" size={15} /> Not saved</>}
+        </span>
+        <span className={`apxsit__timer${timeTone}`} role="timer" aria-label="Time remaining">
+          <Icon name="clock" size={18} />{remaining === null ? '—' : fmtTimer(remaining)}
+        </span>
+        <Button variant="danger" onClick={() => setConfirmSubmit(true)} loading={submitting}>Submit</Button>
+      </header>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        {/* Question card */}
-        <div className="card" style={{ flex: '1 1 480px' }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <strong>Question {current + 1} of {questions.length}</strong>
-              <Badge variant="muted">{q.marks} mark{q.marks !== 1 ? 's' : ''} · {
-                q.questionType === 'mcq_single' ? 'single choice' : q.questionType === 'mcq_multiple' ? 'multiple choice' : 'true / false'
-              }</Badge>
-            </div>
-            <div style={{ fontSize: '1.02rem', marginBottom: 18, whiteSpace: 'pre-wrap' }}>{q.questionText}</div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(q.options || []).map(o => {
-                const sel = (answers[String(q._id)] || []).includes(o.optionId);
-                return (
-                  <label key={o.optionId} style={{
-                    display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer',
-                    padding: '10px 14px', borderRadius: 10,
-                    border: `2px solid ${sel ? 'var(--primary)' : 'var(--border)'}`,
-                    background: sel ? 'rgba(59,130,246,.06)' : 'transparent',
-                  }}>
-                    <input
-                      type={q.questionType === 'mcq_multiple' ? 'checkbox' : 'radio'}
-                      name={`q-${q._id}`}
-                      checked={sel}
-                      onChange={() => select(q, o.optionId)}
-                    />
-                    <span><strong style={{ textTransform: 'uppercase' }}>{o.optionId}.</strong> {o.text}</span>
-                  </label>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
-              <Button variant="secondary" disabled={current === 0} onClick={() => setCurrent(c => c - 1)}>← Previous</Button>
-              <Button variant="secondary" disabled={current === questions.length - 1} onClick={() => setCurrent(c => c + 1)}>Next →</Button>
-            </div>
+      <div className="apxsit__layout">
+        <section className="card apxsit__q">
+          <div className="apxsit__qhead">
+            <span className="apxsit__qnum">Question {current + 1} <small>of {questions.length}</small></span>
+            <span className="apxchip">{QUESTION_TYPE_LABEL[q.questionType]}</span>
+            <span className="apxchip">{plural(q.marks, 'mark')}</span>
+            <button type="button" className={`apxsit__flag${review.has(qid) ? ' is-on' : ''}`} onClick={() => toggleReview(q)}
+              aria-pressed={review.has(qid)}>
+              <Icon name="star" size={15} /> {review.has(qid) ? 'Marked for review' : 'Mark for review'}
+            </button>
           </div>
-        </div>
 
-        {/* Palette */}
-        <div className="card" style={{ width: 230, flexShrink: 0 }}>
-          <div className="card-body">
-            <strong style={{ fontSize: '.88rem' }}>Questions</strong>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>
+          <p className="apxsit__text">{q.questionText}</p>
+          {q.questionType === 'mcq_multiple' && <p className="apxsit__hint">Select all that apply — it scores only if every correct option is chosen.</p>}
+
+          <div className="apxsit__opts" role={q.questionType === 'mcq_multiple' ? 'group' : 'radiogroup'}>
+            {(q.options || []).map((o, i) => {
+              const sel = (answers[qid] || []).includes(o.optionId);
+              return (
+                <button key={o.optionId} type="button"
+                  role={q.questionType === 'mcq_multiple' ? 'checkbox' : 'radio'} aria-checked={sel}
+                  className={`apxsit__opt${sel ? ' is-on' : ''}${q.questionType === 'mcq_multiple' ? ' is-multi' : ''}`}
+                  onClick={() => select(q, o.optionId)}>
+                  <span className="apxsit__letter">{q.questionType === 'true_false' ? (o.optionId === 'true' ? 'T' : 'F') : letter(i)}</span>
+                  <span className="apxsit__optText">{o.text}</span>
+                  <span className="apxsit__tick">{sel && <Icon name="checkCircle" size={20} />}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <footer className="apxsit__nav">
+            <Button variant="secondary" disabled={current === 0} onClick={() => setCurrent(c => c - 1)}>
+              <Icon name="chevronLeft" size={16} /> Previous
+            </Button>
+            <button type="button" className="apxinline" disabled={!(answers[qid] || []).length} onClick={() => clear(q)}>Clear response</button>
+            <span className="apxsit__spacer" />
+            {last
+              ? <Button onClick={() => setConfirmSubmit(true)}>Review &amp; submit <Icon name="checkCircle" size={16} /></Button>
+              : <Button onClick={() => setCurrent(c => c + 1)}>Next <Icon name="chevronRight" size={16} /></Button>}
+          </footer>
+        </section>
+
+        <aside className="apxsit__rail">
+          <section className="card apxsit__palette">
+            <strong>Questions</strong>
+            <div className="apxsit__grid">
               {questions.map((x, i) => {
-                const done = (answers[String(x._id)] || []).length > 0;
-                const isCur = i === current;
+                const done = isAnswered(x);
+                const flag = review.has(String(x._id));
                 return (
-                  <button key={x._id} onClick={() => setCurrent(i)} style={{
-                    height: 34, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: '.8rem',
-                    border: `2px solid ${isCur ? 'var(--primary)' : done ? 'var(--success, #22c55e)' : 'var(--border)'}`,
-                    background: done ? 'rgba(34,197,94,.15)' : 'transparent',
-                    color: 'inherit',
-                  }}>{i + 1}</button>
+                  <button key={x._id} type="button" onClick={() => setCurrent(i)}
+                    className={`apxsit__cell${done ? ' is-done' : ''}${flag ? ' is-flag' : ''}${i === current ? ' is-current' : ''}`}
+                    aria-label={`Question ${i + 1}${done ? ', answered' : ', not answered'}${flag ? ', marked for review' : ''}`}
+                    aria-current={i === current ? 'step' : undefined}>
+                    {i + 1}
+                  </button>
                 );
               })}
             </div>
-            <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 12, lineHeight: 1.8 }}>
-              <div><span style={{ color: 'var(--success, #22c55e)' }}>■</span> Answered</div>
-              <div><span style={{ color: 'var(--primary)' }}>■</span> Current</div>
-              <div>⚠️ Switching tabs is recorded as a violation. {exam.maxViolations} violations auto-submit your exam.</div>
+            <ul className="apxsit__legend">
+              <li><span className="apxsit__cell is-done" aria-hidden />Answered <b>{answeredCount}</b></li>
+              <li><span className="apxsit__cell" aria-hidden />Not answered <b>{questions.length - answeredCount}</b></li>
+              <li><span className="apxsit__cell is-flag" aria-hidden />Marked for review <b>{marked.length}</b></li>
+            </ul>
+          </section>
+
+          <section className={`card apxsit__rules${violations ? ' has-violations' : ''}`}>
+            <strong><Icon name="alert" size={16} /> Stay on this page</strong>
+            <p>Switching tabs or windows is recorded. At {exam.maxViolations} your exam is submitted automatically.</p>
+            <div className="apxsit__viol">
+              {Array.from({ length: exam.maxViolations }, (_, i) => <span key={i} className={i < violations ? 'is-used' : ''} />)}
+              <small>{violations} of {exam.maxViolations} used</small>
             </div>
-          </div>
-        </div>
+          </section>
+        </aside>
       </div>
 
-      <Confirm open={confirmSubmit} onClose={() => setConfirmSubmit(false)}
-        onConfirm={() => { setConfirmSubmit(false); doSubmit(false); }}
-        title="Submit Exam"
-        message={`You answered ${answeredCount} of ${questions.length} questions. Submit now? You cannot change answers afterwards.`} />
+      <Modal open={confirmSubmit} onClose={() => setConfirmSubmit(false)} maxWidth={520}
+        title={
+          <span className="apxdlg__head">
+            <span className="apxdlg__mark"><Icon name="checkCircle" size={20} /></span>
+            <span>Submit your exam?<small>You can’t change answers after submitting.</small></span>
+          </span>
+        }
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmSubmit(false)}>Keep working</Button>
+            <Button onClick={() => { setConfirmSubmit(false); doSubmit(false); }} loading={submitting}>Submit exam</Button>
+          </>
+        }>
+        <div className="apxsubmit">
+          <div className="apxsubmit__counts">
+            <span className="is-done"><b>{answeredCount}</b>answered</span>
+            <span className={unanswered.length ? 'is-warn' : ''}><b>{unanswered.length}</b>not answered</span>
+            <span className={marked.length ? 'is-flag' : ''}><b>{marked.length}</b>marked</span>
+            <span><b>{remaining === null ? '—' : fmtTimer(remaining)}</b>left</span>
+          </div>
+          {unanswered.length > 0 && (
+            <div className="apxsubmit__jump">
+              <small>Not answered — tap to go back:</small>
+              <div>
+                {unanswered.map(({ i }) => (
+                  <button key={i} type="button" className="apxsit__cell" onClick={() => { setCurrent(i); setConfirmSubmit(false); }}>{i + 1}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {marked.length > 0 && (
+            <div className="apxsubmit__jump">
+              <small>Marked for review:</small>
+              <div>
+                {marked.map((x) => {
+                  const i = questions.indexOf(x);
+                  return <button key={x._id} type="button" className="apxsit__cell is-flag" onClick={() => { setCurrent(i); setConfirmSubmit(false); }}>{i + 1}</button>;
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

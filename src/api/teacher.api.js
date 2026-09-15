@@ -42,6 +42,18 @@ export const getStudentResponse   = (id, studentId) => api.get(`/teacher/exams/$
 export const getResultApproval    = (id) => api.get(`/teacher/exams/${id}/result-approval`);
 export const subjectApproveResults= (id) => api.post(`/teacher/exams/${id}/subject-approve`);
 export const approveResults       = (id, data) => api.post(`/teacher/exams/${id}/result-approval`, data);
+// The landing page: every exam the teacher wrote or class-teaches, as rows, plus the tiles.
+// `year`: '' / omitted = the current academic year, 'all', or a year id.
+export const getExamBoard         = (params) => api.get('/teacher/exams/board', { params });
+// Analytics over the exams this teacher can see, and one exam in depth.
+export const getExamAnalytics     = (params) => api.get('/teacher/exams/analytics', { params });
+export const getExamReport        = (id) => api.get(`/teacher/exams/${id}/report`);
+export const importExamQuestions  = (id, file, preview) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post(`/teacher/exams/${id}/questions/import`, fd, { params: preview ? { preview: '1' } : {} });
+};
+export const getExamQuestionTemplate = () => api.get('/teacher/exams/questions/template', { responseType: 'blob' });
 // Accepts status, leaveType, mode, fromDate, toDate, page and limit. The reply
 // carries `counts` — this teacher's whole history by status, unaffected by the
 // filters, so the tiles above the list do not move when one is pressed.
