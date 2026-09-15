@@ -623,7 +623,7 @@ export function ReturnDialog({ open, preset, onClose, onDone, base }) {
                 {base ? (
                   <Link to={`${base}/fines?q=${encodeURIComponent(loan?.issuedTo?.name || '')}`}
                     className="libx-fine__link">
-                    Fine register <Icon name="chevronRight" size={13} />
+                    View Fine Details <Icon name="chevronRight" size={13} />
                   </Link>
                 ) : null}
               </div>

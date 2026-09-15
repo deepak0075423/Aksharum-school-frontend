@@ -67,16 +67,41 @@ export default function ParentDashboard() {
     getInbox().then(r => setNotices((r.data ?? r ?? []).slice(0, 4))).catch(() => {});
   }, [modules]);
 
+  const children = data?.children || [];
+  /**
+   * `child` is the detail block this endpoint builds for the selected student.
+   * A backend that predates it answers with the summary rows only — fall back
+   * to the chosen row so the page still shows who the child is, their class,
+   * attendance and fees, rather than rendering an empty column.
+   */
+  const child = data?.child
+    || children.find(c => String(c._id) === String(childId))
+    || children[0]
+    || null;
+  const selected = child?._id || '';
+
+  /**
+   * The holiday endpoint answers for every child at once and tags each day
+   * with `forChildren`. The calendar and events belong to the child on screen,
+   * so a class holiday for a sibling's class stays off this one's page.
+   * A row without the tag comes from a backend that predates it — keep it.
+   */
+  const childHolidays = useMemo(() => {
+    if (!selected) return holidays || [];
+    return (holidays || []).filter(h =>
+      !Array.isArray(h.forChildren) || h.forChildren.map(String).includes(String(selected)));
+  }, [holidays, selected]);
+
   const upcoming = useMemo(() => {
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
-    return (holidays || [])
+    return childHolidays
       .filter(h => h?.startDate)
       .map(h => ({ ...h, _start: serverDay(h.startDate), _end: serverDay(h.endDate || h.startDate) }))
       .filter(h => h._end >= midnight)
       .sort((a, b) => a._start - b._start)
       .slice(0, 4);
-  }, [holidays]);
+  }, [childHolidays]);
 
   const available = useMemo(
     () => ALL_QUICK_LINKS.filter(l => !l.module || modules?.[l.module]),
@@ -93,19 +118,6 @@ export default function ParentDashboard() {
   const saturdayConfig = schoolConfig
     ? { working: schoolConfig.saturdayWorking, mode: schoolConfig.saturdayMode, halfDay: schoolConfig.saturdayHalfDay }
     : modules?.saturdayConfig;
-
-  const children = data?.children || [];
-  /**
-   * `child` is the detail block this endpoint builds for the selected student.
-   * A backend that predates it answers with the summary rows only — fall back
-   * to the chosen row so the page still shows who the child is, their class,
-   * attendance and fees, rather than rendering an empty column.
-   */
-  const child = data?.child
-    || children.find(c => String(c._id) === String(childId))
-    || children[0]
-    || null;
-  const selected = child?._id || '';
 
   const firstName  = user?.name?.split(' ')[0] || 'there';
   const childName  = child?.name?.split(' ')[0] || 'your child';
@@ -263,7 +275,7 @@ export default function ParentDashboard() {
         <aside className="dash__rail">
           <MiniCalendar
             title="Calendar"
-            holidays={holidays}
+            holidays={childHolidays}
             holidayListPath={modules?.holiday ? '/parent/holidays' : ''}
             saturdayConfig={saturdayConfig}
           />
