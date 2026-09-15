@@ -64,7 +64,7 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     if (!modules?.notification) { setNotices([]); return; }
-    getInbox().then(r => setNotices((r.data ?? r ?? []).slice(0, 4))).catch(() => {});
+    getInbox().then(r => setNotices(r.data ?? r ?? [])).catch(() => {});
   }, [modules]);
 
   const children = data?.children || [];
@@ -91,6 +91,15 @@ export default function ParentDashboard() {
     return (holidays || []).filter(h =>
       !Array.isArray(h.forChildren) || h.forChildren.map(String).includes(String(selected)));
   }, [holidays, selected]);
+
+  /**
+   * Notices, likewise. The inbox tags each with the children who received it
+   * too: a sibling's library fine or absence names only that sibling, while an
+   * empty list is a message to the family or the school and shows for everyone.
+   */
+  const childNotices = useMemo(() => (notices || []).filter(n =>
+    !selected || !Array.isArray(n.forChildren) || n.forChildren.length === 0
+      || n.forChildren.map(String).includes(String(selected))), [notices, selected]);
 
   const upcoming = useMemo(() => {
     const midnight = new Date();
@@ -264,8 +273,8 @@ export default function ParentDashboard() {
               )}
 
               {/* The latest notice, given the width it deserves */}
-              {modules?.notification && notices.length > 0 && (
-                <AnnouncementBanner notice={notices[0]} to="/parent/notifications" />
+              {modules?.notification && childNotices.length > 0 && (
+                <AnnouncementBanner notice={childNotices[0]} to="/parent/notifications" />
               )}
             </>
           )}
