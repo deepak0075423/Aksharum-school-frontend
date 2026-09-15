@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { verifyOtp } from '../../api/auth.api';
-import AuthBrand from '../../components/layout/AuthBrand';
+import Icon from '../../components/ui/icons';
+import AuthShell, { Badge, Field } from './authShell';
 
 export default function VerifyOtp() {
   const navigate  = useNavigate();
@@ -27,41 +28,40 @@ export default function VerifyOtp() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <AuthBrand compact />
-        <div className="auth-logo">
-          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>📲</div>
-          <h1>Enter OTP</h1>
-          <p>OTP sent to <strong>{email}</strong></p>
-        </div>
-
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label className="form-label required">6-Digit OTP</label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="000000"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              inputMode="numeric"
-              autoFocus
-              style={{ letterSpacing: '0.3em', fontSize: '1.3rem', textAlign: 'center' }}
-            />
-          </div>
-
-          <button type="submit" className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: 11 }}
-            disabled={loading}>
-            {loading ? '⏳ Verifying…' : '✅ Verify OTP'}
-          </button>
-        </form>
-
-        <p style={{ textAlign: 'center', marginTop: 20, fontSize: '.85rem' }}>
-          <Link to="/forgot-password" style={{ color: 'var(--primary)' }}>← Resend OTP</Link>
+    <AuthShell variant="secure">
+      <header className="au-head au-head--badge">
+        <Badge icon="mail" />
+        <h2>Check Your Email</h2>
+        <p>
+          We sent a 6-digit code to {email ? <strong>{email}</strong> : 'your email'}. Enter it below to continue.
         </p>
-      </div>
-    </div>
+      </header>
+
+      <form onSubmit={onSubmit} noValidate>
+        <Field id="otp-code" label="6-Digit Code" required>
+          <input
+            id="otp-code"
+            type="text"
+            className="form-control au-otp"
+            placeholder="000000"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoFocus
+          />
+        </Field>
+
+        <button type="submit" className="au-btn au-btn--primary au-btn--tall" disabled={loading || otp.length !== 6}>
+          {loading
+            ? <><span className="au-spin" aria-hidden="true" /> Verifying…</>
+            : <><Icon name="checkCircle" size={20} /> Verify Code <Icon name="arrowRight" size={20} /></>}
+        </button>
+      </form>
+
+      <p className="au-back">
+        Didn’t get it? <Link to="/forgot-password">Send a new code</Link>
+      </p>
+    </AuthShell>
   );
 }

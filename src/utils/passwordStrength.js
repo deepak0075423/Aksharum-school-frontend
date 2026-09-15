@@ -33,11 +33,15 @@ const predictable = (v) => {
   return parts.slice(1).every((p) => p.length < 2 || /^(.)\1+$/.test(p) || walks.some((w) => w.includes(p)));
 };
 
+// Four bars, filled by what the password has beyond the rule: the rule alone
+// is one, each of the three extras another. So "Strong" — two extras — fills
+// three, and only a password with all three fills the fourth.
 export const LEVELS = [
-  { key: 'too-weak', label: 'Too weak', bars: 1 },
-  { key: 'weak',     label: 'Weak',     bars: 2 },
-  { key: 'fair',     label: 'Fair',     bars: 3 },
-  { key: 'strong',   label: 'Strong',   bars: 4 },
+  { key: 'too-weak',    label: 'Too weak',    bars: 1 },
+  { key: 'weak',        label: 'Weak',        bars: 1 },
+  { key: 'fair',        label: 'Fair',        bars: 2 },
+  { key: 'strong',      label: 'Strong',      bars: 3 },
+  { key: 'very-strong', label: 'Very strong', bars: 4 },
 ];
 
 /**
@@ -52,9 +56,9 @@ export function passwordStrength(pw) {
   const v = String(pw ?? '');
 
   const checks = [
-    { key: 'length',  label: 'At least 8 characters',   met: v.length >= 8,                     required: true },
-    { key: 'mix',     label: 'Letters and numbers',     met: /[A-Za-z]/.test(v) && /\d/.test(v), required: true },
-    { key: 'case',    label: 'Upper and lower case',    met: /[a-z]/.test(v) && /[A-Z]/.test(v), required: false },
+    { key: 'length',  label: 'At least 8 characters',   met: v.length >= 8,                     required: true, need: 'Use at least 8 characters' },
+    { key: 'mix',     label: 'Includes letters and numbers', met: /[A-Za-z]/.test(v) && /\d/.test(v), required: true, need: 'Use both letters and numbers' },
+    { key: 'case',    label: 'Upper and lower case, e.g. Aa', met: /[a-z]/.test(v) && /[A-Z]/.test(v), required: false },
     { key: 'symbol',  label: 'A symbol, like ! @ # $',  met: /[^A-Za-z0-9]/.test(v),            required: false },
     { key: 'long',    label: '12 or more characters',   met: v.length >= 12,                    required: false },
   ];
@@ -64,24 +68,18 @@ export function passwordStrength(pw) {
   const ok = !passwordError(v);
   if (!ok) {
     const missing = checks.find((c) => c.required && !c.met);
-    return { level: LEVELS[0], ok, checks, note: missing ? `Needs: ${missing.label.toLowerCase()}` : '' };
+    return { level: LEVELS[0], ok, checks, note: '' };
   }
 
   const extras = checks.filter((c) => !c.required && c.met).length;
   const guessable = COMMON.has(v.toLowerCase()) || predictable(v);
 
-  let level;
-  if (guessable)        level = LEVELS[1];
-  else if (extras >= 2) level = LEVELS[3];
-  else if (extras === 1) level = LEVELS[2];
-  else                  level = LEVELS[1];
+  const level = guessable ? LEVELS[1] : LEVELS[1 + extras];
 
-  let note = '';
-  if (guessable) note = 'This is a very common password — pick something less predictable';
-  else if (level !== LEVELS[3]) {
-    const next = checks.find((c) => !c.required && !c.met);
-    if (next) note = `Stronger with ${next.label.charAt(0).toLowerCase()}${next.label.slice(1)}`;
-  }
+  // The checklist already says what is missing and what would help; the one
+  // thing it cannot say is that a password passing every line is still a
+  // famous one.
+  const note = guessable ? 'Very common password — pick something less predictable' : '';
 
   return { level, ok, checks, note };
 }

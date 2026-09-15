@@ -48,7 +48,7 @@ export const PasswordInput = React.forwardRef(({ className = '', ...props }, ref
         onMouseDown={(e) => e.preventDefault()}
         aria-label={shown ? 'Hide password' : 'Show password'}
         aria-pressed={shown} title={shown ? 'Hide password' : 'Show password'}>
-        <Icon name={shown ? 'eyeOff' : 'eye'} size={18} />
+        <Icon name={shown ? 'eye' : 'eyeOff'} size={18} />
       </button>
     </div>
   );
@@ -58,8 +58,16 @@ export const PasswordInput = React.forwardRef(({ className = '', ...props }, ref
 // Sits under a new-password field and re-scores on every keystroke. The two
 // required checks are the server's own rule, so "Too weak" is exactly "the
 // form will refuse this"; the rest say what would make it harder to guess.
+/** A filled round tick (met / match) or cross (mismatch); an empty ring otherwise. */
+const Tick = ({ state }) => (
+  <span className={`pwtick pwtick--${state}`} aria-hidden="true">
+    {state === 'ok' && <Icon name="check" size={12} strokeWidth={3} />}
+    {state === 'bad' && <Icon name="close" size={11} strokeWidth={3} />}
+  </span>
+);
+
 export const PasswordStrength = ({ password, id }) => {
-  const { level, checks, note } = passwordStrength(password);
+  const { level, ok, checks, note } = passwordStrength(password);
   const typed = !!password;
   return (
     <div id={id} className={`pwmeter${level ? ` pwmeter--${level.key}` : ''}`}>
@@ -72,20 +80,27 @@ export const PasswordStrength = ({ password, id }) => {
           {level ? level.label : 'Strength'}
         </span>
       </div>
-      <ul className="pwmeter__checks">
+      {/* The box turns green once the rule is met — the two required lines are
+          what decides whether the password can be saved. */}
+      <ul className={`pwmeter__checks${ok ? ' is-ok' : typed ? ' is-short' : ''}`}>
         {checks.map((c) => (
           <li key={c.key}
             className={c.met ? 'is-met' : (c.required && typed ? 'is-missing' : '')}>
-            {c.met
-              ? <Icon name="checkCircle" size={14} />
-              : <i className="pwmeter__dot" aria-hidden="true" />}
-            {c.label}
-            {!c.required && <em>optional</em>}
+            <Tick state={c.met ? 'ok' : 'off'} />
+            <span>
+              {c.label}
+              {!c.required && <em> (optional)</em>}
+            </span>
             <span className="sr-only">{c.met ? ' — done' : c.required ? ' — required' : ''}</span>
           </li>
         ))}
+        {note && (
+          <li className="is-warn" role="alert">
+            <span className="pwtick pwtick--warn" aria-hidden="true">!</span>
+            <span>{note}</span>
+          </li>
+        )}
       </ul>
-      {note && <p className="pwmeter__note">{note}</p>}
     </div>
   );
 };
@@ -100,7 +115,7 @@ export const PasswordMatch = ({ password, confirm, id }) => {
     <div id={id} className={`pwmatch${shown ? ` pwmatch--${state}` : ''}`} aria-live="polite">
       {shown && (
         <>
-          <Icon name={state === 'match' ? 'checkCircle' : 'closeCircle'} size={15} />
+          <Tick state={state === 'match' ? 'ok' : 'bad'} />
           {state === 'match' ? 'Passwords match' : 'Passwords do not match'}
         </>
       )}

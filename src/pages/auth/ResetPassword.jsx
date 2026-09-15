@@ -4,9 +4,10 @@ import toast from 'react-hot-toast';
 import { resetPassword } from '../../api/auth.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { passwordError } from '../../utils/validators';
-import AuthBrand from '../../components/layout/AuthBrand';
 import { PasswordInput, PasswordStrength, PasswordMatch } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
 import { passwordStrength, matchState } from '../../utils/passwordStrength';
+import AuthShell, { Badge, Field, Note } from './authShell';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -40,47 +41,43 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <AuthBrand compact />
-        <div className="auth-logo">
-          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🔐</div>
-          <h1>Set Your Password</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '.9rem' }}>
-            {isFirst
-              ? 'You logged in with a one-time password. Set a permanent password to continue.'
-              : 'Choose a new password for your account.'}
-          </p>
-        </div>
+    <AuthShell variant="secure">
+      <header className="au-head au-head--badge">
+        <Badge icon="lock" />
+        <h2>Set Your New Password</h2>
+        <p>
+          {isFirst
+            ? 'You logged in with a one-time password. Please set a new password to continue to your account.'
+            : 'Choose a new password for your account.'}
+        </p>
+      </header>
 
-        {isFirst && (
-          <div className="alert alert-warning" style={{ marginBottom: 20, fontSize: '.85rem' }}>
-            This is your first login. You must set a new password before you can access the system.
-          </div>
-        )}
+      {isFirst && (
+        <Note>This is your first login. You must set a new password before you can access the system.</Note>
+      )}
 
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label className="form-label required">New Password</label>
-            <PasswordInput placeholder="Min 8 characters" autoFocus autoComplete="new-password"
-              aria-describedby="pw-strength" aria-invalid={form.newPassword && !strength.ok ? true : undefined}
-              value={form.newPassword} onChange={(e) => setForm(f => ({ ...f, newPassword: e.target.value }))} />
-            <PasswordStrength id="pw-strength" password={form.newPassword} />
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Confirm New Password</label>
-            <PasswordInput placeholder="Repeat new password" autoComplete="new-password"
-              className={match === 'mismatch' ? 'is-bad' : match === 'match' ? 'is-good' : ''}
-              aria-describedby="pw-match" aria-invalid={match === 'mismatch' || undefined}
-              value={form.confirm} onChange={(e) => setForm(f => ({ ...f, confirm: e.target.value }))} />
-            <PasswordMatch id="pw-match" password={form.newPassword} confirm={form.confirm} />
-          </div>
-          <button type="submit" className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: 11 }} disabled={loading || !ready}>
-            {loading ? '⏳ Saving…' : '💾 Set Password & Continue'}
-          </button>
-        </form>
-      </div>
-    </div>
+      <form onSubmit={onSubmit} noValidate>
+        <Field id="rp-new" label="New Password" required
+          after={<PasswordStrength id="pw-strength" password={form.newPassword} />}>
+          <PasswordInput id="rp-new" placeholder="Enter a new password" autoFocus autoComplete="new-password"
+            aria-describedby="pw-strength" aria-invalid={form.newPassword && !strength.ok ? true : undefined}
+            value={form.newPassword} onChange={(e) => setForm(f => ({ ...f, newPassword: e.target.value }))} />
+        </Field>
+
+        <Field id="rp-confirm" label="Confirm New Password" required
+          after={<PasswordMatch id="pw-match" password={form.newPassword} confirm={form.confirm} />}>
+          <PasswordInput id="rp-confirm" placeholder="Repeat the new password" autoComplete="new-password"
+            className={match === 'mismatch' ? 'is-bad' : match === 'match' ? 'is-good' : ''}
+            aria-describedby="pw-match" aria-invalid={match === 'mismatch' || undefined}
+            value={form.confirm} onChange={(e) => setForm(f => ({ ...f, confirm: e.target.value }))} />
+        </Field>
+
+        <button type="submit" className="au-btn au-btn--primary au-btn--tall" disabled={loading || !ready}>
+          {loading
+            ? <><span className="au-spin" aria-hidden="true" /> Saving…</>
+            : <><Icon name="lock" size={20} /> Set Password &amp; Continue <Icon name="arrowRight" size={20} /></>}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

@@ -9,3 +9,7 @@ export const verifyOtp      = (data)  => api.post('/auth/verify-otp', data);
 export const newPassword    = (data)  => api.post('/auth/new-password', data);
 export const resetPassword  = (data)  => api.post('/auth/reset-password', data);
 export const magicLogin     = (token) => api.get(`/auth/magic/${token}`);
+// Sign in with Google: whether it is switched on (and the client id to use),
+// then the one-time code from Google's popup, redeemed by the server.
+export const googleConfig   = ()      => api.get('/auth/google/config');
+export const googleLogin    = (code)  => api.post('/auth/google', { code }, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });

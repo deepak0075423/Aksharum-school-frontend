@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { forgotPassword } from '../../api/auth.api';
 import { isEmail } from '../../utils/validators';
-import AuthBrand from '../../components/layout/AuthBrand';
+import Icon from '../../components/ui/icons';
+import AuthShell, { Badge, Field } from './authShell';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -27,39 +28,35 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <AuthBrand compact />
-        <div className="auth-logo">
-          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🔑</div>
-          <h1>Forgot Password</h1>
-          <p>We'll send an OTP to your registered email</p>
-        </div>
+    <AuthShell variant="secure">
+      <header className="au-head au-head--badge">
+        <Badge icon="key" />
+        <h2>Forgot Your Password?</h2>
+        <p>Enter the email address on your account and we’ll send you a one-time code to reset it.</p>
+      </header>
 
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label className="form-label required">Email Address</label>
-            <input
-              type="email"
-              className="form-control"
-              placeholder="you@school.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-            />
-          </div>
+      <form onSubmit={onSubmit} noValidate>
+        <Field id="fp-email" label="Email Address" icon="mail" required>
+          <input
+            id="fp-email"
+            type="email"
+            className="form-control"
+            placeholder="you@school.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            autoFocus
+          />
+        </Field>
 
-          <button type="submit" className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: 11 }}
-            disabled={loading}>
-            {loading ? '⏳ Sending…' : '📧 Send OTP'}
-          </button>
-        </form>
+        <button type="submit" className="au-btn au-btn--primary au-btn--tall" disabled={loading}>
+          {loading
+            ? <><span className="au-spin" aria-hidden="true" /> Sending…</>
+            : <><Icon name="mail" size={20} /> Send Code <Icon name="arrowRight" size={20} /></>}
+        </button>
+      </form>
 
-        <p style={{ textAlign: 'center', marginTop: 20, fontSize: '.85rem' }}>
-          <Link to="/login" style={{ color: 'var(--primary)' }}>← Back to login</Link>
-        </p>
-      </div>
-    </div>
+      <p className="au-back"><Link to="/login"><Icon name="arrowLeft" size={16} /> Back to sign in</Link></p>
+    </AuthShell>
   );
 }

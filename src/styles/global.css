@@ -730,49 +730,59 @@ input, select, textarea {
 .pwfield .form-control.is-bad  { border-color: var(--danger); }
 .pwfield .form-control.is-good { border-color: var(--success); }
 
-/* Live strength meter. The colour follows the word beside it — the word is
-   always printed, so colour is never the only signal. Text tones are the
-   darker shade of each hue so they read on white. */
-.pwmeter { margin-top: 8px; --pw: var(--border); --pw-text: var(--text-muted); }
-.pwmeter--too-weak { --pw: #ef4444; --pw-text: #b91c1c; }
-.pwmeter--weak     { --pw: #f97316; --pw-text: #c2410c; }
-.pwmeter--fair     { --pw: #f59e0b; --pw-text: #b45309; }
-.pwmeter--strong   { --pw: #10b981; --pw-text: #047857; }
-.pwmeter__row   { display: flex; align-items: center; gap: 10px; }
-.pwmeter__bar   { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+/* Live strength meter: four bars and the word, then the checklist in a tinted
+   box that turns green once the rule is met. The word is always printed, so
+   colour is never the only signal; text uses the darker shade of each hue. */
+.pwmeter { margin-top: 10px; --pw: var(--border); --pw-text: var(--text-muted); }
+.pwmeter--too-weak    { --pw: #ef4444; --pw-text: #b91c1c; }
+.pwmeter--weak        { --pw: #f97316; --pw-text: #c2410c; }
+.pwmeter--fair        { --pw: #f59e0b; --pw-text: #b45309; }
+.pwmeter--strong,
+.pwmeter--very-strong { --pw: #22c55e; --pw-text: #15803d; }
+.pwmeter__row   { display: flex; align-items: center; gap: 14px; }
+.pwmeter__bar   { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .pwmeter__bar span {
-  height: 5px; border-radius: 3px; background: var(--border);
+  height: 6px; border-radius: 3px; background: #e5e7eb;
   transition: background-color .25s ease;
 }
 .pwmeter__bar span.is-on { background: var(--pw); }
 .pwmeter__label {
-  min-width: 62px; text-align: right;
-  font-size: .76rem; font-weight: 700; color: var(--pw-text);
+  min-width: 66px; text-align: right;
+  font-size: .8rem; font-weight: 700; color: var(--pw-text);
 }
 .pwmeter__checks {
-  list-style: none; margin: 8px 0 0; padding: 0;
-  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  list-style: none; margin: 10px 0 0; padding: 11px 18px;
+  display: grid; gap: 5px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  transition: background-color .25s ease, border-color .25s ease;
 }
+.pwmeter__checks.is-ok { background: #effaf3; border-color: #cdeedb; }
 .pwmeter__checks li {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: .76rem; color: var(--text-muted);
+  display: flex; align-items: center; gap: 10px;
+  font-size: .84rem; line-height: 1.35; color: #334155;
 }
-.pwmeter__checks li em { font-style: normal; color: var(--text-light); font-size: .7rem; }
-.pwmeter__checks li.is-met     { color: #047857; }
-.pwmeter__checks li.is-met svg { color: #10b981; flex-shrink: 0; }
+.pwmeter__checks li em { font-style: normal; color: #64748b; }
 .pwmeter__checks li.is-missing { color: #b91c1c; }
-.pwmeter__dot {
-  width: 10px; height: 10px; margin: 2px; border-radius: 50%; flex-shrink: 0;
-  border: 1.5px solid currentColor; opacity: .6;
-}
-.pwmeter__note { margin: 6px 0 0; font-size: .76rem; color: var(--pw-text); }
+.pwmeter__checks li.is-warn { color: #c2410c; font-weight: 600; }
+.pwtick--warn { background: #f97316; font-size: .7rem; font-weight: 800; }
 
-.pwmatch { display: flex; align-items: center; gap: 6px; min-height: 0; font-size: .8rem; font-weight: 600; }
+/* The round tick beside a check or a match: filled green when met, a grey ring
+   when not, filled red for a mismatch. */
+.pwtick {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; color: #fff;
+}
+.pwtick--ok  { background: #22c55e; }
+.pwtick--bad { background: #ef4444; }
+.pwtick--off { border: 1.5px solid #94a3b8; }
+.pwmeter__checks li.is-missing .pwtick--off { border-color: #f87171; }
+
+.pwmatch { display: flex; align-items: center; gap: 8px; min-height: 0; font-size: .84rem; font-weight: 600; }
 .pwmatch--match,
-.pwmatch--mismatch { margin-top: 6px; }
-.pwmatch--match    { color: #047857; }
+.pwmatch--mismatch { margin-top: 8px; }
+.au .pwmatch { margin-top: 8px; min-height: 20px; }
+.pwmatch--match    { color: #15803d; }
 .pwmatch--mismatch { color: #b91c1c; }
-.pwmatch svg { flex-shrink: 0; }
 
 /* Read by screen readers, not drawn. */
 .sr-only {
@@ -1018,30 +1028,448 @@ select.form-control {
   background:      var(--bg);
 }
 
-/* ── Auth Pages ────────────────────────────────────────────────────────────── */
-.auth-page {
-  min-height:      100vh;
-  display:         flex;
-  align-items:     center;
-  justify-content: center;
-  background:      linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%);
-  padding:         16px;
+/* ── Auth pages — sign in and every password step ───────────────────────────
+   Prefixed `au-`. Two faces of one frame (pages/auth/authShell.jsx): the
+   welcome panel beside the sign-in card, the secure panel beside the password
+   cards. Type is Plus Jakarta Sans (bundled), with Sacramento for the script
+   line. Below 900px the panel goes and the card has the screen. */
+/* On a desktop the frame is exactly the window: it never scrolls. The panel is
+   laid out at the mockup's size and scaled as one piece to the panel's real size
+   (useStage), and the panel is as wide as that scale needs — its width follows
+   the window's height — so it keeps the mockup's proportions on any screen. The
+   card scales to fit its column (useFitZoom); only if it hits its smallest size
+   does that column scroll. */
+.au {
+  font-family: 'Plus Jakarta Sans', var(--font);
+  height: 100vh; height: 100dvh; overflow: hidden;
+  display: grid;
+  grid-template-columns: clamp(380px, min(43.5vw, 66.74vh), 720px) minmax(0, 1fr);
+  background: #f5f4fb;
+  color: #334155;
 }
-.auth-card {
-  background:    var(--bg-card);
-  border-radius: var(--radius-xl);
-  padding:       40px;
-  width:         100%;
-  max-width:     440px;
-  box-shadow:    var(--shadow-lg);
+.au--secure { grid-template-columns: clamp(340px, min(36vw, 55.22vh), 620px) minmax(0, 1fr); background: #f7f7fb; }
+
+/* ── The panel ─────────────────────────────────────────────────────────────── */
+.au-aside { position: relative; overflow: hidden; height: 100%; min-height: 0; }
+/* The panel's content at the mockup's own size — 626×938 (sign in) and 518×938
+   (password pages) — scaled from its top-left corner by useStage. */
+.au-aside__stage {
+  position: absolute; top: 0; left: 0; z-index: 1;
+  display: flex; flex-direction: column;
+  width: 626px; height: 938px; transform-origin: 0 0;
+  padding: 60px 64px 30px 76px;
 }
-.auth-logo {
-  text-align: center;
-  margin-bottom: 32px;
+.au--secure .au-aside__stage { width: 518px; padding: 52px 48px 26px 64px; }
+.au--welcome .au-aside {
+  color: #fff;
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(99, 88, 246, .9) 0%, rgba(99, 88, 246, 0) 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(79, 70, 229, .85) 0%, rgba(79, 70, 229, 0) 65%),
+    linear-gradient(165deg, #211a69 0%, #28209a 50%, #3b33c9 100%);
 }
-.auth-logo img  { width: 72px; height: 72px; margin: 0 auto 16px; display: block; border-radius: 16px; box-shadow: 0 10px 24px rgba(148, 116, 243, .35); }
-.auth-logo h1   { font-size: 1.5rem; font-weight: 800; color: var(--text); }
-.auth-logo p    { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+/* the two large, faint rings the mockup draws across the panel */
+.au--welcome .au-aside::before,
+.au--welcome .au-aside::after {
+  content: ''; position: absolute; z-index: 0; border-radius: 50%; pointer-events: none;
+}
+.au--welcome .au-aside::before {
+  width: 880px; height: 880px; right: -600px; top: -40px;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0) 70%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+.au--welcome .au-aside::after {
+  width: 620px; height: 620px; left: -380px; bottom: -420px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+.au--secure .au-aside {
+  color: #16133a;
+  background: linear-gradient(180deg, #f4f2fe 0%, #efecfc 100%);
+}
+.au--secure .au-aside::before {
+  content: ''; position: absolute; z-index: 0; pointer-events: none;
+  width: 700px; height: 700px; border-radius: 50%; left: -300px; bottom: -380px;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0));
+}
+
+/* ── Brand ─────────────────────────────────────────────────────────────────── */
+.au-brand { display: flex; align-items: center; gap: 18px; }
+.au-brand__mark { width: 58px; height: 58px; border-radius: 14px; flex-shrink: 0; object-fit: contain; display: block; }
+.au-brand__mark.is-school { background: #fff; padding: 4px; }
+.au-brand__text { min-width: 0; }
+.au-brand__text strong {
+  display: block; font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; color: #1b1850;
+}
+.au-brand__text span {
+  display: block; margin-top: 5px;
+  font-size: .78rem; font-weight: 600; letter-spacing: .32em; text-transform: uppercase; color: #4f4c7d;
+}
+.au--welcome .au-aside .au-brand__text strong { color: #fff; }
+.au--welcome .au-aside .au-brand__text span   { color: #b9b2ff; }
+.au--secure .au-aside .au-brand { gap: 14px; }
+.au--secure .au-aside .au-brand__mark { width: 48px; height: 48px; border-radius: 12px; }
+.au--secure .au-aside .au-brand__text strong { font-size: 1.4rem; }
+.au--secure .au-aside .au-brand__text span { font-size: .72rem; margin-top: 3px; }
+
+/* the brand heading the sign-in card */
+.au-brand--stack { flex-direction: column; gap: 12px; text-align: center; }
+.au-brand--stack .au-brand__mark { width: 70px; height: 70px; border-radius: 17px; box-shadow: 0 12px 24px -10px rgba(99, 80, 230, .55); }
+.au-brand--stack .au-brand__text strong { font-size: 1.3rem; }
+.au-brand--stack .au-brand__text span { font-size: .72rem; margin-top: 4px; letter-spacing: .3em; }
+.au-brand--phone { display: none; }
+
+/* ── Panel copy ────────────────────────────────────────────────────────────── */
+.au-aside__body { margin-top: 66px; }
+/* The breaks are the mockup's, set by line rather than by a width that a
+   different font would break somewhere else. */
+.au-hero {
+  font-size: 3rem; font-weight: 700;
+  line-height: 1.17; letter-spacing: -.02em;
+}
+.au-hero span, .au-lede span { display: block; }
+.au--secure .au-hero { font-size: 2.07rem; line-height: 1.2; }
+.au-lede { margin-top: 18px; font-size: 1.35rem; line-height: 1.5; max-width: 21em; color: rgba(255, 255, 255, .82); }
+.au--secure .au-lede { margin-top: 14px; font-size: 1.1rem; max-width: 21em; color: #5d5b7e; }
+
+.au-points { list-style: none; padding: 0; margin: 34px 0 0; display: grid; gap: 16px; }
+.au-points li { display: flex; align-items: center; gap: 24px; }
+.au-points__icon {
+  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, .09); color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+.au-points strong { display: block; font-size: 1.08rem; font-weight: 600; }
+.au-points small  { display: block; margin-top: 4px; font-size: .95rem; line-height: 1.5; color: rgba(255, 255, 255, .72); }
+.au--welcome .au-points small span { display: block; }
+.au--secure .au-points { margin-top: 26px; gap: 16px; }
+.au--secure .au-points li { gap: 18px; }
+.au--secure .au-points__icon { width: 52px; height: 52px; background: #e9e5fc; color: #5a4ddf; box-shadow: none; }
+.au--secure .au-points__icon svg { width: 22px; height: 22px; }
+.au--secure .au-points strong { font-size: .98rem; color: #1e1b4b; }
+.au--secure .au-points small  { font-size: .88rem; margin-top: 2px; color: #6b6f86; }
+
+.au-art { display: block; width: min(100%, 360px); margin: 24px 0 0 -30px; }
+
+/* the script line at the foot, pinned to the bottom of the panel */
+.au-script {
+  margin-top: auto; flex-shrink: 0; padding-top: 8px; width: max-content;
+  font-family: 'Sacramento', 'Brush Script MT', cursive;
+  font-size: 2.15rem; line-height: 1.02; color: #8f86ff;
+  transform: rotate(-11deg); transform-origin: left bottom;
+  margin-bottom: 10px;
+}
+.au-script span { display: block; }
+.au-script svg { display: block; width: 170px; height: 26px; margin: -2px 0 0 90px; }
+.au--secure .au-script { font-size: 1.8rem; color: #a49dd9; }
+.au--secure .au-script svg { width: 150px; margin-left: 60px; }
+
+/* ── The field beside it ───────────────────────────────────────────────────── */
+.au-main {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center;
+  height: 100%; min-height: 0; overflow-y: auto; padding: clamp(16px, 4vh, 36px) 40px;
+}
+.au-main__deco { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.au-main__shape { position: absolute; z-index: 0; pointer-events: none; }
+.au-main__shape--a {
+  width: 440px; height: 520px; right: -230px; top: 26%;
+  border-radius: 48% 52% 42% 58% / 55% 45% 55% 45%;
+  background: #eceaf9; transform: rotate(-24deg);
+}
+.au-main__shape--b {
+  width: 760px; height: 760px; left: -470px; bottom: -430px; border-radius: 50%;
+  background: #f0eff9;
+}
+.au--secure .au-main__shape--a {
+  width: 900px; height: 900px; right: -720px; top: 12%; border-radius: 50%;
+  background: none; box-shadow: inset 0 0 0 90px rgba(236, 234, 248, .6); transform: none;
+}
+.au--secure .au-main__shape--b { background: #f1f0f8; }
+
+.au-card {
+  position: relative; z-index: 1; flex-shrink: 0; margin: auto 0;
+  width: 100%; max-width: 548px;
+  background: #fff; border: 1px solid #ecebf5; border-radius: 18px;
+  box-shadow: 0 30px 60px -28px rgba(38, 32, 110, .18), 0 2px 8px rgba(38, 32, 110, .04);
+  padding: 40px 46px 34px;
+}
+.au--secure .au-card { max-width: 600px; padding: 28px 64px 32px; }
+
+/* ── Inside a card ─────────────────────────────────────────────────────────── */
+.au-head { text-align: center; margin: 38px 0 28px; }
+.au-head h2 { font-size: 1.95rem; font-weight: 700; letter-spacing: -.02em; color: #15123a; line-height: 1.2; }
+.au-head p  { margin-top: 10px; font-size: 1.03rem; line-height: 1.55; color: #5f6480; }
+.au-head--badge { margin: 0 0 18px; }
+.au-head--badge h2 { margin-top: 14px; font-size: 1.8rem; }
+.au-head--badge p  { margin-top: 8px; }
+.au-head--badge p  { max-width: 27em; margin-left: auto; margin-right: auto; }
+.au-head p strong { color: #1e1b4b; font-weight: 600; word-break: break-all; }
+
+.au-badge {
+  width: 78px; height: 78px; border-radius: 50%; margin: 0 auto;
+  display: grid; place-items: center; background: #efecfd; color: #4f46e5;
+}
+
+.au-note {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 18px; padding: 13px 22px;
+  background: #eaf2fe; border-radius: 10px;
+}
+.au-note__icon {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #2563eb; color: #fff; font-size: .9rem; font-weight: 800; line-height: 1;
+}
+.au-note p { font-size: .92rem; line-height: 1.5; color: #1e3a8a; }
+
+.au-field { margin-bottom: 18px; }
+.au-label { display: block; margin-bottom: 8px; font-size: .93rem; font-weight: 500; color: #1f2937; }
+.au-label.required::after { content: ' *'; color: #ef4444; }
+.au-input { position: relative; }
+.au-input__icon { position: absolute; left: 17px; top: 50%; transform: translateY(-50%); z-index: 1; color: #64748b; pointer-events: none; }
+.au .form-control {
+  height: 48px; padding: 0 16px; border-radius: 8px;
+  border: 1px solid #dbdfe8; background: #fff;
+  font-family: inherit; font-size: .98rem; color: #0f172a;
+}
+.au .form-control::placeholder { color: #8b93a7; }
+.au .form-control:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, .14); }
+.au .form-control.is-good { border-color: #86d9a6; }
+.au .form-control.is-bad  { border-color: #f19999; }
+.au-input.has-icon .form-control { padding-left: 48px; }
+.au .pwfield .form-control { padding-right: 50px; }
+.au .pwfield__toggle { right: 8px; color: #64748b; }
+.au-otp { text-align: center; letter-spacing: .5em; font-size: 1.35rem !important; font-weight: 600; }
+
+.au-forgot { text-align: right; margin: -6px 0 22px; }
+.au-forgot a { font-size: .93rem; font-weight: 500; color: #4338ca; }
+.au-forgot a:hover { text-decoration: underline; }
+
+.au-btn {
+  width: 100%; height: 50px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+  font-family: inherit; font-size: 1.02rem; font-weight: 600;
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition), opacity var(--transition);
+}
+.au-btn:focus-visible { outline: 3px solid rgba(79, 70, 229, .35); outline-offset: 2px; }
+.au-btn:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
+.au-btn--primary { background: #4f46e5; color: #fff; box-shadow: 0 10px 20px -10px rgba(79, 70, 229, .7); }
+.au-btn--primary:hover:not(:disabled) { background: #4338ca; }
+.au-btn--tall { height: 52px; margin-top: 4px; }
+.au-btn--google { background: #fff; color: #1f2937; border-color: #dbdfe8; font-weight: 500; }
+.au-btn--google:hover:not(:disabled) { background: #f8fafc; border-color: #c5ccda; }
+.au-google { width: 22px; height: 22px; flex-shrink: 0; }
+
+.au-or { display: flex; align-items: center; gap: 18px; margin: 26px 0 18px; font-size: .88rem; color: #6b7280; }
+.au-or::before, .au-or::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+.au-foot {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px;
+  margin-top: 40px; font-size: .85rem; color: #64748b;
+}
+.au-foot i { font-style: normal; margin: 0 4px; }
+.au-foot__part { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.au-back { text-align: center; margin-top: 22px; font-size: .9rem; color: #64748b; }
+.au-back a { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: #4338ca; }
+.au-back a:hover { text-decoration: underline; }
+
+.au-spin {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  border: 2.5px solid rgba(255, 255, 255, .45); border-top-color: #fff;
+  animation: au-spin .8s linear infinite;
+}
+.au-spin--dark { border-color: rgba(15, 23, 42, .15); border-top-color: #4f46e5; }
+@keyframes au-spin { to { transform: rotate(360deg); } }
+
+/* ── Narrower screens ──────────────────────────────────────────────────────── */
+/* The panel needs no width rules of its own — it is scaled, not reflowed. */
+@media (max-width: 1280px) {
+  .au--secure .au-card { padding: 30px 44px 34px; }
+}
+@media (max-width: 1100px) {
+  .au-main { padding-left: 28px; padding-right: 28px; }
+  .au-card { padding: 34px 32px 30px; }
+}
+/* Short windows: before the card is shrunk, it tightens — the same parts with
+   less air between them — so it needs less shrinking to fit. */
+@media (min-width: 901px) and (max-height: 600px) {
+  .au-main { padding-top: 8px; padding-bottom: 8px; }
+}
+@media (min-width: 901px) and (max-height: 820px) {
+  .au-card { padding: 26px 40px 22px; }
+  .au--secure .au-card { padding: 22px 48px 24px; }
+  .au-brand--stack { gap: 8px; }
+  .au-brand--stack .au-brand__mark { width: 58px; height: 58px; border-radius: 14px; }
+  .au-head { margin: 22px 0 18px; }
+  .au-head h2 { font-size: 1.75rem; }
+  .au-head p { margin-top: 6px; }
+  .au-head--badge { margin: 0 0 14px; }
+  .au-head--badge h2 { margin-top: 10px; font-size: 1.6rem; }
+  .au-badge { width: 64px; height: 64px; }
+  .au-badge svg { width: 28px; height: 28px; }
+  .au-note { padding: 10px 18px; margin-bottom: 14px; }
+  .au-field { margin-bottom: 14px; }
+  .au .form-control { height: 46px; }
+  .au-label { margin-bottom: 6px; }
+  .pwmeter { margin-top: 8px; }
+  .pwmeter__checks { margin-top: 8px; padding: 8px 16px; gap: 3px; }
+  .au .pwmatch { margin-top: 6px; }
+  .au-forgot { margin: -4px 0 16px; }
+  .au-btn { height: 46px; }
+  .au-btn--tall { height: 48px; }
+  .au-or { margin: 18px 0 12px; }
+  .au-foot { margin-top: 22px; }
+  .au-back { margin-top: 14px; }
+}
+/* ── Tablets and phones (≤900px): no panel, the card alone ─────────────────
+   The page scrolls like any page when it must (see useFitZoom for why a phone
+   is not shrunk to fit), but the card is sized so that on a phone of normal
+   height it does not have to: sign in fits from 360×740 up, the password card
+   from 390×844 up. Sizes below are px, not rem — the app's root size drops to
+   15px under 480px, and an input under 16px makes iOS zoom the page on focus. */
+@media (max-width: 900px) {
+  .au, .au--secure { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
+  .au-aside { display: none; }
+  .au-main {
+    height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible;
+    justify-content: center;
+    padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+             max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  }
+  .au-card { margin: 0; max-width: 520px; }
+  .au--secure .au-card { max-width: 560px; }
+  .au-card, .au--secure .au-card { padding: 36px 36px 32px; border-radius: 18px; }
+  .au-brand--phone { display: flex; justify-content: center; margin: 0 0 20px; }
+  .au-brand--phone .au-brand__mark { width: 44px; height: 44px; border-radius: 11px; }
+  .au-brand--phone .au-brand__text strong { font-size: 19px; }
+  .au-brand--phone .au-brand__text span { font-size: 11px; margin-top: 3px; }
+  .au-head { margin: 26px 0 22px; }
+  .au .form-control { font-size: 16px; }
+  .au .pwfield__toggle { width: 40px; height: 40px; right: 4px; }
+}
+
+/* Phones */
+@media (max-width: 600px) {
+  .au-main { padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); padding-left: 14px; padding-right: 14px; }
+  .au-card, .au--secure .au-card {
+    padding: 24px 20px 22px; border-radius: 18px;
+    box-shadow: 0 18px 40px -24px rgba(38, 32, 110, .22), 0 1px 4px rgba(38, 32, 110, .05);
+  }
+  .au-brand--phone { margin-bottom: 14px; }
+  .au-brand--phone .au-brand__mark { width: 38px; height: 38px; border-radius: 10px; }
+  .au-brand--phone .au-brand__text strong { font-size: 17px; }
+
+  /* sign in */
+  .au-brand--stack { gap: 8px; }
+  .au-brand--stack .au-brand__mark { width: 56px; height: 56px; border-radius: 14px; }
+  .au-brand--stack .au-brand__text strong { font-size: 18px; }
+  .au-brand--stack .au-brand__text span { font-size: 10.5px; }
+  .au-head { margin: 18px 0 18px; }
+  .au-head h2 { font-size: 25px; }
+  .au-head p { margin-top: 6px; font-size: 14.5px; line-height: 1.5; }
+  .au-label { margin-bottom: 6px; font-size: 14px; }
+  .au-field { margin-bottom: 14px; }
+  .au .form-control { height: 48px; }
+  .au-input.has-icon .form-control { padding-left: 44px; }
+  .au-input__icon { left: 15px; }
+  .au-forgot { margin: -2px 0 16px; }
+  .au-forgot a { font-size: 14px; }
+  .au-btn { height: 48px; font-size: 16px; }
+  .au-btn--tall { height: 50px; margin-top: 2px; }
+  .au-or { margin: 18px 0 12px; font-size: 13px; }
+  /* two lines, not one line with a separator left hanging at its end */
+  .au-foot { flex-direction: column; gap: 3px; margin-top: 20px; font-size: 12.5px; }
+  .au-foot i { display: none; }
+  .au-back { margin-top: 16px; font-size: 14px; }
+
+  /* password cards */
+  .au-head--badge { margin: 0 0 14px; }
+  .au-badge { width: 56px; height: 56px; }
+  .au-badge svg { width: 26px; height: 26px; }
+  .au-head--badge h2 { margin-top: 10px; font-size: 22px; }
+  /* The first-login note says what the subtitle says; on a phone, where every
+     line is a line of scrolling, the note alone carries it. */
+  .au-card:has(.au-note) .au-head--badge p { display: none; }
+  .au-note { gap: 10px; padding: 10px 12px; margin-bottom: 14px; border-radius: 10px; }
+  .au-note__icon { width: 22px; height: 22px; font-size: 12px; }
+  .au-note p { font-size: 13px; line-height: 1.45; }
+  .au-otp { font-size: 22px !important; letter-spacing: .4em; }
+  .pwmeter { margin-top: 8px; }
+  .pwmeter__row { gap: 10px; }
+  .pwmeter__label { min-width: 0; font-size: 12.5px; }
+  .pwmeter__checks { margin-top: 8px; padding: 9px 12px; gap: 4px; border-radius: 10px; }
+  .pwmeter__checks li { gap: 8px; font-size: 13px; line-height: 1.3; align-items: flex-start; }
+  .pwtick { width: 16px; height: 16px; margin-top: 0; }
+  .pwtick svg { width: 11px; height: 11px; }
+  .au .pwmatch { margin-top: 6px; font-size: 13px; }
+}
+
+/* Short phones (iPhone SE / 8 and the like, ≤700px tall): the same card with
+   less air, and the password cards drop their round badge — it is ornament, and
+   on these screens it costs a field's worth of height. */
+@media (max-width: 600px) and (max-height: 700px) {
+  .au-main { padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .au-card, .au--secure .au-card { padding: 18px 18px 16px; }
+  .au-brand--phone { margin-bottom: 8px; }
+  .au-brand--phone .au-brand__mark { width: 32px; height: 32px; border-radius: 8px; }
+  .au-brand--phone .au-brand__text strong { font-size: 15px; }
+  .au-brand--phone .au-brand__text span { font-size: 9.5px; }
+  .au-brand--stack .au-brand__mark { width: 46px; height: 46px; border-radius: 12px; }
+  .au-brand--stack .au-brand__text strong { font-size: 16px; }
+  .au-head { margin: 12px 0 14px; }
+  .au-head h2 { font-size: 22px; }
+  .au-head p { font-size: 13.5px; }
+  .au-field { margin-bottom: 11px; }
+  .au-label { margin-bottom: 5px; font-size: 13.5px; }
+  .au .form-control { height: 46px; }
+  .au-btn { height: 46px; }
+  .au-btn--tall { height: 48px; }
+  .au-forgot { margin: -3px 0 12px; }
+  .au-or { margin: 14px 0 10px; }
+  .au-foot { margin-top: 14px; }
+  .au-badge { display: none; }
+  .au-head--badge h2 { margin-top: 0; font-size: 20px; }
+  .au-head--badge { margin-bottom: 10px; }
+  .au-note { padding: 8px 10px; margin-bottom: 11px; }
+  .au-note p { font-size: 12.5px; }
+  .pwmeter, .pwmeter__checks { margin-top: 6px; }
+  .pwmeter__checks { padding: 7px 10px; gap: 2px; }
+  .pwmeter__checks li { font-size: 12.5px; }
+  .au .pwmatch { margin-top: 5px; min-height: 18px; }
+}
+
+/* The smallest phones (320×568): the sign-in brand sits beside its name rather
+   than above it, and the password cards let the page's own brand row go — the
+   card title already says where you are. */
+@media (max-width: 600px) and (max-height: 600px) {
+  .au-brand--stack { flex-direction: row; justify-content: center; gap: 10px; text-align: left; }
+  .au-brand--stack .au-brand__mark { width: 38px; height: 38px; border-radius: 10px; }
+  .au-brand--phone { display: none; }
+  .au-head { margin: 10px 0 12px; }
+  .pwmeter__checks li { line-height: 1.25; }
+  .au-main { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .au-card, .au--secure .au-card { padding-top: 14px; padding-bottom: 12px; }
+}
+
+/* Small phones (iPhone SE and narrower) */
+@media (max-width: 360px) {
+  .au-main { padding-left: 10px; padding-right: 10px; }
+  .au-card, .au--secure .au-card { padding: 20px 16px 18px; }
+  .au-head h2 { font-size: 23px; }
+  .au-head--badge h2 { font-size: 20px; }
+  .pwmeter__checks li { font-size: 12.5px; }
+}
+
+/* Phones on their side: the height is the scarce thing */
+@media (max-width: 900px) and (max-height: 500px) {
+  .au-main { justify-content: flex-start; padding-top: 12px; padding-bottom: 12px; }
+  .au-card, .au--secure .au-card { padding-top: 18px; padding-bottom: 18px; }
+  .au-brand--stack { flex-direction: row; justify-content: center; gap: 12px; text-align: left; }
+  .au-brand--stack .au-brand__mark { width: 40px; height: 40px; }
+  .au-head { margin: 12px 0 14px; }
+  .au-brand--phone { margin-bottom: 10px; }
+}
 
 /* ── Responsive — Tablet (max 992px) ──────────────────────────────────────── */
 @media (max-width: 992px) {
@@ -1136,7 +1564,6 @@ select.form-control {
 @media (max-width: 480px) {
   html { font-size: 15px; }
   .stat-grid { grid-template-columns: 1fr; }
-  .auth-card { padding: 28px 20px; }
   .modal     { border-radius: var(--radius-lg); }
   .modal-body { padding: 20px; }
   .btn-lg    { padding: 10px 18px; }
