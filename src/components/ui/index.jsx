@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './icons';
+import { passwordStrength, matchState } from '../../utils/passwordStrength';
 
 // ── Spinner ────────────────────────────────────────────────────────────────────
 export const Spinner = ({ size = '' }) => (
@@ -28,6 +29,84 @@ export const Input = React.forwardRef(({ label, error, hint, required, ...props 
     {error && <div className="form-error">{error}</div>}
   </div>
 ));
+
+// ── Password ──────────────────────────────────────────────────────────────────
+// A password field with a show/hide switch. Everything passed goes to the
+// <input>, so it drops in wherever `<input type="password" className="form-control">`
+// was. Each field has its own switch: revealing the new password to check it
+// should not also reveal the one being confirmed against it.
+export const PasswordInput = React.forwardRef(({ className = '', ...props }, ref) => {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="pwfield">
+      <input ref={ref} {...props} type={shown ? 'text' : 'password'}
+        className={`form-control ${className}`.trim()} />
+      <button type="button" className="pwfield__toggle"
+        onClick={() => setShown((s) => !s)}
+        // Keep the caret in the field: a click on the eye is not a reason to
+        // leave what you are typing.
+        onMouseDown={(e) => e.preventDefault()}
+        aria-label={shown ? 'Hide password' : 'Show password'}
+        aria-pressed={shown} title={shown ? 'Hide password' : 'Show password'}>
+        <Icon name={shown ? 'eyeOff' : 'eye'} size={18} />
+      </button>
+    </div>
+  );
+});
+
+// ── Password strength, live ───────────────────────────────────────────────────
+// Sits under a new-password field and re-scores on every keystroke. The two
+// required checks are the server's own rule, so "Too weak" is exactly "the
+// form will refuse this"; the rest say what would make it harder to guess.
+export const PasswordStrength = ({ password, id }) => {
+  const { level, checks, note } = passwordStrength(password);
+  const typed = !!password;
+  return (
+    <div id={id} className={`pwmeter${level ? ` pwmeter--${level.key}` : ''}`}>
+      <div className="pwmeter__row">
+        <div className="pwmeter__bar" aria-hidden="true">
+          {[1, 2, 3, 4].map((i) => <span key={i} className={level && i <= level.bars ? 'is-on' : ''} />)}
+        </div>
+        {/* Announced as it changes, so a screen reader hears "Fair", "Strong". */}
+        <span className="pwmeter__label" aria-live="polite">
+          {level ? level.label : 'Strength'}
+        </span>
+      </div>
+      <ul className="pwmeter__checks">
+        {checks.map((c) => (
+          <li key={c.key}
+            className={c.met ? 'is-met' : (c.required && typed ? 'is-missing' : '')}>
+            {c.met
+              ? <Icon name="checkCircle" size={14} />
+              : <i className="pwmeter__dot" aria-hidden="true" />}
+            {c.label}
+            {!c.required && <em>optional</em>}
+            <span className="sr-only">{c.met ? ' — done' : c.required ? ' — required' : ''}</span>
+          </li>
+        ))}
+      </ul>
+      {note && <p className="pwmeter__note">{note}</p>}
+    </div>
+  );
+};
+
+// Under a confirm field: says nothing while the confirmation is still a correct
+// start of the password (a red "do not match" after one keystroke is noise),
+// then either that they match or that they have gone different.
+export const PasswordMatch = ({ password, confirm, id }) => {
+  const state = matchState(password, confirm);
+  const shown = state === 'match' || state === 'mismatch';
+  return (
+    <div id={id} className={`pwmatch${shown ? ` pwmatch--${state}` : ''}`} aria-live="polite">
+      {shown && (
+        <>
+          <Icon name={state === 'match' ? 'checkCircle' : 'closeCircle'} size={15} />
+          {state === 'match' ? 'Passwords match' : 'Passwords do not match'}
+        </>
+      )}
+    </div>
+  );
+};
 
 // ── Select ────────────────────────────────────────────────────────────────────
 export const Select = React.forwardRef(({ label, error, required, children, ...props }, ref) => (

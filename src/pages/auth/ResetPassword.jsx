@@ -5,6 +5,8 @@ import { resetPassword } from '../../api/auth.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { passwordError } from '../../utils/validators';
 import AuthBrand from '../../components/layout/AuthBrand';
+import { PasswordInput, PasswordStrength, PasswordMatch } from '../../components/ui/index';
+import { passwordStrength, matchState } from '../../utils/passwordStrength';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -13,6 +15,11 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
 
   const isFirst = user?.isFirstLogin !== false; // true for first-login, fallback safe
+
+  // Scored on every keystroke; the button waits until both are satisfied.
+  const strength = passwordStrength(form.newPassword);
+  const match    = matchState(form.newPassword, form.confirm);
+  const ready    = strength.ok && match === 'match';
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -55,16 +62,21 @@ export default function ResetPassword() {
         <form onSubmit={onSubmit}>
           <div className="form-group">
             <label className="form-label required">New Password</label>
-            <input type="password" className="form-control" placeholder="Min 8 characters" autoFocus
+            <PasswordInput placeholder="Min 8 characters" autoFocus autoComplete="new-password"
+              aria-describedby="pw-strength" aria-invalid={form.newPassword && !strength.ok ? true : undefined}
               value={form.newPassword} onChange={(e) => setForm(f => ({ ...f, newPassword: e.target.value }))} />
+            <PasswordStrength id="pw-strength" password={form.newPassword} />
           </div>
           <div className="form-group">
             <label className="form-label required">Confirm New Password</label>
-            <input type="password" className="form-control" placeholder="Repeat new password"
+            <PasswordInput placeholder="Repeat new password" autoComplete="new-password"
+              className={match === 'mismatch' ? 'is-bad' : match === 'match' ? 'is-good' : ''}
+              aria-describedby="pw-match" aria-invalid={match === 'mismatch' || undefined}
               value={form.confirm} onChange={(e) => setForm(f => ({ ...f, confirm: e.target.value }))} />
+            <PasswordMatch id="pw-match" password={form.newPassword} confirm={form.confirm} />
           </div>
           <button type="submit" className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: 11 }} disabled={loading}>
+            style={{ width: '100%', justifyContent: 'center', padding: 11 }} disabled={loading || !ready}>
             {loading ? '⏳ Saving…' : '💾 Set Password & Continue'}
           </button>
         </form>

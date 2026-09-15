@@ -4,9 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModules } from '../contexts/ModulesContext';
 import api from '../api/axios';
 import { getEmployee } from '../api/employeeDirectory.api';
-import { Button, Modal, Spinner, Badge } from '../components/ui/index';
+import { Button, Modal, Spinner, Badge, PasswordInput, PasswordStrength, PasswordMatch } from '../components/ui/index';
+import { passwordStrength, matchState } from '../utils/passwordStrength';
 import AddressFields from '../components/ui/AddressFields';
-import { isPhone } from '../utils/validators';
+import { isPhone, passwordError } from '../utils/validators';
 import {
   Avatar, Field, Block, Chips, MailIcon, PhoneIcon, PinIcon, CalendarIcon,
   UserIcon, BuildingIcon, BookIcon, BadgeIcon, fmtDate, fileUrl,
@@ -124,8 +125,19 @@ export default function Profile() {
     finally { setSaving(false); }
   };
 
+  // Live state for the change-password dialog. The rule is the server's own
+  // (8+ with letters and numbers) — this dialog used to check length only, so a
+  // letters-only password passed here and was then refused by the server.
+  const pwStrength = passwordStrength(pwForm.newPassword);
+  const pwMatch    = matchState(pwForm.newPassword, pwForm.confirm);
+  const pwSame     = !!pwForm.newPassword && pwForm.newPassword === pwForm.currentPassword;
+  const pwReady    = !!pwForm.currentPassword && pwStrength.ok && pwMatch === 'match' && !pwSame;
+
   const changePassword = async () => {
-    if (pwForm.newPassword.length < 8) return toast.error('New password must be at least 8 characters');
+    if (!pwForm.currentPassword) return toast.error('Enter your current password');
+    const pwErr = passwordError(pwForm.newPassword);
+    if (pwErr) return toast.error(pwErr);
+    if (pwSame) return toast.error('Choose a password different from your current one');
     if (pwForm.newPassword !== pwForm.confirm) return toast.error('Passwords do not match');
     setPwSav(true);
     try {
@@ -503,26 +515,34 @@ export default function Profile() {
       <Modal open={pwOpen} onClose={() => setPwOpen(false)} title="Change password" maxWidth={440}
         footer={<>
           <Button variant="secondary" onClick={() => setPwOpen(false)}>Cancel</Button>
-          <Button loading={pwSaving} onClick={changePassword}>Change password</Button>
+          <Button loading={pwSaving} disabled={!pwReady} onClick={changePassword}>Change password</Button>
         </>}>
         <div className="form-group">
           <label className="form-label required">Current Password</label>
-          <input type="password" className="form-control" value={pwForm.currentPassword}
+          <PasswordInput autoComplete="current-password" value={pwForm.currentPassword}
             onChange={(e) => setPwForm((f) => ({ ...f, currentPassword: e.target.value }))} />
         </div>
         <div className="form-group">
           <label className="form-label required">New Password</label>
-          <input type="password" className="form-control" minLength={8} placeholder="Minimum 8 characters"
+          <PasswordInput autoComplete="new-password" minLength={8} placeholder="Minimum 8 characters"
+            aria-describedby="pw-strength" aria-invalid={(pwForm.newPassword && !pwStrength.ok) || pwSame || undefined}
+            className={pwSame ? 'is-bad' : ''}
             value={pwForm.newPassword}
             onChange={(e) => setPwForm((f) => ({ ...f, newPassword: e.target.value }))} />
+          {pwSame && (
+            <div className="pwmatch pwmatch--mismatch" role="alert">
+              This is the same as your current password
+            </div>
+          )}
+          <PasswordStrength id="pw-strength" password={pwForm.newPassword} />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label required">Confirm New Password</label>
-          <input type="password" className="form-control" value={pwForm.confirm}
+          <PasswordInput autoComplete="new-password" value={pwForm.confirm}
+            className={pwMatch === 'mismatch' ? 'is-bad' : pwMatch === 'match' ? 'is-good' : ''}
+            aria-describedby="pw-match" aria-invalid={pwMatch === 'mismatch' || undefined}
             onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))} />
-          {pwForm.confirm && pwForm.newPassword !== pwForm.confirm && (
-            <span className="form-error">Passwords do not match</span>
-          )}
+          <PasswordMatch id="pw-match" password={pwForm.newPassword} confirm={pwForm.confirm} />
         </div>
       </Modal>
     </div>

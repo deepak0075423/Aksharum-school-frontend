@@ -6,6 +6,7 @@ import { login } from '../../api/auth.api';
 import { isEmail } from '../../utils/validators';
 import { useAuth } from '../../contexts/AuthContext';
 import AuthBrand from '../../components/layout/AuthBrand';
+import { PasswordInput } from '../../components/ui/index';
 
 const roleHome = {
   super_admin:  '/super-admin/dashboard',
@@ -27,7 +28,6 @@ export default function Login() {
   const navigate     = useNavigate();
   const [form, setForm]     = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
-  const [showPass, setShowPass] = useState(false);
 
   const onChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -77,29 +77,13 @@ export default function Login() {
 
           <div className="form-group">
             <label className="form-label required">Password</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                name="password"
-                type={showPass ? 'text' : 'password'}
-                className="form-control"
-                placeholder="••••••••"
-                value={form.password}
-                onChange={onChange}
-                autoComplete="current-password"
-                style={{ paddingRight: 44 }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass(s => !s)}
-                style={{
-                  position: 'absolute', right: 12, top: '50%',
-                  transform: 'translateY(-50%)', color: 'var(--text-muted)',
-                  fontSize: '1rem', background: 'none', border: 'none', cursor: 'pointer',
-                }}
-              >
-                {showPass ? '🙈' : '👁️'}
-              </button>
-            </div>
+            <PasswordInput
+              name="password"
+              placeholder="••••••••"
+              value={form.password}
+              onChange={onChange}
+              autoComplete="current-password"
+            />
           </div>
 
           <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 20 }}>
