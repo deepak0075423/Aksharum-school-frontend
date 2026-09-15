@@ -8,17 +8,18 @@ export const getInbox            = () => api.get('/notifications/inbox');
 export const getAllNotifications  = (params) => api.get('/notifications/all', { params });
 export const getUnreadCount      = () => api.get('/notifications/unread-count');
 export const getSent             = (params) => api.get('/notifications/sent', { params });
-export const markAllRead         = () => api.post('/notifications/mark-all-read');
+// `child` (parents only): act on that child's view of the mailbox, not all of it.
+export const markAllRead         = (child) => api.post('/notifications/mark-all-read', child ? { child } : {});
 export const clearAll            = () => api.post('/notifications/clear-all');
 // Clears every notification already read, and only those — see archiveRead in
 // the controller for why an unread one is never swept up.
-export const archiveRead         = () => api.post('/notifications/archive-read');
+export const archiveRead         = (child) => api.post('/notifications/archive-read', child ? { child } : {});
 // The selection bar. `action` is read | unread | archive | restore | delete —
 // delete removes the reader's receipt, never the notification itself, which is
 // one row shared with everybody else who received it.
 export const bulkNotifications   = (ids, action) => api.post('/notifications/bulk', { ids, action });
 // Empties one box — 'inbox', 'archived' or 'all'.
-export const deleteAllNotifications = (box) => api.post('/notifications/delete-all', { box });
+export const deleteAllNotifications = (box, child) => api.post('/notifications/delete-all', child ? { box, child } : { box });
 export const markOneRead         = (id) => api.patch(`/notifications/${id}/mark-read`);
 export const markOneUnread       = (id) => api.patch(`/notifications/${id}/mark-unread`);
 // Archive / un-archive one. The DELETE is the bell's "clear", which is the same

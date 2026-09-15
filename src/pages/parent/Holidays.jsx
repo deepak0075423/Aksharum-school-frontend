@@ -3,9 +3,9 @@
  *
  * A parent can have more than one child, and their holidays are not the same:
  * a school-wide day closes the school for both, but a class day closes one
- * child's class and not the other's. So this page is told per child — a switch
- * across the top picks whose holidays are on screen, and with "Both children"
- * showing, any day that is not for all of them says whose it is.
+ * child's class and not the other's. So this page is told one child at a time,
+ * picked on the same switch as the dashboard, Library and Class pages (the
+ * choice rides in ?child=, so it carries between those pages).
  *
  * That distinction only exists because the endpoint now returns it. It used to
  * read the *first* child only (`StudentProfile.findOne`), so a second child's
@@ -19,6 +19,7 @@ import useFetch from '../../hooks/useFetch';
 import { getHolidays } from '../../api/parent.api';
 import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
+import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
 import {
   HolidayDialog, HolidayList, MonthCalendar,
   dayKey, daysOf, daysUntil, statusOf, tintFor, today,
@@ -44,9 +45,10 @@ export default function ParentHolidays() {
   const children = useMemo(() => meta?.children || [], [meta]);
   const types    = meta?.types || [];
 
-  // '' is every child at once. With one child there is nothing to switch
-  // between, so the switch does not appear at all.
-  const [who, setWho] = useState('');
+  // One child at a time. With no child linked, only school-wide days exist and
+  // nothing is narrowed.
+  const { child: forChild, pick } = useChild(children);
+  const who = forChild?._id || '';
   const [month, setMonth] = useState(MONTH_START);
   const [picked, setPicked] = useState(null);
 
@@ -56,7 +58,7 @@ export default function ParentHolidays() {
   );
 
   const holidays = useMemo(
-    () => (who ? all.filter((h) => (h.forChildren || []).includes(who)) : all),
+    () => (who ? all.filter((h) => (h.forChildren || []).map(String).includes(String(who))) : all),
     [all, who],
   );
 
@@ -76,28 +78,15 @@ export default function ParentHolidays() {
     return out;
   }, [holidays]);
 
-  /**
-   * Whose day this is — said only when it is not everybody's, and only while
-   * more than one child is on screen. Labelling every school holiday with both
-   * names would bury the one line that matters.
-   */
-  const whoseDay = (h) => {
-    if (who || children.length < 2) return null;
-    const on = h.forChildren || [];
-    if (on.length >= children.length) return null;
-    return `Only ${on.map((id) => nameOf[id]).filter(Boolean).join(' and ') || 'one child'}`;
-  };
-
+  /** Who else a day is for — in the details dialog, where it answers "is the other one off too?". */
   const appliesTo = (h) => {
     const on = h.forChildren || [];
-    if (!children.length) return null;
-    if (on.length >= children.length) return 'Both children';
+    if (children.length < 2) return null;
+    if (on.length >= children.length) return children.length === 2 ? 'Both children' : 'All your children';
     return on.map((id) => nameOf[id]).filter(Boolean).join(', ') || null;
   };
 
   if (loading) return <div className="loading-page"><Spinner /></div>;
-
-  const forChild = who ? children.find((c) => c._id === who) : null;
 
   return (
     <div className="page holpg holtch">
@@ -109,49 +98,13 @@ export default function ParentHolidays() {
             <p>
               {forChild
                 ? `The days ${forChild.name}'s school and class are closed.`
-                : children.length > 1
-                  ? 'The days school is closed — for each of your children.'
-                  : 'The days your child’s school and class are closed.'}
+                : 'The days your child’s school and class are closed.'}
             </p>
           </div>
         </div>
       </header>
 
-      <div className="holtch-figs holtch-figs--wide">
-        <Fig icon="calendar" tone="indigo" value={holidays.length} label="Total holidays"
-          caption={forChild ? `For ${forChild.name}` : 'This academic year'} />
-        <Fig icon="sunrise" tone="green" value={coming.length} label="Still to come"
-          caption={nextLine(holidays)} />
-        <Fig icon="checkSquare" tone="amber" value={groups.past.length} label="Already passed"
-          caption={`${holidays.filter((h) => daysOf(h).some(inThisMonth)).length} this month`} />
-      </div>
-
-      {/* One child needs no switch; two or more do, because their holidays
-          genuinely differ. */}
-      {children.length > 1 && (
-        <nav className="holtch-tabs holpar-who" role="tablist" aria-label="Whose holidays">
-          <button type="button" role="tab" aria-selected={!who}
-            className={!who ? 'is-on' : ''} onClick={() => setWho('')}>
-            Both children
-            <b>{all.length}</b>
-          </button>
-          {children.map((c) => (
-            <button key={c._id} type="button" role="tab" aria-selected={who === c._id}
-              className={who === c._id ? 'is-on' : ''} onClick={() => setWho(c._id)}>
-              {c.name}
-              {c.className ? <em>{c.className}</em> : null}
-              <b>{all.filter((h) => (h.forChildren || []).includes(c._id)).length}</b>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      {children.length === 1 && children[0].className ? (
-        <p className="holpar-note">
-          <Icon name="user" size={14} />
-          {children[0].name} · {children[0].className}
-        </p>
-      ) : null}
+      <ChildSwitch children={children} child={forChild} onPick={pick} label="Whose holidays" />
 
       {!children.length && (
         <Alert variant="info">
@@ -159,6 +112,15 @@ export default function ParentHolidays() {
           Ask the school office to link your children.
         </Alert>
       )}
+
+      <div className="holtch-figs holtch-figs--wide">
+        <Fig icon="calendar" tone="indigo" value={holidays.length} label="Total holidays"
+          caption={children.length > 1 && forChild ? `For ${forChild.name}` : 'This academic year'} />
+        <Fig icon="sunrise" tone="green" value={coming.length} label="Still to come"
+          caption={nextLine(holidays)} />
+        <Fig icon="checkSquare" tone="amber" value={groups.past.length} label="Already passed"
+          caption={`${holidays.filter((h) => daysOf(h).some(inThisMonth)).length} this month`} />
+      </div>
 
       <div className="holgrid">
         <div className="holtch-col">
@@ -172,7 +134,7 @@ export default function ParentHolidays() {
                 <span><i className="is-mine" />Holiday</span>
                 <span><i className="is-today" />Today</span>
                 <span className="is-note">
-                  {forChild ? `Showing ${forChild.name}` : 'Showing every child'}
+                  {forChild ? `Showing ${forChild.name}` : 'School-wide days'}
                 </span>
               </p>
             )} />
@@ -203,11 +165,11 @@ export default function ParentHolidays() {
 
         <div className="holside">
           <HolidayList title="Coming up" icon="clock" tone="green"
-            holidays={coming} types={types} onPick={setPicked} metaOf={whoseDay}
+            holidays={coming} types={types} onPick={setPicked}
             empty={forChild ? `Nothing coming up for ${forChild.name}.` : 'Nothing announced yet.'} />
 
           <HolidayList title="Already been" icon="refresh" tone="amber"
-            holidays={groups.past} types={types} onPick={setPicked} metaOf={whoseDay}
+            holidays={groups.past} types={types} onPick={setPicked}
             empty="No holidays have passed yet this year." />
         </div>
       </div>

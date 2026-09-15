@@ -39,6 +39,7 @@ import { useModules } from '../../contexts/ModulesContext';
 import { connectSocket, getSocket } from '../../socket';
 import { Alert, Button, Confirm, Empty, Spinner } from '../../components/ui/index';
 import Icon, { SupportScene } from '../../components/ui/icons';
+import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
 import {
   Crumbs, SearchField, ListTable, ListFooter, Drawer, HelpPanel, PageFoot, useSelection,
 } from '../admin/listParts';
@@ -123,13 +124,28 @@ export default function Notifications() {
 
   const isSent = tab === 'sent';
 
+  // ── Whose mailbox, for a parent ────────────────────────────────────────────
+  // A notice about one child — a library fine, an absence — is not the other
+  // child's business, so a parent with two or more reads one child at a time,
+  // on the same switch as Library, Class and Holidays. The children arrive with
+  // the list; the choice lives in ?child= so it survives a reload.
+  const isParent = me?.role === 'parent';
+  const [kids, setKids] = useState([]);
+  const { child, pick } = useChild(kids);
+  const wantedChild = params.get('child') || '';
+  const childId = isParent && kids.length > 1 ? (child?._id || '') : '';
+  // Until the first child is chosen, the unscoped first response is held back
+  // rather than drawn — it would flash every child's notices for a moment.
+  const choosingChild = isParent && kids.length > 1 && !wantedChild;
+
   const query = useMemo(() => (isSent
     ? { page, limit, q: term || undefined, ...Object.fromEntries(Object.entries(sentFilters).filter(([, v]) => v)) }
     : {
         page, limit, box: tab, q: term || undefined,
+        child: isParent && wantedChild ? wantedChild : undefined,
         ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
       }),
-  [isSent, tab, page, limit, term, filters, sentFilters]);
+  [isSent, tab, page, limit, term, filters, sentFilters, isParent, wantedChild]);
   const queryKey = JSON.stringify(query);
 
   // Both boxes read the same endpoint with a different `box`, so switching tabs
@@ -145,6 +161,10 @@ export default function Notifications() {
   // them — hold the last set so they do not blank out on the Sent tab.
   const [boxes, setBoxes] = useState({ inbox: 0, unread: 0, archived: 0, sent: 0 });
   useEffect(() => { if (listMeta?.boxes) setBoxes(listMeta.boxes); }, [listMeta]);
+  useEffect(() => { if (Array.isArray(listMeta?.children)) setKids(listMeta.children); }, [listMeta]);
+  // Two or more children and none named yet: start on the first.
+  useEffect(() => { if (choosingChild && kids[0]) pick(kids[0]._id); }, [choosingChild, kids]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickChild = (id) => { pick(id); setPage(1); setViewing(null); };
 
   // Ticked rows. Dropped whenever the query changes, so a delete can never
   // reach a row left over from two filters ago.
@@ -200,13 +220,17 @@ export default function Notifications() {
   const onGo      = (row) => { setViewing(null); navigate(row.link.web); };
 
   const markEverything = async () => {
-    try { await markAllRead(); toast.success('All notifications marked as read'); refetch(); }
+    try {
+      await markAllRead(childId || undefined);
+      toast.success(childId ? `Everything about ${child.name} marked as read` : 'All notifications marked as read');
+      refetch();
+    }
     catch (err) { toast.error(err.response?.data?.message || err.message); }
   };
 
   const sweepRead = async () => {
     try {
-      const res = await archiveRead();
+      const res = await archiveRead(childId || undefined);
       const n = res?.archived ?? 0;
       toast.success(n ? `${n} read notification${n === 1 ? '' : 's'} archived` : 'Nothing read to archive');
       refetch();
@@ -250,12 +274,12 @@ export default function Notifications() {
     const n = tab === 'archived' ? boxes.archived : boxes.inbox;
     setConfirm({
       title: tab === 'archived' ? 'Empty the archive?' : 'Delete every notification in your inbox?',
-      message: `All ${n} notification${n === 1 ? '' : 's'} in your ${tab === 'archived' ? 'archive' : 'inbox'} will be removed permanently — including any you have not read. This cannot be undone.`,
+      message: `All ${n} notification${n === 1 ? '' : 's'} in your ${tab === 'archived' ? 'archive' : 'inbox'}${childId ? ` shown for ${child.name}` : ''} will be removed permanently — including any you have not read. This cannot be undone.`,
       label: `Delete all ${n}`,
       run: async () => {
         setBusy(true);
         try {
-          const res = await deleteAllNotifications(tab === 'archived' ? 'archived' : 'inbox');
+          const res = await deleteAllNotifications(tab === 'archived' ? 'archived' : 'inbox', childId || undefined);
           toast.success(`${res?.deleted ?? 0} notifications deleted`);
           setViewing(null); selection.clear(); setPage(1); refetch();
         } catch (err) { toast.error(err.response?.data?.message || err.message); }
@@ -366,7 +390,9 @@ export default function Notifications() {
     inbox:    { icon: '🔔', title: anyFilter ? 'Nothing matches those filters' : 'Your inbox is empty',
                 message: anyFilter
                   ? 'Try a different module, priority or search term.'
-                  : 'Anything your school sends you arrives here.' },
+                  : childId
+                    ? `Anything your school sends about ${child.name} arrives here.`
+                    : 'Anything your school sends you arrives here.' },
     archived: { icon: '🗂️', title: anyFilter ? 'Nothing matches those filters' : 'Nothing archived yet',
                 message: 'Notifications you put away move here and stay searchable.' },
     sent:     { icon: '📤', title: anyFilter ? 'Nothing matches those filters' : 'You have not sent anything yet',
@@ -384,6 +410,10 @@ export default function Notifications() {
       <Crumbs home={role.home} here="Notifications" />
 
       <NotifHero unread={boxes.unread} subtitle={role.subtitle} tip={role.tip} />
+
+      {isParent && kids.length > 0 && (
+        <ChildSwitch children={kids} child={child} onPick={pickChild} label="Whose notifications" />
+      )}
 
       <TabStrip value={tab} onChange={pickTab} tabs={tabs}>
         {/* Offered on the inbox whether or not anything is unread, so it is in
@@ -484,7 +514,7 @@ export default function Notifications() {
           )}
         </div>
 
-        {listLoading ? (
+        {listLoading || choosingChild ? (
           <div className="nfloading"><Spinner /></div>
         ) : !rows.length ? (
           <Empty icon={emptyFor.icon} title={emptyFor.title} message={emptyFor.message}

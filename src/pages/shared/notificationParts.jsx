@@ -264,12 +264,15 @@ export function NotifRow({ row, active, picked, onPick, onOpen, onRead, onUnread
         <span className="nfrow__body">
           <span className="nfrow__title">{plain(n.title) || 'Notification'}</span>
           {n.body ? <span className="nfrow__text">{plain(n.body)}</span> : null}
+          {/* Each separator rides with the item after it, so the line can drop
+              the module on a phone without leaving a stray dot behind. */}
           <span className="nfrow__meta">
-            <b>{row.sender?.name || 'System'}</b>
-            <i aria-hidden>•</i>
-            <span>{row.module?.label || 'General'}</span>
-            <i aria-hidden>•</i>
-            <time dateTime={row.createdAt} title={fullWhen(row.createdAt)}>{when(row.createdAt)}</time>
+            <b title={row.sender?.name || 'System'}>{row.sender?.name || 'System'}</b>
+            <span className="nfrow__mod"><i aria-hidden>•</i>{row.module?.label || 'General'}</span>
+            <span className="nfrow__when">
+              <i aria-hidden>•</i>
+              <time dateTime={row.createdAt} title={fullWhen(row.createdAt)}>{when(row.createdAt)}</time>
+            </span>
           </span>
         </span>
       </button>

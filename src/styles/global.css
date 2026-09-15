@@ -9568,36 +9568,14 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 }
 
 /* ── Student and parent holidays ───────────────────────────────────────────── */
-/* Both read the teacher screen's layout (.holtch-*); these are the two pieces
-   only a parent needs — the child switch, and the line naming an only child. */
+/* Both read the teacher screen's layout (.holtch-*). The parent's child switch
+   is the shared one (components/parent/ChildSwitch → .scls-kids), the same
+   card as Library and Class. */
 .holcal__legend .is-note { margin-left: auto; color: var(--text-light); }
-
-.holpar-who button { flex-direction: column; align-items: flex-start; gap: 2px; padding-bottom: 9px; }
-.holpar-who button em {
-  font-style: normal; font-size: .72rem; font-weight: 500; color: var(--text-muted);
-}
-.holpar-who button.is-on em { color: var(--primary); opacity: .8; }
-/* The count rides at the end of the name rather than under it. */
-.holpar-who button b {
-  position: absolute; top: 9px; right: 0;
-}
-.holpar-who button { position: relative; padding-right: 34px; }
-
-.holpar-note {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 7px 12px; border-radius: 999px; background: var(--bg);
-  font-size: .8rem; color: var(--text-muted); align-self: flex-start;
-}
-.holpar-note svg { color: var(--text-light); }
 
 /* Whose day it is, when it is not everybody's. */
 .holtch-row__meta { color: #b45309 !important; font-weight: 600; }
 .holtch-row__meta svg { color: #d97706 !important; }
-
-@media (max-width: 700px) {
-  .holpar-who { flex-wrap: wrap; }
-  .holpar-who button + button { margin-left: 0; }
-}
 
 /* ── The read-only holiday pages ───────────────────────────────────────────── */
 /*
@@ -12308,7 +12286,12 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .nfhero__art { width: 190px; }
 
+/* Pinned to the last column. The list frame hides the art below 1280px while
+   this header still had three columns down to 1100px — so the tip fell into
+   the empty `auto` middle track, grew to its one-line width and lay across the
+   title (seen at 1101–1280px, i.e. an ordinary laptop at 125–150% zoom). */
 .nfhero__tip {
+  grid-column:   -2 / -1;
   background:    #eef2ff;
   border:        1px solid #c7d2fe;
   border-radius: var(--radius-xl);
@@ -12344,7 +12327,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   cursor: pointer; white-space: nowrap;
   transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
-.nftab svg   { color: currentColor; }
+.nftab svg   { color: currentColor; flex-shrink: 0; }
 .nftab:hover { color: var(--primary); background: var(--bg); }
 .nftab.is-on { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
 
@@ -12363,8 +12346,21 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .nfloading { display: flex; justify-content: center; padding: 64px; }
 .nflist  { display: flex; flex-direction: column; }
 
+/* The row's horizontal measures live in variables because the narrow layouts
+   have to put the actions exactly under the message — and that offset is the
+   sum of everything to its left. Written as one number (61px, 87px) it was
+   already wrong: the actions sat under the icon, 50px short of the text. */
 .nfrow {
-  display: flex; align-items: center; gap: 12px;
+  --nf-inset: 18px;   /* leading edge → tick, or → dot when there is no tick */
+  --nf-tick:  16px;   /* the checkbox */
+  --nf-gap:   12px;   /* tick → the open button */
+  --nf-lead:  12px;   /* the open button's own left padding after a tick */
+  --nf-dot:   9px;    /* unread dot; 0 where it is hidden */
+  --nf-inner: 14px;   /* between dot, icon and text */
+  --nf-icon:  42px;
+  /* the dot and the gap after it, together — a hidden dot takes both away */
+  --nf-dotspan: calc(var(--nf-dot) + var(--nf-inner));
+  display: flex; align-items: center; gap: var(--nf-gap);
   padding: 0 18px 0 0;
   border-top: 1px solid var(--border);
   transition: background var(--transition);
@@ -12391,27 +12387,29 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .nfrow.is-picked.is-unread { background: #f5f3ff; }
 .nfrow.is-picked:hover { background: #ede9fe; }
 
-.nfrow__tick { display: flex; align-items: center; padding: 0 0 0 18px; cursor: pointer; }
+.nfrow__tick { display: flex; align-items: center; padding: 0 0 0 var(--nf-inset); cursor: pointer; }
 .nfrow__tick input {
-  width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); display: block;
+  width: var(--nf-tick); height: var(--nf-tick); margin: 0;
+  cursor: pointer; accent-color: var(--primary); display: block;
 }
 /* The tick takes over the row's left inset, so the message does not shift. */
-.nfrow__tick + .nfrow__open { padding-left: 12px; }
+.nfrow__tick + .nfrow__open { padding-left: var(--nf-lead); }
 
 /* The whole row opens it; the trailing controls are the other actions. */
 .nfrow__open {
   flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 14px;
-  padding: 16px 8px 16px 18px;
+  display: flex; align-items: center; gap: var(--nf-inner);
+  padding: 16px 8px 16px var(--nf-inset);
   background: none; border: none; font: inherit; color: inherit;
   text-align: left; cursor: pointer;
 }
 .nfrow__dot {
-  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  width: var(--nf-dot); height: var(--nf-dot); border-radius: 50%; flex-shrink: 0;
   border: 1.5px solid var(--border); background: none;
 }
 .nfrow__dot.is-on { background: var(--primary); border-color: var(--primary); }
 
+.nfrow .nfrow__icon { width: var(--nf-icon); height: var(--nf-icon); }
 .nfrow__icon {
   width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
   display: grid; place-items: center;
@@ -12430,12 +12428,19 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   font-size: .82rem; line-height: 1.45; color: var(--text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* One line, always. Wrapping left a separator hanging at the end of a line
+   with the date alone beneath it ("Admin Deepak · Calendar ·" / "08 Sept
+   2026"). Each separator now travels with the item after it, the date never
+   shrinks, and a long sender or module name gives way first — with the whole
+   name in its title. */
 .nfrow__meta {
-  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
-  margin-top: 6px; font-size: .74rem; color: var(--text-light);
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+  margin-top: 6px; font-size: .74rem; color: var(--text-light); white-space: nowrap;
 }
-.nfrow__meta b    { font-weight: 600; color: var(--text-muted); }
+.nfrow__meta b    { font-weight: 600; color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nfrow__meta i    { font-style: normal; color: var(--border); }
+.nfrow__mod       { display: inline-flex; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nfrow__when      { display: inline-flex; gap: 7px; flex-shrink: 0; }
 .nfrow__meta time { color: var(--text-light); }
 
 .nfrow__end { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -12446,10 +12451,15 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
    One bar, always present above the list: the select-all tick lives here (a
    tick that only appears once something is selected is a chicken-and-egg), and
    the actions join it when there is something to act on. */
+/* Its selected height is reserved from the start (the buttons are taller than
+   the "Select all" line, and the bottom rule appears with them): otherwise the
+   first tick pushed the whole list — including the row just ticked — down. */
 .nfbulk {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: 51px;
   padding: 10px 18px;
   border-top: 1px solid var(--border);
+  border-bottom: 1px solid transparent;
   background: var(--bg);
   font-size: .82rem; color: var(--text-muted);
   transition: background var(--transition), color var(--transition);
@@ -12516,7 +12526,11 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .nfcol-aud  { width: 170px; }
 .nfcol-chan { width: 140px; }
 .nfcol-read { width: 160px; }
-.nfcol-when { width: 150px; }
+.nfcol-when { width: 190px; }
+/* "15 Sept 2026, 04:25 pm" is one fact; at 150px it broke into three lines
+   with "pm" alone at the bottom. */
+.nfcol-when .lstack__main,
+.nfcol-when .lstack__sub { white-space: nowrap; }
 
 /* ── The composer's pickers ────────────────────────────────────────────────
    Radios and checkboxes as pills, so a choice of three reads as three options
@@ -12548,7 +12562,16 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .nfnote--warn svg { color: #d97706; }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 1100px) {
+/* Once the filters no longer fit one line, let them share the lines they wrap
+   onto. Left at their natural width, "All Read Status" sat alone on the second
+   line with "Sort by" pushed to the far end and a gap between them. */
+@media (max-width: 1280px) {
+  .nfpg .ltools .lsel { flex: 1 1 auto; }
+  .nfpg .ltools .ltools__sep { display: none; }
+}
+/* The same breakpoint as the list frame's own header, which is what hides the
+   art — the two must switch together. */
+@media (max-width: 1280px) {
   .nfhero { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
   .nfhero__art { display: none; }
 }
@@ -12556,21 +12579,72 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .nfhero { grid-template-columns: 1fr; }
   .nftabs__acts { margin-left: 0; width: 100%; }
   .nftabs__acts .btn { flex: 1; justify-content: center; }
-  /* The row becomes two rows: the message, then what can be done about it. */
-  .nfrow { flex-wrap: wrap; padding-right: 0; }
+  /* The Sent table keeps its columns and scrolls sideways inside its card.
+     Squeezed to the screen instead, every cell wrapped a word at a time and a
+     single row stood ~180px tall with four of its six columns out of sight. */
+  .nfpg .table-wrap .ltable { min-width: 920px; }
+  /* The row becomes two rows: the message, then what can be done about it —
+     the second starting exactly where the message text starts. */
+  .nfrow { flex-wrap: wrap; row-gap: 0; padding-right: 0; }
   .nfrow__open { padding-bottom: 8px; }
-  .nfrow__end  { width: 100%; padding: 0 18px 16px 61px; justify-content: flex-start; }
-  .nfrow__tick + .nfrow__open + .nfrow__end { padding-left: 87px; }
+  .nfrow__end {
+    width: 100%; justify-content: flex-start; flex-wrap: wrap;
+    padding: 0 18px 14px calc(var(--nf-inset) + var(--nf-dotspan) + var(--nf-icon) + var(--nf-inner));
+  }
+  .nfrow__tick + .nfrow__open + .nfrow__end {
+    padding-left: calc(var(--nf-inset) + var(--nf-tick) + var(--nf-gap) + var(--nf-lead)
+      + var(--nf-dotspan) + var(--nf-icon) + var(--nf-inner));
+  }
+  /* No hover here to read a clipped line by, and the row is already two
+     lines tall — so the headline and the preview get two lines each. */
+  .nfrow__title,
+  .nfrow__text {
+    white-space: normal;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+  }
 }
 @media (max-width: 560px) {
   .nfhero__badge { width: 50px; height: 50px; border-radius: 14px; }
-  .nfrow__open { gap: 11px; padding-left: 14px; }
-  .nfrow__icon { width: 36px; height: 36px; border-radius: 10px; }
-  .nfrow__end  { padding-left: 14px; flex-wrap: wrap; }
-  .nfrow__tick + .nfrow__open + .nfrow__end { padding-left: 14px; }
-  .nfrow__tick { padding-left: 14px; }
+  /* A phone keeps the tick, the module mark and the message. The unread dot
+     goes — the rail on the leading edge and the bold headline already say
+     unread — and its width goes back to the text. */
+  .nfrow { --nf-inset: 14px; --nf-gap: 10px; --nf-lead: 0px; --nf-dotspan: 0px; --nf-inner: 10px; --nf-icon: 34px; }
+  .nfrow__dot { display: none; }
+  .nfrow .nfrow__icon { border-radius: 10px; }
+  .nfrow__end { padding-right: 14px; gap: 8px; }
+  /* The module is already drawn as the icon beside the text; on a phone the
+     meta line keeps who sent it and when. */
+  .nfrow__mod { display: none; }
   .nfbulk { padding: 10px 14px; }
+  /* The three boxes share one line across the full width. Left to wrap,
+     "Archived" dropped under "Inbox" inside the strip's own border. */
+  .nftabs__set { width: 100%; flex-wrap: nowrap; gap: 4px; }
+  .nftab { flex: 1 1 0; min-width: 0; justify-content: center; gap: 6px; padding: 9px 6px; font-size: .84rem; }
+  .nftab__n { min-width: 0; padding: 1px 6px; }
+  /* Five actions do not fit beside "2 selected" on a phone; in the bar they
+     wrapped to three lines and shoved the list 75px down under the thumb that
+     had just ticked a row. They sit in a tray at the foot of the screen
+     instead — where the thumb is — and the list does not move. Above the
+     page, below the drawer and dialogs (1000) and the sidebar (100). */
+  .nfbulk.is-on .nfbulk__acts {
+    position: fixed; z-index: 80;
+    left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px;
+    margin: 0; padding: 10px;
+    background: var(--bg-card); border: 1px solid #c7d2fe; border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+  }
+  .nfbulk.is-on .nfbulk__acts .btn { justify-content: center; }
+  /* …and the page keeps enough room below the list that the tray never sits
+     over the last row. */
+  .nfpg:has(.nfbulk.is-on) { padding-bottom: 150px; }
   .ltools .lsel { flex: 1 1 150px; width: auto; }
+}
+/* The smallest phones: the three tab words and their counts need the icons'
+   width. Each tab still says what it is in words. */
+@media (max-width: 400px) {
+  .nftab svg { display: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
