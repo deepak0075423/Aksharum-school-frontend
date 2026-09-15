@@ -10,6 +10,7 @@ import { PageHeader, Table, Badge, Button, Spinner } from '../../components/ui/i
 import SelfAttendance from '../../components/attendance/SelfAttendance';
 import ClassRanking from '../../components/attendance/ClassRanking';
 import { useSearchParams } from 'react-router-dom';
+import { toDateInput } from '../../utils/leaveDates';
 
 // ── Class attendance ranking ──────────────────────────────────────────────────
 function SectionRanking() {
@@ -40,7 +41,9 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-dig
  * there for the rest.
  */
 function MarkAttendance({ wantedSection }) {
-  const today = new Date().toISOString().split('T')[0];
+  // The teacher's own calendar day — toISOString() is UTC, so in India the
+  // register opened on yesterday until 5:30 AM and today could not be picked.
+  const today = toDateInput(new Date());
   const [date,     setDate]     = useState(today);
   const [sectionId, setSectionId] = useState(wantedSection || '');
   const [sections, setSections] = useState([]);

@@ -9,6 +9,7 @@ import {
 import { PageHeader, Table, Badge, Spinner, Button } from '../../components/ui/index';
 import SelfAttendance from '../../components/attendance/SelfAttendance';
 import { useSearchParams } from 'react-router-dom';
+import { toDateInput } from '../../utils/leaveDates';
 import useFocusTarget from '../../hooks/useFocusTarget';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -34,7 +35,7 @@ const personSubtitle = (p) => p.role === 'student'
 
 // ── Admin: directly regularise anyone's attendance (staff or student) ──────────
 function RegulariseAttendance() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = toDateInput(new Date());   // local day, not the UTC one
   const [q, setQ]             = useState('');
   const [people, setPeople]   = useState([]);
   const [sel, setSel]         = useState(null); // selected person {_id,name,role,...}

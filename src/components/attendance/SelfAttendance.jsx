@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { Spinner, Button, Modal } from '../ui/index';
 import ClockCard from './ClockCard';
+import { toDateInput } from '../../utils/leaveDates';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -212,7 +213,7 @@ export default function SelfAttendance({ api, regularization }) {
             <div className="form-group">
               <label className="form-label required">Date</label>
               <input type="date" className="form-control" required value={regForm.date}
-                max={new Date().toISOString().split('T')[0]}
+                max={toDateInput(new Date())}
                 onChange={e => setRegForm(f => ({ ...f, date: e.target.value }))} />
             </div>
 

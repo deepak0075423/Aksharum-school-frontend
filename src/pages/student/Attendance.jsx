@@ -5,6 +5,7 @@ import { getMyAttendance, submitCorrection, getClassRanking } from '../../api/st
 import { PageHeader, Spinner } from '../../components/ui/index';
 import ClassRanking from '../../components/attendance/ClassRanking';
 import { useAuth } from '../../contexts/AuthContext';
+import { toDateInput } from '../../utils/leaveDates';
 
 const STATUS_COLOR = { present: '#10b981', absent: '#ef4444', late: '#f59e0b', 'half-day': '#6366f1' };
 
@@ -25,9 +26,9 @@ export default function StudentAttendance() {
   const { data: rankData } = useFetch(getClassRanking);
 
   // Regularization window: last one month up to today
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = toDateInput(today);   // local days — toISOString() is UTC
   const oneMonthAgo = new Date(); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-  const oneMonthAgoStr = oneMonthAgo.toISOString().split('T')[0];
+  const oneMonthAgoStr = toDateInput(oneMonthAgo);
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDay    = new Date(year, month - 1, 1).getDay();
