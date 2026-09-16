@@ -5,6 +5,7 @@ import { useModules } from '../contexts/ModulesContext';
 import api from '../api/axios';
 import { getEmployee } from '../api/employeeDirectory.api';
 import { Button, Modal, Spinner, Badge, PasswordInput, PasswordStrength, PasswordMatch } from '../components/ui/index';
+import AccountSwitcher from '../components/AccountSwitcher';
 import { passwordStrength, matchState } from '../utils/passwordStrength';
 import AddressFields from '../components/ui/AddressFields';
 import { isPhone, passwordError } from '../utils/validators';
@@ -174,6 +175,11 @@ export default function Profile() {
           <Button onClick={openEdit}>✏️ Edit Profile</Button>
         </div>
       </div>
+
+      {/* Several schools or roles behind this one sign-in: switch without
+          signing out. Draws nothing for the single-post accounts most people
+          have. */}
+      <AccountSwitcher variant="page" />
 
       {empLoading && isStaff ? (
         <div className="ed-panel" style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>

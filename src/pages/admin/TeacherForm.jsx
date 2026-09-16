@@ -281,11 +281,21 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
     const emailChanged = typedEmail.toLowerCase() !== String(originalEmail || '').toLowerCase();
     if (step === 2 && (!editing || emailChanged)) {
       try {
-        const res = await api.checkEmail(typedEmail);
-        if (res?.exists) {
-          setErrs({ email: 'This email is already registered' });
-          return toast.error('This email is already registered');
+        // "Registered somewhere" is not the question any more — a teacher can
+        // already have an account at another school, or be a parent here. Only
+        // an address that cannot become a teacher at THIS school stops the form.
+        const res = await api.checkEmail(typedEmail, 'teacher');
+        // Editing is different: an existing teacher's address can only be moved
+        // to one nobody uses (the server refuses anything else), so on an edit
+        // any existing use of the new address stops the form.
+        if (editing ? res?.exists : res?.blocked) {
+          const msg = (!editing && res.message) || 'This email is already registered';
+          setErrs({ email: msg });
+          return toast.error(msg);
         }
+        // Still employed at another school: the record can be made, but it will
+        // be inactive — worth knowing before six more steps, not after.
+        if (!editing && res?.activeElsewhere) toast(res.message, { icon: 'ℹ️', duration: 7000 });
       } catch { /* the server re-checks on submit */ }
     }
     setStep(s => s + 1);
@@ -307,7 +317,12 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         toast.success('Teacher updated');
       } else {
         const res = await api.createTeacher(fd);
-        toast.success(`Teacher created — Employee ID ${res?.data?.employeeId || ''}`.trim());
+        if (res?.data?.inactive) {
+          // Created, but switched off until the other school lets them go.
+          toast(`${res.data.notice} Employee ID ${res.data.employeeId || ''}`.trim(), { icon: 'ℹ️', duration: 8000 });
+        } else {
+          toast.success(`Teacher created — Employee ID ${res?.data?.employeeId || ''}`.trim());
+        }
       }
       reset();
       onCreated?.();

@@ -5,6 +5,7 @@ import { ModulesProvider } from './contexts/ModulesContext';
 import AppLayout from './components/layout/AppLayout';
 import ModuleGuard from './components/ModuleGuard';
 import AdminAreaGuard from './components/AdminAreaGuard';
+import { roleHome } from './pages/auth/roleHome';
 import ModuleNav, {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
   LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, PAYROLL_TEACHER_TABS, LIBRARY_MANAGE_TABS,
@@ -22,6 +23,7 @@ const VerifyOtp      = lazy(() => import('./pages/auth/VerifyOtp'));
 const NewPassword    = lazy(() => import('./pages/auth/NewPassword'));
 const ResetPassword  = lazy(() => import('./pages/auth/ResetPassword'));
 const MagicLogin     = lazy(() => import('./pages/auth/MagicLogin'));
+const ChooseAccount  = lazy(() => import('./pages/auth/ChooseAccount'));
 const NotifRedirect  = lazy(() => import('./pages/shared/NotificationRedirect'));
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
@@ -285,14 +287,6 @@ const PageLoader = () => (
   </div>
 );
 
-const roleHome = {
-  super_admin:  '/super-admin/dashboard',
-  school_admin: '/admin/dashboard',
-  teacher:      '/teacher/dashboard',
-  student:      '/student/dashboard',
-  parent:       '/parent/dashboard',
-};
-
 // ── Protected Route (must be logged in) ───────────────────────────────────────
 const Protected = ({ children, roles }) => {
   const { user, loading } = useAuth();
@@ -331,6 +325,9 @@ export default function App() {
           <Route path="/new-password"   element={<GuestOnly><NewPassword /></GuestOnly>} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/magic/:token" element={<MagicLogin />} />
+          {/* Which school / which role, when one address opens several. Reached
+              only from sign-in, which hands it the ticket in navigation state. */}
+          <Route path="/choose-account" element={<GuestOnly><ChooseAccount /></GuestOnly>} />
           {/* Where every notification email points — resolves to the reader's
               own screen for that notification, whatever their role. */}
           <Route path="/n/:receiptId" element={<NotifRedirect />} />

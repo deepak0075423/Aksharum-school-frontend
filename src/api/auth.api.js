@@ -9,6 +9,12 @@ export const verifyOtp      = (data)  => api.post('/auth/verify-otp', data);
 export const newPassword    = (data)  => api.post('/auth/new-password', data);
 export const resetPassword  = (data)  => api.post('/auth/reset-password', data);
 export const magicLogin     = (token) => api.get(`/auth/magic/${token}`);
+// One address can hold posts at several schools, in several roles. /login stops
+// and asks which one when there is more than one; /select finishes that sign-in,
+// and /accounts + /switch are the same choice made later, without signing out.
+export const selectAccount  = (data)  => api.post('/auth/select', data);
+export const listAccounts   = ()      => api.get('/auth/accounts');
+export const switchAccount  = (userId)=> api.post('/auth/switch', { userId });
 // Sign in with Google: whether it is switched on (and the client id to use),
 // then the one-time code from Google's popup, redeemed by the server.
 export const googleConfig   = ()      => api.get('/auth/google/config');

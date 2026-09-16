@@ -9,14 +9,7 @@ import { PasswordInput } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { loadGoogle, googleReady, requestGoogleCode } from '../../utils/googleSignIn';
 import AuthShell, { Brand, Field, GoogleMark } from './authShell';
-
-const roleHome = {
-  super_admin:  '/super-admin/dashboard',
-  school_admin: '/admin/dashboard',
-  teacher:      '/teacher/dashboard',
-  student:      '/student/dashboard',
-  parent:       '/parent/dashboard',
-};
+import { roleHome } from './roleHome';
 
 export default function Login() {
   // A session ended by its school being deactivated leaves the reason behind so
@@ -35,6 +28,18 @@ export default function Login() {
 
   /** The same landing whichever way the person signed in. */
   const finish = (res) => {
+    // Several posts behind one address — a teacher at two schools, a parent
+    // with children at two, a teacher who is also a parent. Nothing is signed
+    // in until they say which one, so the ticket and the list are carried to
+    // the chooser in navigation state rather than stored anywhere.
+    if (res?.requiresSelection) {
+      return navigate('/choose-account', { replace: true, state: {
+        selectionToken: res.selectionToken,
+        accounts:       res.accounts,
+        name:           res.name,
+        email:          res.email,
+      } });
+    }
     if (!res?.user) throw new Error('Unexpected server response. Check API configuration.');
     signIn(res.token, res.refreshToken, res.user);
     toast.success(`Welcome, ${res.user.name}!`);

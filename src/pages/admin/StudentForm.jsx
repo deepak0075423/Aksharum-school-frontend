@@ -572,10 +572,12 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
     if (step === 1 && !isEdit) {
       setChecking(true);
       try {
-        const res = await api.checkEmail(form.email.trim());
-        if (res?.exists) {
-          setErrs({ email: 'This email is already registered' });
-          return toast.error('This email is already registered');
+        // A student's address is theirs alone, so any existing use of it blocks.
+        const res = await api.checkEmail(form.email.trim(), 'student');
+        if (res?.blocked) {
+          const msg = res.message || 'This email is already registered';
+          setErrs({ email: msg });
+          return toast.error(msg);
         }
       } catch { /* the server re-checks on submit */ }
       finally { setChecking(false); }

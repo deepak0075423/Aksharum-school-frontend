@@ -1273,6 +1273,88 @@ select.form-control {
 .au-back { text-align: center; margin-top: 22px; font-size: .9rem; color: #64748b; }
 .au-back a { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: #4338ca; }
 .au-back a:hover { text-decoration: underline; }
+.au-linkbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: .9rem; font-weight: 500; color: #4338ca;
+}
+.au-linkbtn:hover:not(:disabled) { text-decoration: underline; }
+.au-linkbtn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── Choosing a school / role at sign-in ──────────────────────────────────── */
+.au-pick { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 12px; }
+.au-pick__row {
+  width: 100%; display: flex; align-items: center; gap: 16px;
+  padding: 14px 18px; cursor: pointer;
+  background: #fff; border: 1px solid #dbdfe8; border-radius: 12px;
+  font-family: inherit; text-align: left;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+.au-pick__row:hover:not(:disabled) {
+  border-color: #4f46e5; background: #fbfaff;
+  box-shadow: 0 8px 18px -12px rgba(79, 70, 229, .55);
+}
+.au-pick__row:focus-visible { outline: 3px solid rgba(79, 70, 229, .35); outline-offset: 2px; }
+.au-pick__row:disabled { opacity: .6; cursor: not-allowed; }
+.au-pick__mark {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 11px;
+  display: grid; place-items: center; overflow: hidden;
+  background: #efecfd; color: #4f46e5;
+}
+.au-pick__mark img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.au-pick__text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.au-pick__text strong { font-size: 1rem; font-weight: 600; color: #15123a; }
+.au-pick__text small  { font-size: .85rem; color: #6b7280; }
+.au-pick__go { color: #9aa1b4; flex-shrink: 0; }
+
+/* ── Switching school / role from inside the app ──────────────────────────── */
+.acctsw__row {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px; cursor: pointer;
+  background: none; border: 0; font-family: inherit; text-align: left;
+  color: var(--text);
+}
+.acctsw__row:hover:not(:disabled) { background: var(--bg); }
+.acctsw__row:disabled { cursor: default; }
+.acctsw__row.is-current { background: var(--bg); }
+.acctsw__mark {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; overflow: hidden;
+  display: grid; place-items: center;
+  background: var(--primary-light, #eef2ff); color: var(--primary, #4f46e5);
+}
+.acctsw__mark img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.acctsw__text { flex: 1; min-width: 0; display: grid; }
+/* A long school name wraps onto a second line rather than being cut off —
+   "St. Xavier's High School, Sector 45" and "St. Xavier's High School" must not
+   both read as "St. Xavier's…" in a list whose whole job is telling them apart. */
+.acctsw__text strong {
+  font-size: .87rem; font-weight: 600; line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.acctsw__text small { font-size: .75rem; color: var(--text-muted); }
+.acctsw__tick { color: var(--success, #16a34a); flex-shrink: 0; }
+.acctsw__go   { color: var(--text-muted); flex-shrink: 0; }
+.acctsw__spin {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid rgba(79, 70, 229, .25); border-top-color: #4f46e5;
+  animation: au-spin .8s linear infinite;
+}
+/* The menu is 180px wide for "Profile" and "Logout"; a school's name needs
+   more than that, and truncating it to "Greenwoo…" makes the one thing the row
+   exists to tell you the thing you cannot read. */
+.acctsw--menu { border-top: 1px solid var(--border); padding: 6px 0 2px; min-width: 244px; }
+.acctsw__label {
+  padding: 6px 16px 4px; margin: 0;
+  font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.acctsw--page { padding: 18px 0 10px; margin-bottom: 18px; }
+.acctsw__head { padding: 0 16px 10px; }
+.acctsw__head h3 {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 4px; font-size: 1rem; font-weight: 700;
+}
+.acctsw__head p { margin: 0; font-size: .85rem; color: var(--text-muted); line-height: 1.5; }
 
 .au-spin {
   width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
 import { notificationIconUrl } from '../../utils/branding';
 import { notificationPath, hasTarget } from '../../utils/notificationLink';
+import AccountSwitcher from '../AccountSwitcher';
 import Icon from '../ui/icons';
 import GlobalSearch from './GlobalSearch';
 import pageTitle from '../../utils/pageTitle';
@@ -347,11 +348,14 @@ export default function Header({ onMenuClick, onCollapseClick }) {
                 <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{user?.name}</div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
                   {user?.role?.replace('_', ' ')}
+                  {user?.school?.name ? ` · ${user.school.name}` : ''}
                 </div>
               </div>
               <Link to="/profile" className="dropdown-item" onClick={() => setDropOpen(false)}>
                 <Icon name="user" size={17} /> Profile
               </Link>
+              {/* Only drawn when this sign-in holds more than one post. */}
+              <AccountSwitcher onDone={() => setDropOpen(false)} />
               <div className="dropdown-divider" />
               <button className="dropdown-item danger" onClick={handleLogout}>
                 <Icon name="logOut" size={17} /> Logout

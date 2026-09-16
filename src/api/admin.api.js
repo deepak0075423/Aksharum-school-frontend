@@ -72,7 +72,9 @@ export const updateUser     = (id, data) => api.put(`/admin/users/${id}`, data);
 export const toggleUser     = (id)       => api.patch(`/admin/users/${id}/toggle`);
 export const toggleTeacher  = (id, force = false) => api.patch(`/admin/users/${id}/toggle`, force ? { force: true } : {});
 
-export const checkEmail            = (email) => api.get('/admin/users/check-email', { params: { email } });
+// Answered for the role being added: an address already in use elsewhere may
+// still be addable here (a teacher from another school, a parent's second child).
+export const checkEmail            = (email, role) => api.get('/admin/users/check-email', { params: { email, role } });
 export const getClassesWithSections = (all) => api.get('/admin/classes-with-sections', all ? { params: { all: 'true' } } : {});
 export const getStudents = (params) => api.get('/admin/students', { params });
 export const getStudent  = (id) => api.get(`/admin/students/${id}`);

@@ -3,19 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { magicLogin } from '../../api/auth.api';
 import { useAuth } from '../../contexts/AuthContext';
-
-const roleHome = {
-  super_admin: '/super-admin/dashboard',
-  school_admin:'/admin/dashboard',
-  teacher:     '/teacher/dashboard',
-  student:     '/student/dashboard',
-  parent:      '/parent/dashboard',
-};
+import { roleHome } from './roleHome';
 
 export default function MagicLogin() {
   const { token }   = useParams();
   const navigate    = useNavigate();
-  const { signIn }  = useAuth();
+  const { signIn, signOut } = useAuth();
   const attempted   = useRef(false);
 
   useEffect(() => {
@@ -26,14 +19,31 @@ export default function MagicLogin() {
 
     magicLogin(token)
       .then((res) => {
+        // The person behind the link holds posts at more than one school (or in
+        // more than one role). The link is already spent, so the question is
+        // asked on the same screen a password sign-in uses — and whatever
+        // session this browser had before is ended first, or the chooser (a
+        // signed-out screen) would bounce straight back into it.
+        if (res?.requiresSelection) {
+          signOut();
+          navigate('/choose-account', { replace: true, state: {
+            selectionToken: res.selectionToken,
+            accounts:       res.accounts,
+            name:           res.name,
+            email:          res.email,
+          } });
+          return;
+        }
         signIn(res.token, res.refreshToken, res.user);
         // window.location.replace clears the page before toast renders,
         // so persist the message in sessionStorage and show it after reload
         sessionStorage.setItem('welcome_msg', `Welcome, ${res.user.name}!`);
         window.location.replace(roleHome[res.user.role] || '/');
       })
-      .catch(() => {
-        toast.error('Invalid or expired magic link');
+      .catch((err) => {
+        // A spent link and a switched-off account are different problems; say
+        // which one it is when the server has told us.
+        toast.error(err?.status === 403 && err.message ? err.message : 'Invalid or expired magic link');
         navigate('/login');
       });
   }, [token]);

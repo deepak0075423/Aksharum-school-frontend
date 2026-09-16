@@ -302,8 +302,10 @@ function InviteAdmin({ open, onClose, onCreated }) {
     if (!isEmail(form.email))        return toast.error('Please enter a valid email address');
     setSaving(true);
     try {
-      await api.createAdmin({ ...form, name: form.name.trim(), email: form.email.trim() });
-      toast.success('Admin created — login credentials emailed');
+      const res = await api.createAdmin({ ...form, name: form.name.trim(), email: form.email.trim() });
+      // Still an active admin or teacher at another school: added, but inactive.
+      if (res?.data?.inactive) toast(res.data.notice, { icon: 'ℹ️', duration: 8000 });
+      else toast.success('Admin created — login credentials emailed');
       onClose();
       onCreated();
     } catch (err) { toast.error(err.message); }

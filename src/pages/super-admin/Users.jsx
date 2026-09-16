@@ -127,8 +127,9 @@ export default function SAUsers() {
       } else {
         const payload = { name: form.name, email: form.email, role: form.role };
         if (needsSchool(form.role) && form.school) payload.school = form.school;
-        await api.createUser(payload);
-        toast.success('User created — one-time password emailed');
+        const res = await api.createUser(payload);
+        if (res?.inactive) toast(res.notice, { icon: 'ℹ️', duration: 8000 });
+        else toast.success('User created — one-time password emailed');
       }
       setCreateOpen(false);
       refetch();
@@ -185,6 +186,12 @@ export default function SAUsers() {
       } else {
         created = res?.created ?? 0;
         failed  = res?.errors?.length ?? 0;
+      }
+      // Imported, but switched off: the person is still active staff at
+      // another school. Said separately so it is not mistaken for a failure.
+      const inactiveCount = res?.notices?.length ?? 0;
+      if (inactiveCount > 0) {
+        toast(`${inactiveCount} added as inactive — still active at another school`, { icon: 'ℹ️', duration: 6000 });
       }
       if (created === 0 && failed > 0) toast.error(`Import failed — ${failed} row(s) had errors`);
       else if (failed > 0) toast(`Imported ${created}, ${failed} row(s) failed`, { icon: '⚠️' });

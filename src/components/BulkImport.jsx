@@ -67,7 +67,7 @@ export default function BulkImport({
     e.preventDefault();
     if (!file) { toast.error('Please select an Excel file'); return; }
     setLoading(true);
-    setProgress({ total: 0, current: 0, currentName: '', created: 0, updated: 0, errorCount: 0, errors: [], done: false });
+    setProgress({ total: 0, current: 0, currentName: '', created: 0, updated: 0, errorCount: 0, errors: [], notes: [], done: false });
     try {
       const fd = new FormData();
       fd.append('excelFile', file);
@@ -113,6 +113,10 @@ export default function BulkImport({
               updated:    isUpdate ? p.updated + 1 : p.updated,
               errorCount: evt.success ? p.errorCount : p.errorCount + 1,
               errors:     evt.success ? p.errors : [...p.errors, { row: evt.row, name: evt.name, reason: evt.reason }],
+              // A row that imported but needs the admin's attention — e.g. a
+              // teacher added as inactive because they are still active at
+              // another school. Not an error, and not silently a success.
+              notes:      evt.success && evt.note ? [...(p.notes || []), { row: evt.row, name: evt.name, reason: evt.note }] : (p.notes || []),
             }));
           } else if (evt.type === 'done') {
             // The server's own tally wins over the row-by-row one: if the run
@@ -200,6 +204,17 @@ export default function BulkImport({
                 Only {shortfall.seen} of {shortfall.total} rows were processed — the import stopped early.
                 Upload the sheet again to continue; {noun}s already on file are matched by
                 email and updated rather than duplicated.
+              </div>
+            )}
+
+            {progress.notes?.length > 0 && (
+              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--warning, #d97706)', borderRadius: 6, marginBottom: 12, background: 'var(--warning-light, #fffbeb)' }}>
+                {progress.notes.map((n, i) => (
+                  <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
+                    <span style={{ fontWeight: 600 }}>Row {n.row}{n.name ? ` — ${n.name}` : ''}: </span>
+                    <span style={{ color: 'var(--warning, #b45309)' }}>{n.reason}</span>
+                  </div>
+                ))}
               </div>
             )}
 
