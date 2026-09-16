@@ -360,3 +360,13 @@ export const regularizeStaffAttendance = (data) => api.post('/admin/regularizati
 export const searchRegularizePeople = (params) => api.get('/admin/regularization/people', { params });
 export const regularizeStudentAttendance = (data) => api.post('/admin/regularization/student', data);
 export const getMyRegularizations = ()     => api.get('/admin/regularization');
+export const getMyAttendanceSummary  = (params) => api.get('/admin/my-attendance/summary', { params });
+export const getRegularizeDay        = (params) => api.get('/admin/regularization/day', { params });
+// School-wide student attendance (admin attendance screen)
+export const getAttendanceOverview   = (params) => api.get('/admin/attendance/overview', { params });
+export const getAttendanceToday      = (params) => api.get('/admin/attendance/today', { params });
+export const getAttendanceActivity   = (params) => api.get('/admin/attendance/activity', { params });
+export const getAttendanceRegister   = (params) => api.get('/admin/attendance/register', { params });
+export const getAttendanceReports    = (params) => api.get('/admin/attendance/reports', { params });
+export const markStudentAttendance   = (data)   => api.post('/admin/attendance/mark', data);
+export const markAllStudentAttendance = (data)  => api.post('/admin/attendance/mark-all', data);

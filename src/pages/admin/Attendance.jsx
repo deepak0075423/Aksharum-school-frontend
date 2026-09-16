@@ -1,260 +1,150 @@
-import React, { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
+/**
+ * Admin → Attendance.
+ *
+ * The header scopes the four figures under it (academic year, class) and opens
+ * a register; the tabs hold the admin's own attendance with today's school-wide
+ * register, direct corrections, the staff request queue, and reports.
+ *
+ * Notifications link here with ?tab=my-attendance or ?tab=requests (plus
+ * &focus=<id> for a request), so the tab keys are part of the URL contract.
+ */
+import React, { useCallback, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
+import { getAttendanceOverview } from '../../api/admin.api';
+import Icon from '../../components/ui/icons';
 import {
-  getRegularizationRequests, reviewRegularization,
-  getMyAttendance, clockIn, clockOut, submitRegularization, getMyRegularizations,
-  regularizeStaffAttendance, regularizeStudentAttendance, searchRegularizePeople,
-} from '../../api/admin.api';
-import { PageHeader, Table, Badge, Spinner, Button } from '../../components/ui/index';
-import SelfAttendance from '../../components/attendance/SelfAttendance';
-import { useSearchParams } from 'react-router-dom';
-import { toDateInput } from '../../utils/leaveDates';
-import useFocusTarget from '../../hooks/useFocusTarget';
+  AttHeader, AttStat, HeadSelect, SideLinks, UnderTabs, fmtDay, todayKey,
+} from './attendanceParts';
+import MyAttendance, { ClockControl } from './attendance/MyAttendance';
+import TodayAttendance from './attendance/TodayAttendance';
+import MarkAttendanceDialog from './attendance/MarkAttendanceDialog';
+import Regularise from './attendance/Regularise';
+import Requests from './attendance/Requests';
+import Reports from './attendance/Reports';
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-// Small colour-coded pill telling staff apart from students at a glance
-const ROLE_META = {
-  student:      { label: 'Student', bg: '#dbeafe', fg: '#1e40af' },
-  teacher:      { label: 'Teacher', bg: '#dcfce7', fg: '#166534' },
-  school_admin: { label: 'Admin',   bg: '#ede9fe', fg: '#5b21b6' },
-};
-function RoleTag({ role }) {
-  const m = ROLE_META[role] || { label: role, bg: 'var(--bg-secondary)', fg: 'var(--text-muted)' };
-  return (
-    <span style={{ flexShrink: 0, fontSize: '.68rem', fontWeight: 700, letterSpacing: '.02em',
-      padding: '2px 8px', borderRadius: 999, background: m.bg, color: m.fg, textTransform: 'uppercase' }}>
-      {m.label}
-    </span>
-  );
-}
-const personSubtitle = (p) => p.role === 'student'
-  ? [ [p.className, p.sectionName].filter(Boolean).join(' — '), p.rollNumber && `Roll ${p.rollNumber}` ].filter(Boolean).join(' · ') || p.email
-  : p.email;
-
-// ── Admin: directly regularise anyone's attendance (staff or student) ──────────
-function RegulariseAttendance() {
-  const today = toDateInput(new Date());   // local day, not the UTC one
-  const [q, setQ]             = useState('');
-  const [people, setPeople]   = useState([]);
-  const [sel, setSel]         = useState(null); // selected person {_id,name,role,...}
-  const [form, setForm]       = useState({ date: today, checkIn: '', checkOut: '', status: 'present', remarks: '' });
-  const [saving, setSaving]   = useState(false);
-
-  useEffect(() => {
-    if (sel) return;
-    const t = setTimeout(async () => {
-      try {
-        const res = await searchRegularizePeople({ search: q || undefined });
-        setPeople(Array.isArray(res?.data) ? res.data : (res?.data?.data || []));
-      } catch { /* silent */ }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [q, sel]);
-
-  const isStudent = sel?.role === 'student';
-
-  const handleApply = async (e) => {
-    e.preventDefault();
-    if (!sel) return toast.error('Select a person');
-    setSaving(true);
-    try {
-      if (isStudent) {
-        await regularizeStudentAttendance({ studentId: sel._id, date: form.date, status: form.status, remarks: form.remarks });
-      } else {
-        if (!form.checkIn && !form.checkOut) { setSaving(false); return toast.error('Enter clock-in and/or clock-out time'); }
-        await regularizeStaffAttendance({ teacherId: sel._id, date: form.date, checkIn: form.checkIn, checkOut: form.checkOut, remarks: form.remarks });
-      }
-      toast.success(`Attendance regularised for ${sel.name}`);
-      setSel(null); setQ('');
-      setForm({ date: today, checkIn: '', checkOut: '', status: 'present', remarks: '' });
-    } catch (err) { toast.error(err?.message || 'Failed'); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div className="card" style={{ maxWidth: 620 }}>
-      <div className="card-body">
-        <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginTop: 0 }}>
-          Set or correct anyone's attendance for a past date directly — no approval needed. Staff use clock-in/out times; students use a status.
-        </p>
-        <form onSubmit={handleApply}>
-          <div className="form-group">
-            <label className="form-label required">Person</label>
-            {sel ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <RoleTag role={sel.role} />
-                  <div style={{ minWidth: 0 }}>
-                    <strong style={{ display: 'block' }}>{sel.name}</strong>
-                    <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{personSubtitle(sel)}</span>
-                  </div>
-                </div>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSel(null)}>Change</button>
-              </div>
-            ) : (
-              <>
-                <input className="form-control" placeholder="Search staff or student by name / email…" value={q} onChange={e => setQ(e.target.value)} />
-                {people.length > 0 && (
-                  <div style={{ border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 240, overflowY: 'auto' }}>
-                    {people.map(p => (
-                      <div key={p._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
-                        onClick={() => setSel(p)}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <RoleTag role={p.role} />
-                        <div style={{ minWidth: 0 }}>
-                          <strong style={{ fontSize: '.88rem' }}>{p.name}</strong>
-                          <div style={{ fontSize: '.74rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{personSubtitle(p)}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Date</label>
-              <input type="date" className="form-control" required max={today} value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-            </div>
-            <div className="form-group" />
-          </div>
-
-          {isStudent ? (
-            <div className="form-group">
-              <label className="form-label required">Attendance Status</label>
-              <select className="form-control" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="present">Present</option>
-                <option value="late">Late</option>
-                <option value="absent">Absent</option>
-              </select>
-            </div>
-          ) : (
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label className="form-label">Clock-In Time</label>
-                <input type="time" className="form-control" value={form.checkIn}
-                  onChange={e => setForm(f => ({ ...f, checkIn: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Clock-Out Time</label>
-                <input type="time" className="form-control" value={form.checkOut}
-                  onChange={e => setForm(f => ({ ...f, checkOut: e.target.value }))} />
-              </div>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label className="form-label">Remarks</label>
-            <input className="form-control" value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
-          </div>
-          <Button type="submit" loading={saving}>Apply Regularisation</Button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab 2: Teacher regularization requests ────────────────────────────────────
-function RegularizationRequests() {
-  const [status, setStatus] = useState('pending');
-  // Following a notification about a request that has since been decided: this
-  // list shows pending only, so the request would be filtered out of the very
-  // page the notification sent you to.
-  const { focusId, release: releaseFocus } = useFocusTarget();
-
-  const { data, loading, refetch } = useFetch(
-    () => getRegularizationRequests({ page: 1, limit: 100, status: status || undefined }),
-    [status],
-  );
-  const requests = Array.isArray(data) ? data : [];
-
-  useEffect(() => {
-    if (!focusId || loading || !status) return;
-    if (!requests.some(r => String(r._id) === focusId)) setStatus('');
-  }, [focusId, loading, status, requests]);
-
-  const handleReview = async (id, st) => {
-    try {
-      await reviewRegularization({ id, status: st });
-      toast.success(st === 'approved' ? 'Approved — attendance record updated' : 'Rejected');
-      refetch();
-    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
-  };
-
-  const columns = [
-    { key: 'teacher',  label: 'Staff',
-      render: r => <div><div style={{ fontWeight: 600 }}>{r.teacher?.name || '—'}</div><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.teacher?.email || ''}</div></div> },
-    { key: 'date',     label: 'Date',      render: r => fmtDate(r.date) },
-    { key: 'times',    label: 'Requested Times', render: r => (r.checkIn || r.checkOut)
-      ? <span style={{ fontSize: '.85rem' }}>
-          {r.checkIn  && <>in <strong>{r.checkIn}</strong></>}
-          {r.checkIn && r.checkOut && ' · '}
-          {r.checkOut && <>out <strong>{r.checkOut}</strong></>}
-        </span>
-      : <span style={{ textTransform: 'capitalize' }}>{(r.requestedStatus || '—').toLowerCase()}</span> },
-    { key: 'reason',   label: 'Reason',    render: r => <span style={{ fontSize: '.85rem' }}>{r.reason || '—'}</span> },
-    { key: 'status',   label: 'Status',
-      render: r => <Badge variant={r.status === 'approved' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'}>{r.status}</Badge> },
-    { key: 'actions',  label: '',
-      render: r => r.status === 'pending' && (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button className="btn btn-success btn-sm" onClick={() => handleReview(r._id, 'approved')}>Approve</button>
-          <button className="btn btn-danger btn-sm"  onClick={() => handleReview(r._id, 'rejected')}>Reject</button>
-        </div>
-      )},
-  ];
-
-  return (
-    <div className="card">
-      <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <select className="form-control" style={{ width: 160 }} value={status}
-          onChange={e => { releaseFocus(); setStatus(e.target.value); }}>
-          <option value="">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        {loading && <Spinner />}
-      </div>
-      <div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={requests} emptyIcon="✅" emptyTitle="No requests found" />
-      </div>
-    </div>
-  );
-}
+const TABS = [
+  { value: 'my-attendance', label: 'My Attendance' },
+  { value: 'regularise',    label: 'Regularise Attendance' },
+  { value: 'requests',      label: 'Regularization Requests' },
+  { value: 'reports',       label: 'Reports' },
+];
 
 export default function AdminAttendance() {
-  // Notifications link straight at a tab (?tab=…), so the page opens where the
-  // notification was about rather than on its default.
-  const [searchParams] = useSearchParams();
-  const wantedTab = searchParams.get('tab');
-  const [tab, setTab] = useState(
-    ['my-attendance', 'regularise', 'requests'].includes(wantedTab) ? wantedTab : 'my-attendance');
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get('tab');
+  const [tab, setTabState] = useState(TABS.some((t) => t.value === wanted) ? wanted : 'my-attendance');
+  const [yearId, setYearId] = useState('');
+  const [cls, setCls]       = useState('');
+  const [register, setRegister] = useState(null);   // { section?, date? } while the dialog is open
+  // Two refresh signals: the admin's own attendance, and the school's registers.
+  // Marking a class does not need the admin's calendar fetched again.
+  const [selfVersion, setSelfVersion]     = useState(0);
+  const [schoolVersion, setSchoolVersion] = useState(0);
+  const bumpSelf   = useCallback(() => setSelfVersion((v) => v + 1), []);
+  const bumpSchool = useCallback(() => setSchoolVersion((v) => v + 1), []);
+
+  const setTab = (value, extra = {}) => {
+    setTabState(value);
+    setParams({ tab: value, ...extra }, { replace: true });
+  };
+
+  const { data: ov, loading } = useFetch(
+    () => getAttendanceOverview({ academicYear: yearId || undefined, class: cls || undefined }),
+    [yearId, cls, schoolVersion, selfVersion],
+  );
+  const year    = ov?.year || null;
+  const tiles   = ov?.tiles;
+  const today   = todayKey();
+  const running = !!year && year.startDate <= today && today <= year.endDate;
+  const className = ov?.classes?.find((c) => c._id === cls)?.className;
+
+  const scopeText = `${className || 'all classes'}${year ? `, ${year.yearName}` : ''}`;
+  const windowText = ov?.window
+    ? `${fmtDay(ov.window.from)} – ${fmtDay(ov.window.to)}, against ${fmtDay(ov.window.previous.from)} – ${fmtDay(ov.window.previous.to)}`
+    : '';
+
+  const openActivity = (item) => {
+    if (item.kind === 'request' || item.kind === 'reviewed') {
+      setTab('requests', { focus: item.requestId });
+    } else if (item.kind === 'streak') {
+      navigate(`/admin/student-analytics/${item.studentId}`);
+    } else if (item.kind === 'marked' || item.kind === 'updated') {
+      setRegister({ section: item.section, date: item.date });
+    } else {
+      setTab('regularise');
+    }
+  };
+
+  const openRegister = useCallback((section, date) => setRegister({ section, date }), []);
+
+  const figure = (v, fmt = (x) => x.toLocaleString('en-IN')) => (loading && !tiles ? '—' : v == null ? '—' : fmt(v));
+
+  const tabs = useMemo(() => TABS.map((t) => (
+    t.value === 'requests' && tiles?.pending?.value ? { ...t, count: tiles.pending.value } : t
+  )), [tiles]);
 
   return (
-    <div className="page">
-      <PageHeader title="Attendance" subtitle="Clock your day and review staff regularization requests" />
+    <div className="page atnpg">
+      <AttHeader title="Attendance"
+        subtitle="Track attendance, manage regularization requests and monitor school-wide statistics.">
+        <HeadSelect label="Academic year" value={yearId || year?._id || ''}
+          onChange={(v) => { setYearId(v); setCls(''); }}>
+          {(ov?.years || []).map((y) => (
+            <option key={y._id} value={y._id}>{y.yearName}{y.status === 'active' ? '' : ` (${y.status})`}</option>
+          ))}
+          {!ov?.years?.length && <option value="">No academic year</option>}
+        </HeadSelect>
+        <HeadSelect label="Class" value={cls} onChange={setCls} wide>
+          <option value="">All classes</option>
+          {(ov?.classes || []).map((c) => <option key={c._id} value={c._id}>{c.className}</option>)}
+        </HeadSelect>
+        <button type="button" className="btn btn-primary atn-head__cta" onClick={() => setRegister({})}>
+          <Icon name="plus" size={18} /> Mark Attendance
+        </button>
+      </AttHeader>
 
-      <div className="tabs">
-        {[['my-attendance', 'My Attendance'], ['regularise', 'Regularise Attendance'], ['requests', 'Regularization Requests']].map(([k, l]) => (
-          <button key={k} className={`tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>
-        ))}
+      <div className="atn-stats">
+        <AttStat icon="users" tone="green" label="Total Students"
+          value={figure(tiles?.students.value)} change={tiles?.students.change}
+          title={`Active students placed in a section — ${scopeText}. The change counts those who were already enrolled on ${fmtDay(ov?.window?.from)}.`} />
+        <AttStat icon="clock" tone="indigo" label="Average Attendance"
+          value={figure(tiles?.average.value, (x) => `${x}%`)} change={tiles?.average.change}
+          title={`Present or late, over every mark taken ${windowText} — ${scopeText}. The change is in percentage points.`}
+          onClick={() => setTab('reports')} />
+        <AttStat icon="user" tone="red" label="Total Absentees" good="down"
+          value={figure(tiles?.absentees.value)} change={tiles?.absentees.change}
+          title={`Students marked absent at least once, ${windowText} — ${scopeText}.`}
+          onClick={() => setTab('reports')} />
+        <AttStat icon="clock" tone="amber" label="Pending Requests" good="down"
+          value={figure(tiles?.pending.value)} change={tiles?.pending.change}
+          title="Staff regularization requests waiting for a decision, against how many were waiting a month ago. Not narrowed by class."
+          onClick={() => setTab('requests')} />
+        <SideLinks items={[
+          { label: 'Generate Report', icon: 'fileDoc', onClick: () => setTab('reports') },
+          { label: 'Attendance Settings', icon: 'settings', onClick: () => navigate('/admin/school-settings?section=days') },
+        ]} />
       </div>
 
+      <UnderTabs tabs={tabs} value={tab} onChange={(v) => setTab(v)}>
+        {tab === 'my-attendance' && <ClockControl version={selfVersion} onChanged={bumpSelf} />}
+      </UnderTabs>
+
       {tab === 'my-attendance' && (
-        <SelfAttendance
-          api={{ getMyAttendance, clockIn, clockOut }}
-          regularization={{ submit: submitRegularization, list: getMyRegularizations }}
-        />
+        <MyAttendance selfVersion={selfVersion} schoolVersion={schoolVersion}
+          onChanged={bumpSelf} onActivity={openActivity}
+          today={
+            <TodayAttendance defaultClass={running ? cls : ''} version={schoolVersion}
+              onChanged={bumpSchool} onOpenRegister={openRegister} />
+          } />
       )}
-      {tab === 'regularise' && <RegulariseAttendance />}
-      {tab === 'requests' && <RegularizationRequests />}
+      {tab === 'regularise' && <Regularise onChanged={() => { bumpSchool(); bumpSelf(); }} />}
+      {tab === 'requests' && <Requests onChanged={bumpSchool} />}
+      {tab === 'reports' && <Reports year={year} defaultClass={cls} onOpenRegister={openRegister} />}
+
+      <MarkAttendanceDialog open={!!register} initial={register}
+        onClose={() => setRegister(null)} onSaved={bumpSchool} />
     </div>
   );
 }

@@ -83,7 +83,11 @@ export default function SchoolSettings() {
   const { isEnabled, ready: modulesReady } = useModules();
   const { user, reload } = useAuth();
 
-  const [section, setSection] = useState('general');
+  // `?section=days` opens a panel directly — the attendance screen's "Attendance
+  // Settings" link lands on Working Days. An unknown key falls back to General
+  // through the effect below.
+  const [section, setSection] = useState(
+    () => new URLSearchParams(window.location.search).get('section') || 'general');
 
   const [form,    setForm]    = useState(EMPTY);
   const [saved,   setSaved]   = useState(EMPTY);   // what the server last confirmed
