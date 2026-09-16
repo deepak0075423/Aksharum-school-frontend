@@ -106,7 +106,7 @@ const TEACHER_NAV = [
   { section: 'Overview' },
   { to: '/teacher/dashboard',       icon: 'home', label: 'Dashboard' },
   { section: 'My Class' },
-  { to: '/teacher/my-section',      icon: 'building', label: 'My Section' },
+  { to: '/teacher/my-section',      icon: 'building', label: 'My Section',    requires: 'hasMySection' },
   { to: '/teacher/attendance',      icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
   { to: '/teacher/timetable',       icon: 'clock', label: 'Timetable',     module: 'timetable' },
   { to: '/teacher/substitutions',   icon: 'repeat', label: 'My Substitutions', module: 'timetable' },

@@ -14,7 +14,7 @@ import Icon from '../ui/icons';
  *   linkTo:    optional path to the full attendance page (shown as a link)
  *   onChanged: optional callback fired after a successful clock action
  *   variant:   'card' (default, its own panel) | 'strip' (a band designed to sit
- *              inside another card — the admin dashboard's greeting panel).
+ *              inside another card — the teacher dashboard's greeting panel).
  *              The behaviour is identical; only the chrome differs, so there is
  *              still one implementation of clocking in.
  */

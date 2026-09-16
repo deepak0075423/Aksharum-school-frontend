@@ -352,15 +352,9 @@ export const getNotifications  = () => api.get('/admin/notifications');
 // Attendance
 export const getRegularizationRequests = (params) => api.get('/admin/regularization-requests', { params });
 export const reviewRegularization = (data) => api.post('/admin/regularization-requests/review', data);
-export const getMyAttendance  = (params) => api.get('/admin/my-attendance', { params });
-export const clockIn          = ()       => api.post('/admin/my-attendance/clock-in');
-export const clockOut         = ()       => api.post('/admin/my-attendance/clock-out');
-export const submitRegularization = (data) => api.post('/admin/regularization', data);
 export const regularizeStaffAttendance = (data) => api.post('/admin/regularization/apply', data);
 export const searchRegularizePeople = (params) => api.get('/admin/regularization/people', { params });
 export const regularizeStudentAttendance = (data) => api.post('/admin/regularization/student', data);
-export const getMyRegularizations = ()     => api.get('/admin/regularization');
-export const getMyAttendanceSummary  = (params) => api.get('/admin/my-attendance/summary', { params });
 export const getRegularizeDay        = (params) => api.get('/admin/regularization/day', { params });
 // School-wide student attendance (admin attendance screen)
 export const getAttendanceOverview   = (params) => api.get('/admin/attendance/overview', { params });

@@ -240,35 +240,6 @@ export const EmptyNote = ({ icon = 'info', title, children }) => (
   </div>
 );
 
-// ── Ring meter ───────────────────────────────────────────────────────────────
-
-/**
- * One ratio against a full track — a meter, not a two-slice donut. `value` of
- * null draws an empty track and a dash: "no working days yet" is not 0%.
- */
-export const Ring = ({ value, caption = 'Present', size = 156, stroke = 13, color = STATUS.present.dot }) => {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const v = value == null ? 0 : Math.max(0, Math.min(100, value));
-  return (
-    <div className="atn-ring" style={{ width: size, height: size }}
-      role="img" aria-label={value == null ? 'No attendance counted yet' : `${value}% ${caption}`}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e8f5ec" strokeWidth={stroke} />
-        {value != null && v > 0 && (
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-            strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-        )}
-      </svg>
-      <div className="atn-ring__label">
-        <b>{value == null ? '—' : `${value}%`}</b>
-        <span>{caption}</span>
-      </div>
-    </div>
-  );
-};
-
 /** A thin one-hue bar for a percentage in a table cell, with the number beside it. */
 export const Meter = ({ value, low = 75 }) => (
   <span className="atn-meter">

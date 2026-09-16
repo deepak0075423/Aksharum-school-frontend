@@ -40,7 +40,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const ModulesProvider = ({ children }) => {
   const { user } = useAuth();
   const [modules, setModules] = useState(null);
-  const [ready,   setReady]   = useState(false);
+  // Which identity the current answer belongs to (see `ready` below).
+  const [readyFor, setReadyFor] = useState(null);
   // Identifies the in-flight load, so a superseded one cannot land late and
   // overwrite the current user's access with the previous user's.
   const runRef = useRef(0);
@@ -55,22 +56,33 @@ export const ModulesProvider = ({ children }) => {
   const role       = user?.role;
   const userId     = user?._id || user?.id || '';
   const firstLogin = !!user?.isFirstLogin;
+  const identity   = `${role || ''}|${userId}|${firstLogin}`;
+
+  // `ready` means "answered for THIS user", not "some load finished". It used to
+  // be a flag the effect reset — but effects run after render, so on the render
+  // where the signed-in user first arrives it still said true from the
+  // signed-out pass while `modules` was null. A guard that fails closed
+  // (MySectionGuard; AdminAreaGuard for a teacher) redirected on that one render
+  // and bounced people out of pages they may open. Deriving it from the
+  // identity makes that render not-ready.
+  const ready = readyFor === identity;
 
   const load = useCallback(async () => {
     const run = ++runRef.current;
     const current = () => run === runRef.current;
+    const settle = () => setReadyFor(identity);
 
     const fetcher = FETCHER[role];
     // No role to fetch for, or the account still has to set its password — in
     // both cases there is nothing to ask the server for yet.
-    if (!fetcher || firstLogin) { setModules(null); setReady(true); return; }
+    if (!fetcher || firstLogin) { setModules(null); settle(); return; }
 
     for (let attempt = 0; ; attempt++) {
       try {
         const res = await fetcher();
         if (!current()) return;
         setModules(res?.data ?? res);
-        setReady(true);
+        settle();
         return;
       } catch (err) {
         // 401/403 are answers, not blips: retrying cannot change them. Anything
@@ -78,14 +90,14 @@ export const ModulesProvider = ({ children }) => {
         const status = err?.status;
         const retryable = status !== 401 && status !== 403 && attempt < RETRY_DELAYS.length;
         if (!current()) return;
-        if (!retryable) { setReady(true); return; }
+        if (!retryable) { settle(); return; }
         await sleep(RETRY_DELAYS[attempt]);
         if (!current()) return;
       }
     }
-  }, [role, userId, firstLogin]);
+  }, [role, userId, firstLogin, identity]);
 
-  useEffect(() => { setReady(false); load(); }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   /** true when the user has at least normal access; fails open while loading. */
   const isEnabled = (key) => !key || !modules || modules[key] === true;

@@ -18,7 +18,8 @@ const STATUS_META = {
 };
 
 /**
- * Clock in/out self-attendance shared by teachers and school admins.
+ * A teacher's own clock in/out attendance. Self attendance belongs to the
+ * teacher role only — a school_admin post has none (the server refuses it).
  * Statuses are derived server-side: clock-in → present, approved leave →
  * leave/half-day, holidays/weekends skipped, unmarked past days → absent.
  *

@@ -2,10 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import useFetch from '../../hooks/useFetch';
-import { getDashboard, getModules, getMyHolidays, getSchoolSettings, getMyAttendance, clockIn, clockOut } from '../../api/admin.api';
+import { getDashboard, getModules, getMyHolidays, getSchoolSettings } from '../../api/admin.api';
 import { Spinner, MiniCalendar } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
-import ClockCard from '../../components/attendance/ClockCard';
 import {
   Panel, PanelLink, StatTile, AttendanceOverview, RowLink, QuickTile, Note,
 } from './dashboardParts';
@@ -39,7 +38,7 @@ const ALL_MODULES = [
 
 // Pending queues that need the admin's attention
 const PENDING_ITEMS = [
-  { key: 'regularizations', module: 'attendance', to: '/admin/attendance',    icon: 'userCircle',  tone: 'pink',   one: 'Attendance regularization', many: 'Attendance regularizations', sub: 'Pending review' },
+  { key: 'regularizations', module: 'attendance', to: '/admin/attendance?tab=requests', icon: 'userCircle',  tone: 'pink',   one: 'Attendance regularization', many: 'Attendance regularizations', sub: 'Pending review' },
   { key: 'leaves',          module: 'leave',      to: '/admin/leave',         icon: 'umbrella',    tone: 'amber',  one: 'Leave application',         many: 'Leave applications',         sub: 'Awaiting approval' },
   { key: 'examsToPublish',  module: 'result',     to: '/admin/results',       icon: 'chart',       tone: 'indigo', one: 'Result ready to publish',   many: 'Results ready to publish',   sub: 'Requires approval' },
   { key: 'payments',        module: 'fees',       to: '/admin/fees/payments', icon: 'creditCard',  tone: 'blue',   one: 'Fee payment to verify',     many: 'Fee payments to verify',     sub: 'Action required' },
@@ -82,19 +81,6 @@ export default function AdminDashboard() {
   const { data: modules, loading: modulesLoading } = useFetch(getModules);
   const { data: schoolData }                       = useFetch(getSchoolSettings);
   const [holidays, setHolidays]                    = useState([]);
-  const [attDays,  setAttDays]                     = useState([]);
-
-  const loadAttendance = () => {
-    const n = new Date();
-    getMyAttendance({ month: n.getMonth() + 1, year: n.getFullYear() })
-      .then(r => setAttDays((r.data ?? r)?.days || []))
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    if (!modules?.attendance) { setAttDays([]); return; }
-    loadAttendance();
-  }, [modules]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!modules) return;
@@ -149,7 +135,8 @@ export default function AdminDashboard() {
         {/* ── Main column ──────────────────────────────────────────────── */}
         <div className="dash__main">
 
-          {/* Greeting + academic year + today's clock */}
+          {/* Greeting + academic year. No clock: an admin post has no
+              attendance of its own — clocking in belongs to the teacher role. */}
           <section className="hero">
             <div className="hero__row">
               <div className="hero__greet">
@@ -171,15 +158,6 @@ export default function AdminDashboard() {
                 </Link>
               )}
             </div>
-
-            {modules?.attendance && (
-              <ClockCard
-                variant="strip"
-                api={{ getMyAttendance, clockIn, clockOut }}
-                linkTo="/admin/attendance"
-                onChanged={loadAttendance}
-              />
-            )}
           </section>
 
           {/* Headcounts */}
@@ -244,7 +222,6 @@ export default function AdminDashboard() {
           <MiniCalendar
             title="Today's Schedule"
             holidays={holidays}
-            attendance={attDays}
             holidayListPath={modules?.holiday ? '/admin/holidays' : ''}
             saturdayConfig={saturdayConfig}
           />

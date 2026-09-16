@@ -2,21 +2,30 @@
  * Admin → Attendance.
  *
  * The header scopes the four figures under it (academic year, class) and opens
- * a register; the tabs hold the admin's own attendance with today's school-wide
- * register, direct corrections, the staff request queue, and reports.
+ * a register; the tabs hold today's school-wide register with recent activity,
+ * direct corrections, the staff request queue, and reports.
  *
- * Notifications link here with ?tab=my-attendance or ?tab=requests (plus
- * &focus=<id> for a request), so the tab keys are part of the URL contract.
+ * An admin has no attendance of their own here: clock in, clock out and
+ * regularization requests belong to the teacher role, decided by the post the
+ * session is signed in as. Someone who is also a teacher at this school is
+ * pointed at that post (TeacherPostNote).
+ *
+ * Notifications link here with ?tab=requests (plus &focus=<id> for a request),
+ * so the tab keys are part of the URL contract. The old ?tab=my-attendance still
+ * opens — on the overview that replaced it.
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
+import { useAuth } from '../../contexts/AuthContext';
 import { getAttendanceOverview } from '../../api/admin.api';
+import { Button } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   AttHeader, AttStat, HeadSelect, SideLinks, UnderTabs, fmtDay, todayKey,
 } from './attendanceParts';
-import MyAttendance, { ClockControl } from './attendance/MyAttendance';
+import Overview from './attendance/Overview';
 import TodayAttendance from './attendance/TodayAttendance';
 import MarkAttendanceDialog from './attendance/MarkAttendanceDialog';
 import Regularise from './attendance/Regularise';
@@ -24,25 +33,57 @@ import Requests from './attendance/Requests';
 import Reports from './attendance/Reports';
 
 const TABS = [
-  { value: 'my-attendance', label: 'My Attendance' },
-  { value: 'regularise',    label: 'Regularise Attendance' },
-  { value: 'requests',      label: 'Regularization Requests' },
-  { value: 'reports',       label: 'Reports' },
+  { value: 'overview',   label: 'Overview' },
+  { value: 'regularise', label: 'Regularise Attendance' },
+  { value: 'requests',   label: 'Regularization Requests' },
+  { value: 'reports',    label: 'Reports' },
 ];
+// Tab keys that were renamed, so bookmarks and old links still land somewhere.
+const TAB_ALIASES = { 'my-attendance': 'overview' };
+
+/**
+ * Where an admin's own attendance lives now. Shown only to someone who also
+ * holds a teacher post at this school — switching lands on the teacher
+ * dashboard, whose clock card is the first thing on it. Everyone else has no
+ * attendance to clock and sees nothing.
+ */
+function TeacherPostNote() {
+  const { user, accounts, switchTo } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const here = String(user?.school?._id || user?.school || '');
+  const post = (accounts || []).find((a) => a.role === 'teacher' && !a.current
+    && String(a.school?._id || '') === here);
+  if (!post) return null;
+
+  const go = async () => {
+    setBusy(true);
+    try {
+      await switchTo(post.id);   // full reload on success
+    } catch (e) {
+      toast.error(e?.message || 'Could not switch to your teacher account');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className="atn-tabnote">
+      <Icon name="info" size={15} />Clock in from your teacher account
+      <Button size="sm" variant="secondary" loading={busy} onClick={go}>
+        <Icon name="repeat" size={15} /> Switch to Teacher
+      </Button>
+    </span>
+  );
+}
 
 export default function AdminAttendance() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const wanted = params.get('tab');
-  const [tab, setTabState] = useState(TABS.some((t) => t.value === wanted) ? wanted : 'my-attendance');
+  const wanted = TAB_ALIASES[params.get('tab')] || params.get('tab');
+  const [tab, setTabState] = useState(TABS.some((t) => t.value === wanted) ? wanted : 'overview');
   const [yearId, setYearId] = useState('');
   const [cls, setCls]       = useState('');
   const [register, setRegister] = useState(null);   // { section?, date? } while the dialog is open
-  // Two refresh signals: the admin's own attendance, and the school's registers.
-  // Marking a class does not need the admin's calendar fetched again.
-  const [selfVersion, setSelfVersion]     = useState(0);
   const [schoolVersion, setSchoolVersion] = useState(0);
-  const bumpSelf   = useCallback(() => setSelfVersion((v) => v + 1), []);
   const bumpSchool = useCallback(() => setSchoolVersion((v) => v + 1), []);
 
   const setTab = (value, extra = {}) => {
@@ -52,7 +93,7 @@ export default function AdminAttendance() {
 
   const { data: ov, loading } = useFetch(
     () => getAttendanceOverview({ academicYear: yearId || undefined, class: cls || undefined }),
-    [yearId, cls, schoolVersion, selfVersion],
+    [yearId, cls, schoolVersion],
   );
   const year    = ov?.year || null;
   const tiles   = ov?.tiles;
@@ -128,18 +169,17 @@ export default function AdminAttendance() {
       </div>
 
       <UnderTabs tabs={tabs} value={tab} onChange={(v) => setTab(v)}>
-        {tab === 'my-attendance' && <ClockControl version={selfVersion} onChanged={bumpSelf} />}
+        {tab === 'overview' && <TeacherPostNote />}
       </UnderTabs>
 
-      {tab === 'my-attendance' && (
-        <MyAttendance selfVersion={selfVersion} schoolVersion={schoolVersion}
-          onChanged={bumpSelf} onActivity={openActivity}
+      {tab === 'overview' && (
+        <Overview version={schoolVersion} onActivity={openActivity}
           today={
             <TodayAttendance defaultClass={running ? cls : ''} version={schoolVersion}
               onChanged={bumpSchool} onOpenRegister={openRegister} />
           } />
       )}
-      {tab === 'regularise' && <Regularise onChanged={() => { bumpSchool(); bumpSelf(); }} />}
+      {tab === 'regularise' && <Regularise onChanged={bumpSchool} />}
       {tab === 'requests' && <Requests onChanged={bumpSchool} />}
       {tab === 'reports' && <Reports year={year} defaultClass={cls} onOpenRegister={openRegister} />}
 

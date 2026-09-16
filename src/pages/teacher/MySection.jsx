@@ -5,12 +5,17 @@
  * else am I responsible for, and what has been said to my class lately. The
  * headline tiles are the summary; everything under them is the detail, and
  * every row opens the same section drawer.
+ *
+ * Only a class teacher or vice class teacher reaches it (MySectionGuard in
+ * App.jsx; the endpoint answers 403 MY_SECTION_NOT_ASSIGNED to anyone else).
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
+import { MY_SECTION_DENIED } from '../../components/MySectionGuard';
 import { getMySection, createAnnouncement, deleteAnnouncement } from '../../api/teacher.api';
 import { Button, Modal, Spinner, Confirm } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -22,9 +27,19 @@ import {
 const SHOWN = 3;   // rows a card shows before "View All" opens the rest
 
 export default function MySection() {
-  const { data, loading, refetch } = useFetch(getMySection);
-  const { isEnabled } = useModules();
+  const { isEnabled, reload: reloadModules } = useModules();
   const { user: me } = useAuth();
+  const [denied, setDenied] = useState(false);
+  const { data, loading, refetch } = useFetch(() => getMySection().catch((err) => {
+    if (err?.data?.code === 'MY_SECTION_NOT_ASSIGNED') setDenied(true);
+    throw err;
+  }));
+
+  useEffect(() => {
+    if (!denied) return;
+    toast.error(MY_SECTION_DENIED, { id: 'my-section-denied' });
+    reloadModules();
+  }, [denied]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [drawer,   setDrawer]   = useState(null);
   // The section being posted to, not a boolean — a teacher can post to their
@@ -83,9 +98,12 @@ export default function MySection() {
     finally { setDeleting(false); }
   };
 
+  // The menu hid the page, but the module map is read once per session: a
+  // teacher taken off their class since still has the old answer. The server's
+  // refusal is the current one, so it wins — refresh the map and leave.
+  if (denied) return <Navigate to="/teacher/dashboard" replace />;
   if (loading) return <div className="loading-page"><Spinner /></div>;
 
-  const nothing = !section && !viceOf.length && !subjectClasses.length;
   const viceRows = allVice ? viceOf : viceOf.slice(0, SHOWN);
   const subjRows = allSubj ? subjectClasses : subjectClasses.slice(0, SHOWN);
   const annRows  = allAnn  ? announcements : announcements.slice(0, SHOWN);
@@ -115,202 +133,192 @@ export default function MySection() {
         </div>
       </header>
 
-      {nothing ? (
-        <div className="alert alert-warning">
-          You are not attached to any section{currentYear ? ` in ${currentYear}` : ' yet'} — no class
-          teacher, vice class teacher or subject teacher assignment this academic year. Your school
-          office sets these up on the class.
-        </div>
-      ) : (
-        <>
-          {/* ── The three headline tiles ─────────────────────────────── */}
-          <div className="tsec-tiles">
-            {/* Class alone is ambiguous — a teacher holds one SECTION of it, so
-                the tile names both. */}
-            <Tile tone="indigo" icon="teacher" label="Class Teacher"
-              value={classTeacherOf.length ? secLabel(classTeacherOf[0]) : 'Not assigned'}
-              sub={classTeacherOf[0]
-                ? `Academic Year ${classTeacherOf[0].yearName || currentYear || '—'}`
-                : 'No section of your own'}
-              onClick={classTeacherOf.length ? goTo(mineRef) : undefined} />
-            <Tile tone="green" icon="users" label="Vice Class Teacher"
-              value={viceOf.length ? plural(viceOf.length, 'Class', 'Classes') : 'None'}
-              sub={viceOf.length ? 'You are vice class teacher' : 'Not covering any class'}
-              onClick={viceOf.length ? goTo(viceRef) : undefined} />
-            <Tile tone="violet" icon="bookOpen" label="Subject Teacher"
-              value={subjectClasses.length ? plural(subjectClasses.length, 'Class', 'Classes') : 'None'}
-              sub={subjectClasses.length ? 'Across different sections' : 'No subject assignments'}
-              onClick={subjectClasses.length ? goTo(subjRef) : undefined} />
-          </div>
+      {/* ── The three headline tiles ─────────────────────────────── */}
+      <div className="tsec-tiles">
+        {/* Class alone is ambiguous — a teacher holds one SECTION of it, so
+            the tile names both. */}
+        <Tile tone="indigo" icon="teacher" label="Class Teacher"
+          value={classTeacherOf.length ? secLabel(classTeacherOf[0]) : 'Not assigned'}
+          sub={classTeacherOf[0]
+            ? `Academic Year ${classTeacherOf[0].yearName || currentYear || '—'}`
+            : 'No section of your own'}
+          onClick={classTeacherOf.length ? goTo(mineRef) : undefined} />
+        <Tile tone="green" icon="users" label="Vice Class Teacher"
+          value={viceOf.length ? plural(viceOf.length, 'Class', 'Classes') : 'None'}
+          sub={viceOf.length ? 'You are vice class teacher' : 'Not covering any class'}
+          onClick={viceOf.length ? goTo(viceRef) : undefined} />
+        <Tile tone="violet" icon="bookOpen" label="Subject Teacher"
+          value={subjectClasses.length ? plural(subjectClasses.length, 'Class', 'Classes') : 'None'}
+          sub={subjectClasses.length ? 'Across different sections' : 'No subject assignments'}
+          onClick={subjectClasses.length ? goTo(subjRef) : undefined} />
+      </div>
 
-          <div className="tsec-grid">
-            {/* ── Main column ───────────────────────────────────────── */}
-            <div className="tsec-col">
+      <div className="tsec-grid">
+        {/* ── Main column ───────────────────────────────────────── */}
+        <div className="tsec-col">
 
-              {section && (
-                <div ref={mineRef}>
-                  <Panel
-                    title={`My Class (${isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'})`}
-                    link={{ label: 'View Details', onClick: () => setDrawer(section) }}>
-                    <div className="tsec-mine">
-                      <span className="tsec-chip tsec-chip--lg tsec-t--indigo">{chipFor(section)}</span>
-                      <div className="tsec-mine__body">
-                        <div className="tsec-mine__title">
-                          {classLabel(section)}
-                          <span className="tsec-badge tsec-t--indigo">
-                            {isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'}
-                          </span>
-                          <YearTag row={section} />
-                        </div>
-                        <div className="tsec-row__facts">
-                          <Fact icon="layers">Section {section.sectionName}</Fact>
-                          <Fact icon="users">{plural(section.studentCount, 'Student')}</Fact>
-                          <Fact icon="calendarDays">Academic Year {section.yearName || currentYear || '—'}</Fact>
-                        </div>
-                      </div>
-                    </div>
-
-                    <SectionActions row={section} role={isClassTeacher ? 'classTeacher' : 'vice'}
-                      isEnabled={isEnabled} canAnnounce={canPost}
-                      onStudents={setDrawer} onAnnounce={setAnnOpen} />
-
-                    {/* A teacher can hold more than one class of their own */}
-                    {classTeacherOf.length > 1 && (
-                      <div className="tsec-rows tsec-rows--tight">
-                        {classTeacherOf.slice(1).map((s) => (
-                          <SectionBlock key={s._id}>
-                            <SectionRow row={s} tone="indigo"
-                              title={classLabel(s)}
-                              facts={<>
-                                <Fact icon="layers">Section {s.sectionName}</Fact>
-                                <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
-                              </>}
-                              badge="Class Teacher" onOpen={() => setDrawer(s)} />
-                            <SectionActions row={s} role="classTeacher" isEnabled={isEnabled}
-                              onStudents={setDrawer} onAnnounce={setAnnOpen} />
-                          </SectionBlock>
-                        ))}
-                      </div>
-                    )}
-                  </Panel>
-                </div>
-              )}
-
-              {viceOf.length > 0 && (
-                <div ref={viceRef}>
-                  <Panel title="Vice Class Teacher" count={viceOf.length}
-                    link={viceOf.length > SHOWN
-                      ? { label: allVice ? 'Show Less' : 'View All', onClick: () => setAllVice(!allVice) }
-                      : null}>
-                    <div className="tsec-rows">
-                      {viceRows.map((s) => (
-                        <SectionBlock key={s._id}>
-                          <SectionRow row={s} tone="green"
-                            title={classLabel(s)}
-                            facts={<>
-                              <Fact icon="layers">Section {s.sectionName}</Fact>
-                              <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
-                            </>}
-                            badge="Vice Class Teacher" onOpen={() => setDrawer(s)} />
-                          {/* A vice class teacher covers the class — the same
-                              four things the class teacher does, on the class
-                              they actually cover. */}
-                          <SectionActions row={s} role="vice" isEnabled={isEnabled}
-                            onStudents={setDrawer} onAnnounce={setAnnOpen} />
-                        </SectionBlock>
-                      ))}
-                    </div>
-                  </Panel>
-                </div>
-              )}
-
-              {section && (
-                <Panel title="Recent Announcements"
-                  link={announcements.length > SHOWN
-                    ? { label: allAnn ? 'Show Less' : 'View All', onClick: () => setAllAnn(!allAnn) }
-                    : null}>
-                  {annRows.length ? (
-                    <div className="tsec-rows tsec-rows--tight">
-                      {annRows.map((a, i) => (
-                        <AnnouncementRow key={a._id} ann={a} tone={i % 2 ? 'green' : 'indigo'}
-                          onDelete={canRemove(a) ? () => setDelAnn(a) : null} />
-                      ))}
-                    </div>
-                  ) : (
-                    <NoRows icon="megaphone">
-                      Nothing posted to {secLabel(section)} yet.
-                      {canPost && ' Use Post Announcement above to tell your class something.'}
-                    </NoRows>
-                  )}
-                </Panel>
-              )}
-            </div>
-
-            {/* ── Side column ───────────────────────────────────────── */}
-            <div className="tsec-col">
-              <Panel title="My Responsibilities">
-                <div className="tsec-rows tsec-rows--tight">
-                  {classTeacherOf.length > 0 && (
-                    <RoleRow tone="indigo" icon="teacher" label="Class Teacher"
-                      sub={classTeacherOf.map(secLabel).join(', ')}
-                      onClick={() => setDrawer(classTeacherOf[0])} />
-                  )}
-                  {viceOf.length > 0 && (
-                    <RoleRow tone="green" icon="users" label="Vice Class Teacher"
-                      sub={viceOf.map(secLabel).join(', ')}
-                      onClick={goTo(viceRef)} />
-                  )}
-                  {subjectClasses.length > 0 && (
-                    <RoleRow tone="violet" icon="bookOpen" label="Subject Teacher"
-                      sub={subjectSummary} onClick={goTo(subjRef)} />
-                  )}
-                </div>
-              </Panel>
-
-              {subjectClasses.length > 0 && (
-                <div ref={subjRef}>
-                  <Panel title="Subject Classes" count={subjectClasses.length}
-                    link={subjectClasses.length > SHOWN
-                      ? { label: allSubj ? 'Show Less' : 'View All', onClick: () => setAllSubj(!allSubj) }
-                      : null}>
-                    <div className="tsec-rows">
-                      {subjRows.map((s) => (
-                        <SectionBlock key={`${s._id}:${s.subject}`}>
-                          <SectionRow row={s} tone="rose"
-                            chip={String(s.subject || '?')[0].toUpperCase()}
-                            title={s.subject || 'Subject'}
-                            facts={<Fact icon="layers">{secLabel(s)}</Fact>}
-                            right={<span className="tsec-count">
-                              <Icon name="users" size={15} />{plural(s.studentCount, 'Student')}
-                            </span>}
-                            onOpen={() => setDrawer(s)} />
-                          {/* No attendance: the day is recorded by the section,
-                              and a subject teacher has the class for a period. */}
-                          <SectionActions row={s} role="subject" isEnabled={isEnabled}
-                            onStudents={setDrawer} onAnnounce={setAnnOpen} />
-                        </SectionBlock>
-                      ))}
-                    </div>
-                  </Panel>
-                </div>
-              )}
-
-              {monitors.length > 0 && (
-                <Panel title="Class Monitors" count={monitors.length}>
-                  <div className="tsec-mons">
-                    {monitors.map((m) => (
-                      <span key={m._id} className="tsec-mon">
-                        <span className="tsec-student__av">{String(m.name || '?')[0].toUpperCase()}</span>
-                        {m.name}
+          {section && (
+            <div ref={mineRef}>
+              <Panel
+                title={`My Class (${isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'})`}
+                link={{ label: 'View Details', onClick: () => setDrawer(section) }}>
+                <div className="tsec-mine">
+                  <span className="tsec-chip tsec-chip--lg tsec-t--indigo">{chipFor(section)}</span>
+                  <div className="tsec-mine__body">
+                    <div className="tsec-mine__title">
+                      {classLabel(section)}
+                      <span className="tsec-badge tsec-t--indigo">
+                        {isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'}
                       </span>
+                      <YearTag row={section} />
+                    </div>
+                    <div className="tsec-row__facts">
+                      <Fact icon="layers">Section {section.sectionName}</Fact>
+                      <Fact icon="users">{plural(section.studentCount, 'Student')}</Fact>
+                      <Fact icon="calendarDays">Academic Year {section.yearName || currentYear || '—'}</Fact>
+                    </div>
+                  </div>
+                </div>
+
+                <SectionActions row={section} role={isClassTeacher ? 'classTeacher' : 'vice'}
+                  isEnabled={isEnabled} canAnnounce={canPost}
+                  onStudents={setDrawer} onAnnounce={setAnnOpen} />
+
+                {/* A teacher can hold more than one class of their own */}
+                {classTeacherOf.length > 1 && (
+                  <div className="tsec-rows tsec-rows--tight">
+                    {classTeacherOf.slice(1).map((s) => (
+                      <SectionBlock key={s._id}>
+                        <SectionRow row={s} tone="indigo"
+                          title={classLabel(s)}
+                          facts={<>
+                            <Fact icon="layers">Section {s.sectionName}</Fact>
+                            <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
+                          </>}
+                          badge="Class Teacher" onOpen={() => setDrawer(s)} />
+                        <SectionActions row={s} role="classTeacher" isEnabled={isEnabled}
+                          onStudents={setDrawer} onAnnounce={setAnnOpen} />
+                      </SectionBlock>
                     ))}
                   </div>
-                </Panel>
+                )}
+              </Panel>
+            </div>
+          )}
+
+          {viceOf.length > 0 && (
+            <div ref={viceRef}>
+              <Panel title="Vice Class Teacher" count={viceOf.length}
+                link={viceOf.length > SHOWN
+                  ? { label: allVice ? 'Show Less' : 'View All', onClick: () => setAllVice(!allVice) }
+                  : null}>
+                <div className="tsec-rows">
+                  {viceRows.map((s) => (
+                    <SectionBlock key={s._id}>
+                      <SectionRow row={s} tone="green"
+                        title={classLabel(s)}
+                        facts={<>
+                          <Fact icon="layers">Section {s.sectionName}</Fact>
+                          <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
+                        </>}
+                        badge="Vice Class Teacher" onOpen={() => setDrawer(s)} />
+                      {/* A vice class teacher covers the class — the same
+                          four things the class teacher does, on the class
+                          they actually cover. */}
+                      <SectionActions row={s} role="vice" isEnabled={isEnabled}
+                        onStudents={setDrawer} onAnnounce={setAnnOpen} />
+                    </SectionBlock>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          )}
+
+          {section && (
+            <Panel title="Recent Announcements"
+              link={announcements.length > SHOWN
+                ? { label: allAnn ? 'Show Less' : 'View All', onClick: () => setAllAnn(!allAnn) }
+                : null}>
+              {annRows.length ? (
+                <div className="tsec-rows tsec-rows--tight">
+                  {annRows.map((a, i) => (
+                    <AnnouncementRow key={a._id} ann={a} tone={i % 2 ? 'green' : 'indigo'}
+                      onDelete={canRemove(a) ? () => setDelAnn(a) : null} />
+                  ))}
+                </div>
+              ) : (
+                <NoRows icon="megaphone">
+                  Nothing posted to {secLabel(section)} yet.
+                  {canPost && ' Use Post Announcement above to tell your class something.'}
+                </NoRows>
+              )}
+            </Panel>
+          )}
+        </div>
+
+        {/* ── Side column ───────────────────────────────────────── */}
+        <div className="tsec-col">
+          <Panel title="My Responsibilities">
+            <div className="tsec-rows tsec-rows--tight">
+              {classTeacherOf.length > 0 && (
+                <RoleRow tone="indigo" icon="teacher" label="Class Teacher"
+                  sub={classTeacherOf.map(secLabel).join(', ')}
+                  onClick={() => setDrawer(classTeacherOf[0])} />
+              )}
+              {viceOf.length > 0 && (
+                <RoleRow tone="green" icon="users" label="Vice Class Teacher"
+                  sub={viceOf.map(secLabel).join(', ')}
+                  onClick={goTo(viceRef)} />
+              )}
+              {subjectClasses.length > 0 && (
+                <RoleRow tone="violet" icon="bookOpen" label="Subject Teacher"
+                  sub={subjectSummary} onClick={goTo(subjRef)} />
               )}
             </div>
-          </div>
-        </>
-      )}
+          </Panel>
+
+          {subjectClasses.length > 0 && (
+            <div ref={subjRef}>
+              <Panel title="Subject Classes" count={subjectClasses.length}
+                link={subjectClasses.length > SHOWN
+                  ? { label: allSubj ? 'Show Less' : 'View All', onClick: () => setAllSubj(!allSubj) }
+                  : null}>
+                <div className="tsec-rows">
+                  {subjRows.map((s) => (
+                    <SectionBlock key={`${s._id}:${s.subject}`}>
+                      <SectionRow row={s} tone="rose"
+                        chip={String(s.subject || '?')[0].toUpperCase()}
+                        title={s.subject || 'Subject'}
+                        facts={<Fact icon="layers">{secLabel(s)}</Fact>}
+                        right={<span className="tsec-count">
+                          <Icon name="users" size={15} />{plural(s.studentCount, 'Student')}
+                        </span>}
+                        onOpen={() => setDrawer(s)} />
+                      {/* No attendance: the day is recorded by the section,
+                          and a subject teacher has the class for a period. */}
+                      <SectionActions row={s} role="subject" isEnabled={isEnabled}
+                        onStudents={setDrawer} onAnnounce={setAnnOpen} />
+                    </SectionBlock>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          )}
+
+          {monitors.length > 0 && (
+            <Panel title="Class Monitors" count={monitors.length}>
+              <div className="tsec-mons">
+                {monitors.map((m) => (
+                  <span key={m._id} className="tsec-mon">
+                    <span className="tsec-student__av">{String(m.name || '?')[0].toUpperCase()}</span>
+                    {m.name}
+                  </span>
+                ))}
+              </div>
+            </Panel>
+          )}
+        </div>
+      </div>
 
       {drawer && <SectionDrawer section={drawer} onClose={() => setDrawer(null)} />}
 

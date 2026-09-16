@@ -5,6 +5,7 @@ import { ModulesProvider } from './contexts/ModulesContext';
 import AppLayout from './components/layout/AppLayout';
 import ModuleGuard from './components/ModuleGuard';
 import AdminAreaGuard from './components/AdminAreaGuard';
+import MySectionGuard from './components/MySectionGuard';
 import { roleHome } from './pages/auth/roleHome';
 import ModuleNav, {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
@@ -528,7 +529,9 @@ export default function App() {
             <Protected roles={['teacher']}><AppLayout /></Protected>
           }>
             <Route path="dashboard"    element={<TDashboard />} />
-            <Route path="my-section"   element={<TMySection />} />
+            {/* Class teachers and vice class teachers only — a subject teacher
+                typing the URL is sent back to the dashboard. */}
+            <Route path="my-section"   element={<MySectionGuard><TMySection /></MySectionGuard>} />
             <Route path="attendance"   element={<TAttendance />} />
             <Route path="student-analytics"            element={<StudentAnalytics />} />
             <Route path="student-analytics/:studentId" element={<StudentAnalyticsDetail />} />

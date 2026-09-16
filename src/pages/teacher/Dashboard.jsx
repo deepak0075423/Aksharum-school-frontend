@@ -16,10 +16,12 @@ import { TodaySchedule, SectionCard, ClassPerformance } from './dashboardParts';
 
 /**
  * Every shortcut a teacher can keep on Quick Access, filtered by the module map
- * so the picker only offers what this school actually runs.
+ * so the picker only offers what this school actually runs. `requires` names a
+ * flag on the same payload that must be true — My Section is only for a class
+ * teacher or vice class teacher.
  */
 const ALL_QUICK_LINKS = [
-  { key: 'section',     to: '/teacher/my-section',       icon: 'building',    tone: 'indigo', label: 'My Section',      sub: 'Students & info' },
+  { key: 'section',     to: '/teacher/my-section',       icon: 'building',    tone: 'indigo', label: 'My Section',      sub: 'Students & info', requires: 'hasMySection' },
   { key: 'attendance',  to: '/teacher/attendance',       icon: 'checkSquare', tone: 'green',  label: 'Attendance',      sub: 'Mark & review',    module: 'attendance' },
   { key: 'timetable',   to: '/teacher/timetable',        icon: 'clock',       tone: 'amber',  label: 'My Timetable',    sub: 'Weekly schedule',  module: 'timetable' },
   { key: 'subs',        to: '/teacher/substitutions',    icon: 'repeat',      tone: 'orange', label: 'Substitutions',   sub: 'Cover duties',     module: 'timetable' },
@@ -152,7 +154,8 @@ export default function TeacherDashboard() {
   }, [holidays]);
 
   const available = useMemo(
-    () => ALL_QUICK_LINKS.filter(l => !l.module || modules?.[l.module]),
+    () => ALL_QUICK_LINKS.filter(l =>
+      (!l.module || modules?.[l.module]) && (!l.requires || modules?.[l.requires] === true)),
     [modules],
   );
   const quick = useQuickAccess({
