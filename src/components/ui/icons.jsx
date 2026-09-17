@@ -96,6 +96,7 @@ const PATHS = {
   arrowRight:  <><path d="M4.5 12h14.5" /><path d="m13 6 6 6-6 6" /></>,
   arrowLeft:   <><path d="M19.5 12H5" /><path d="m11 6-6 6 6 6" /></>,
   plus:        <path d="M12 5v14M5 12h14" />,
+  minus:       <path d="M5 12h14" />,
   close:       <path d="m6 6 12 12M18 6 6 18" />,
   logIn:       <><path d="M15 3.5h3.5A1.5 1.5 0 0 1 20 5v14a1.5 1.5 0 0 1-1.5 1.5H15" /><path d="M10.5 16.5 15 12l-4.5-4.5" /><path d="M15 12H4" /></>,
   logOut:      <><path d="M9 3.5H5.5A1.5 1.5 0 0 0 4 5v14a1.5 1.5 0 0 0 1.5 1.5H9" /><path d="M16 16.5 20.5 12 16 7.5" /><path d="M20.5 12h-11" /></>,

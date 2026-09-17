@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/timetable.api';
 import { PageHeader, Button, Card, Spinner, Modal, Badge, Empty, Input } from '../../../components/ui/index';
@@ -14,6 +15,10 @@ export default function TimetableAvailability() {
   const [loading, setLoad]      = useState(true);
   const [edit, setEdit]         = useState(null);
   const [saving, setSaving]     = useState(false);
+  // ?teacher=<id> opens that teacher's editor — the generator's problem cards
+  // link here when a teacher has more periods than free time.
+  const [params, setParams]     = useSearchParams();
+  const deepLinked              = useRef(false);
 
   const load = useCallback(async (yid) => {
     setLoad(true);
@@ -30,6 +35,25 @@ export default function TimetableAvailability() {
   }, [years.length]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line
+
+  const openEdit = (t) => setEdit({
+    ...t,
+    unavailable: [...(t.unavailable || [])],
+    preferredDays: [...(t.preferredDays || [])],
+    preferredPeriods: [...(t.preferredPeriods || [])],
+    maxPeriodsPerDay: t.maxPeriodsPerDay ?? '',
+    maxPeriodsPerWeek: t.maxPeriodsPerWeek ?? '',
+    notes: t.notes || '',
+  });
+
+  useEffect(() => {
+    const wanted = params.get('teacher');
+    if (!wanted || deepLinked.current || !teachers.length) return;
+    deepLinked.current = true;
+    const t = teachers.find(x => String(x._id) === wanted);
+    if (t) openEdit(t);
+    setParams({}, { replace: true });
+  }, [teachers]); // eslint-disable-line
 
   const save = async () => {
     setSaving(true);
@@ -116,15 +140,7 @@ export default function TimetableAvailability() {
                     {t.maxPeriodsPerWeek ? <Badge variant="muted">≤{t.maxPeriodsPerWeek}/week</Badge> : null}
                   </div>
 
-                  <Button size="sm" variant="secondary" onClick={() => setEdit({
-                    ...t,
-                    unavailable: [...(t.unavailable || [])],
-                    preferredDays: [...(t.preferredDays || [])],
-                    preferredPeriods: [...(t.preferredPeriods || [])],
-                    maxPeriodsPerDay: t.maxPeriodsPerDay ?? '',
-                    maxPeriodsPerWeek: t.maxPeriodsPerWeek ?? '',
-                    notes: t.notes || '',
-                  })}>
+                  <Button size="sm" variant="secondary" onClick={() => openEdit(t)}>
                     Edit availability
                   </Button>
                 </div>

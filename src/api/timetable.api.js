@@ -41,9 +41,12 @@ export const saveAvailability = (teacherId, d)  => api.put(`${base}/availability
 
 // ── Generation & versions ─────────────────────────────────────────────────────
 export const generate       = (data)      => api.post(`${base}/generate`, data);
+// Dry run of an unsaved plan: the problems a run would hit, before generating.
+export const preflight      = (data)      => api.post(`${base}/preflight`, data);
 export const getVersions    = (params)    => api.get(`${base}/versions`, { params });
 export const getVersion     = (id)        => api.get(`${base}/versions/${id}`);
-export const getProgress    = (id)        => api.get(`${base}/versions/${id}/progress`);
+// Pass { report: 1 } once the run is over to get its problem report as well.
+export const getProgress    = (id, p)     => api.get(`${base}/versions/${id}/progress`, { params: p });
 export const getConflicts   = (id, p)     => api.get(`${base}/versions/${id}/conflicts`, { params: p });
 export const updateVersion  = (id, d)     => api.put(`${base}/versions/${id}`, d);
 export const deleteVersion  = (id)        => api.delete(`${base}/versions/${id}`);
