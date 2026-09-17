@@ -21,7 +21,8 @@ import {
 } from '../attendanceParts';
 
 const LIMIT = 10;
-const MARKS = ['present', 'absent', 'late'];
+const MARKS = ['present', 'absent', 'late', 'half-day'];
+const MARK_ICON = { present: 'checkCircle', absent: 'closeCircle', late: 'clock', 'half-day': 'sun' };
 
 export default function TodayAttendance({ defaultClass = '', version, onChanged, onOpenRegister }) {
   const today = todayKey();
@@ -47,7 +48,11 @@ export default function TodayAttendance({ defaultClass = '', version, onChanged,
     [cls, section, search, status, page, version],
   );
   const rows    = Array.isArray(data) ? data : [];
-  const counts  = meta?.counts || { total: 0, present: 0, absent: 0, late: 0, unmarked: 0 };
+  const counts  = meta?.counts || { total: 0, present: 0, absent: 0, late: 0, halfDay: 0, unmarked: 0 };
+  // Subject-wise, a row is the day rolled up across subject registers — there is
+  // no single register a row mark could go to. Marks are taken per subject in
+  // the Mark Attendance dialog instead.
+  const bySubject = meta?.mode === 'subject';
   const classes = meta?.classes || [];
   const sections = useMemo(() => classes.find((c) => c._id === cls)?.sections || [], [classes, cls]);
   const sel = useSelection(rows, `${cls}|${section}|${search}|${status}|${page}`);
@@ -94,14 +99,17 @@ export default function TodayAttendance({ defaultClass = '', version, onChanged,
           {countChip('present', counts.present)}
           {countChip('absent', counts.absent)}
           {countChip('late', counts.late)}
+          {countChip('half-day', counts.halfDay || 0)}
           {countChip('unmarked', counts.unmarked)}
         </span>
       }
       actions={
         <>
-          <button type="button" className="atn-btn-soft" onClick={() => setMarkAll(true)} disabled={!counts.unmarked}>
-            Mark All
-          </button>
+          {!bySubject && (
+            <button type="button" className="atn-btn-soft" onClick={() => setMarkAll(true)} disabled={!counts.unmarked}>
+              Mark All
+            </button>
+          )}
           <select className="atn-mini-select" value={cls} onChange={(e) => pickClass(e.target.value)} aria-label="Class">
             <option value="">All classes</option>
             {classes.map((c) => <option key={c._id} value={c._id}>{c.className}</option>)}
@@ -119,7 +127,13 @@ export default function TodayAttendance({ defaultClass = '', version, onChanged,
         </>
       }>
 
-      {sel.ids.length > 0 && (
+      {bySubject && (
+        <div className="atn-callout atn-callout--info atn-today__note">
+          <Icon name="info" size={17} />
+          <span>Attendance is taken subject-wise. Each row is the student&rsquo;s day across today&rsquo;s subject registers; open a section&rsquo;s register to mark a subject.</span>
+        </div>
+      )}
+      {!bySubject && sel.ids.length > 0 && (
         <div className="atn-selbar" role="region" aria-label="Selected students">
           <b>{plural(sel.ids.length, 'student')} selected</b>
           {MARKS.map((m) => (
@@ -144,8 +158,10 @@ export default function TodayAttendance({ defaultClass = '', version, onChanged,
             <thead>
               <tr>
                 <th className="atn-table__tick">
-                  <input type="checkbox" checked={sel.allOn} onChange={sel.toggleAll}
-                    ref={(el) => { if (el) el.indeterminate = sel.some; }} aria-label="Select all students on this page" />
+                  {!bySubject && (
+                    <input type="checkbox" checked={sel.allOn} onChange={sel.toggleAll}
+                      ref={(el) => { if (el) el.indeterminate = sel.some; }} aria-label="Select all students on this page" />
+                  )}
                 </th>
                 <th>Student</th><th>Class</th><th>Section</th><th>Status</th><th>Marked at</th>
                 <th className="atn-table__act">Actions</th>
@@ -155,7 +171,7 @@ export default function TodayAttendance({ defaultClass = '', version, onChanged,
               {rows.map((r) => (
                 <tr key={r._id} data-focus-id={r._id} className={sel.has(r._id) ? 'is-picked' : undefined}>
                   <td className="atn-table__tick">
-                    <input type="checkbox" checked={sel.has(r._id)} onChange={() => sel.toggle(r._id)} aria-label={`Select ${r.name}`} />
+                    {!bySubject && <input type="checkbox" checked={sel.has(r._id)} onChange={() => sel.toggle(r._id)} aria-label={`Select ${r.name}`} />}
                   </td>
                   <td>
                     <span className="atn-who">
@@ -171,11 +187,11 @@ export default function TodayAttendance({ defaultClass = '', version, onChanged,
                   </td>
                   <td className="atn-table__act">
                     <RowMenu label={`Actions for ${r.name}`}>
-                      {MARKS.filter((m) => m !== r.status).map((m) => (
-                        <MenuItem key={m} icon={m === 'present' ? 'checkCircle' : m === 'absent' ? 'closeCircle' : 'clock'}
+                      {!bySubject && MARKS.filter((m) => m !== r.status).map((m) => (
+                        <MenuItem key={m} icon={MARK_ICON[m]}
                           onClick={() => markRows([r], m)}>Mark {STATUS[m].label.toLowerCase()}</MenuItem>
                       ))}
-                      <MenuSep />
+                      {!bySubject && <MenuSep />}
                       <MenuItem icon="clipboard" onClick={() => onOpenRegister(r.section, today)}>Open section register</MenuItem>
                       <MenuItem icon="chart" to={`/admin/student-analytics/${r._id}`}>Student analytics</MenuItem>
                     </RowMenu>
@@ -232,7 +248,7 @@ function MarkAllDialog({ count, scope, busy, onClose, onConfirm }) {
         {MARKS.map((m) => (
           <button key={m} type="button" role="radio" aria-checked={mark === m}
             className={`atn-choice atn-choice--${STATUS[m].tone}${mark === m ? ' is-on' : ''}`} onClick={() => setMark(m)}>
-            <Icon name={m === 'present' ? 'checkCircle' : m === 'absent' ? 'closeCircle' : 'clock'} size={20} />
+            <Icon name={MARK_ICON[m]} size={20} />
             {STATUS[m].label}
           </button>
         ))}
@@ -240,7 +256,7 @@ function MarkAllDialog({ count, scope, busy, onClose, onConfirm }) {
       {mark !== 'present' && (
         <div className="atn-callout atn-callout--warn">
           <Icon name="alert" size={17} />
-          <span>Students and their parents are notified of every absent or late mark.</span>
+          <span>Students and their parents are notified of every absent, late or half-day mark.</span>
         </div>
       )}
     </Modal>

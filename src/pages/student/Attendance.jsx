@@ -1,182 +1,221 @@
-import React, { useState } from 'react';
+/**
+ * Student → My Attendance.
+ *
+ * Three tabs on the attendance kit the teacher's screens use:
+ *   Overview      the month day by day, the year so far and where I stand
+ *   Class Ranking my section ranked for the academic year
+ *   My Requests   the corrections I asked for, and the questions I owe a reply
+ *
+ * Links: notifications open ?tab=requests&focus=<request>, a mark notice
+ * ?date=YYYY-MM-DD (that month, that day picked), an alert ?focus=<me>.
+ */
+import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getMyAttendance, submitCorrection, getClassRanking } from '../../api/student.api';
-import { PageHeader, Spinner } from '../../components/ui/index';
-import ClassRanking from '../../components/attendance/ClassRanking';
+import {
+  getAttendanceDay, getAttendanceOverview, getClassRanking, getMyCorrections, replyCorrection, submitCorrection,
+} from '../../api/student.api';
+import { Spinner } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { toDateInput } from '../../utils/leaveDates';
+import { Podium } from '../teacher/attendance/ClassRanking';
+import {
+  Card, Empty, Frame, SoftAvatar, Tile, num, todayKey,
+} from '../../components/attendance/parts';
+import {
+  Alerts, CorrectionModal, DayDetail, HowItWorksCard, InsightCard, MonthCard, MonthGrid, MonthPicker,
+  OverviewTiles, RecentRequestsCard, RequestsBody, StandingCard,
+} from '../../components/attendance/StudentView';
 
-const STATUS_COLOR = { present: '#10b981', absent: '#ef4444', late: '#f59e0b', 'half-day': '#6366f1' };
+const TABS = [
+  { value: 'overview', label: 'Overview',      icon: 'calendar' },
+  { value: 'ranking',  label: 'Class Ranking', icon: 'trophy' },
+  { value: 'requests', label: 'My Requests',   icon: 'history' },
+];
+const SUBTITLE = 'Your attendance day by day, where you stand in class, and your correction requests.';
+const pctTone = (p) => (p == null ? 'muted' : p >= 90 ? 'green' : p >= 75 ? 'blue' : 'red');
 
 export default function StudentAttendance() {
   const { user } = useAuth();
-  const today = new Date();
-  const [tab, setTab] = useState('calendar');
-  const [month, setMonth] = useState(today.getMonth() + 1);
-  const [year,  setYear]  = useState(today.getFullYear());
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ date: '', requestedStatus: 'present', reason: '' });
-  const [submitting, setSubmitting] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const linkDate = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : '';
+  const [tab, setTab] = useState(TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'overview');
+  const [month, setMonth] = useState((linkDate || todayKey()).slice(0, 7));
+  const [day, setDay] = useState(linkDate || todayKey());
+  const [asking, setAsking] = useState(null);   // the day a correction is being asked for ('' = pick one)
+  const [version, setVersion] = useState(0);
 
-  const { data: records, loading } = useFetch(
-    () => getMyAttendance({ month, year }),
-    [month, year],
-  );
-  const { data: rankData } = useFetch(getClassRanking);
+  const { data, loading, error } = useFetch(() => getAttendanceOverview({ month }), [month, version]);
+  const { data: requestsData, loading: reqLoading } = useFetch(
+    () => (tab === 'requests' ? getMyCorrections() : Promise.resolve(null)), [tab, version]);
+  const requests = Array.isArray(requestsData) ? requestsData : [];
 
-  // Regularization window: last one month up to today
-  const todayStr = toDateInput(today);   // local days — toISOString() is UTC
-  const oneMonthAgo = new Date(); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-  const oneMonthAgoStr = toDateInput(oneMonthAgo);
-
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const firstDay    = new Date(year, month - 1, 1).getDay();
-
-  const list = Array.isArray(records) ? records : [];
-  const recordMap = {};
-  list.forEach(r => {
-    const d = new Date(r.date).getDate();
-    recordMap[d] = r.status;
-  });
-
-  const handleSubmitCorrection = async (e) => {
-    e.preventDefault();
-    if (!form.date || !form.reason) return toast.error('Date and reason are required');
-    if (form.date < oneMonthAgoStr || form.date > todayStr)
-      return toast.error('You can only request corrections for the last one month');
-    setSubmitting(true);
-    try {
-      await submitCorrection(form);
-      toast.success('Correction request submitted — awaiting class teacher approval');
-      setShowForm(false);
-      setForm({ date: '', requestedStatus: 'present', reason: '' });
-    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
-    finally { setSubmitting(false); }
+  const onTab = (value) => {
+    setTab(value);
+    const next = new URLSearchParams();
+    if (value !== 'overview') next.set('tab', value);
+    setParams(next, { replace: true });
+  };
+  const onMonth = (m) => {
+    setMonth(m);
+    setDay(m === todayKey().slice(0, 7) ? todayKey() : `${m}-01`);
   };
 
-  const present = Object.values(recordMap).filter(s => s === 'present').length;
-  const absent  = Object.values(recordMap).filter(s => s === 'absent').length;
-  const late    = Object.values(recordMap).filter(s => s === 'late').length;
-  const total   = Object.keys(recordMap).length;
+  const reply = async (r, text, files) => {
+    const body = new FormData();
+    body.append('message', text);
+    files.forEach((f) => body.append('attachments', f));
+    try {
+      await replyCorrection(r._id, body);
+      toast.success('Reply sent to your teacher');
+      setVersion((v) => v + 1);
+    } catch (e) { toast.error(e?.message || 'Could not send the reply'); throw e; }
+  };
+
+  const actions = (
+    <>
+      {tab === 'overview' && <MonthPicker value={month} onChange={onMonth} />}
+      <button type="button" className="tat-btn tat-btn--primary tat-btn--lg" onClick={() => setAsking(tab === 'overview' ? day : '')}>
+        <Icon name="pencil" size={18} /> Request Correction
+      </button>
+    </>
+  );
+
+  const counts = { requests: data?.requests?.awaitingReply || 0 };
+  const modal = (
+    <CorrectionModal open={asking != null} date={asking && asking <= todayKey() && asking >= (data?.canRequestFrom || '') ? asking : ''}
+      minDate={data?.canRequestFrom} onClose={() => setAsking(null)}
+      loadDay={(date) => getAttendanceDay({ date })} submit={submitCorrection}
+      onSaved={() => { setAsking(null); setVersion((v) => v + 1); onTab('requests'); }} />
+  );
+
+  if (tab === 'ranking') {
+    return (
+      <>
+        <Frame title="My Attendance" subtitle={SUBTITLE} tabs={TABS} tab={tab} onTab={onTab} counts={counts} actions={actions}>
+          <StudentRanking me={user?._id} mode={data?.mode} />
+        </Frame>
+        {modal}
+      </>
+    );
+  }
+
+  if (tab === 'requests') {
+    return (
+      <>
+        <Frame title="My Attendance" subtitle={SUBTITLE} tabs={TABS} tab={tab} onTab={onTab} counts={counts} actions={actions}
+          railWidth="md" railAlign="content"
+          rail={<HowItWorksCard who="student" onRequest={() => setAsking('')} />}>
+          <RequestsBody requests={requests} who="student" loading={reqLoading} onReply={reply}
+            emptyAction="When a mark looks wrong, use Request Correction and your teacher will review it." />
+        </Frame>
+        {modal}
+      </>
+    );
+  }
 
   return (
-    <div className="page">
-      <PageHeader title="My Attendance" subtitle="Monthly calendar and class ranking"
-        action={tab === 'calendar' ? <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>Request Correction</button> : null}
-      />
-
-      <div className="tabs">
-        {[['calendar', 'My Calendar'], ['ranking', '🏆 Class Ranking']].map(([k, l]) => (
-          <button key={k} className={`tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>
-        ))}
-      </div>
-
-      {tab === 'ranking' && (
-        <>
-          {rankData?.myRank && (
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: '2.2rem' }}>{rankData.myRank === 1 ? '🥇' : rankData.myRank === 2 ? '🥈' : rankData.myRank === 3 ? '🥉' : '🏅'}</div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>You're ranked #{rankData.myRank} of {rankData.total}</div>
-                  <div style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>
-                    {rankData.myPercentage != null ? `${rankData.myPercentage}% attendance this year` : ''}
-                  </div>
-                </div>
-              </div>
+    <>
+      <Frame title="My Attendance" subtitle={SUBTITLE} tabs={TABS} tab={tab} onTab={onTab} counts={counts} actions={actions}
+        railWidth="md"
+        rail={data ? (
+          <>
+            <MonthCard data={data} />
+            <StandingCard data={data} />
+            <InsightCard data={data} who="student" />
+            <RecentRequestsCard data={data} onViewAll={() => onTab('requests')} />
+          </>
+        ) : null}>
+        {error ? <section className="tat-card"><Empty icon="alert" title="Your attendance could not be loaded">{error}</Empty></section>
+          : !data ? <div className="tat-center"><Spinner /></div> : (
+            <div className={`tat-stack${loading ? ' tat-dim' : ''}`} data-focus-id={data.student?._id}>
+              <Alerts data={data} who="student" />
+              <OverviewTiles data={data} />
+              <MonthGrid data={data} selected={day} onSelect={setDay} onMonth={onMonth} loading={loading} />
+              <DayDetail data={data} dayKey={day} who="student" onRequest={(k) => setAsking(k)} />
             </div>
           )}
-          <ClassRanking ranking={rankData?.ranking || []} highlightId={user?._id} />
-        </>
-      )}
+      </Frame>
+      {modal}
+    </>
+  );
+}
 
-      {tab === 'calendar' && <>
+/** The section ranked for the academic year, with me picked out. */
+function StudentRanking({ me, mode }) {
+  const { data, loading, error } = useFetch(getClassRanking, []);
+  const unit = mode === 'subject' ? 'classes' : 'days';
+  const rows = useMemo(() => (data?.ranking || []).map((r) => ({ ...r, attended: r.present })), [data]);
+  const mine = rows.find((r) => String(r.student._id) === String(me));
+  const marked = rows.filter((r) => r.total > 0);
+  const average = marked.length
+    ? Math.round(marked.reduce((n, r) => n + r.present, 0) / Math.max(1, marked.reduce((n, r) => n + r.total, 0)) * 100)
+    : null;
+  const top = marked.slice(0, 3);
 
-      {showForm && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><strong>Attendance Correction Request</strong></div>
-          <div className="card-body">
-            <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
-              You can request a correction only for dates within the last one month. Your class teacher reviews it.
-            </p>
-            <form onSubmit={handleSubmitCorrection}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 12 }}>
-                <div className="form-group">
-                  <label className="form-label">Date *</label>
-                  <input type="date" className="form-control" value={form.date}
-                    min={oneMonthAgoStr} max={todayStr}
-                    onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Correct status should be *</label>
-                  <select className="form-control" value={form.requestedStatus}
-                    onChange={e => setForm(f => ({ ...f, requestedStatus: e.target.value }))}>
-                    <option value="present">Present</option>
-                    <option value="late">Late</option>
-                    <option value="absent">Absent</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-group" style={{ marginTop: 8 }}>
-                <label className="form-label">Reason *</label>
-                <textarea className="form-control" rows={2} value={form.reason}
-                  onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} required />
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
-                  {submitting ? 'Submitting…' : 'Submit Request'}
-                </button>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+  if (error) return <section className="tat-card"><Empty icon="alert" title="The ranking could not be loaded">{error}</Empty></section>;
+  if (loading && !data) return <div className="tat-center"><Spinner /></div>;
+  if (!rows.length) {
+    return <section className="tat-card"><Empty icon="trophy" title="No ranking yet">You are not in a section this year, or attendance has not been taken.</Empty></section>;
+  }
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select className="form-control" style={{ maxWidth: 140 }} value={month} onChange={e => setMonth(+e.target.value)}>
-          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
-            <option key={i} value={i+1}>{m}</option>
-          ))}
-        </select>
-        <select className="form-control" style={{ maxWidth: 100 }} value={year} onChange={e => setYear(+e.target.value)}>
-          {Array.from({ length: 4 }, (_, i) => today.getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        {loading && <Spinner />}
-        <span style={{ background: '#d1fae5', color: '#065f46', padding: '4px 12px', borderRadius: 99, fontSize: '.85rem', fontWeight: 600 }}>{present} Present</span>
-        <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 12px', borderRadius: 99, fontSize: '.85rem', fontWeight: 600 }}>{absent} Absent</span>
-        {late > 0 && <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 12px', borderRadius: 99, fontSize: '.85rem', fontWeight: 600 }}>{late} Late</span>}
-        {total > 0 && <span style={{ color: 'var(--text-muted)', fontSize: '.85rem', alignSelf: 'center' }}>{Math.round((present/total)*100)}% attendance</span>}
+  return (
+    <div className="tat-stack">
+      <div className="tat-tiles tat-tiles--4">
+        <Tile layout="card" icon="trophy" tone="amber" value={mine?.total ? `#${mine.rank}` : '—'} label="My Rank"
+          caption={`of ${rows.length} students`} />
+        <Tile layout="card" icon="chart" tone="indigo" value={mine?.total ? `${mine.percentage}%` : '—'} label="My Attendance"
+          caption={mine?.total ? `${num(mine.present)}/${mine.total} ${unit}` : 'Nothing marked yet'}
+          captionTone={mine?.total ? (mine.percentage >= 75 ? 'green' : 'red') : undefined} />
+        <Tile layout="card" icon="users" tone="green" value={average == null ? '—' : `${average}%`} label="Class Average"
+          caption={mine?.total && average != null ? (mine.percentage >= average ? 'You are above it' : 'You are below it') : 'This academic year'}
+          captionTone={mine?.total && average != null ? (mine.percentage >= average ? 'green' : 'red') : undefined} />
+        <Tile layout="card" icon="halfDay" tone="red" value={mine?.halfDay ?? 0} label="My Half Days" caption="Count as half a day" />
       </div>
 
-      {!loading && (
-        <div className="card"><div className="card-body">
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:8 }}>
-            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d =>
-              <div key={d} style={{ textAlign:'center', fontSize:'.75rem', fontWeight:600, color:'var(--text-muted)', padding:'4px 0' }}>{d}</div>
-            )}
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
-            {Array.from({ length: firstDay }).map((_,i) => <div key={`e${i}`} />)}
-            {Array.from({ length: daysInMonth },(_,i)=>i+1).map(d => {
-              const status = recordMap[d];
-              return (
-                <div key={d} style={{
-                  textAlign:'center', padding:'8px 4px', borderRadius:8, fontSize:'.85rem',
-                  background: status ? STATUS_COLOR[status]+'20' : 'var(--bg)',
-                  border:`1px solid ${status ? STATUS_COLOR[status]+'60' : 'var(--border)'}`,
-                  color: status ? STATUS_COLOR[status] : 'var(--text)', fontWeight: status ? 600 : 400,
-                }}>
-                  {d}
-                  {status && <div style={{ fontSize:'.6rem', marginTop:2, textTransform:'capitalize' }}>{status}</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div></div>
-      )}
-      </>}
+      <Card className="tat-podiumcard" icon="trophy" iconTone="gold" bareIcon title="Top 3 Students" sub="Based on attendance percentage (This Academic Year)">
+        {top.length === 0
+          ? <Empty icon="trophy" title="Nothing marked yet">The podium fills as registers are taken.</Empty>
+          : <Podium top={top} unit={unit} />}
+      </Card>
+
+      <Card className="tat-rankcard" icon="listDots" iconTone="indigo" bareIcon title="Complete Class Ranking"
+        sub="Students ranked by attendance percentage (This Academic Year)">
+        <div className="tat-tablewrap">
+          <table className="tat-table tat-table--rank">
+            <thead>
+              <tr><th>#</th><th>Student Name</th><th>Roll No</th><th className="num">Attended</th><th className="num">Half-Day</th><th className="num">Marked</th><th>Attendance %</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const self = String(r.student._id) === String(me);
+                return (
+                  <tr key={r.student._id} className={self ? 'is-me' : ''}>
+                    <td><span className={`tat-rank${r.total && r.rank <= 3 ? ` tat-rank--${r.rank}` : ''}`}>{r.total ? r.rank : '—'}</span></td>
+                    <td>
+                      <span className="tat-who">
+                        <SoftAvatar name={r.student.name} size={34} />
+                        <b>{r.student.name}</b>
+                        {self && <span className="tat-youtag">You</span>}
+                      </span>
+                    </td>
+                    <td>{r.student.rollNumber || '—'}</td>
+                    <td className="num">{num(r.present)}</td>
+                    <td className="num">{r.halfDay}</td>
+                    <td className="num">{r.total}</td>
+                    <td>
+                      <span className={`tat-pct tat-pct--${r.total ? pctTone(r.percentage) : 'muted'}`}>
+                        {r.total ? `${r.percentage}%` : '—'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

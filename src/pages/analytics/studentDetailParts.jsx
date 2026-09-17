@@ -317,7 +317,7 @@ export const ShowMore = ({ rows, initial = 8, children, noun = 'more' }) => {
 
 // ── Attendance calendar ──────────────────────────────────────────────────────
 
-const STATUS_TONE = { present: VIZ.good, late: VIZ.warn, absent: VIZ.bad };
+const STATUS_TONE = { present: VIZ.good, late: VIZ.warn, absent: VIZ.bad, 'half-day': VIZ.accent };
 const WEEK_HEAD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
@@ -368,6 +368,7 @@ export const MonthCalendar = ({ month, byDate, onPrev, onNext, canPrev, canNext 
       <ul className="sdcal__key">
         <li><i style={{ background: VIZ.good }} />Present</li>
         <li><i style={{ background: VIZ.warn }} />Late</li>
+        <li><i style={{ background: VIZ.accent }} />Half-Day</li>
         <li><i style={{ background: VIZ.bad }} />Absent</li>
         <li><i className="is-blank" />Not marked</li>
       </ul>

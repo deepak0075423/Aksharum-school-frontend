@@ -1,78 +1,108 @@
+/**
+ * Parent → Child Attendance.
+ *
+ * The student's own Overview, read for one child at a time (the child switch
+ * writes ?child=), and that child's correction requests to follow. A parent
+ * reads: the child asks for corrections and answers the teacher's questions
+ * from their own account. Standing is a rank and the class average — never
+ * another child's name or figure.
+ *
+ * Links: notices open ?child=<id>&date=YYYY-MM-DD (a mark), ?child=&focus=<id>
+ * (an alert), ?tab=requests&child=&focus=<request> (a correction).
+ */
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
-import { getChildAttendance } from '../../api/parent.api';
-import { PageHeader, Spinner } from '../../components/ui/index';
+import { getChildAttendanceOverview, getChildCorrections } from '../../api/parent.api';
+import { Spinner } from '../../components/ui/index';
+import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
+import { Empty, Frame, todayKey } from '../../components/attendance/parts';
+import {
+  Alerts, DayDetail, HowItWorksCard, InsightCard, MonthCard, MonthGrid, MonthPicker,
+  OverviewTiles, RecentRequestsCard, RequestsBody, StandingCard,
+} from '../../components/attendance/StudentView';
 
-const STATUS_COLOR = { present: '#10b981', absent: '#ef4444', late: '#f59e0b', 'half-day': '#6366f1' };
+const TABS = [
+  { value: 'overview', label: 'Overview',            icon: 'calendar' },
+  { value: 'requests', label: 'Correction Requests', icon: 'history' },
+];
 
-export default function ParentChildAttendance() {
-  const today = new Date();
-  const [month, setMonth] = useState(today.getMonth() + 1);
-  const [year,  setYear]  = useState(today.getFullYear());
+export default function ChildAttendance() {
+  const [params, setParams] = useSearchParams();
+  const linkDate = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : '';
+  const wanted = params.get('child') || '';
+  const [tab, setTab] = useState(TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'overview');
+  const [month, setMonth] = useState((linkDate || todayKey()).slice(0, 7));
+  const [day, setDay] = useState(linkDate || todayKey());
 
-  const { data: records, loading } = useFetch(
-    () => getChildAttendance({ month, year }),
-    [month, year],
-  );
+  const { data, loading, error } = useFetch(
+    () => getChildAttendanceOverview({ child: wanted || undefined, month }), [wanted, month]);
+  const children = data?.children || [];
+  const { child, pick } = useChild(children);
+  const childId = data?.child?._id || child?._id;
 
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const firstDay    = new Date(year, month - 1, 1).getDay();
+  const { data: requestsData, loading: reqLoading } = useFetch(
+    () => (tab === 'requests' && childId ? getChildCorrections({ child: childId }) : Promise.resolve(null)), [tab, childId]);
+  const requests = Array.isArray(requestsData) ? requestsData : [];
 
-  const recordMap = {};
-  (Array.isArray(records) ? records : []).forEach(r => {
-    const d = new Date(r.date).getDate();
-    recordMap[d] = r.status;
-  });
+  const onTab = (value) => {
+    setTab(value);
+    const next = new URLSearchParams();
+    if (wanted) next.set('child', wanted);
+    if (value !== 'overview') next.set('tab', value);
+    setParams(next, { replace: true });
+  };
+  const onMonth = (m) => {
+    setMonth(m);
+    setDay(m === todayKey().slice(0, 7) ? todayKey() : `${m}-01`);
+  };
 
-  const present = Object.values(recordMap).filter(s => s === 'present').length;
-  const absent  = Object.values(recordMap).filter(s => s === 'absent').length;
-  const total   = Object.keys(recordMap).length;
+  const name = data?.student?.name || child?.name || 'your child';
+  const subtitle = `How regularly ${name} attends school, day by day, and any corrections asked for.`;
+  const banner = children.length
+    ? <ChildSwitch children={children} child={data?.child || child} onPick={pick} label="Whose attendance" />
+    : null;
+  const counts = { requests: data?.requests?.awaitingReply || 0 };
+
+  if (!loading && data && !children.length) {
+    return (
+      <Frame title="Child Attendance" subtitle="Attendance for your children" tabs={TABS} tab={tab} onTab={onTab}>
+        <section className="tat-card"><Empty icon="users" title="No children linked">Ask the school office to link your child to your account.</Empty></section>
+      </Frame>
+    );
+  }
+
+  if (tab === 'requests') {
+    return (
+      <Frame title="Child Attendance" subtitle={subtitle} tabs={TABS} tab={tab} onTab={onTab} counts={counts} banner={banner}
+        railWidth="md" railAlign="content" rail={<HowItWorksCard who="parent" />}>
+        <RequestsBody requests={requests} who="parent" name={name} loading={reqLoading || (!data && loading)} onReply={null}
+          emptyAction={`${name} can ask for a correction from their own account when a mark looks wrong.`} />
+      </Frame>
+    );
+  }
 
   return (
-    <div className="page">
-      <PageHeader title="Child's Attendance" subtitle="Monthly attendance calendar" />
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <select className="form-control" style={{ maxWidth: 140 }} value={month} onChange={e => setMonth(+e.target.value)}>
-          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
-            <option key={i} value={i+1}>{m}</option>
-          ))}
-        </select>
-        <select className="form-control" style={{ maxWidth: 100 }} value={year} onChange={e => setYear(+e.target.value)}>
-          {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <span style={{ background: '#d1fae5', color: '#065f46', padding: '4px 12px', borderRadius: 99, fontSize: '.85rem', fontWeight: 600 }}>✅ {present} Present</span>
-        <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 12px', borderRadius: 99, fontSize: '.85rem', fontWeight: 600 }}>❌ {absent} Absent</span>
-        {total > 0 && <span className="text-muted text-sm" style={{ alignSelf: 'center' }}>{Math.round((present/total)*100)}% attendance</span>}
-      </div>
-      {loading
-        ? <div style={{ display:'flex', justifyContent:'center', padding:48 }}><Spinner /></div>
-        : (
-          <div className="card"><div className="card-body">
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:8 }}>
-              {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d =>
-                <div key={d} style={{ textAlign:'center', fontSize:'.75rem', fontWeight:600, color:'var(--text-muted)', padding:'4px 0' }}>{d}</div>
-              )}
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
-              {Array.from({ length: firstDay }).map((_,i) => <div key={`e${i}`} />)}
-              {Array.from({ length: daysInMonth },(_,i)=>i+1).map(d => {
-                const status = recordMap[d];
-                return (
-                  <div key={d} style={{
-                    textAlign:'center', padding:'8px 4px', borderRadius:8, fontSize:'.85rem',
-                    background: status ? STATUS_COLOR[status]+'20' : 'var(--bg)',
-                    border:`1px solid ${status ? STATUS_COLOR[status]+'60' : 'var(--border)'}`,
-                    color: status ? STATUS_COLOR[status] : 'var(--text)', fontWeight: status ? 600 : 400,
-                  }}>
-                    {d}
-                    {status && <div style={{ fontSize:'.6rem', marginTop:2, textTransform:'capitalize' }}>{status}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div></div>
-        )
-      }
-    </div>
+    <Frame title="Child Attendance" subtitle={subtitle} tabs={TABS} tab={tab} onTab={onTab} counts={counts} banner={banner}
+      actions={<MonthPicker value={month} onChange={onMonth} />}
+      railWidth="md"
+      rail={data?.student ? (
+        <>
+          <MonthCard data={data} />
+          <StandingCard data={data} />
+          <InsightCard data={data} who="parent" />
+          <RecentRequestsCard data={data} onViewAll={() => onTab('requests')} />
+        </>
+      ) : null}>
+      {error ? <section className="tat-card"><Empty icon="alert" title="Attendance could not be loaded">{error}</Empty></section>
+        : !data?.student ? <div className="tat-center"><Spinner /></div> : (
+          <div className={`tat-stack${loading ? ' tat-dim' : ''}`} data-focus-id={data.student._id}>
+            <Alerts data={data} who="parent" />
+            <OverviewTiles data={data} />
+            <MonthGrid data={data} selected={day} onSelect={setDay} onMonth={onMonth} loading={loading} />
+            <DayDetail data={data} dayKey={day} who="parent" />
+          </div>
+        )}
+    </Frame>
   );
 }

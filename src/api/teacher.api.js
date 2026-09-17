@@ -17,9 +17,14 @@ export const clockIn               = ()       => api.post('/teacher/my-attendanc
 export const clockOut              = ()       => api.post('/teacher/my-attendance/clock-out');
 export const submitRegularization  = (data)   => api.post('/teacher/regularization', data);
 export const getMyRegularizations  = ()       => api.get('/teacher/regularization');
-export const getCorrectionRequests = ()       => api.get('/teacher/correction-requests');
-export const getClassRanking       = ()       => api.get('/teacher/attendance-ranking');
 export const reviewCorrection      = (data)   => api.post('/teacher/correction-requests/review', data);
+// Attendance workspace — registers are day-wise or subject-wise per the school's setting
+export const getAttendanceCalendar = (params) => api.get('/teacher/attendance/calendar', { params });
+export const getRecentRegisters    = (params) => api.get('/teacher/attendance/recent', { params });
+export const getAttendanceRanking  = (params) => api.get('/teacher/attendance/ranking', { params });
+export const getStudentCorrections = (params) => api.get('/teacher/attendance/corrections', { params });
+export const createStudentCorrection = (data)  => api.post('/teacher/attendance/corrections', data);
+export const requestCorrectionInfo = (id, data) => api.post(`/teacher/attendance/corrections/${id}/request-info`, data);
 export const getTimetable          = (params) => api.get('/teacher/timetable', { params });
 export const downloadTimetable     = ()       => api.get('/teacher/timetable/download', { responseType: 'blob' });
 // `section` picks which of the teacher's sections to show; without it the

@@ -22,7 +22,9 @@ import {
   Card, EmptyNote, ROLE_LABEL, STATUS, StatusPill, fmtClock, fmtDay, fmtTime, todayKey, workedFor,
 } from '../attendanceParts';
 
-const blankForm = () => ({ date: todayKey(), checkIn: '', checkOut: '', status: 'present', remarks: '' });
+const blankForm = () => ({ date: todayKey(), checkIn: '', checkOut: '', status: 'present', subject: '', remarks: '' });
+const STUDENT_MARKS = ['present', 'late', 'half-day', 'absent'];
+const MARK_ICON = { present: 'checkCircle', absent: 'closeCircle', late: 'clock', 'half-day': 'sun' };
 
 const subtitleOf = (p) => (p.role === 'student'
   ? [[p.className, p.sectionName].filter(Boolean).join(' '), p.rollNumber && `Roll ${p.rollNumber}`].filter(Boolean).join(' · ') || p.email
@@ -69,7 +71,15 @@ export default function Regularise({ onChanged }) {
         // Start from the recorded punches, so fixing a missing clock-out does
         // not mean retyping the clock-in that was fine.
         if (d?.kind === 'staff') setForm((f) => ({ ...f, checkIn: d.checkIn || '', checkOut: d.checkOut || '' }));
-        if (d?.kind === 'student' && d.status) setForm((f) => ({ ...f, status: d.status }));
+        // A subject-wise school registers per subject: start on the first subject
+        // (or the one already picked) and its mark, not on the day's roll-up.
+        if (d?.kind === 'student' && d.mode === 'subject') {
+          setForm((f) => {
+            const subject = d.subjects?.some((x) => x._id === f.subject) ? f.subject : (d.subjects?.[0]?._id || '');
+            const mark = d.registers?.find((r) => r.subject?._id === subject)?.status;
+            return { ...f, subject, status: mark || f.status };
+          });
+        } else if (d?.kind === 'student' && d.status) setForm((f) => ({ ...f, status: d.status }));
       })
       .catch(() => live && setDay(null))
       .finally(() => live && setDayLoading(false));
@@ -77,11 +87,13 @@ export default function Regularise({ onChanged }) {
   }, [person, form.date, tick]);
 
   const isStudent = person?.role === 'student';
+  const bySubject = isStudent && day?.mode === 'subject';
+  const subjectMark = bySubject ? (day.registers?.find((r) => r.subject?._id === form.subject)?.status || null) : null;
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const reset = () => { setPerson(null); setQ(''); setForm(blankForm()); setDay(null); };
 
   const unchanged = day && (isStudent
-    ? day.status === form.status
+    ? (bySubject ? subjectMark === form.status : day.status === form.status)
     : (day.checkIn || '') === form.checkIn && (day.checkOut || '') === form.checkOut);
   const offDay = !isStudent && day && ['holiday', 'weekend', 'leave'].includes(day.status);
 
@@ -91,7 +103,8 @@ export default function Regularise({ onChanged }) {
     setSaving(true);
     try {
       if (isStudent) {
-        await regularizeStudentAttendance({ studentId: person._id, date: form.date, status: form.status, remarks: form.remarks });
+        if (bySubject && !form.subject) { setSaving(false); return toast.error('Choose the subject register to correct'); }
+        await regularizeStudentAttendance({ studentId: person._id, date: form.date, status: form.status, remarks: form.remarks, subject: bySubject ? form.subject : undefined });
       } else {
         if (!form.checkIn && !form.checkOut) { setSaving(false); return toast.error('Enter a clock-in and/or clock-out time'); }
         await regularizeStaffAttendance({ teacherId: person._id, date: form.date, checkIn: form.checkIn, checkOut: form.checkOut, remarks: form.remarks });
@@ -151,16 +164,34 @@ export default function Regularise({ onChanged }) {
           <FormStep n={3} title={isStudent ? 'Mark as' : 'Punch times'}
             note={person ? (isStudent ? 'Written to the section register for that day.' : 'The day counts as present once a clock-in exists.') : 'Pick a person first.'}>
             {isStudent ? (
-              <div className="atn-choices" role="radiogroup" aria-label="Status">
-                {['present', 'late', 'absent'].map((m) => (
-                  <button key={m} type="button" role="radio" aria-checked={form.status === m}
-                    className={`atn-choice atn-choice--${STATUS[m].tone}${form.status === m ? ' is-on' : ''}`}
-                    onClick={() => setForm((f) => ({ ...f, status: m }))}>
-                    <Icon name={m === 'present' ? 'checkCircle' : m === 'absent' ? 'closeCircle' : 'clock'} size={19} />
-                    {STATUS[m].label}
-                  </button>
-                ))}
-              </div>
+              <>
+                {bySubject && (
+                  <div className="form-group">
+                    <label className="form-label required" htmlFor="atn-rg-subject">Subject register</label>
+                    <select id="atn-rg-subject" className="form-control" value={form.subject}
+                      onChange={(e) => {
+                        const subject = e.target.value;
+                        const mark = day.registers?.find((r) => r.subject?._id === subject)?.status;
+                        setForm((f) => ({ ...f, subject, status: mark || f.status }));
+                      }}>
+                      {(day.subjects || []).map((x) => {
+                        const mark = day.registers?.find((r) => r.subject?._id === x._id)?.status;
+                        return <option key={x._id} value={x._id}>{x.name} — {mark ? STATUS[mark].label : 'not marked'}</option>;
+                      })}
+                    </select>
+                  </div>
+                )}
+                <div className="atn-choices atn-choices--4" role="radiogroup" aria-label="Status">
+                  {STUDENT_MARKS.map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={form.status === m}
+                      className={`atn-choice atn-choice--${STATUS[m].tone}${form.status === m ? ' is-on' : ''}`}
+                      onClick={() => setForm((f) => ({ ...f, status: m }))}>
+                      <Icon name={MARK_ICON[m]} size={19} />
+                      {STATUS[m].label}
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="form-row form-row-2">
                 <div className="form-group">
@@ -226,10 +257,17 @@ export default function Regularise({ onChanged }) {
               <StatusPill status={day.status || 'unmarked'} />
               <div className="atn-facts">
                 <div><span>Section</span><b>{[day.person.className, day.person.sectionName].filter(Boolean).join(' ') || '—'}</b></div>
-                <div><span>Register</span><b>{day.registerTaken ? 'Taken' : 'Not taken'}</b></div>
+                <div><span>{day.mode === 'subject' ? 'Registers' : 'Register'}</span><b>{day.mode === 'subject' ? `${(day.registers || []).length} taken` : day.registerTaken ? 'Taken' : 'Not taken'}</b></div>
                 <div><span>Marked</span><b>{day.markedAt ? fmtTime(day.markedAt) : '—'}</b></div>
               </div>
               {day.markedBy ? <p className="atn-now__meta">Marked by {day.markedBy}</p> : null}
+              {day.mode === 'subject' && (day.registers || []).length > 0 && (
+                <ul className="atn-regsubjects">
+                  {day.registers.map((r) => (
+                    <li key={r.subject?._id || 'day'}><span>{r.subject?.name || 'Day register'}</span><StatusPill status={r.status || 'unmarked'} /></li>
+                  ))}
+                </ul>
+              )}
               {!day.enrolled && (
                 <div className="atn-callout atn-callout--warn">
                   <Icon name="alert" size={17} />
@@ -249,7 +287,7 @@ export default function Regularise({ onChanged }) {
         <Card title="How this works">
           <ul className="atn-rules">
             <li><b>Staff</b> are present on any day with a clock-in. Enter only the punch that is missing — an existing punch is never blanked.</li>
-            <li><b>Students</b> are marked on their section&rsquo;s register. If no register was taken that day, one is opened for the section.</li>
+            <li><b>Students</b> are marked on their section&rsquo;s register — in a subject-wise school, the chosen subject&rsquo;s register. If none was taken that day, one is opened. A half day counts as half a day attended.</li>
             <li>Nothing here needs approval, and every change carries “Regularized by admin” in its remarks.</li>
             <li>Staff who ask for a correction themselves appear under <b>Regularization Requests</b>.</li>
           </ul>

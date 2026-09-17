@@ -31,12 +31,14 @@ import MarkAttendanceDialog from './attendance/MarkAttendanceDialog';
 import Regularise from './attendance/Regularise';
 import Requests from './attendance/Requests';
 import Reports from './attendance/Reports';
+import AttendanceSettings from './attendance/Settings';
 
 const TABS = [
   { value: 'overview',   label: 'Overview' },
   { value: 'regularise', label: 'Regularise Attendance' },
   { value: 'requests',   label: 'Regularization Requests' },
   { value: 'reports',    label: 'Reports' },
+  { value: 'settings',   label: 'Settings' },
 ];
 // Tab keys that were renamed, so bookmarks and old links still land somewhere.
 const TAB_ALIASES = { 'my-attendance': 'overview' };
@@ -164,7 +166,7 @@ export default function AdminAttendance() {
           onClick={() => setTab('requests')} />
         <SideLinks items={[
           { label: 'Generate Report', icon: 'fileDoc', onClick: () => setTab('reports') },
-          { label: 'Attendance Settings', icon: 'settings', onClick: () => navigate('/admin/school-settings?section=days') },
+          { label: 'Attendance Settings', icon: 'settings', onClick: () => setTab('settings') },
         ]} />
       </div>
 
@@ -182,6 +184,7 @@ export default function AdminAttendance() {
       {tab === 'regularise' && <Regularise onChanged={bumpSchool} />}
       {tab === 'requests' && <Requests onChanged={bumpSchool} />}
       {tab === 'reports' && <Reports year={year} defaultClass={cls} onOpenRegister={openRegister} />}
+      {tab === 'settings' && <AttendanceSettings />}
 
       <MarkAttendanceDialog open={!!register} initial={register}
         onClose={() => setRegister(null)} onSaved={bumpSchool} />

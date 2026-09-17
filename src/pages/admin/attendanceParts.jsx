@@ -268,7 +268,7 @@ export function describeActivity(a) {
     case 'marked':
       return {
         title: 'Attendance marked',
-        detail: `${where} • ${fmtDay(a.date)} • ${plural(a.count, 'student')}${a.absent ? `, ${a.absent} absent` : ''}`,
+        detail: `${where}${a.subjectName ? ` • ${a.subjectName}` : ''} • ${fmtDay(a.date)} • ${plural(a.count, 'student')}${a.absent ? `, ${a.absent} absent` : ''}`,
         by: a.by,
       };
     case 'updated':
@@ -400,15 +400,15 @@ export function RateColumns({ series = [], bucket = 'day', threshold = 75 }) {
  * whole of a single total, so a bar, not a pie; status colours, so every
  * segment is named with its count beside it.
  */
-export const StatusSplit = ({ present = 0, late = 0, absent = 0 }) => {
-  const total = present + late + absent;
+export const StatusSplit = ({ present = 0, late = 0, absent = 0, halfDay = 0 }) => {
+  const total = present + late + absent + halfDay;
   const parts = [
-    ['present', present], ['late', late], ['absent', absent],
+    ['present', present], ['late', late], ['half-day', halfDay], ['absent', absent],
   ];
   return (
     <div className="atn-split">
       <div className="atn-split__bar" role="img"
-        aria-label={`${present} present, ${late} late, ${absent} absent`}>
+        aria-label={`${present} present, ${late} late, ${halfDay} half-day, ${absent} absent`}>
         {total ? parts.filter(([, v]) => v > 0).map(([k, v]) => (
           <i key={k} style={{ width: `${(v / total) * 100}%`, background: STATUS[k].dot }}
             title={`${STATUS[k].label}: ${v} (${Math.round((v / total) * 100)}%)`} />

@@ -69,11 +69,11 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
   const isStaff    = view === 'staff' && data?.view === 'staff';
 
   const exportSections = () => downloadCsv(`attendance-sections_${range.from}_${range.to}.csv`,
-    ['Class', 'Section', 'Students', 'Days marked', 'Present', 'Late', 'Absent', 'Attendance %', 'Last marked'],
-    data.sections.map((s) => [s.className, s.sectionName, s.students, s.days, s.present, s.late, s.absent, s.percentage ?? '', s.lastMarked || '']));
+    ['Class', 'Section', 'Students', 'Days marked', 'Present', 'Late', 'Half-Day', 'Absent', 'Attendance %', 'Last marked'],
+    data.sections.map((s) => [s.className, s.sectionName, s.students, s.days, s.present, s.late, s.halfDay || 0, s.absent, s.percentage ?? '', s.lastMarked || '']));
   const exportStudents = () => downloadCsv(`attendance-below-${data.threshold}_${range.from}_${range.to}.csv`,
-    ['Student', 'Roll', 'Class', 'Section', 'Present', 'Late', 'Absent', 'Marked days', 'Attendance %'],
-    data.students.map((s) => [s.name, s.rollNumber || '', s.className, s.sectionName, s.present, s.late, s.absent, s.total, s.percentage]));
+    ['Student', 'Roll', 'Class', 'Section', 'Present', 'Late', 'Half-Day', 'Absent', 'Marks', 'Attendance %'],
+    data.students.map((s) => [s.name, s.rollNumber || '', s.className, s.sectionName, s.present, s.late, s.halfDay || 0, s.absent, s.total, s.percentage]));
   const exportStaff = () => downloadCsv(`staff-attendance_${range.from}_${range.to}.csv`,
     ['Name', 'Role', 'Designation', 'Department', 'Working days', 'Present', 'Half-day leave', 'Leave', 'Absent', 'Attendance %'],
     data.staff.map((s) => [s.name, ROLE_LABEL[s.role] || s.role, s.designation || '', s.department || '', s.working, s.present, s.halfDay, s.leave, s.absent, s.percentage ?? '']));
@@ -121,7 +121,7 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
           <div className="atn-rstats">
             <Stat tone="green" icon="checkCircle" label="Average attendance"
               value={data.totals.percentage == null ? '—' : `${data.totals.percentage}%`}
-              caption={`${data.totals.total.toLocaleString('en-IN')} marks · late counts as attended`} />
+              caption={`${data.totals.total.toLocaleString('en-IN')} marks · late counts as attended, a half day as half`} />
             <Stat tone="indigo" icon="clipboard" label="Registers taken" value={data.totals.registers.toLocaleString('en-IN')}
               caption={`across ${plural(data.totals.days, 'school day')}`} />
             <Stat tone="red" icon="closeCircle" label="Absences recorded" value={data.totals.absent.toLocaleString('en-IN')}
@@ -135,7 +135,7 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
               <RateColumns series={data.trend} bucket={data.bucket} threshold={data.threshold} />
             </Card>
             <Card title="Status split" sub={`${data.totals.total.toLocaleString('en-IN')} marks in the period`}>
-              <StatusSplit present={data.totals.present} late={data.totals.late} absent={data.totals.absent} />
+              <StatusSplit present={data.totals.present} late={data.totals.late} absent={data.totals.absent} halfDay={data.totals.halfDay || 0} />
             </Card>
           </div>
 
@@ -146,7 +146,7 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
                   <thead>
                     <tr>
                       <th>Class</th><th>Section</th><th className="num">Students</th><th className="num">Days marked</th>
-                      <th className="num">Present</th><th className="num">Late</th><th className="num">Absent</th>
+                      <th className="num">Present</th><th className="num">Late</th><th className="num">Half-Day</th><th className="num">Absent</th>
                       <th>Attendance</th><th>Last marked</th><th className="atn-table__act" aria-label="Actions" />
                     </tr>
                   </thead>
@@ -159,6 +159,7 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
                         <td className="num">{s.days || <span className="atn-muted">0</span>}</td>
                         <td className="num">{s.present}</td>
                         <td className="num">{s.late}</td>
+                        <td className="num">{s.halfDay || 0}</td>
                         <td className="num">{s.absent}</td>
                         <td><Meter value={s.percentage} low={data.threshold} /></td>
                         <td>{s.lastMarked ? fmtDay(s.lastMarked) : <span className="atn-muted">Never</span>}</td>
@@ -191,7 +192,7 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
                   <thead>
                     <tr>
                       <th>Student</th><th>Class</th><th className="num">Present</th><th className="num">Late</th>
-                      <th className="num">Absent</th><th>Attendance</th><th className="atn-table__act" aria-label="Actions" />
+                      <th className="num">Half-Day</th><th className="num">Absent</th><th>Attendance</th><th className="atn-table__act" aria-label="Actions" />
                     </tr>
                   </thead>
                   <tbody>
@@ -206,6 +207,7 @@ export default function Reports({ year, defaultClass = '', onOpenRegister }) {
                         <td>{s.className} {s.sectionName}</td>
                         <td className="num">{s.present}</td>
                         <td className="num">{s.late}</td>
+                        <td className="num">{s.halfDay || 0}</td>
                         <td className="num">{s.absent}</td>
                         <td><Meter value={s.percentage} low={data.threshold} /></td>
                         <td className="atn-table__act">

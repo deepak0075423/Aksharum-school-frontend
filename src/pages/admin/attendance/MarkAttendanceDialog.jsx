@@ -15,13 +15,16 @@ import { Avatar } from '../listParts';
 import { DialogHead } from '../leaveParts';
 import { EmptyNote, STATUS, fmtDay, fmtTime, plural, todayKey } from '../attendanceParts';
 
-const MARKS = ['present', 'absent', 'late'];
-const SHORT = { present: 'P', absent: 'A', late: 'L' };
+const MARKS = ['present', 'absent', 'late', 'half-day'];
+const SHORT = { present: 'P', absent: 'A', late: 'L', 'half-day': 'H' };
 
 export default function MarkAttendanceDialog({ open, initial, onClose, onSaved }) {
   const [date, setDate]       = useState(initial?.date || todayKey());
   const [cls, setCls]         = useState('');
   const [section, setSection] = useState(initial?.section || '');
+  // Subject-wise schools keep a register per subject; the server picks the
+  // first subject when none is asked for and says which it opened.
+  const [subject, setSubject] = useState('');
   const [marks, setMarks]     = useState({});   // studentId → status, edits only
   const [saving, setSaving]   = useState(false);
 
@@ -29,6 +32,7 @@ export default function MarkAttendanceDialog({ open, initial, onClose, onSaved }
     if (!open) return;
     setDate(initial?.date || todayKey());
     setSection(initial?.section || '');
+    setSubject('');
     setCls('');
     setMarks({});
   }, [open, initial]);
@@ -47,8 +51,9 @@ export default function MarkAttendanceDialog({ open, initial, onClose, onSaved }
   }, [section, cls, classes]);
 
   const { data: reg, loading, error } = useFetch(
-    () => (open && section ? getAttendanceRegister({ section, date }) : Promise.resolve(null)), [open, section, date]);
-  useEffect(() => { setMarks({}); }, [section, date]);
+    () => (open && section ? getAttendanceRegister({ section, date, subject: subject || undefined }) : Promise.resolve(null)), [open, section, date, subject]);
+  useEffect(() => { setMarks({}); }, [section, date, subject]);
+  useEffect(() => { if (reg?.subject?._id && reg.subject._id !== subject) setSubject(reg.subject._id); }, [reg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const students = reg?.students || [];
   const current = (s) => marks[s._id] ?? s.status ?? null;
@@ -56,7 +61,7 @@ export default function MarkAttendanceDialog({ open, initial, onClose, onSaved }
     () => students.filter((s) => marks[s._id] && marks[s._id] !== s.status),
     [students, marks]);
   const tally = useMemo(() => {
-    const t = { present: 0, absent: 0, late: 0, unmarked: 0 };
+    const t = { present: 0, absent: 0, late: 0, 'half-day': 0, unmarked: 0 };
     students.forEach((s) => { t[current(s) || 'unmarked'] += 1; });
     return t;
   }, [students, marks]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,9 +78,10 @@ export default function MarkAttendanceDialog({ open, initial, onClose, onSaved }
     try {
       await markStudentAttendance({
         date,
+        subject: reg?.subject?._id || undefined,
         records: changes.map((s) => ({ studentId: s._id, section, status: marks[s._id] })),
       });
-      toast.success(`${plural(changes.length, 'mark')} saved for ${reg.section.className} ${reg.section.sectionName}`);
+      toast.success(`${plural(changes.length, 'mark')} saved for ${reg.section.className} ${reg.section.sectionName}${reg?.subject ? ` · ${reg.subject.name}` : ''}`);
       onSaved?.();
       onClose();
     } catch (e) { toast.error(e?.message || 'Could not save the register'); }
@@ -111,13 +117,23 @@ export default function MarkAttendanceDialog({ open, initial, onClose, onSaved }
         <div className="form-group">
           <label className="form-label required" htmlFor="atn-reg-section">Section</label>
           <select id="atn-reg-section" className="form-control" value={section} disabled={!cls}
-            onChange={(e) => setSection(e.target.value)}>
+            onChange={(e) => { setSection(e.target.value); setSubject(''); }}>
             <option value="">Choose a section</option>
             {sections.map((s) => <option key={s._id} value={s._id}>Section {s.sectionName}</option>)}
           </select>
         </div>
       </div>
 
+      {reg?.mode === 'subject' && section && (
+        <div className="form-group atn-regsubject">
+          <label className="form-label required" htmlFor="atn-reg-subject">Subject register</label>
+          <select id="atn-reg-subject" className="form-control" value={reg?.subject?._id || ''}
+            onChange={(e) => setSubject(e.target.value)} disabled={!reg?.subjects?.length}>
+            {!reg?.subjects?.length && <option value="">No subjects linked to this section</option>}
+            {(reg?.subjects || []).map((x) => <option key={x._id} value={x._id}>{x.name}</option>)}
+          </select>
+        </div>
+      )}
       {!section ? (
         <EmptyNote icon="clipboard" title="Pick a class and section">The register for that day opens here.</EmptyNote>
       ) : loading ? (

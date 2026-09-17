@@ -364,3 +364,5 @@ export const getAttendanceRegister   = (params) => api.get('/admin/attendance/re
 export const getAttendanceReports    = (params) => api.get('/admin/attendance/reports', { params });
 export const markStudentAttendance   = (data)   => api.post('/admin/attendance/mark', data);
 export const markAllStudentAttendance = (data)  => api.post('/admin/attendance/mark-all', data);
+export const getAttendanceSettings   = ()       => api.get('/admin/attendance/settings');
+export const saveAttendanceSettings  = (data)   => api.put('/admin/attendance/settings', data);

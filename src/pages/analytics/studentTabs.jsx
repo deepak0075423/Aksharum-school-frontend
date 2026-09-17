@@ -139,7 +139,8 @@ export function AttendanceTab({ a }) {
   }
 
   const trend = (a.monthly || []).map((m) => ({ month: fmtMonthKey(m.month), percent: m.percent }));
-  const attended = a.present + a.late;
+  // Late counts as attended, a half day as half (services/studentAttendance.js).
+  const attended = a.present + a.late + (a.halfDay || 0) * 0.5;
 
   return (
     <>
@@ -151,7 +152,7 @@ export function AttendanceTab({ a }) {
         <Tile icon="close" tone="pink" value={a.absent} label="Absent"
           caption={a.absent ? 'Days marked absent' : 'Never marked absent'} />
         <Tile icon="clock" tone="amber" value={a.late} label="Late arrivals"
-          caption={a.late ? 'Counted as attended' : 'Always on time'} />
+          caption={`${a.late ? 'Counted as attended' : 'Always on time'}${a.halfDay ? ` · ${a.halfDay} half day${a.halfDay === 1 ? '' : 's'}` : ''}`} />
       </Tiles>
 
       <Grid cols="two">
@@ -178,12 +179,13 @@ export function AttendanceTab({ a }) {
           <Split segments={[
             { label: 'Present', value: a.present, color: VIZ.good },
             { label: 'Late', value: a.late, color: VIZ.warn },
+            { label: 'Half-Day', value: a.halfDay || 0, color: VIZ.accent },
             { label: 'Absent', value: a.absent, color: VIZ.bad },
           ]} />
           <div className="sdfacts">
             <Fact label="Days marked for this student" value={a.total} />
             <Fact label="Registers taken by the section" value={a.sessionsHeld || a.total} />
-            <Fact label="Counted as attended" value={`${attended} (present + late)`} />
+            <Fact label="Counted as attended" value={`${attended} (present + late${a.halfDay ? ' + half of each half day' : ''})`} />
           </div>
         </Panel>
 
@@ -199,7 +201,7 @@ export function AttendanceTab({ a }) {
                       { key: 'date', label: 'Date', render: (r) => fmtDate(r.date) },
                       { key: 'day', label: 'Day', render: (r) => new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short' }) },
                       { key: 'status', label: 'Status', render: (r) => (
-                        <StatusBadge status={r.status} map={{ present: 'success', late: 'warning', absent: 'danger' }} />) },
+                        <StatusBadge status={r.status} map={{ present: 'success', late: 'warning', absent: 'danger', 'half-day': 'info' }} />) },
                       { key: 'remarks', label: 'Remarks' },
                     ]}
                     rows={shown} />
