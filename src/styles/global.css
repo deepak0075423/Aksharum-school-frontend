@@ -20323,3 +20323,113 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .tt-qa { grid-template-columns: minmax(0, 1fr); }
   .tt-weight { grid-template-columns: minmax(0, 1fr) 90px 22px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIMETABLE — the student, parent and teacher views.
+
+   The same week the admin builds, read by the people who attend it. Shares the
+   `tt-` kit above; what is added here is the furniture those three screens need
+   and the admin ones do not — "what is on now", a day as a list, and the mark a
+   covered period wears.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── What is on now ────────────────────────────────────────────────────────
+   The one line that answers the question people actually open a timetable to
+   ask. Deliberately loud: on a phone at 11:02 it is the whole screen. */
+.tt-now {
+  display:       flex;
+  align-items:   center;
+  gap:           16px;
+  padding:       16px 20px;
+  border-radius: var(--radius-xl);
+  background:    linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border:        1px solid #e0e7ff;
+}
+.tt-now__icon {
+  width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; color: var(--primary);
+}
+.tt-now__body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; flex: 1; min-width: 0; }
+.tt-now__slot { min-width: 0; }
+.tt-now__cap {
+  display: block; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--primary);
+}
+.tt-now__slot strong { display: block; font-size: 1.02rem; font-weight: 700; margin-top: 2px; overflow-wrap: anywhere; }
+.tt-now__slot span   { display: block; font-size: .8rem; color: var(--text-muted); margin-top: 1px; }
+/* Nothing running: a quieter ground, because there is nothing to act on. */
+.tt-now--rest { background: var(--bg-card); border-color: var(--border); }
+.tt-now--rest .tt-now__icon { background: var(--bg); color: var(--text-muted); }
+.tt-now--rest strong { display: block; font-size: 1rem; font-weight: 700; }
+.tt-now--rest span   { display: block; font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Today's column, and the cover mark ──────────────────────────────────── */
+.tt-week th.is-today { background: #eef2ff; color: var(--primary); }
+.tt-week td.is-today { background: rgba(238, 242, 255, .45); }
+.tt-week__today {
+  display: block; font-size: .62rem; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--primary); margin-top: 2px;
+}
+/* A covered period is still the same lesson — it wears a mark, it does not
+   change colour, or a week with three covers would read as three subjects. */
+.tt-cell--cover { border-style: dashed; }
+.tt-cell__flag {
+  align-self: flex-start; margin-top: 4px; padding: 1px 6px; border-radius: 5px;
+  font-size: .62rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  background: #fef3c7; color: #b45309;
+}
+
+/* ── A day, as a list ──────────────────────────────────────────────────────
+   The week grid is for planning; this is for a Tuesday morning. Rows, times
+   down the left, and the period running now marked. */
+.tt-daylist { display: flex; flex-direction: column; gap: 8px; }
+.tt-dayrow {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  padding:       11px 14px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+}
+.tt-dayrow__time { font-size: .8rem; color: var(--text-muted); white-space: nowrap; width: 112px; flex-shrink: 0; }
+.tt-dayrow__body { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.tt-dayrow__sub  { font-size: .82rem; color: var(--text-muted); min-width: 0; overflow-wrap: anywhere; }
+.tt-dayrow--break { background: #fffbeb; border-color: #fde68a; }
+.tt-dayrow__break { display: flex; align-items: center; gap: 8px; font-size: .84rem; font-weight: 600; color: #b45309; }
+.tt-dayrow.is-now { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.09); }
+/* In the rail there is no room for period + time + subject + two teacher names
+   on one line, and wrapping them inline broke phrases mid-arrow. The body takes
+   a line of its own instead. */
+.tt-panel__body .tt-dayrow { flex-wrap: wrap; row-gap: 6px; }
+.tt-panel__body .tt-dayrow__time { width: auto; }
+.tt-panel__body .tt-dayrow__body { flex: 1 0 100%; }
+
+/* ── The child switch ──────────────────────────────────────────────────────
+   A parent with two children has two timetables. The switch is a row of cards
+   rather than a select: which child you are looking at is the single most
+   important fact on the screen, and a collapsed dropdown hides it. */
+.tt-kids { display: flex; gap: 10px; flex-wrap: wrap; }
+.tt-kid {
+  display:       flex;
+  align-items:   center;
+  gap:           11px;
+  padding:       11px 16px 11px 12px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+  cursor:        pointer;
+  font:          inherit;
+  text-align:    left;
+  transition:    border-color var(--transition), box-shadow var(--transition);
+}
+.tt-kid:hover   { border-color: var(--primary-light); }
+.tt-kid.is-on   { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.09); background: #eef2ff; }
+.tt-kid__name   { display: block; font-size: .89rem; font-weight: 600; }
+.tt-kid__class  { display: block; font-size: .75rem; color: var(--text-muted); margin-top: 1px; }
+
+@container ttpage (max-width: 760px) {
+  .tt-now__body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .tt-dayrow__time { width: auto; }
+}

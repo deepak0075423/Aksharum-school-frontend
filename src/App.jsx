@@ -146,6 +146,7 @@ const PExams        = lazy(() => import('./pages/parent/Exams'));
 const PResults      = lazy(() => import('./pages/parent/Results'));
 const PDocuments    = lazy(() => import('./pages/parent/Documents'));
 const PHolidays     = lazy(() => import('./pages/parent/Holidays'));
+const PTimetable    = lazy(() => import('./pages/parent/Timetable'));
 const PFees         = lazy(() => import('./pages/parent/ChildFees'));
 
 // ── Fees (Admin) ──────────────────────────────────────────────────────────────
@@ -639,6 +640,7 @@ export default function App() {
           }>
             <Route path="dashboard"        element={<PDashboard />} />
             <Route path="child-class"      element={<PChildClass />} />
+            <Route path="timetable"        element={<PTimetable />} />
             <Route path="child-attendance" element={<PAttendance />} />
             <Route path="exams"            element={<PExams />} />
             <Route path="results/*"        element={<PResults />} />

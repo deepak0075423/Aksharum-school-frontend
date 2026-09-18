@@ -161,6 +161,7 @@ const PARENT_NAV = [
   { to: '/parent/dashboard',        icon: 'home', label: 'Dashboard' },
   { section: "My Child" },
   { to: '/parent/child-class',      icon: 'building', label: 'Class Info' },
+  { to: '/parent/timetable',        icon: 'clock', label: 'Timetable',     module: 'timetable' },
   { to: '/parent/child-attendance', icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
   { to: '/parent/exams',            icon: 'fileCheck', label: 'Exams',         module: 'aptitudeExam' },
   { to: '/parent/results',          icon: 'chart', label: 'Results',       module: 'result' },

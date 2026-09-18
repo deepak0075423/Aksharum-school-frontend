@@ -3,7 +3,8 @@ export const getDashboard    = () => api.get('/student/dashboard');
 export const getModules      = () => api.get('/student/modules');
 export const getSchoolConfig = () => api.get('/profile/school-config');
 export const getMyClass     = () => api.get('/student/my-class');
-export const getTimetable        = () => api.get('/student/timetable');
+// `week` (a YYYY-MM-DD inside the wanted week) picks which week's covers come back.
+export const getTimetable        = (params) => api.get('/student/timetable', { params });
 export const downloadTimetable   = () => api.get('/student/timetable/download', { responseType: 'blob' });
 export const getMyAttendance   = (params) => api.get('/student/my-attendance', { params });
 // Multipart when files are attached (FormData), JSON otherwise.

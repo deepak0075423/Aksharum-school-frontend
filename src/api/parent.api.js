@@ -14,5 +14,10 @@ export const getResultDetail  = (id) => api.get(`/parent/results/${id}`);
 export const getDocuments     = () => api.get('/parent/documents');
 export const getHolidays      = () => api.get('/parent/holidays');
 
+// Timetable — one child's week. `child` picks which; the reply lists `children`
+// to switch between, and always names the child it answered for.
+export const getTimetable      = (params) => api.get('/parent/timetable', { params });
+export const downloadTimetable = (params) => api.get('/parent/timetable/download', { params, responseType: 'blob' });
+
 // Teacher feedback — each child's progress through open campaigns. Status only, never answers.
 export const getChildrenFeedback = () => api.get('/parent/feedback');

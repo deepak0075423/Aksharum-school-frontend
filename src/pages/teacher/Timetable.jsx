@@ -1,15 +1,35 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * Teacher → Timetable.
+ *
+ * Three views of the same week, in the order a teacher needs them:
+ *   My Schedule  every period I take, across every class — the duty roster
+ *   My Class     the full week of a section I am class or vice class teacher of
+ *   Colleague    somebody else's week, for planning around them
+ *
+ * Cover runs through all of it. A teacher's real Tuesday is their timetable
+ * plus whatever they have been asked to cover minus whatever somebody is
+ * covering for them, and a screen that shows only the first of those three is
+ * the reason people end up in the wrong room.
+ */
+import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getTimetable, downloadTimetable, getClassTimetable } from '../../api/teacher.api';
-import { PageHeader, Spinner, Empty } from '../../components/ui/index';
-import { useSearchParams } from 'react-router-dom';
+import { Button } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import {
+  TtHead, TtTabs, Card, Body, Seg, Stats, Stat, Panel, Note, Chip, Loading, Field,
+  Person, plural, toneFor, fmtDay,
+} from '../timetable/admin/ttUI';
+import {
+  WeekGrid, DayList, NowNext, SubjectList, CoverList, DAYS, DAY_SHORT,
+  todayName, weekShape, coverIndex, isTeachingPeriod,
+} from '../timetable/view/viewParts';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-function triggerBlobDownload(blob, filename) {
+function blobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
+  const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
@@ -17,324 +37,349 @@ function triggerBlobDownload(blob, filename) {
 export default function TeacherTimetable() {
   // My Section links here with the section it wants the grid for, so the page
   // opens on that class rather than on whichever one the server would pick.
-  const [searchParams] = useSearchParams();
-  const wantedSection  = searchParams.get('section');
+  const [params] = useSearchParams();
+  const wantedSection = params.get('section');
 
-  const [tab,             setTab]             = useState(wantedSection ? 'myclass' : 'mine');
-  const [searchTeacherId, setSearchTeacherId] = useState('');
-  const [selectedYearId,  setSelectedYearId]  = useState('');
-  const [queryParams,     setQueryParams]      = useState({});
-  const [downloading,     setDownloading]      = useState(false);
-  const [classSectionId,  setClassSectionId]   = useState(wantedSection || '');
+  const [tab, setTab]         = useState(wantedSection ? 'class' : 'mine');
+  const [view, setView]       = useState('week');
+  const [day, setDay]         = useState(() => todayName());
+  const [lookAt, setLookAt]   = useState('');          // a colleague's id
+  const [yearId, setYearId]   = useState('');
+  const [query, setQuery]     = useState({});
+  const [sectionId, setSectionId] = useState(wantedSection || '');
+  const [busy, setBusy]       = useState(false);
 
-  const { data: raw,        loading: loading1 } = useFetch(() => getTimetable(queryParams), [queryParams]);
-  const { data: classRaw,   loading: loading2 } = useFetch(
-    () => getClassTimetable(classSectionId ? { section: classSectionId } : undefined), [classSectionId]);
+  const { data: mineRaw,  loading: l1 } = useFetch(() => getTimetable(query), [query]);
+  const { data: classRaw, loading: l2 } = useFetch(
+    () => getClassTimetable(sectionId ? { section: sectionId } : undefined), [sectionId]);
 
-  const payload          = raw || {};
-  const entries          = payload.entries          || [];
-  const periodsStructure = payload.periodsStructure || [];
-  const days             = payload.days             || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-  const teacher          = payload.teacher;
-  const years            = payload.years            || [];
-  const selectedYear     = payload.selectedYearId;
-  const allTeachers      = payload.allTeachers      || [];
+  const mine       = mineRaw || {};
+  const entries    = useMemo(() => mine.entries || [], [mine.entries]);
+  const periods    = mine.periodsStructure || [];
+  const days       = mine.days?.length ? mine.days : DAYS.slice(0, 5);
+  const teacher    = mine.teacher;
+  const years      = mine.years || [];
+  const colleagues = mine.allTeachers || [];
+  const duties     = mine.coverDuties || [];
+  const handed     = mine.handedOver || [];
 
-  const classPayload  = classRaw || {};
-  const mySection     = classPayload.section;   // null when attached to nothing
-  const classSections = classPayload.sections || [];
-  const classTT       = classPayload.timetable;
-  const classEntries  = classPayload.entries  || [];
-  const classDays     = classPayload.days     || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const klass        = classRaw || {};
+  const mySection    = klass.section;
+  const mySections   = klass.sections || [];
+  const classTt      = klass.timetable;
+  const classEntries = useMemo(() => klass.entries || [], [klass.entries]);
+  const classDays    = klass.days?.length ? klass.days : DAYS.slice(0, 5);
 
   useEffect(() => {
-    if (selectedYear && !selectedYearId) setSelectedYearId(String(selectedYear));
-  }, [selectedYear]);
+    if (mine.selectedYearId && !yearId) setYearId(String(mine.selectedYearId));
+  }, [mine.selectedYearId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = () => {
-    const params = {};
-    if (searchTeacherId) params.teacherId = searchTeacherId;
-    if (selectedYearId && !searchTeacherId) params.yearId = selectedYearId;
-    setQueryParams(params);
+  const viewingSelf = !lookAt;
+
+  /* ── My own week ───────────────────────────────────────────────────────── */
+  const bySlot = useMemo(() => {
+    const map = new Map();
+    for (const e of entries) map.set(`${e.dayOfWeek}#${e.periodNumber}`, e);
+    return map;
+  }, [entries]);
+
+  // Duties land on the grid as extra periods. Keyed by weekday so they sit in
+  // the same week the timetable is drawn in.
+  const dutyIndex = useMemo(() => coverIndex(duties), [duties]);
+  const handedIndex = useMemo(() => coverIndex(handed), [handed]);
+
+  const cellForMine = (d, periodNumber) => {
+    const key = `${d}#${periodNumber}`;
+    const e = bySlot.get(key);
+    const duty = dutyIndex.get(key);
+    const gone = handedIndex.get(key);
+
+    if (!e && duty) {
+      // A period that is not normally theirs at all: the cover IS the lesson.
+      // The class stays on its own line — a cover that deleted it left a
+      // lesson with no room attached to it.
+      return {
+        title: duty.subject || 'Cover',
+        tone: 'amber',
+        sub: duty.sectionLabel,
+        keepSub: true,
+        cover: { from: duty.originalTeacher, to: 'You' },
+      };
+    }
+    if (!e) return null;
+
+    const name = e.subject?.subjectName || e.subject?.name || 'Subject';
+    return {
+      title: name,
+      tone: toneFor(e.subject?._id || name),
+      sub: [e.className, e.sectionName].filter(Boolean).join(' – ') || 'Class',
+      keepSub: true,
+      extras: [],
+      // Their own period, taken by somebody else this week.
+      cover: gone ? { from: 'You', to: gone.substituteTeacher } : null,
+    };
   };
 
-  const handleYearChange = (yearId) => {
-    setSelectedYearId(yearId);
-    setQueryParams(prev => ({ ...prev, yearId, teacherId: undefined }));
+  /* ── A class's full week ───────────────────────────────────────────────── */
+  const byClassSlot = useMemo(() => {
+    const map = new Map();
+    for (const e of classEntries) map.set(`${e.dayOfWeek}#${e.periodNumber}`, e);
+    return map;
+  }, [classEntries]);
+
+  const cellForClass = (d, periodNumber) => {
+    const e = byClassSlot.get(`${d}#${periodNumber}`);
+    if (!e) return null;
+    const name = e.subject?.subjectName || e.subject?.name || 'Subject';
+    return {
+      title: name,
+      tone: toneFor(e.subject?._id || name),
+      sub: e.teacher?.name || 'No teacher assigned',
+      extras: (e.additionalSubjects || []).filter((a) => a.subject).map((a) => (
+        `${a.subject?.subjectName || a.subject?.name}${a.teacher?.name ? ` · ${a.teacher.name}` : ''}`
+      )),
+    };
   };
 
-  const handleMyTimetable = () => {
-    setSearchTeacherId('');
-    setQueryParams({});
-  };
+  const shape = weekShape(periods, days, entries.length);
 
-  const handleDownload = async () => {
-    setDownloading(true);
+  const subjects = useMemo(() => {
+    const map = new Map();
+    for (const e of entries) {
+      const id = e.subject?._id || e.subject?.subjectName || 'x';
+      const name = e.subject?.subjectName || e.subject?.name || 'Subject';
+      if (!map.has(id)) map.set(id, { key: id, name, sub: '', periods: 0, sections: new Set() });
+      const row = map.get(id);
+      row.periods += 1;
+      const label = [e.className, e.sectionName].filter(Boolean).join(' – ');
+      if (label) row.sections.add(label);
+    }
+    return [...map.values()]
+      .map((r) => ({ ...r, sub: [...r.sections].join(', ') }))
+      .sort((a, b) => b.periods - a.periods);
+  }, [entries]);
+
+  const classCount = useMemo(
+    () => new Set(entries.map((e) => [e.className, e.sectionName].filter(Boolean).join('–')).filter(Boolean)).size,
+    [entries],
+  );
+
+  const download = async () => {
+    setBusy(true);
     try {
-      const res  = await downloadTimetable();
+      const res = await downloadTimetable();
       const blob = res instanceof Blob ? res : new Blob([res], { type: 'application/pdf' });
-      triggerBlobDownload(blob, 'my-timetable.pdf');
-    } catch (e) {
-      toast.error(e?.response?.data?.message || 'Failed to download PDF');
-    } finally { setDownloading(false); }
+      blobDownload(blob, 'my-timetable.pdf');
+    } catch (e) { toast.error(e?.data?.message || 'That download failed'); }
+    finally { setBusy(false); }
   };
 
-  const isViewingSelf = !searchTeacherId;
+  if (l1 || l2) return <div className="page tt-page"><Loading label="Loading your week…" /></div>;
 
-  if (loading1 || loading2) return <div className="loading-page"><Spinner /></div>;
+  const TABS = [
+    { key: 'mine', label: 'My Schedule', icon: 'calendarDays' },
+    ...(mySection ? [{
+      key: 'class',
+      label: mySections.length > 1 ? 'My Classes' : 'My Class',
+      icon: 'users',
+      count: mySections.length > 1 ? mySections.length : undefined,
+    }] : []),
+    { key: 'other', label: 'Another Teacher', icon: 'search' },
+  ];
 
   return (
-    <div className="page">
-      <PageHeader
-        title="Timetable"
-        subtitle={
-          tab === 'myclass' && mySection
-            ? `${mySection.className} – Section ${mySection.sectionName} (${mySection.role})`
-            : teacher ? `Schedule for: ${teacher.name}` : 'Weekly teaching schedule'
-        }
-      />
-
-      {/* ── Tabs ──────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', marginBottom: 20 }}>
-        <button onClick={() => setTab('mine')} style={{
-          padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
-          fontWeight: tab === 'mine' ? 700 : 400,
-          color: tab === 'mine' ? 'var(--primary)' : 'var(--text-muted)',
-          borderBottom: tab === 'mine' ? '2px solid var(--primary)' : '2px solid transparent',
-          marginBottom: -2,
-        }}>My Schedule</button>
-
-        {mySection && (
-          <button onClick={() => setTab('myclass')} style={{
-            padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
-            fontWeight: tab === 'myclass' ? 700 : 400,
-            color: tab === 'myclass' ? 'var(--primary)' : 'var(--text-muted)',
-            borderBottom: tab === 'myclass' ? '2px solid var(--primary)' : '2px solid transparent',
-            marginBottom: -2,
-          }}>
-            {classSections.length > 1 ? 'My Classes' : 'My Class'} ({mySection.className} – {mySection.sectionName})
-          </button>
+    <div className="page tt-page">
+      <TtHead icon="calendar" title="Timetable"
+        subtitle={viewingSelf
+          ? 'Every period you take, the classes you look after, and this week’s cover'
+          : `Viewing ${teacher?.name || 'a colleague'}’s week`}>
+        {viewingSelf && entries.length > 0 && (
+          <Button variant="secondary" onClick={download} loading={busy}>
+            <Icon name="download" size={16} /> Download PDF
+          </Button>
         )}
-      </div>
+      </TtHead>
 
-      {/* ══ MY SCHEDULE TAB ══════════════════════════════════════════════════ */}
+      <TtTabs tabs={TABS} value={tab} onChange={setTab} />
+
+      {/* ══ My schedule ════════════════════════════════════════════════════ */}
       {tab === 'mine' && (
-        <>
-          {/* Controls bar */}
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div className="card-body" style={{ padding: '12px 16px' }}>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <div className="form-group" style={{ flex: '1 1 200px', marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '.8rem' }}>Search Teacher</label>
-                  <select className="form-control" value={searchTeacherId} onChange={e => setSearchTeacherId(e.target.value)}>
-                    <option value="">— My Timetable —</option>
-                    {allTeachers.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-                  </select>
-                </div>
+        !entries.length && !duties.length ? (
+          <Card icon="calendar" title="Nothing timetabled yet">
+            <Body>
+              <Note tone="info">
+                No periods have been assigned to you for this academic year. Once the school
+                publishes a timetable your week appears here.
+              </Note>
+            </Body>
+          </Card>
+        ) : (
+          <>
+            <NowNext periods={periods} days={days} cellFor={cellForMine} />
 
-                {!searchTeacherId && years.length > 0 && (
-                  <div className="form-group" style={{ flex: '1 1 180px', marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontSize: '.8rem' }}>Academic Year</label>
-                    <select className="form-control" value={selectedYearId} onChange={e => handleYearChange(e.target.value)}>
-                      {years.map(y => (
+            <Stats cols={4}>
+              <Stat icon="calendarDays" tone="indigo" value={entries.length} label="Periods a week"
+                cap={`${shape.perDay} slots a day`} />
+              <Stat icon="users" tone="violet" value={classCount} label="Classes you take" />
+              <Stat icon="book" tone="green" value={subjects.length} label="Subjects" />
+              <Stat icon="repeat" tone={duties.length ? 'amber' : 'slate'} value={duties.length}
+                label="Cover duties" cap="this week" />
+            </Stats>
+
+            {duties.length > 0 && (
+              <Note tone="warn">
+                You are covering {plural(duties.length, 'period')} for a colleague this week. They
+                are marked <strong>Cover</strong> on the grid.
+              </Note>
+            )}
+
+            <div className="tt-split tt-split--wide">
+              <Card icon="calendarDays"
+                title={view === 'week' ? 'Your week' : day}
+                subtitle={view === 'week'
+                  ? 'Each period shows the class you are taking it with.'
+                  : 'Your day, in order.'}
+                actions={<>
+                  {view === 'day' && (
+                    <Field fix>
+                      <select className="form-control" value={day} onChange={(e) => setDay(e.target.value)}>
+                        {DAYS.filter((d) => days.includes(d)).map((d) => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </Field>
+                  )}
+                  <Seg value={view} onChange={setView} options={[['week', 'Week'], ['day', 'Day']]} />
+                </>}>
+                <Body>
+                  {view === 'week'
+                    ? <WeekGrid periods={periods} days={days} cellFor={cellForMine} highlightDay />
+                    : <DayList periods={periods} day={day} cellFor={cellForMine} showNow />}
+                </Body>
+              </Card>
+
+              <div className="tt-rail">
+                <Panel icon="calendarDays" title="Today"
+                  right={<Chip tone="indigo">{DAY_SHORT[todayName()]}</Chip>}>
+                  {days.includes(todayName())
+                    ? <DayList periods={periods} day={todayName()} cellFor={cellForMine} showNow />
+                    : <Note tone="quiet">{todayName()} is not a working day.</Note>}
+                </Panel>
+
+                {(duties.length > 0 || handed.length > 0) && (
+                  <Panel icon="repeat" title="Cover this week">
+                    {duties.length > 0 && (
+                      <>
+                        <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          You are covering
+                        </span>
+                        <CoverList rows={duties} mode="duty" emptyText="Nothing to cover." />
+                      </>
+                    )}
+                    {handed.length > 0 && (
+                      <>
+                        <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          Being covered for you
+                        </span>
+                        <CoverList rows={handed} mode="class" emptyText="Nothing." />
+                      </>
+                    )}
+                  </Panel>
+                )}
+
+                <Panel icon="book" title="What you teach">
+                  <SubjectList rows={subjects} total={entries.length}
+                    emptyText="Nothing timetabled yet." />
+                </Panel>
+              </div>
+            </div>
+          </>
+        )
+      )}
+
+      {/* ══ My class ═══════════════════════════════════════════════════════ */}
+      {tab === 'class' && mySection && (
+        <>
+          <Card icon="users"
+            title={`${mySection.className} · Section ${mySection.sectionName}`}
+            subtitle={`The full week of a class you are ${mySection.role} of.`}
+            actions={mySections.length > 1 && (
+              <Field label="Section" fix>
+                <select className="form-control" value={String(mySection._id)}
+                  onChange={(e) => setSectionId(e.target.value)}>
+                  {mySections.map((s) => (
+                    <option key={s._id} value={s._id}>{s.className} · {s.sectionName} ({s.role})</option>
+                  ))}
+                </select>
+              </Field>
+            )}>
+            {!classTt || !(classTt.periodsStructure || []).some(isTeachingPeriod) ? (
+              <Body>
+                <Note tone="info">
+                  No timetable has been set up for {mySection.className} · Section {mySection.sectionName} yet.
+                </Note>
+              </Body>
+            ) : (
+              <Body>
+                <WeekGrid periods={classTt.periodsStructure} days={classDays}
+                  cellFor={cellForClass} highlightDay />
+              </Body>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ══ Somebody else's week ═══════════════════════════════════════════ */}
+      {tab === 'other' && (
+        <>
+          <Card icon="search" title="Another teacher’s week"
+            subtitle="For planning around a colleague — what they are teaching, and when they are free.">
+            <Body>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <Field label="Teacher" fix>
+                  <select className="form-control" value={lookAt}
+                    onChange={(e) => setLookAt(e.target.value)}>
+                    <option value="">My own timetable</option>
+                    {colleagues.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                  </select>
+                </Field>
+                {!lookAt && years.length > 0 && (
+                  <Field label="Academic Year" fix>
+                    <select className="form-control" value={yearId}
+                      onChange={(e) => setYearId(e.target.value)}>
+                      {years.map((y) => (
                         <option key={y._id} value={y._id}>
                           {y.yearName}{y.status === 'active' ? ' (Current)' : ''}
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </Field>
                 )}
-
-                <div style={{ display: 'flex', gap: 8, paddingBottom: 2 }}>
-                  <button className="btn btn-primary btn-sm" onClick={handleSearch}>View</button>
-                  {searchTeacherId && (
-                    <button className="btn btn-secondary btn-sm" onClick={handleMyTimetable}>My Timetable</button>
-                  )}
-                  {isViewingSelf && entries.length > 0 && (
-                    <button className="btn btn-secondary btn-sm" disabled={downloading} onClick={handleDownload}>
-                      {downloading ? 'Downloading…' : '⬇ Download PDF'}
-                    </button>
-                  )}
-                </div>
+                <Button onClick={() => setQuery(lookAt
+                  ? { teacherId: lookAt }
+                  : (yearId ? { yearId } : {}))}>
+                  <Icon name="eye" size={15} /> View
+                </Button>
+                {!viewingSelf && (
+                  <Button variant="secondary" onClick={() => { setLookAt(''); setQuery({}); }}>
+                    Back to mine
+                  </Button>
+                )}
               </div>
-            </div>
-          </div>
+            </Body>
+          </Card>
 
-          {!entries.length
-            ? <Empty icon="🕐" title="No timetable assigned" message="No periods have been assigned yet." />
-            : <ScheduleGrid entries={entries} periodsStructure={periodsStructure} days={days} />
-          }
+          <Card icon="calendarDays"
+            title={viewingSelf ? 'Your week' : `${teacher?.name || 'Their'} week`}
+            subtitle={viewingSelf
+              ? 'Pick a colleague above to see theirs instead.'
+              : 'Each period shows the class they are taking it with.'}>
+            <Body>
+              {!entries.length
+                ? <Note tone="quiet">No periods are assigned for this selection.</Note>
+                : <WeekGrid periods={periods} days={days} cellFor={cellForMine} highlightDay />}
+            </Body>
+          </Card>
         </>
       )}
-
-      {/* ══ MY CLASS TAB ═════════════════════════════════════════════════════ */}
-      {tab === 'myclass' && mySection && (
-        <>
-          {/* A teacher reaches a section three ways and can hold several, so
-              the tab is a switch rather than a single fixed class. */}
-          {classSections.length > 1 && (
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div className="card-body" style={{ padding: '12px 16px' }}>
-                <div className="form-group" style={{ marginBottom: 0, maxWidth: 360 }}>
-                  <label className="form-label" style={{ fontSize: '.8rem' }}>Section</label>
-                  <select className="form-control" value={String(mySection._id)}
-                    onChange={e => setClassSectionId(e.target.value)}>
-                    {classSections.map(sec => (
-                      <option key={sec._id} value={sec._id}>
-                        {sec.className} – {sec.sectionName} ({sec.role})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-          {!classTT || !classTT.periodsStructure?.length
-            ? <Empty icon="🕐" title="Timetable not configured"
-                message={`No timetable has been set up for ${mySection.className} – ${mySection.sectionName} yet.`} />
-            : (
-              <>
-                <div style={{ marginBottom: 12, padding: '8px 14px', background: 'var(--bg-secondary)', borderRadius: 8, display: 'inline-block', fontSize: '.85rem', color: 'var(--text-muted)' }}>
-                  <strong style={{ color: 'var(--text)' }}>School Timings:</strong>&nbsp;
-                  {classTT.schoolStartTime} — {classTT.schoolEndTime}
-                </div>
-                <ClassTimetableGrid timetable={classTT} entries={classEntries} days={classDays} />
-              </>
-            )
-          }
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ── Teacher's own schedule grid (shows subject + class/section) ──────────── */
-function ScheduleGrid({ entries, periodsStructure, days }) {
-  const maxPeriod  = entries.reduce((m, e) => Math.max(m, e.periodNumber || 0), 0);
-  const gridPeriods = periodsStructure.length > 0
-    ? periodsStructure
-    : Array.from({ length: maxPeriod }, (_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '', isRecess: false }));
-
-  const activeDays = DAYS.filter(d => days.includes(d));
-
-  return (
-    <div className="card">
-      <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="table" style={{ minWidth: 600, marginBottom: 0 }}>
-          <thead>
-            <tr>
-              <th style={{ minWidth: 80 }}>Period</th>
-              {activeDays.map(d => <th key={d} style={{ minWidth: 110 }}>{d}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {gridPeriods.map((p, idx) => (
-              <tr key={idx}>
-                <td style={{ background: p.isRecess ? 'var(--bg-secondary)' : undefined, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                  {p.isRecess
-                    ? <span style={{ color: '#92400e', fontSize: '.8rem', fontStyle: 'italic' }}>{p.recessName || 'Break'}</span>
-                    : <>
-                        <strong>P{p.periodNumber}</strong>
-                        {p.startTime && <div style={{ fontSize: '.7rem', color: 'var(--text-muted)' }}>{p.startTime}–{p.endTime}</div>}
-                      </>
-                  }
-                </td>
-                {activeDays.map(day => {
-                  if (p.isRecess) return (
-                    <td key={day} style={{ background: '#fef9c3', textAlign: 'center', color: '#92400e', fontSize: '.8rem', verticalAlign: 'middle' }}>
-                      {p.recessName || 'Break'}
-                    </td>
-                  );
-                  const entry = entries.find(e => e.dayOfWeek === day && e.periodNumber === p.periodNumber);
-                  return (
-                    <td key={day} style={{ verticalAlign: 'top', padding: '8px 10px' }}>
-                      {entry ? (
-                        <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', borderLeft: '3px solid var(--primary)' }}>
-                          <div style={{ fontWeight: 600, fontSize: '.85rem', color: 'var(--primary)' }}>
-                            {entry.subject?.subjectName || entry.subject?.name}
-                          </div>
-                          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                            {entry.className && entry.sectionName
-                              ? `${entry.className} – ${entry.sectionName}`
-                              : entry.className || entry.sectionName || ''}
-                          </div>
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--border)', fontSize: '.8rem' }}>—</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/* ── Full class timetable grid (all subjects + teachers) ──────────────────── */
-function ClassTimetableGrid({ timetable, entries, days }) {
-  const activeDays = DAYS.filter(d => days.includes(d));
-
-  return (
-    <div className="card">
-      <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="table" style={{ minWidth: 600, marginBottom: 0 }}>
-          <thead>
-            <tr>
-              <th style={{ minWidth: 80 }}>Period</th>
-              {activeDays.map(d => <th key={d} style={{ minWidth: 110 }}>{d}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {timetable.periodsStructure.map((p, idx) => (
-              <tr key={idx}>
-                <td style={{ background: p.isRecess ? 'var(--bg-secondary)' : undefined, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                  {p.isRecess
-                    ? <span style={{ color: '#92400e', fontSize: '.8rem', fontStyle: 'italic' }}>{p.recessName || 'Break'}</span>
-                    : <>
-                        <strong>P{p.periodNumber}</strong>
-                        {p.startTime && <div style={{ fontSize: '.7rem', color: 'var(--text-muted)' }}>{p.startTime}–{p.endTime}</div>}
-                      </>
-                  }
-                </td>
-                {activeDays.map(day => {
-                  if (p.isRecess) return (
-                    <td key={day} style={{ background: '#fef9c3', textAlign: 'center', color: '#92400e', fontSize: '.8rem', verticalAlign: 'middle' }}>
-                      {p.recessName || 'Break'}
-                    </td>
-                  );
-                  const entry = entries.find(e => e.dayOfWeek === day && e.periodNumber === p.periodNumber);
-                  return (
-                    <td key={day} style={{ verticalAlign: 'top', padding: '8px 10px' }}>
-                      {entry ? (
-                        <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '6px 10px', borderLeft: '3px solid var(--primary)' }}>
-                          <div style={{ fontWeight: 600, fontSize: '.85rem', color: 'var(--primary)' }}>
-                            {entry.subject?.subjectName || entry.subject?.name}
-                          </div>
-                          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                            {entry.teacher?.name || <span style={{ color: '#f59e0b' }}>No teacher</span>}
-                          </div>
-                          {(entry.additionalSubjects || []).filter(a => a.subject).map((a, i) => (
-                            <div key={i} style={{ fontSize: '.72rem', marginTop: 3, borderTop: '1px dashed var(--border)', paddingTop: 2 }}>
-                              <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{a.subject?.subjectName || a.subject?.name}</span>
-                              {a.teacher?.name && <span style={{ color: 'var(--text-muted)' }}> · {a.teacher.name}</span>}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--border)', fontSize: '.8rem' }}>—</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
