@@ -31,7 +31,21 @@ export const getTeacherPeriods = (teacherId, date) =>
   api.get(`${base}/teacher-periods`, { params: { teacherId, date } });
 export const createManual = (data) => api.post(`${base}/manual`, data);
 
+// ── One slot, addressed the way the admin picked it ───────────────────────────
+// What is taught at (date, section, period), who takes it, whether they are
+// away, and who could cover — before any substitution row exists.
+export const getSlot = (params) => api.get(`${base}/slot`, { params });
+// Open the period and assign in one call, so a failed assign leaves no
+// half-made row behind. 409 means an eligibility clash; re-send with force.
+export const assignSlot = (data) => api.post(`${base}/slot`, data);
+// Cover several open periods in one action.
+export const bulkAssign = (data) => api.post(`${base}/bulk`, data);
+
 // ── Workload & reporting ──────────────────────────────────────────────────────
+// The last N substitutions across days — the board's "recent activity" lists.
+export const getRecent = (params) => api.get(`${base}/recent`, { params });
+// Timetabled load beside cover taken on, with the school's own thresholds.
+export const getWorkloadReport = (params) => api.get(`${base}/workload-report`, { params });
 export const getWorkload = (date, teacherIds) =>
   api.get(`${base}/workload`, { params: { date, ...(teacherIds?.length ? { teacherIds: teacherIds.join(',') } : {}) } });
 export const getReport  = (from, to) => api.get(`${base}/report`, { params: { from, to } });

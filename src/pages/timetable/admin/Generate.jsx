@@ -1,15 +1,19 @@
 /**
  * Admin → Timetable → Generate.
  *
- * One workspace, top to bottom in the order an admin decides things:
- *   1. Class & sections   which part of the school this run covers
- *   2. Weekly plan        periods per subject, who teaches it, what runs together
- *   3. Combined sections  sections taught one subject together (only with 2+)
- *   4. Preferences        what the optimiser improves once the hard rules hold
- * A sticky rail beside it says whether the plan is ready — the page's own
- * arithmetic plus a server dry run (`POST /timetable/preflight`) that finds the
- * problems a run would hit (a teacher with more periods than free time, a
- * subject with no teacher…) before anyone waits for one.
+ * Four steps, and a rail that says whether the plan is ready:
+ *   1. Select scope    which part of the school this run covers — one class and
+ *                      its sections, or every class in the year
+ *   2. Configure rules the weekly plan (periods per subject, who teaches it,
+ *                      what runs together), the sections taught together, and
+ *                      what the optimiser pursues once the hard rules hold
+ *   3. Review summary  the rail: what the run will cover, and every check
+ *   4. Generate        and then fix whatever it flags, right here
+ *
+ * The rail's checks are the page's own arithmetic plus a server dry run
+ * (`POST /timetable/preflight`) that finds the problems a run would hit — a
+ * teacher with more periods than free time, a subject with no teacher — before
+ * anyone waits for one.
  *
  * After a run the result sits at the top of the SAME page, with the plan still
  * below it. Every problem explains itself and offers the change that fixes it;
@@ -25,26 +29,50 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/timetable.api';
-import { Modal, Spinner } from '../../../components/ui/index';
+import { Modal, Spinner, Button } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import { DAYS, DAY_SHORT, SUBJECT_TYPES, ROOM_TYPES, subjectColor } from './shared';
 import {
   TtgHeader, StepCard, Note, Figures, Switch, Stepper, ProgressBar, RunSteps,
   ProblemList, Verdict, StatusPill, plural, fmtSeconds, fmtWhen, openFixInNewTab, EXTERNAL_FIXES,
 } from './genParts';
+import {
+  TtHead, YearPicker, Card, Body, Seg, Steps, Panel, KV, Chip, Field, Check,
+} from './ttUI';
 
 const unwrap = (res) => res?.data ?? res;
 
 /* What the optimiser improves once every hard rule holds. Each maps to solver
    weights (engine.applyOptionToggles) or, for practicals, to block size. */
 const OPTIONS = [
-  ['avoidSameSubjectTwiceADay', 'Avoid repeats in a day',          'A subject runs once a day where its weekly count allows.'],
-  ['spreadAcrossWeek',          'Spread subjects across the week', 'Stops a subject bunching up on two or three days.'],
-  ['balanceDifficultSubjects',  'Balance difficult subjects',      'Keeps hard subjects out of the last period and apart.'],
-  ['keepPracticalsConsecutive', 'Keep practicals back-to-back',    'Lab subjects get their periods in a row. Off: one at a time.'],
-  ['minimizeStudentGaps',       'Fewer free periods for classes',  'Fills each class’s day without holes.'],
-  ['minimizeTeacherGaps',       'Fewer gaps for teachers',         'Avoids idle periods between a teacher’s lessons.'],
-  ['preferTeacherAvailability', 'Respect teacher preferences',     'Prefers the days and periods teachers asked for.'],
+  ['avoidSameSubjectTwiceADay', 'Avoid repeats in a day',          'A subject runs once a day where its weekly count allows.', 'calendar', 'general'],
+  ['spreadAcrossWeek',          'Spread subjects across the week', 'Stops a subject bunching up on two or three days.', 'barsUp', 'general'],
+  ['balanceDifficultSubjects',  'Balance difficult subjects',      'Keeps hard subjects out of the last period and apart.', 'gauge', 'general'],
+  ['keepPracticalsConsecutive', 'Keep practicals back-to-back',    'Lab subjects get their periods in a row. Off: one at a time.', 'flask', 'general'],
+  ['minimizeStudentGaps',       'Fewer free periods for classes',  'Fills each class’s day without holes.', 'student', 'general'],
+  ['minimizeTeacherGaps',       'Fewer gaps for teachers',         'Avoids idle periods between a teacher’s lessons.', 'clock', 'staff'],
+  ['preferTeacherAvailability', 'Respect teacher preferences',     'Prefers the days and periods teachers asked for.', 'teacher', 'staff'],
+];
+
+/* The tabs of "Configure Rules & Preferences". The weekly plan is a tab rather
+   than a card of its own because it is one of several decisions, and the longest
+   — stacked, it buried the shorter ones below the fold.
+ *
+ * Each label carries its own count. A tab called "Subject Distribution" with
+ * nothing on it reads as a feature that is missing; "Subjects · 7" does not. */
+const ruleTabs = ({ subjects, merges }) => [
+  ['general',  'General'],
+  ['subjects', subjects ? `Subjects · ${subjects}` : 'Subjects'],
+  ['merges',   merges ? `Combined Classes · ${merges}` : 'Combined Classes'],
+  ['staff',    'Teacher & Rooms'],
+  ['advanced', 'Advanced'],
+];
+
+const GEN_STEPS = [
+  { key: 'scope',   title: 'Select Scope',   hint: 'Classes & sections' },
+  { key: 'rules',   title: 'Configure Rules', hint: 'Preferences & constraints' },
+  { key: 'review',  title: 'Review Summary',  hint: 'Check before generating' },
+  { key: 'run',     title: 'Generate',        hint: 'Create and validate' },
 ];
 const defaultOptions = Object.fromEntries(OPTIONS.map(([k]) => [k, true]));
 
@@ -94,6 +122,13 @@ export default function TimetableGenerate() {
   const [sectionIds, setSectionIds] = useState([]);
   const [label, setLabel]           = useState('');
   const [options, setOptions]       = useState(defaultOptions);
+  // 'picked' = one class and the sections chosen from it; 'all' = every active
+  // section in the year, which the server resolves as scopeType 'school'.
+  const [scopeMode, setScopeMode]   = useState('picked');
+  const [ruleTab, setRuleTab]       = useState('general');
+  const [guide, setGuide]           = useState(false);
+  const [preview, setPreview]       = useState(false);
+  const [templates, setTemplates]   = useState(null);   // { list, saving, name }
 
   /* ── The plan ──────────────────────────────────────────────────────────── */
   const [plan, setPlan]               = useState(null);
@@ -122,6 +157,7 @@ export default function TimetableGenerate() {
   const planRef     = useRef(null);
   const checkSeq    = useRef(0);
   const deepLinked  = useRef(null);   // version id whose plan signature is still to be taken
+  const planTabShown = useRef(false);
   const pendingFocus = useRef(params.get('subject')
     ? { subjectId: params.get('subject'), mode: params.get('focus') || 'plan' } : null);
 
@@ -383,28 +419,34 @@ export default function TimetableGenerate() {
   };
 
   /* ── Request body, signature, dry run ──────────────────────────────────── */
-  const requestBody = () => ({
-    yearId,
-    classId,
-    allSections: allSelected,
-    sectionIds: allSelected ? [] : sectionIds,
-    periodsPerWeek: capacity,
-    subjectPlan: subjects.map((sub) => ({
-      ...rules[sub._id],
-      subject: sub._id,
-      subjectName: sub.subjectName,
-      mergeGroup: merges[sub._id] || '',
-    })),
-    options,
-  });
+  const requestBody = () => (scopeMode === 'all'
+    // Every section in the year. There is no one class plan to send — each
+    // section keeps the subject requirements already saved against it, which is
+    // exactly what the solver reads when no plan overrides them.
+    ? { yearId, scopeType: 'school', options }
+    : {
+      yearId,
+      classId,
+      allSections: allSelected,
+      sectionIds: allSelected ? [] : sectionIds,
+      periodsPerWeek: capacity,
+      subjectPlan: subjects.map((sub) => ({
+        ...rules[sub._id],
+        subject: sub._id,
+        subjectName: sub.subjectName,
+        mergeGroup: merges[sub._id] || '',
+      })),
+      options,
+    });
 
   // Everything a run depends on, so a result can say "the plan changed since".
-  const signature = useMemo(() => (plan ? JSON.stringify({
+  const signature = useMemo(() => ((plan || scopeMode === 'all') ? JSON.stringify({
+    mode: scopeMode,
     s: sectionKey,
     r: subjects.map((s) => [s._id, rules[s._id]]),
     m: subjects.map((s) => merges[s._id] || ''),
     o: options,
-  }) : ''), [plan, sectionKey, subjects, rules, merges, options]);
+  }) : ''), [plan, scopeMode, sectionKey, subjects, rules, merges, options]);
 
   // A reopened run was generated from the plan now loaded — take its signature.
   useEffect(() => {
@@ -416,8 +458,10 @@ export default function TimetableGenerate() {
 
   const dirty = !!run && !running && !!runSig && (signature !== runSig || mergesTouched);
 
-  const clientReady = !!(plan && scopeCount && subjects.length && subjectsMatch
-    && assigned > 0 && remaining >= 0 && !lonelyGroups.length);
+  const clientReady = scopeMode === 'all'
+    ? !!yearId
+    : !!(plan && scopeCount && subjects.length && subjectsMatch
+      && assigned > 0 && remaining >= 0 && !lonelyGroups.length);
   const mergeKey = sectionMerges.map((m) => m._id).sort().join(',');
 
   useEffect(() => {
@@ -444,6 +488,11 @@ export default function TimetableGenerate() {
   /* ── Generate / regenerate ─────────────────────────────────────────────── */
   const blockingReason = () => {
     if (!yearId) return 'Select an academic year';
+    if (scopeMode === 'all') {
+      // Nothing else to check on this side: with no plan on screen the server's
+      // dry run is the only thing that knows whether the year can be solved.
+      return check.planError || null;
+    }
     if (!classId) return 'Select a class';
     if (!scopeCount) return 'Select at least one section';
     if (planLoading) return 'The plan is still loading';
@@ -513,6 +562,16 @@ export default function TimetableGenerate() {
     }
   };
 
+  /* The weekly plan is the work; the toggles are the trimmings. Once a class's
+     subjects have loaded, open on that tab instead of leaving the admin looking
+     at preferences and wondering where the plan went. Once only, so it never
+     fights a tab they picked themselves. */
+  useEffect(() => {
+    if (planTabShown.current || !plan || !subjects.length) return;
+    planTabShown.current = true;
+    setRuleTab('subjects');
+  }, [plan, subjects.length]);
+
   useEffect(() => {
     if (!focus) return undefined;
     const row = document.querySelector(`[data-subject-row="${focus.subjectId}"]`);
@@ -555,8 +614,19 @@ export default function TimetableGenerate() {
 
   /* Readiness: the page's own arithmetic first, then the dry run. */
   const checks = [];
+  if (scopeMode === 'all') {
+    const nSections = classes.reduce((n, c) => n + (c.sections || []).length, 0);
+    checks.push(nSections
+      ? { state: 'ok', text: 'Classes and sections selected', sub: `${plural(classes.length, 'class', 'classes')} · ${plural(nSections, 'section')}` }
+      : { state: 'bad', text: 'This year has no active sections' });
+    checks.push({
+      state: 'ok',
+      text: 'Periods per week configured',
+      sub: 'Each section keeps the subject requirements already saved against it',
+    });
+  } else {
   checks.push(scopeCount
-    ? { state: 'ok', text: 'Class and sections chosen', sub: scopeLine }
+    ? { state: 'ok', text: 'Classes and sections selected', sub: scopeLine }
     : { state: 'todo', text: 'Choose a class and its sections' });
   if (plan && scopeCount > 1) {
     checks.push(subjectsMatch
@@ -573,6 +643,7 @@ export default function TimetableGenerate() {
           : { state: 'ok', text: 'Plan fills the week', sub: `${assigned} of ${capacity} periods` });
     if (lonelyGroups.length) checks.push({ state: 'bad', text: 'A shared-period group has one subject', sub: 'Unmerge it or add a partner' });
   }
+  }
   if (clientReady) {
     if (check.loading && !check.report) {
       checks.push({ state: 'busy', text: 'Checking teachers, rooms and limits…' });
@@ -582,36 +653,93 @@ export default function TimetableGenerate() {
       checks.push({ state: 'bad', text: check.planError });
     } else if (check.report) {
       const errs = check.report.problems.filter((p) => p.severity === 'error');
-      if (!errs.length) checks.push({ state: 'ok', text: 'Teachers, rooms and limits check out', sub: check.loading ? 'Re-checking…' : undefined });
+      if (!errs.length) {
+        checks.push({ state: 'ok', text: 'No blocking conflicts detected', sub: check.loading ? 'Re-checking…' : undefined });
+        checks.push({ state: 'ok', text: 'Teacher availability loaded' });
+        checks.push({ state: 'ok', text: 'Rooms available' });
+      }
       for (const p of errs.slice(0, 4)) checks.push({ state: 'bad', text: p.title });
       if (errs.length > 4) checks.push({ state: 'bad', text: `and ${plural(errs.length - 4, 'more problem')}` });
     }
   }
   const dryErrors = check.report?.summary?.errors || 0;
 
+  /* Which of the four steps the page is on. It follows the work rather than a
+     Next button: an admin who scrolls back to change a section is on step one
+     again, and the stepper should say so. */
+  const doneSteps = [
+    (scopeMode === 'all' || scopeCount) && 'scope',
+    clientReady && 'rules',
+    clientReady && !dryErrors && !check.loading && 'review',
+    run && !running && 'run',
+  ].filter(Boolean);
+  const activeStep = run ? 'run'
+    : !(scopeMode === 'all' || scopeCount) ? 'scope'
+    : !clientReady ? 'rules'
+    : 'review';
+
+  const totalSections = scopeMode === 'all'
+    ? classes.reduce((n, c) => n + (c.sections || []).length, 0)
+    : scopeCount;
+  const totalClasses = scopeMode === 'all' ? classes.filter((c) => (c.sections || []).length).length : (classId ? 1 : 0);
+  const plannedPeriods = scopeMode === 'all' ? null : capacity * scopeCount;
+
+  /* Rule sets are kept on the year's configuration, which is also where the
+     Configuration screen reads them — one list, not two that drift apart. */
+  const openTemplates = async (mode) => {
+    try {
+      const cfg = unwrap(await api.getConfig(yearId || undefined));
+      setTemplates({ mode, list: cfg.ruleTemplates || [], cfg, name: '', saving: false });
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const applyTemplate = (t) => {
+    setOptions((o) => ({ ...o, ...(t.options || {}) }));
+    setTemplates(null);
+    toast.success(`Loaded “${t.name}”`);
+  };
+
+  const saveTemplate = async () => {
+    const name = templates.name.trim();
+    if (!name) return toast.error('Give the rule set a name');
+    setTemplates((t) => ({ ...t, saving: true }));
+    try {
+      await api.saveConfig({
+        ...templates.cfg,
+        yearId,
+        ruleTemplates: [...templates.list, { name, savedAt: new Date().toISOString(), options }].slice(-25),
+      });
+      toast.success('Rule set saved');
+      setTemplates(null);
+    } catch (e) {
+      toast.error(e.message);
+      setTemplates((t) => ({ ...t, saving: false }));
+    }
+    return undefined;
+  };
+
+  const optionsIn = (group) => OPTIONS.filter(([, , , , g]) => g === group);
+
+
   return (
-    <div className="page ttgpg">
-      <TtgHeader
-        icon="wand"
-        title="Generate Timetable"
-        subtitle="Plan each subject's week, check it, generate — then fix anything flagged and regenerate right here."
-      >
-        <select className="form-control" value={yearId} disabled={running} aria-label="Academic year"
-          onChange={(e) => changeYear(e.target.value)}>
-          {(meta?.years || []).map((y) => (
-            <option key={y._id} value={y._id}>{y.yearName}{y.status === 'active' ? ' (current)' : ''}</option>
-          ))}
-        </select>
-        <button type="button" className="btn btn-secondary" onClick={() => navigate('/admin/timetable/versions')}>
-          <Icon name="history" size={16} /> Versions
-        </button>
-      </TtgHeader>
+    <div className="page tt-page">
+      <TtHead icon="wand" title="Generate Timetable"
+        subtitle="Create a complete timetable automatically using your rules and preferences.">
+        <YearPicker years={meta?.years || []} value={yearId} onChange={changeYear} />
+        <Button variant="secondary" onClick={() => setGuide(true)}>
+          <Icon name="bookOpen" size={16} /> View Guide
+        </Button>
+      </TtHead>
+
+      <Card>
+        <Steps steps={GEN_STEPS} current={activeStep} done={doneSteps} />
+      </Card>
 
       {noSectionsAtAll && (
         <Note tone="warn">This academic year has no active sections yet. Create classes and sections first.</Note>
       )}
 
-      {/* ── The latest run ──────────────────────────────────────────────── */}
+      {/* ── The latest run sits above the plan that produced it ───────────── */}
       {run && (
         <section ref={resultRef} className="ttg-card">
           <RunResult
@@ -628,321 +756,547 @@ export default function TimetableGenerate() {
         </section>
       )}
 
-      <div className="ttg-body">
-        <div className={`ttg-main${running ? ' ttg-locked' : ''}`}>
-          {/* ── 1. Class & sections ───────────────────────────────────── */}
-          <StepCard step={1} state={stepState.scope} title="Class & sections"
-            sub="Sections chosen together are solved together, so the teachers and rooms they share never clash.">
-            <div className="ttg-fields">
-              <div className="ttg-field">
-                <label className="ttg-label" htmlFor="ttg-class">Class</label>
-                <select id="ttg-class" className="form-control" value={classId} onChange={(e) => chooseClass(e.target.value)}>
-                  <option value="">Select class…</option>
-                  {classes.map((c) => (
-                    <option key={c._id} value={c._id} disabled={!(c.sections || []).length}>
-                      {c.className}{(c.sections || []).length ? '' : ' — no sections'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="ttg-field">
-                <label className="ttg-label" htmlFor="ttg-label">Version name <em>(optional — numbered automatically)</em></label>
-                <input id="ttg-label" className="form-control" value={label} maxLength={80}
-                  placeholder={run ? 'e.g. Term 2 — fewer Maths periods' : 'e.g. Term 2 draft'}
-                  onChange={(e) => setLabel(e.target.value)} />
-              </div>
-            </div>
+      <div className="tt-split tt-split--wide">
+        <div className={running ? 'ttg-locked' : ''} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {selectedClass && (
-              <div className="ttg-field">
-                <span className="ttg-label">Sections</span>
-                <div className="ttg-chips">
-                  {classSections.length > 1 && (
-                    <button type="button" className={`ttg-chip ttg-chip--all${allSelected ? ' is-on' : ''}`} onClick={toggleAll}>
-                      <span className="ttg-chip__tick"><Icon name="check" size={11} strokeWidth={3} /></span>
-                      All sections <em>{classSections.length}</em>
-                    </button>
-                  )}
-                  {classSections.map((s) => {
-                    const on = sectionIds.includes(String(s._id));
-                    return (
-                      <button key={s._id} type="button" className={`ttg-chip${on ? ' is-on' : ''}`}
-                        onClick={() => toggleSection(String(s._id))}>
-                        <span className="ttg-chip__tick"><Icon name="check" size={11} strokeWidth={3} /></span>
-                        {selectedClass.className} {s.sectionName}
-                        <em>{plural(s.currentCount || 0, 'student')}</em>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          {/* ══ 1. Scope ═══════════════════════════════════════════════════ */}
+          <Card icon="users" title="Select Classes & Sections"
+            subtitle="Choose which classes and sections to include in this timetable generation."
+            actions={<Seg value={scopeMode} onChange={(m) => { setScopeMode(m); setRun(null); setRunSig(null); }}
+              options={[['all', 'All Classes'], ['picked', 'Selected']]} />}>
+            <Body>
+              {scopeMode === 'all' ? (
+                <>
+                  <Note tone="info">
+                    Every active section in {meta?.years?.find((y) => String(y._id) === yearId)?.yearName || 'this year'} is
+                    solved in one run, so teachers and rooms shared between classes never clash.
+                    Each section uses the subject requirements already saved against it — switch to
+                    <strong> Selected</strong> to edit a class’s plan here first.
+                  </Note>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+                    {classes.filter((c) => (c.sections || []).length).map((c) => (
+                      <Chip key={c._id} tone="indigo">
+                        {c.className} · {plural((c.sections || []).length, 'section')}
+                      </Chip>
+                    ))}
+                    {!classes.some((c) => (c.sections || []).length) && (
+                      <span style={{ fontSize: '.84rem', color: 'var(--text-muted)' }}>No sections to generate for.</span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 14, maxWidth: 360 }}>
+                    <Field label="Version name (optional)">
+                      <input className="form-control" value={label} maxLength={80}
+                        placeholder="e.g. Term 2 draft"
+                        onChange={(e) => setLabel(e.target.value)} />
+                    </Field>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                    <Field label="Class">
+                      <select className="form-control" value={classId} onChange={(e) => chooseClass(e.target.value)}>
+                        <option value="">Select class…</option>
+                        {classes.map((c) => (
+                          <option key={c._id} value={c._id} disabled={!(c.sections || []).length}>
+                            {c.className}{(c.sections || []).length ? '' : ' — no sections'}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Sections">
+                      <select className="form-control"
+                        value={allSelected ? 'all' : (sectionIds.length === 1 ? sectionIds[0] : '')}
+                        disabled={!selectedClass}
+                        onChange={(e) => {
+                          if (e.target.value === 'all') setSectionIds(classSections.map((x) => String(x._id)));
+                          else if (e.target.value) setSectionIds([e.target.value]);
+                          else setSectionIds([]);
+                        }}>
+                        <option value="">
+                          {sectionIds.length > 1 && !allSelected
+                            ? `${plural(sectionIds.length, 'section')} chosen`
+                            : 'Choose sections…'}
+                        </option>
+                        {classSections.length > 1 && (
+                          <option value="all">All sections ({classSections.length})</option>
+                        )}
+                        {classSections.map((x) => (
+                          <option key={x._id} value={String(x._id)}>Section {x.sectionName}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Version name (optional)">
+                      <input className="form-control" value={label} maxLength={80}
+                        placeholder={run ? 'e.g. Term 2 — fewer Maths periods' : 'e.g. Term 2 draft'}
+                        onChange={(e) => setLabel(e.target.value)} />
+                    </Field>
+                  </div>
 
-            {plan && (
-              <div className="ttg-week">
-                {(plan.capacity.breakdown || []).map((d) => (
-                  <span key={d.day} className="ttg-week__day">{DAY_SHORT[d.day] || d.day} <b>{d.periods}</b></span>
-                ))}
-                <span>= <b>{capacity}</b> teaching periods a week{scopeCount > 1 ? ` per section${plan.capacity.uniform ? '' : ' (the shortest week)'}` : ''}</span>
-              </div>
-            )}
-
-            {plan && !subjectsMatch && (
-              <Note tone="bad">
-                <b>These sections don&rsquo;t teach the same subjects.</b> One plan can&rsquo;t describe them all.
-                <ul>
-                  {(plan.structureMatches.differences || []).map((d) => (
-                    <li key={d.subjectId}>{d.subjectName} is missing in {d.missingIn.join(', ')}</li>
-                  ))}
-                </ul>
-                Choose one section at a time, or give every section the same subjects.
-              </Note>
-            )}
-            {plan && subjectsMatch && !plan.capacity.uniform && (
-              <Note tone="warn">{plan.structureMatches.message}</Note>
-            )}
-            {!!check.busyTeachers?.length && (
-              <Note tone="info">
-                Already teaching other classes this week, so those periods are kept free:{' '}
-                {check.busyTeachers.map((t) => `${t.name} (${t.periodsElsewhere})`).join(', ')}.
-              </Note>
-            )}
-          </StepCard>
-
-          {/* ── 2. Weekly plan ────────────────────────────────────────── */}
-          <StepCard ref={planRef} step={2} state={stepState.plan} title="Weekly plan" flush
-            sub="How many periods each subject gets, who teaches it, and which subjects share the same periods."
-            actions={plan && subjects.length ? <PlanCapacity capacity={capacity} assigned={assigned} subjects={subjects} rules={rules} merges={merges} /> : null}>
-            {!classId || !scopeCount ? (
-              <PlanEmpty icon="layers" title="Choose a class and its sections" text="Their subjects and the week they have to fit into load here." />
-            ) : planLoading ? (
-              <div className="ttg-center"><Spinner /></div>
-            ) : !plan ? (
-              <PlanEmpty icon="alert" title="Could not load the subjects" text="Check that this class has sections and subjects assigned." />
-            ) : !subjects.length ? (
-              <PlanEmpty icon="book" title="No subjects" text="Assign subjects to this class before generating a timetable." />
-            ) : (
-              <>
-                <div className="ttg-planwrap">
-                  <table className="ttg-plan">
-                    <thead>
-                      <tr>
-                        <th aria-label="Select to share periods" />
-                        <th>Subject</th>
-                        <th title={scopeCount > 1 ? 'Each section keeps its own subject teacher' : undefined}>
-                          {scopeCount > 1 ? 'Teachers' : 'Teacher'}
-                        </th>
-                        <th className="is-num">Periods / week</th>
-                        <th className="is-end">Rules</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orderedSubjects.map((sub) => {
-                        const rule = rules[sub._id] || {};
-                        const key = merges[sub._id];
-                        const tone = key ? groupTone[key] : null;
-                        const partners = key ? (groups.get(key) || []).filter((x) => x._id !== sub._id) : [];
-                        const flag = rowFlags[sub._id];
-                        const focused = focus?.subjectId === sub._id;
+                  {selectedClass && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
+                      {classSections.map((x) => {
+                        const on = sectionIds.includes(String(x._id));
                         return (
-                          <tr key={`${sub._id}${focused ? focus.at : ''}`} data-subject-row={sub._id}
-                            className={[tone && 'is-grouped', focused && 'is-focus', !periodsOf(sub._id) && 'is-off'].filter(Boolean).join(' ')}
-                            style={tone ? { '--tone': tone.fg } : undefined}>
-                            <td>
-                              <input type="checkbox" checked={picked.includes(sub._id)} disabled={!!key}
-                                title={key ? 'Already sharing periods — unmerge it first' : 'Select to share periods with another subject'}
-                                onChange={() => togglePick(sub._id)} />
-                            </td>
-                            <td>
-                              <div className="ttg-subj">
-                                <span className="ttg-subj__dot" style={{ background: subjectColor(sub._id).fg }} />
-                                <div style={{ minWidth: 0 }}>
-                                  <div className="ttg-subj__name">
-                                    {sub.subjectName}{sub.subjectCode && <small>{sub.subjectCode}</small>}
-                                  </div>
-                                  <div className="ttg-subj__rules" title={ruleSummary(rule, days, meta?.rooms)}>
-                                    {ruleSummary(rule, days, meta?.rooms)}
-                                  </div>
-                                  <div className="ttg-subj__tags">
-                                    {tone && (
-                                      <span className="ttg-tag ttg-tag--tone" style={{ '--tone': tone.fg, '--tone-bg': tone.bg }}>
-                                        <Icon name="repeat" size={11} /> With {partners.map((p) => p.subjectName).join(' + ') || '—'}
-                                      </span>
-                                    )}
-                                    {sub.type === 'practical' && <span className="ttg-tag">Practical</span>}
-                                    {!!sub.missingIn?.length && <span className="ttg-tag ttg-tag--bad">Not in every section</span>}
-                                    {flag && <span className="ttg-tag ttg-tag--bad" title={flag.title}><Icon name="alert" size={11} /> {flag.text}</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td>
-                              {/* One dropdown cannot speak for several sections: each keeps
-                                  its own subject teacher, so it is offered for one section only. */}
-                              {scopeCount > 1 ? (
-                                sub.teachers.length
-                                  ? <span className="ttg-teacher">{sub.teachers.map((t) => t.name).join(', ')}</span>
-                                  : <span className="ttg-teacher ttg-teacher--none">No teacher assigned</span>
-                              ) : !sub.teachers.length ? (
-                                <span className="ttg-teacher ttg-teacher--none"
-                                  title="Assign a subject teacher on the section page">No teacher assigned</span>
-                              ) : (
-                                <select className="form-control" value={rule.teacher || ''} aria-label={`${sub.subjectName} teacher`}
-                                  onChange={(e) => patchRule(sub._id, { teacher: e.target.value || null })}>
-                                  <option value="">No teacher</option>
-                                  {sub.teachers.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
-                                </select>
-                              )}
-                            </td>
-                            <td className="is-num">
-                              <Stepper value={rule.weeklyPeriods ?? 0} label={`${sub.subjectName} periods per week`}
-                                onChange={(n) => setPeriods(sub._id, n)} />
-                            </td>
-                            <td className="is-end">
-                              <button type="button" className="ttg-iconbtn" title={`${sub.subjectName} scheduling rules`}
-                                aria-label={`${sub.subjectName} scheduling rules`} onClick={() => setTuning(sub._id)}>
-                                <Icon name="sliders" size={16} />
-                              </button>
-                            </td>
-                          </tr>
+                          <button key={x._id} type="button" onClick={() => toggleSection(String(x._id))}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 8,
+                              padding: '7px 12px', borderRadius: 9,
+                              border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                              background: on ? '#eef2ff' : 'var(--bg-card)',
+                              color: on ? 'var(--primary)' : 'var(--text-muted)',
+                              fontSize: '.83rem', fontWeight: 600, cursor: 'pointer',
+                            }}>
+                            {selectedClass.className} {x.sectionName}
+                            <em style={{ fontStyle: 'normal', fontWeight: 400, opacity: .8 }}>
+                              {plural(x.currentCount || 0, 'student')}
+                            </em>
+                            <Icon name={on ? 'close' : 'plus'} size={13} />
+                          </button>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
+                      {scopeCount > 0 && (
+                        <button type="button" className="btn btn-secondary btn-sm"
+                          style={{ marginLeft: 'auto' }} onClick={() => setSectionIds([])}>
+                          <Icon name="trash" size={14} /> Clear all
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-                <div className="ttg-planbar">
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={picked.length < 2} onClick={mergePicked}>
-                    <Icon name="repeat" size={14} /> Share periods{picked.length ? ` (${picked.length})` : ''}
-                  </button>
-                  {[...groups.entries()].map(([key, members]) => (
-                    <span key={key} className="ttg-group" style={{ '--tone': groupTone[key].fg }}>
-                      <b>{members.map((m) => m.subjectName).join(' + ')}</b>
-                      <span>{periodsOf(members[0]?._id)}×/week</span>
-                      <button type="button" onClick={() => unmerge(key)} title="Stop sharing periods" aria-label="Unmerge">
-                        <Icon name="close" size={12} />
-                      </button>
-                    </span>
+                  {plan && (
+                    <div style={{ marginTop: 14 }}>
+                      <Note tone="info">
+                        <strong>{capacity} teaching periods per week per section</strong>
+                        {' ('}
+                        {(plan.capacity.breakdown || [])
+                          .map((d) => `${DAY_SHORT[d.day] || d.day}: ${d.periods}`).join(', ')}
+                        {')'}
+                        {!plan.capacity.uniform && ' — the shortest week is used where sections differ.'}
+                      </Note>
+                    </div>
+                  )}
+
+                  {plan && !subjectsMatch && (
+                    <div style={{ marginTop: 12 }}>
+                      <Note tone="bad">
+                        <b>These sections don&rsquo;t teach the same subjects.</b> One plan can&rsquo;t describe them all.
+                        <ul>
+                          {(plan.structureMatches.differences || []).map((d) => (
+                            <li key={d.subjectId}>{d.subjectName} is missing in {d.missingIn.join(', ')}</li>
+                          ))}
+                        </ul>
+                        Choose one section at a time, or give every section the same subjects.
+                      </Note>
+                    </div>
+                  )}
+                </>
+              )}
+            </Body>
+          </Card>
+
+          {/* ══ 2. Rules ═══════════════════════════════════════════════════ */}
+          <Card icon="settings" title="Configure Rules & Preferences"
+            subtitle="Set how the generator should build the timetable."
+            actions={<>
+              <Button size="sm" variant="secondary" onClick={() => openTemplates('load')}>
+                <Icon name="folder" size={15} /> Load from template
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => openTemplates('save')}>
+                <Icon name="save" size={15} /> Save as template
+              </Button>
+            </>}>
+            <div className="tt-card__tabs">
+              <Seg value={ruleTab} onChange={setRuleTab}
+                options={ruleTabs({ subjects: subjects.length, merges: sectionMerges.length })} />
+            </div>
+
+            {/* ── General ──────────────────────────────────────────────── */}
+            {ruleTab === 'general' && (
+              <Body>
+                <div className="ttg-prefs">
+                  {optionsIn('general').map(([key, title, hint, icon]) => (
+                    <button key={key} type="button" className="ttg-pref" aria-pressed={!!options[key]}
+                      onClick={() => setOptions((o) => ({ ...o, [key]: !o[key] }))}>
+                      <span className="ttg-pref__icon"><Icon name={icon} size={17} /></span>
+                      <Switch on={!!options[key]} />
+                      <span className="ttg-pref__body"><b>{title}</b><span>{hint}</span></span>
+                    </button>
                   ))}
-                  {!groups.size && (
-                    <span className="ttg-planbar__hint">Tick two or more subjects to teach them in the same period (e.g. a language choice).</span>
+                </div>
+                <Note tone="info">
+                  No clashes, teacher availability, weekly counts and lab rooms are always enforced.
+                  These decide what the optimiser improves once those hold.
+                </Note>
+              </Body>
+            )}
+
+            {/* ── Subject Distribution ─────────────────────────────────── */}
+            {ruleTab === 'subjects' && (
+              scopeMode === 'all' ? (
+                <Body>
+                  <Note tone="info">
+                    With every class in scope there is no single plan to edit here — each section
+                    uses the subject requirements saved against it. Switch the scope to
+                    <strong> Selected</strong> and pick a class to change its weekly plan.
+                  </Note>
+                </Body>
+              ) : !classId || !scopeCount ? (
+                <Body>
+                  <PlanEmpty icon="layers" title="Choose a class and its sections"
+                    text="Every subject they teach loads here, with the periods a week each one gets, who teaches it, and which subjects share a period." />
+                </Body>
+              ) : planLoading ? (
+                <div className="ttg-center"><Spinner /></div>
+              ) : !plan ? (
+                <Body>
+                  <PlanEmpty icon="alert" title="Could not load the subjects"
+                    text="Check that this class has sections and subjects assigned." />
+                </Body>
+              ) : !subjects.length ? (
+                <Body>
+                  <PlanEmpty icon="book" title="No subjects"
+                    text="Assign subjects to this class before generating a timetable." />
+                </Body>
+              ) : (
+                <div ref={planRef}>
+                  <div style={{ padding: '0 22px 2px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <PlanCapacity capacity={capacity} assigned={assigned} subjects={subjects}
+                      rules={rules} merges={merges} />
+                  </div>
+                  <div className="ttg-planwrap">
+                    <table className="ttg-plan">
+                      <thead>
+                        <tr>
+                          <th aria-label="Select to share periods" />
+                          <th>Subject</th>
+                          <th title={scopeCount > 1 ? 'Each section keeps its own subject teacher' : undefined}>
+                            {scopeCount > 1 ? 'Teachers' : 'Teacher'}
+                          </th>
+                          <th className="is-num">Periods / week</th>
+                          <th className="is-end">Rules</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderedSubjects.map((sub) => {
+                          const rule = rules[sub._id] || {};
+                          const key = merges[sub._id];
+                          const tone = key ? groupTone[key] : null;
+                          const partners = key ? (groups.get(key) || []).filter((x) => x._id !== sub._id) : [];
+                          const flag = rowFlags[sub._id];
+                          const focused = focus?.subjectId === sub._id;
+                          return (
+                            <tr key={`${sub._id}${focused ? focus.at : ''}`} data-subject-row={sub._id}
+                              className={[tone && 'is-grouped', focused && 'is-focus', !periodsOf(sub._id) && 'is-off'].filter(Boolean).join(' ')}
+                              style={tone ? { '--tone': tone.fg } : undefined}>
+                              <td>
+                                <input type="checkbox" checked={picked.includes(sub._id)} disabled={!!key}
+                                  title={key ? 'Already sharing periods — unmerge it first' : 'Select to share periods with another subject'}
+                                  onChange={() => togglePick(sub._id)} />
+                              </td>
+                              <td>
+                                <div className="ttg-subj">
+                                  <span className="ttg-subj__dot" style={{ background: subjectColor(sub._id).fg }} />
+                                  <div style={{ minWidth: 0 }}>
+                                    <div className="ttg-subj__name">
+                                      {sub.subjectName}{sub.subjectCode && <small>{sub.subjectCode}</small>}
+                                    </div>
+                                    <div className="ttg-subj__rules" title={ruleSummary(rule, days, meta?.rooms)}>
+                                      {ruleSummary(rule, days, meta?.rooms)}
+                                    </div>
+                                    <div className="ttg-subj__tags">
+                                      {tone && (
+                                        <span className="ttg-tag ttg-tag--tone" style={{ '--tone': tone.fg, '--tone-bg': tone.bg }}>
+                                          <Icon name="repeat" size={11} /> With {partners.map((x) => x.subjectName).join(' + ') || '—'}
+                                        </span>
+                                      )}
+                                      {sub.type === 'practical' && <span className="ttg-tag">Practical</span>}
+                                      {!!sub.missingIn?.length && <span className="ttg-tag ttg-tag--bad">Not in every section</span>}
+                                      {flag && <span className="ttg-tag ttg-tag--bad" title={flag.title}><Icon name="alert" size={11} /> {flag.text}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                {/* One dropdown cannot speak for several sections: each keeps
+                                    its own subject teacher, so it is offered for one section only. */}
+                                {scopeCount > 1 ? (
+                                  sub.teachers.length
+                                    ? <span className="ttg-teacher">{sub.teachers.map((t) => t.name).join(', ')}</span>
+                                    : <span className="ttg-teacher ttg-teacher--none">No teacher assigned</span>
+                                ) : !sub.teachers.length ? (
+                                  <span className="ttg-teacher ttg-teacher--none"
+                                    title="Assign a subject teacher on the section page">No teacher assigned</span>
+                                ) : (
+                                  <select className="form-control" value={rule.teacher || ''} aria-label={`${sub.subjectName} teacher`}
+                                    onChange={(e) => patchRule(sub._id, { teacher: e.target.value || null })}>
+                                    <option value="">No teacher</option>
+                                    {sub.teachers.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                                  </select>
+                                )}
+                              </td>
+                              <td className="is-num">
+                                <Stepper value={rule.weeklyPeriods ?? 0} label={`${sub.subjectName} periods per week`}
+                                  onChange={(n) => setPeriods(sub._id, n)} />
+                              </td>
+                              <td className="is-end">
+                                <button type="button" className="ttg-iconbtn" title={`${sub.subjectName} scheduling rules`}
+                                  aria-label={`${sub.subjectName} scheduling rules`} onClick={() => setTuning(sub._id)}>
+                                  <Icon name="sliders" size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="ttg-planbar">
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={picked.length < 2} onClick={mergePicked}>
+                      <Icon name="repeat" size={14} /> Share periods{picked.length ? ` (${picked.length})` : ''}
+                    </button>
+                    {[...groups.entries()].map(([key, members]) => (
+                      <span key={key} className="ttg-group" style={{ '--tone': groupTone[key].fg }}>
+                        <b>{members.map((m) => m.subjectName).join(' + ')}</b>
+                        <span>{periodsOf(members[0]?._id)}×/week</span>
+                        <button type="button" onClick={() => unmerge(key)} title="Stop sharing periods" aria-label="Unmerge">
+                          <Icon name="close" size={12} />
+                        </button>
+                      </span>
+                    ))}
+                    {!groups.size && (
+                      <span className="ttg-planbar__hint">Tick two or more subjects to teach them in the same period (e.g. a language choice).</span>
+                    )}
+                  </div>
+
+                  {(remaining < 0 || lonelyGroups.length > 0) && (
+                    <div style={{ padding: '0 22px 18px' }}>
+                      <Note tone="bad">
+                        {remaining < 0 && <>The plan needs <b>{assigned}</b> periods a week but the week has <b>{capacity}</b> — take {Math.abs(remaining)} away. </>}
+                        {lonelyGroups.length > 0 && <>A shared-period group has only one subject — unmerge it or add a partner.</>}
+                      </Note>
+                    </div>
                   )}
                 </div>
-              </>
+              )
             )}
-          </StepCard>
 
-          {plan && (remaining < 0 || lonelyGroups.length > 0) && (
-            <Note tone="bad">
-              {remaining < 0 && <>The plan needs <b>{assigned}</b> periods a week but the week has <b>{capacity}</b> — take {Math.abs(remaining)} away. </>}
-              {lonelyGroups.length > 0 && <>A shared-period group has only one subject — unmerge it or add a partner.</>}
-            </Note>
-          )}
-
-          {/* ── 3. Combined sections ──────────────────────────────────── */}
-          {selectedClass && classSections.length > 1 && (
-            <StepCard step={3} title="Combined sections"
-              sub="Sections that sit together for a subject — one teacher, one room, the same period in every section. Saved for the whole year, so they still apply when a section is generated on its own."
-              actions={sectionMerges.length ? <span className="ttg-tag">{plural(sectionMerges.length, 'combination')}</span> : null}>
-              {sectionMerges.length > 0 && (
-                <div className="ttg-list">
-                  {sectionMerges.map((m) => (
-                    <div key={m._id} className="ttg-list__row">
-                      <div className="ttg-list__main">
-                        <b>{m.subjectName}</b> · {m.sections.map((x) => x.label).join(' + ')}
-                        {(m.teacherName || m.roomName) && (
-                          <div className="ttg-list__sub">{[m.teacherName, m.roomName].filter(Boolean).join(' · ')}</div>
-                        )}
-                      </div>
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={mergeBusy} onClick={() => removeSectionMerge(m._id)}>
-                        Remove
-                      </button>
-                    </div>
+            {/* ── Teacher & Rooms ──────────────────────────────────────── */}
+            {ruleTab === 'staff' && (
+              <Body>
+                <div className="ttg-prefs">
+                  {optionsIn('staff').map(([key, title, hint, icon]) => (
+                    <button key={key} type="button" className="ttg-pref" aria-pressed={!!options[key]}
+                      onClick={() => setOptions((o) => ({ ...o, [key]: !o[key] }))}>
+                      <span className="ttg-pref__icon"><Icon name={icon} size={17} /></span>
+                      <Switch on={!!options[key]} />
+                      <span className="ttg-pref__body"><b>{title}</b><span>{hint}</span></span>
+                    </button>
                   ))}
                 </div>
-              )}
-              <div className="ttg-addrow">
-                <div className="ttg-field">
-                  <label className="ttg-label" htmlFor="ttg-merge-subject">Subject</label>
-                  <select id="ttg-merge-subject" className="form-control" value={mergeDraft.subject}
-                    onChange={(e) => setMergeDraft((d) => ({ ...d, subject: e.target.value }))}>
-                    <option value="">Choose…</option>
-                    {subjects.map((s) => <option key={s._id} value={s._id}>{s.subjectName}</option>)}
-                  </select>
-                </div>
-                <div className="ttg-field">
-                  <span className="ttg-label">Sections sitting together</span>
-                  <div className="ttg-chips">
-                    {classSections.map((s) => {
-                      const on = mergeDraft.sections.includes(s._id);
-                      return (
-                        <button key={s._id} type="button" className={`ttg-chip${on ? ' is-on' : ''}`}
-                          onClick={() => setMergeDraft((d) => ({
-                            ...d, sections: on ? d.sections.filter((x) => x !== s._id) : [...d.sections, s._id],
-                          }))}>
-                          <span className="ttg-chip__tick"><Icon name="check" size={11} strokeWidth={3} /></span>
-                          {s.sectionName}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button type="button" className="btn btn-secondary" onClick={addSectionMerge}
-                  disabled={mergeBusy || !mergeDraft.subject || mergeDraft.sections.length < 2}>
-                  {mergeBusy ? <Spinner size="sm" /> : <Icon name="plus" size={16} />} Combine
-                </button>
-              </div>
-            </StepCard>
-          )}
 
-          {/* ── 4. Preferences ────────────────────────────────────────── */}
-          <StepCard step={selectedClass && classSections.length > 1 ? 4 : 3} title="Preferences"
-            sub="No clashes, availability, weekly counts and lab rooms are always enforced. These decide what the optimiser improves afterwards.">
-            <div className="ttg-prefs">
-              {OPTIONS.map(([key, title, hint]) => (
-                <button key={key} type="button" className="ttg-pref" aria-pressed={!!options[key]}
-                  onClick={() => setOptions((o) => ({ ...o, [key]: !o[key] }))}>
-                  <Switch on={!!options[key]} />
-                  <div><b>{title}</b><span>{hint}</span></div>
-                </button>
-              ))}
-            </div>
-          </StepCard>
+                {!!check.busyTeachers?.length && (
+                  <Note tone="info">
+                    Already teaching other classes this week, so those periods are kept free:{' '}
+                    {check.busyTeachers.map((t) => `${t.name} (${t.periodsElsewhere})`).join(', ')}.
+                  </Note>
+                )}
+
+              </Body>
+            )}
+
+            {/* ── Combined Classes ─────────────────────────────────────
+                 Sections that sit together for a subject. Its own tab rather
+                 than a paragraph under Teacher & Rooms: it is a decision about
+                 classes, and buried there nobody found it. */}
+            {ruleTab === 'merges' && (
+              <Body>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Note tone="info">
+                    Sections that sit together for a subject — one teacher, one room, the same period
+                    in every section. A language choice, a combined games period, two small sections
+                    taught as one. Saved for the whole year, so they still apply when a section is
+                    generated on its own.
+                  </Note>
+
+                  {scopeMode === 'all' ? (
+                    <Note tone="warn">
+                      Combinations are set one class at a time. Switch the scope to
+                      <strong> Selected</strong>, pick the class, and its sections appear here —
+                      whatever is already saved still applies to an all-classes run.
+                    </Note>
+                  ) : !selectedClass ? (
+                    <PlanEmpty icon="layers" title="Choose a class first"
+                      text="Its sections load here, and any combination already saved for them." />
+                  ) : classSections.length < 2 ? (
+                    <PlanEmpty icon="grid" title={`${selectedClass.className} has one section`}
+                      text="There is nothing to combine it with. Combinations need two or more sections of the same class." />
+                  ) : (
+                    <>
+                      {sectionMerges.length > 0 ? (
+                        <div className="ttg-list">
+                          {sectionMerges.map((m) => (
+                            <div key={m._id} className="ttg-list__row">
+                              <div className="ttg-list__main">
+                                <b>{m.subjectName}</b> · {m.sections.map((x) => x.label).join(' + ')}
+                                {(m.teacherName || m.roomName) && (
+                                  <div className="ttg-list__sub">{[m.teacherName, m.roomName].filter(Boolean).join(' · ')}</div>
+                                )}
+                              </div>
+                              <button type="button" className="btn btn-secondary btn-sm" disabled={mergeBusy}
+                                onClick={() => removeSectionMerge(m._id)}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Note tone="quiet">
+                          No sections of {selectedClass.className} are combined yet. They are
+                          timetabled independently.
+                        </Note>
+                      )}
+
+                      <div className="ttg-addrow">
+                        <div className="ttg-field">
+                          <label className="ttg-label" htmlFor="ttg-merge-subject">Subject</label>
+                          <select id="ttg-merge-subject" className="form-control" value={mergeDraft.subject}
+                            onChange={(e) => setMergeDraft((d) => ({ ...d, subject: e.target.value }))}>
+                            <option value="">Choose…</option>
+                            {subjects.map((x) => <option key={x._id} value={x._id}>{x.subjectName}</option>)}
+                          </select>
+                        </div>
+                        <div className="ttg-field">
+                          <span className="ttg-label">Sections sitting together</span>
+                          <div className="ttg-chips">
+                            {classSections.map((x) => {
+                              const on = mergeDraft.sections.includes(x._id);
+                              return (
+                                <button key={x._id} type="button" className={`ttg-chip${on ? ' is-on' : ''}`}
+                                  onClick={() => setMergeDraft((d) => ({
+                                    ...d, sections: on ? d.sections.filter((v) => v !== x._id) : [...d.sections, x._id],
+                                  }))}>
+                                  <span className="ttg-chip__tick"><Icon name="check" size={11} strokeWidth={3} /></span>
+                                  {x.sectionName}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <button type="button" className="btn btn-secondary" onClick={addSectionMerge}
+                          disabled={mergeBusy || !mergeDraft.subject || mergeDraft.sections.length < 2}>
+                          {mergeBusy ? <Spinner size="sm" /> : <Icon name="plus" size={16} />} Combine
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Body>
+            )}
+
+            {/* ── Advanced ─────────────────────────────────────────────── */}
+            {ruleTab === 'advanced' && (
+              <Body>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Note tone="info">
+                    The solver’s time budget, the school-wide hard limits and the optimiser weights
+                    live on <a href="/admin/timetable/configuration">Configuration</a> — they apply to
+                    every run of this academic year, not just this one.
+                  </Note>
+
+                  {run && !running && REPLACEABLE.includes(run.status) && !run.isDeleted && (
+                    <label className="ttg-run__replace" style={{ margin: 0 }}>
+                      <input type="checkbox" checked={replaceOld} onChange={(e) => setReplaceOld(e.target.checked)} />
+                      When I regenerate, replace this attempt so it doesn&rsquo;t stay under Versions
+                    </label>
+                  )}
+
+                  {check.report?.problems?.length > 0 && (
+                    <div>
+                      <strong style={{ fontSize: '.9rem' }}>Everything the dry run found</strong>
+                      <div className="ttg-issues" style={{ marginTop: 8 }}>
+                        {check.report.problems.map((x) => (
+                          <div key={x.key}>{x.title}<small>{x.detail}</small></div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {check.error && <Note tone="warn">Could not check the plan: {check.error}</Note>}
+                </div>
+              </Body>
+            )}
+          </Card>
         </div>
 
-        {/* ── Rail ───────────────────────────────────────────────────── */}
-        <aside className="ttg-rail">
-          <div className="ttg-card ttg-ready">
-            <div className="ttg-ready__head">
-              <h3>{run && !running ? 'Regenerate' : 'Ready to generate?'}</h3>
-              <p>{scopeLine}</p>
-            </div>
-            <ul className="ttg-checks">
-              {checks.map((c, i) => (
-                <li key={i} className={`ttg-check ttg-check--${c.state}`}>
-                  <span className="ttg-check__icon">
-                    {c.state === 'ok' && <Icon name="check" size={12} strokeWidth={3} />}
-                    {(c.state === 'bad' || c.state === 'warn') && <Icon name="alert" size={12} strokeWidth={2.4} />}
-                  </span>
-                  <div>{c.text}{c.sub && <small>{c.sub}</small>}</div>
-                </li>
-              ))}
-            </ul>
-            <div className="ttg-divider" />
-            <button type="button" className="btn btn-primary ttg-go" disabled={!canGenerate} onClick={() => start()}>
-              {starting || running ? <Spinner size="sm" /> : <Icon name={run ? 'refresh' : 'wand'} size={18} />}
-              {running ? 'Generating…' : run ? 'Regenerate with this plan' : 'Generate timetable'}
-            </button>
-            <p className="ttg-ready__foot">
-              {running
-                ? 'The plan is locked until this run finishes.'
-                : dryErrors
-                  ? `${plural(dryErrors, 'problem')} above will leave gaps — you can still generate and fix them after.`
-                  : run
-                    ? 'Saves this plan and creates a new version. The one above stays until you replace it.'
-                    : 'Saves this plan for the chosen sections and creates a new draft version. Nothing is published.'}
-            </p>
-          </div>
+        {/* ══ 3 & 4. Summary, checks, and the button ═══════════════════════ */}
+        <aside className="tt-rail">
+          <Panel icon="fileDoc" title="Generation Summary">
+            <KV icon="calendar" k="Academic Year"
+              v={meta?.years?.find((y) => String(y._id) === yearId)?.yearName || '—'} />
+            <KV icon="layers" k="Classes"
+              v={scopeMode === 'all' ? `${totalClasses} (all)` : (selectedClass ? selectedClass.className : '—')} />
+            <KV icon="grid" k="Sections" v={totalSections || '—'} />
+            <KV icon="calendarDays" k="Total periods to plan"
+              v={plannedPeriods != null ? (plannedPeriods || '—') : 'Per section requirements'} />
+            <KV icon="book" k="Subjects"
+              v={scopeMode === 'all' ? (meta?.subjects?.length ?? '—') : (subjects.length || 'To be calculated')} />
+            {scopeMode === 'picked' && plan && (
+              <>
+                {/* What the plan on screen adds up to. Without this the rail
+                    described the scope and said nothing about the work. */}
+                <KV icon="calendarDays" k="Periods planned"
+                  v={<span style={{ color: remaining < 0 ? 'var(--danger)' : remaining === 0 ? 'var(--success)' : 'inherit' }}>
+                    {assigned} of {capacity}
+                  </span>} />
+                {groups.size > 0 && (
+                  <KV icon="repeat" k="Subjects sharing periods"
+                    v={`${plural(groups.size, 'group')} · ${[...groups.values()].reduce((n, g) => n + g.length, 0)} subjects`} />
+                )}
+                <KV icon="grid" k="Combined classes"
+                  v={sectionMerges.length || <span className="tt-table__muted">None</span>} />
+              </>
+            )}
+            <KV icon="users" k="Teachers" v={meta?.teachers?.length ?? '—'} />
+            <KV icon="building" k="Rooms" v={meta?.rooms?.length ?? '—'} />
+          </Panel>
+
+          <Note tone="info">
+            This will create a new timetable version. Your current timetable will remain unchanged.
+          </Note>
+
+          <Panel icon="checkCircle" title="Validation Check">
+            {checks.map((c, i) => (
+              <Check key={i} state={c.state === 'ok' ? 'ok' : c.state === 'bad' ? 'bad' : 'warn'} hint={c.sub}>
+                {c.text}
+              </Check>
+            ))}
+            {!checks.length && (
+              <span style={{ fontSize: '.84rem', color: 'var(--text-muted)' }}>
+                Choose a scope and the checks start running.
+              </span>
+            )}
+          </Panel>
+
+          <Button onClick={() => start()} disabled={!canGenerate}
+            style={{ width: '100%', height: 46, justifyContent: 'center' }}>
+            {starting || running ? <Spinner size="sm" /> : <Icon name={run ? 'refresh' : 'wand'} size={18} />}
+            {running ? 'Generating…' : run ? 'Regenerate Timetable' : 'Generate Timetable'}
+          </Button>
+
+          <Button variant="secondary" onClick={() => setPreview(true)}
+            style={{ width: '100%', height: 42, justifyContent: 'center' }}>
+            <Icon name="eye" size={16} /> Preview Rules
+          </Button>
+
+          <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', lineHeight: 1.5, textAlign: 'center' }}>
+            {running
+              ? 'The plan is locked until this run finishes.'
+              : dryErrors
+                ? `${plural(dryErrors, 'problem')} above will leave gaps — you can still generate and fix them after.`
+                : run
+                  ? 'Saves this plan and creates a new version. The one above stays until you replace it.'
+                  : 'Saves this plan for the chosen sections and creates a new draft version. Nothing is published.'}
+          </p>
         </aside>
       </div>
 
@@ -971,11 +1325,132 @@ export default function TimetableGenerate() {
           <p>The check found {plural(dryErrors, 'problem')} this plan will run into. The timetable will still be generated,
             but with gaps — and it can&rsquo;t be published until they&rsquo;re fixed.</p>
           <div className="ttg-issues">
-            {(check.report?.problems || []).filter((p) => p.severity === 'error').map((p) => (
-              <div key={p.key}>{p.title}<small>{p.detail}</small></div>
+            {(check.report?.problems || []).filter((x) => x.severity === 'error').map((x) => (
+              <div key={x.key}>{x.title}<small>{x.detail}</small></div>
             ))}
           </div>
         </div>
+      </Modal>
+
+      {/* What the generator is actually being told to do. */}
+      <Modal open={preview} onClose={() => setPreview(false)} maxWidth={620} title="The rules this run will use"
+        footer={<Button variant="secondary" onClick={() => setPreview(false)}>Close</Button>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <strong style={{ fontSize: '.9rem' }}>Always enforced</strong>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Check state="ok">One teacher, one place, one period</Check>
+              <Check state="ok">One room, one class, one period</Check>
+              <Check state="ok">Blocked availability and room slots are never used</Check>
+              <Check state="ok">Every subject gets the weekly periods its plan asks for</Check>
+              <Check state="ok">Practicals claim a lab where one is required</Check>
+            </div>
+          </div>
+          <div>
+            <strong style={{ fontSize: '.9rem' }}>Pursued afterwards</strong>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {OPTIONS.map(([key, title]) => (
+                <Check key={key} state={options[key] ? 'ok' : 'warn'}>
+                  {title}{options[key] ? '' : ' — off'}
+                </Check>
+              ))}
+            </div>
+          </div>
+          {scopeMode === 'picked' && subjects.length > 0 && (
+            <div>
+              <strong style={{ fontSize: '.9rem' }}>This class’s plan</strong>
+              <div className="tt-tablewrap" style={{ marginTop: 8, maxHeight: 240, overflowY: 'auto' }}>
+                <table className="tt-table">
+                  <thead><tr><th>Subject</th><th>Periods</th><th>Rules</th></tr></thead>
+                  <tbody>
+                    {orderedSubjects.filter((x) => periodsOf(x._id) > 0).map((x) => (
+                      <tr key={x._id}>
+                        <td>{x.subjectName}</td>
+                        <td className="tt-num">{periodsOf(x._id)}</td>
+                        <td className="tt-table__muted">{ruleSummary(rules[x._id] || {}, days, meta?.rooms)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* How the screen is meant to be used. */}
+      <Modal open={guide} onClose={() => setGuide(false)} maxWidth={620} title="How generation works"
+        footer={<Button variant="secondary" onClick={() => setGuide(false)}>Got it</Button>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: '.88rem', lineHeight: 1.6 }}>
+          <p>
+            <strong>1. Choose the scope.</strong> Sections solved together never clash with each
+            other, so generating a whole class — or the whole school — beats doing one section at a
+            time. All Classes uses each section’s saved requirements; Selected lets you edit one
+            class’s plan here first.
+          </p>
+          <p>
+            <strong>2. Set the rules.</strong> Give every subject its periods a week under Subject
+            Distribution. The toggles decide what the optimiser improves once the hard rules hold —
+            they never make an impossible timetable possible.
+          </p>
+          <p>
+            <strong>3. Read the checks.</strong> The rail runs a dry run against the real staff and
+            rooms. It finds a teacher with more periods than free time, or a subject with nobody to
+            teach it, before you wait for a run.
+          </p>
+          <p>
+            <strong>4. Generate.</strong> A new version is created; the timetable in use is
+            untouched until you publish it from Versions. Anything the run flags is listed above the
+            plan, each with the change that fixes it.
+          </p>
+          <Note tone="info">
+            Nothing here publishes anything. Generating as many times as you like costs the school
+            nothing but a row under Versions.
+          </Note>
+        </div>
+      </Modal>
+
+      {/* Saved rule sets, shared with the Configuration screen. */}
+      <Modal open={!!templates} onClose={() => setTemplates(null)} maxWidth={480}
+        title={templates?.mode === 'save' ? 'Save these preferences' : 'Load a saved rule set'}
+        footer={templates?.mode === 'save' ? (
+          <>
+            <Button variant="secondary" onClick={() => setTemplates(null)}>Cancel</Button>
+            <Button loading={templates?.saving} onClick={saveTemplate}>Save</Button>
+          </>
+        ) : <Button variant="secondary" onClick={() => setTemplates(null)}>Close</Button>}>
+        {templates?.mode === 'save' ? (
+          <Field label="Name it" hint="e.g. “Normal term”, “Exam term”">
+            <input className="form-control" value={templates.name} maxLength={60} autoFocus
+              onChange={(e) => setTemplates((t) => ({ ...t, name: e.target.value }))} />
+          </Field>
+        ) : !templates?.list?.length ? (
+          <Note tone="info">
+            No rule sets saved for this year yet. Save the preferences you like and they will be
+            here — and on the Configuration screen — next term.
+          </Note>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {templates.list.map((t, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 13px',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+              }}>
+                <Icon name="fileDoc" size={17} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ fontSize: '.88rem' }}>{t.name}</strong>
+                  <div style={{ fontSize: '.74rem', color: 'var(--text-muted)' }}>
+                    {t.options ? 'Generator preferences' : 'Limits and weights only'}
+                    {' · '}{new Date(t.savedAt).toLocaleDateString('en-IN')}
+                  </div>
+                </div>
+                <Button size="sm" variant="secondary" disabled={!t.options} onClick={() => applyTemplate(t)}>
+                  Load
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   );

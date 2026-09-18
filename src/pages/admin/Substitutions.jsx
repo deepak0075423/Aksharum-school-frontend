@@ -1,735 +1,447 @@
+/**
+ * Admin → Timetable → Substitutions.
+ *
+ * Four views of one job — keeping every period taught when a teacher is away.
+ *
+ *   Today's Board      the day, period by period: who is away, what that leaves
+ *                      uncovered, and who is on it. Opening the page runs
+ *                      detection, so an absence marked five minutes ago is here.
+ *   Manual Assignment  cover any period by hand. The whole workflow for a
+ *                      school with neither attendance nor leave switched on,
+ *                      and the escape hatch for everyone else.
+ *   Workload           timetabled load beside cover taken on, against the
+ *                      school's own thresholds.
+ *   Settings           the rules the first three obey.
+ */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import {
-  PageHeader, Card, Button, Badge, Spinner, Modal, Empty, Table,
-  Input, Select, Textarea, Alert, StatCard,
-} from '../../components/ui/index';
+import { Button } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
 import * as api from '../../api/substitute.api';
+import { getClassesWithSections, getSubjects } from '../../api/admin.api';
+import {
+  TtHead, TtTabs, Card, Body, Filters, Field, Pick, Search, Stats, Stat, Panel,
+  Chip, Note, Person, Legend, Pager, Loading, QuickActions, plural, pct,
+  fmtDay, timeRange, toneFor,
+} from '../timetable/admin/ttUI';
+import {
+  unwrap, statusOf, StatusChip, STATUS_META, REASON_META, DateStepper,
+  CandidateModal, BulkModal, HistoryModal, RecentTable,
+} from '../timetable/admin/subsParts';
+import { ManualTab, WorkloadTab, SettingsTab, downloadCsv } from '../timetable/admin/subsTabs';
 
-/**
- * Substitute Subject Teacher — the admin surface.
- *
- * Board     one day at a time: who is away, every period they were due to
- *           teach, and who is covering it. Opening the page runs detection, so
- *           an absence marked five minutes ago is already here.
- * Manual    pick any teacher and cover their periods by hand. This is the whole
- *           workflow for a school with neither attendance nor leave enabled,
- *           and an escape hatch for everyone else.
- * Workload  normal load vs substitute load per teacher over a date range.
- * Settings  automation, eligibility rules, fairness weights, notifications.
- */
-
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-const fmtDay = (iso) => {
-  if (!iso) return '';
-  const d = new Date(`${iso}T00:00:00.000Z`);
-  return d.toLocaleDateString('en-IN', {
-    weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-  });
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const periodTime = (p) => (p.startTime ? `${p.startTime}${p.endTime ? `–${p.endTime}` : ''}` : '');
+const TABS = [
+  { key: 'board',    label: 'Today’s Board',     icon: 'calendarDays' },
+  { key: 'manual',   label: 'Manual Assignment', icon: 'pencil' },
+  { key: 'workload', label: 'Workload',          icon: 'chart' },
+  { key: 'settings', label: 'Settings',          icon: 'settings' },
+];
 
-const REASON_META = {
-  absent: { label: 'Absent',  variant: 'danger'  },
-  leave:  { label: 'On leave', variant: 'warning' },
-  manual: { label: 'Manual',  variant: 'primary' },
-};
-
-/* ── The six counts, spec §5 ───────────────────────────────────────────────── */
-// Substitute load is shown first and emphasised: it is the number the admin is
-// trying to keep level, while normal load is the context that makes it fair.
-function WorkloadGrid({ w, compact }) {
-  if (!w) return null;
-  const cell = (label, value, strong) => (
-    <div key={label} style={{ textAlign: 'center', minWidth: compact ? 44 : 58 }}>
-      <div style={{
-        fontSize: compact ? '.95rem' : '1.15rem', fontWeight: 700,
-        color: strong && value > 0 ? 'var(--danger, #dc2626)' : 'var(--text-primary)',
-      }}>{value}</div>
-      <div style={{ fontSize: '.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em' }}>
-        {label}
-      </div>
-    </div>
-  );
-  return (
-    <div style={{ display: 'flex', gap: compact ? 10 : 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-      <div>
-        <div style={{ fontSize: '.62rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 2 }}>SUBSTITUTE</div>
-        <div style={{ display: 'flex', gap: compact ? 6 : 10 }}>
-          {cell('Today', w.subsToday, true)}
-          {cell('Week',  w.subsWeek,  true)}
-          {cell('Month', w.subsMonth, true)}
-        </div>
-      </div>
-      <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: compact ? 10 : 16 }}>
-        <div style={{ fontSize: '.62rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 2 }}>NORMAL</div>
-        <div style={{ display: 'flex', gap: compact ? 6 : 10 }}>
-          {cell('Today', w.normalToday)}
-          {cell('Week',  w.normalWeek)}
-          {cell('Month', w.normalMonth)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Choose a substitute for one period ────────────────────────────────────── */
-function CandidateModal({ assignment, onClose, onDone }) {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [remarks, setRemarks] = useState(assignment?.remarks || '');
-  const [saving, setSaving]   = useState('');
+export default function Substitutions() {
+  // A substitution notice carries the day it is about. Without honouring it the
+  // reader lands on today's board, which will never show the cover they were
+  // told about — and the ?focus= highlight waits for a row that cannot come.
+  const [params] = useSearchParams();
+  const [tab, setTab]   = useState(params.get('tab') || 'board');
+  const [date, setDate] = useState(() => params.get('date') || todayIso());
+  const [classes, setClasses]   = useState([]);
+  const [subjects, setSubjects] = useState([]);
 
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    api.getCandidates(assignment._id)
-      .then((res) => { if (alive) setData(res?.data ?? res); })
-      .catch((e) => toast.error(e.message || 'Could not load candidates'))
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [assignment._id]);
+    getClassesWithSections(true).then((r) => setClasses(unwrap(r) || [])).catch(() => {});
+    getSubjects().then((r) => setSubjects(unwrap(r) || [])).catch(() => {});
+  }, []);
 
-  const commit = async (teacherId, force) => {
-    setSaving(teacherId);
-    try {
-      await api.assign(assignment._id, teacherId, remarks, force);
-      toast.success('Substitute assigned — they have been notified');
-      onDone();
-    } catch (e) {
-      // 409 means the server refused on an eligibility clash. Offer the override
-      // rather than making the admin guess why nothing happened.
-      const msg = e.message || 'Could not assign';
-      if (/not available/i.test(msg) && !force) {
-        if (window.confirm(`${msg}\n\nAssign anyway?`)) return commit(teacherId, true);
-      } else toast.error(msg);
-    } finally { setSaving(''); }
-  };
-
-  const current = assignment.substituteTeacher;
-  const candidates = data?.candidates || [];
+  const onBoard = tab === 'board';
 
   return (
-    <Modal open onClose={onClose} maxWidth={860}
-      title={`Period ${assignment.periodNumber} · ${assignment.section?.label || ''}`}>
-      <div style={{ marginBottom: 14, fontSize: '.85rem', color: 'var(--text-muted)' }}>
-        <strong style={{ color: 'var(--text-primary)' }}>{assignment.subject?.name || 'Subject'}</strong>
-        {periodTime(assignment) && ` · ${periodTime(assignment)}`}
-        {' · covering for '}
-        <strong style={{ color: 'var(--text-primary)' }}>{assignment.originalTeacher?.name}</strong>
+    <div className="page tt-page">
+      <TtHead icon="repeat" title="Substitutions"
+        subtitle="Manage teacher substitutions for absent periods, leaves and special cases.">
+        {onBoard
+          ? <Button onClick={() => setTab('manual')}>
+              <Icon name="plus" size={16} /> Add Substitution
+            </Button>
+          : <Button variant="secondary" onClick={() => setTab('board')}>
+              <Icon name="arrowLeft" size={16} /> Back to Substitutions
+            </Button>}
+      </TtHead>
+
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <TtTabs tabs={TABS} value={tab} onChange={setTab} />
+        </div>
       </div>
 
-      {current && (
-        <Alert variant="info">
-          Currently assigned to <strong>{current.name}</strong>. Choosing someone else
-          reassigns the period and notifies both teachers.
-        </Alert>
+      {tab === 'board' && (
+        <BoardTab date={date} setDate={setDate} classes={classes}
+          focusId={params.get('focus')} onSwitchTab={setTab} />
       )}
-
-      <Textarea label="Instructions for the substitute (optional)" rows={2} value={remarks}
-        onChange={(e) => setRemarks(e.target.value)}
-        placeholder="e.g. continue from exercise 4.2, worksheets are on my desk" />
-
-      {loading ? (
-        <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-      ) : !candidates.length ? (
-        <Empty icon="🚫" title="No teacher is free for this period"
-          message="Everyone else is teaching, away, already covering another class, or at their daily limit. Adjust the limits in Settings, or assign from the full staff list in the Manual tab." />
-      ) : (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '14px 0 8px' }}>
-            <strong style={{ fontSize: '.85rem' }}>{candidates.length} teacher{candidates.length === 1 ? '' : 's'} free at this time</strong>
-            {data?.ineligibleCount > 0 && (
-              <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
-                {data.ineligibleCount} unavailable
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
-            {candidates.map((c, i) => {
-              const isCurrent = current && String(current._id) === String(c.teacher._id);
-              return (
-                <div key={c.teacher._id} style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px',
-                  border: `1px solid ${isCurrent ? 'var(--primary, #4f46e5)' : 'var(--border)'}`,
-                  borderRadius: 10, background: i === 0 && !isCurrent ? 'var(--bg-secondary)' : 'transparent',
-                }}>
-                  <div style={{ flex: 1, minWidth: 150 }}>
-                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      {c.teacher.name}
-                      {/* The top row is what auto-assign would pick. */}
-                      {i === 0 && !isCurrent && <Badge variant="success">Fairest pick</Badge>}
-                      {isCurrent && <Badge variant="primary">Assigned</Badge>}
-                      {c.subjectMatch && <Badge variant="info">Teaches {assignment.subject?.name || 'subject'}</Badge>}
-                      {c.sameSection && <Badge variant="muted">Knows this class</Badge>}
-                    </div>
-                  </div>
-                  <WorkloadGrid w={c.workload} compact />
-                  <Button size="sm" variant={isCurrent ? 'secondary' : 'primary'}
-                    loading={saving === c.teacher._id} disabled={isCurrent}
-                    onClick={() => commit(c.teacher._id, false)}>
-                    {isCurrent ? 'Current' : 'Assign'}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </>
+      {tab === 'manual' && (
+        <ManualTab date={date} setDate={setDate} classes={classes}
+          onBulk={() => setTab('board')} onSwitchTab={setTab} />
       )}
-    </Modal>
-  );
-}
-
-/* ── One period row on the board ───────────────────────────────────────────── */
-function PeriodRow({ p, onPick, onCancel }) {
-  const covered = p.status === 'assigned';
-  return (
-    // `p._id` is the SubstituteAssignment, which is what a cover notification
-    // names — so data-focus-id lets it flag this exact period. The board is a
-    // card list rather than a table, so nothing adds this for it: the only
-    // <Table> on this page is the Workload tab, listing teachers.
-    <div data-focus-id={p._id} style={{
-      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-      borderTop: '1px solid var(--border)', flexWrap: 'wrap',
-    }}>
-      <div style={{ minWidth: 92 }}>
-        <div style={{ fontWeight: 700 }}>Period {p.periodNumber}</div>
-        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{periodTime(p) || '—'}</div>
-      </div>
-      <div style={{ flex: 1, minWidth: 170 }}>
-        <div style={{ fontWeight: 600 }}>{p.section?.label || '—'}</div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{p.subject?.name || '—'}</div>
-      </div>
-      <div style={{ flex: 1, minWidth: 180 }}>
-        {covered ? (
-          <>
-            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {p.substituteTeacher?.name}
-              {p.assignedVia === 'auto' && <Badge variant="muted">Auto</Badge>}
-              {p.notifiedAt && <span title="Substitute notified" style={{ fontSize: '.72rem' }}>🔔</span>}
-            </div>
-            {p.remarks && (
-              <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>“{p.remarks}”</div>
-            )}
-          </>
-        ) : (
-          <Badge variant={p.needsReview ? 'warning' : 'danger'}>
-            {p.needsReview ? 'Needs your decision' : 'Uncovered'}
-          </Badge>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <Button size="sm" variant={covered ? 'secondary' : 'primary'} onClick={() => onPick(p)}>
-          {covered ? 'Change' : 'Assign'}
-        </Button>
-        {covered && (
-          <Button size="sm" variant="danger" onClick={() => onCancel(p)}>Cancel</Button>
-        )}
-      </div>
+      {tab === 'workload' && (
+        <WorkloadTab date={date} classes={classes} subjects={subjects} onSwitchTab={setTab} />
+      )}
+      {tab === 'settings' && <SettingsTab />}
     </div>
   );
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   Board
+   Today's Board
 ══════════════════════════════════════════════════════════════════════════ */
-function BoardTab({ date, setDate }) {
-  const [board, setBoard]     = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [picking, setPicking] = useState(null);
+
+const PAGE = 12;
+
+function BoardTab({ date, setDate, classes, focusId, onSwitchTab }) {
+  const [board, setBoard]   = useState(null);
+  const [loading, setLoad]  = useState(true);
+  const [running, setRun]   = useState(false);
+  const [picking, setPick]  = useState(null);
+  const [bulk, setBulk]     = useState(false);
+  const [history, setHist]  = useState(false);
+  const [recent, setRecent] = useState({ rows: [], loading: true });
+  const [page, setPage]     = useState(1);
+  const [f, setF] = useState({ className: '', sectionName: '', teacher: '', substitute: '', status: '', q: '' });
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoad(true);
     try {
-      const res = await api.getBoard(date);
-      setBoard(res?.data ?? res);
+      setBoard(unwrap(await api.getBoard(date)));
+      setPage(1);
     } catch (e) { toast.error(e.message || 'Could not load the board'); }
-    finally { setLoading(false); }
+    finally { setLoad(false); }
   }, [date]);
-
   useEffect(() => { load(); }, [load]);
 
-  const fill = async () => {
-    setRunning(true);
-    try {
-      const res = await api.runAutoAssign(date, true);
-      const r = res?.data ?? res;
-      setBoard(r.board);
-      toast.success(r.assigned
-        ? `${r.assigned} period${r.assigned === 1 ? '' : 's'} covered`
-        : r.uncovered ? 'No free teacher could be found for the open periods'
-        : 'Everything is already covered');
-    } catch (e) { toast.error(e.message || 'Could not run auto-assign'); }
-    finally { setRunning(false); }
-  };
+  useEffect(() => {
+    setRecent((r) => ({ ...r, loading: true }));
+    api.getRecent({ limit: 6 })
+      .then((res) => setRecent({ rows: unwrap(res)?.rows || [], loading: false }))
+      .catch(() => setRecent({ rows: [], loading: false }));
+  }, [date]);
 
-  const cancel = async (p) => {
-    if (!window.confirm(`Cancel ${p.substituteTeacher?.name}'s substitute class for period ${p.periodNumber}? They will be notified.`)) return;
-    try {
-      await api.cancel(p._id, 'Cancelled by admin');
-      toast.success('Cancelled — the teacher has been notified');
-      load();
-    } catch (e) { toast.error(e.message || 'Could not cancel'); }
-  };
+  const rows = board?.assignments || [];
+  const live = rows.filter((r) => r.status !== 'cancelled');
+
+  const teachers = useMemo(() => {
+    const names = new Map();
+    for (const r of live) if (r.originalTeacher?._id) names.set(String(r.originalTeacher._id), r.originalTeacher.name);
+    return [...names.entries()].map(([_id, name]) => ({ _id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [live]);
+
+  const substitutes = useMemo(() => {
+    const names = new Map();
+    for (const r of live) if (r.substituteTeacher?._id) names.set(String(r.substituteTeacher._id), r.substituteTeacher.name);
+    return [...names.entries()].map(([_id, name]) => ({ _id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [live]);
+
+  const filtered = useMemo(() => live.filter((r) => {
+    if (f.className && r.section?.className !== f.className) return false;
+    if (f.sectionName && r.section?.sectionName !== f.sectionName) return false;
+    if (f.teacher && String(r.originalTeacher?._id) !== f.teacher) return false;
+    if (f.substitute && String(r.substituteTeacher?._id) !== f.substitute) return false;
+    if (f.status && statusOf(r) !== f.status) return false;
+    if (f.q) {
+      const q = f.q.toLowerCase();
+      const hay = [r.subject?.name, r.originalTeacher?.name, r.substituteTeacher?.name,
+        r.section?.label, r.remarks, (REASON_META[r.reason] || {}).label]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }), [live, f]);
+
+  const klass = classes.find((c) => c.className === f.className);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const shown = filtered.slice((page - 1) * PAGE, page * PAGE);
+  const open = live.filter((r) => r.status !== 'assigned');
+
+  /* The day's grid, with each period's rows slotted into it. Breaks come from
+     the same structure, so lunch sits between period 3 and period 4 instead of
+     the table jumping straight past it. */
+  const grid = useMemo(() => {
+    const periods = board?.periods || [];
+    const byPeriod = new Map();
+    for (const r of shown) {
+      const k = Number(r.periodNumber);
+      if (!byPeriod.has(k)) byPeriod.set(k, []);
+      byPeriod.get(k).push(r);
+    }
+    const out = [];
+    const placed = new Set();
+    for (const p of periods) {
+      if (p.isBreak) { out.push({ kind: 'break', period: p }); continue; }
+      const mine = byPeriod.get(p.periodNumber) || [];
+      for (const r of mine) { out.push({ kind: 'row', row: r, period: p }); placed.add(r._id); }
+    }
+    // Anything whose period is not in the grid (a section on a different grid)
+    // still has to appear — dropping it would hide an uncovered class.
+    for (const r of shown) if (!placed.has(r._id)) out.push({ kind: 'row', row: r, period: null });
+    return out;
+  }, [board, shown]);
 
   const s = board?.summary || {};
   const sources = board?.sources || {};
   const manualOnly = board && !sources.attendance && !sources.leave;
+  const canExport = board?.settings?.allowExport !== false;
 
-  return (
-    <>
-      <Card>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', padding: 4 }}>
-          <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            style={{ maxWidth: 190 }} />
-          <div style={{ flex: 1, minWidth: 180, paddingBottom: 8 }}>
-            <div style={{ fontWeight: 600 }}>{fmtDay(date)}</div>
-            <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-              {/* Say plainly where absences are being read from — with both
-                  modules off this screen is manual-only, and that should not
-                  look like a bug. */}
-              {manualOnly
-                ? 'Attendance and Leave are both off — assign substitutes from the Manual tab'
-                : `Detecting from ${[sources.attendance && 'attendance', sources.leave && 'approved leave']
-                    .filter(Boolean).join(' and ')}`}
-            </div>
-          </div>
-          <Button onClick={fill} loading={running} disabled={loading || !board?.isWorkingDay}>
-            ⚡ Detect &amp; fill uncovered
-          </Button>
-          <Button variant="secondary" onClick={load} disabled={loading}>Refresh</Button>
-        </div>
-      </Card>
-
-      {loading ? (
-        <div style={{ padding: 60, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-      ) : !board?.hasTimetable ? (
-        <Alert variant="warning">
-          No published timetable for the active academic year. Substitution works off the
-          published timetable — publish one from the Versions tab first.
-        </Alert>
-      ) : !board.isWorkingDay ? (
-        <Empty icon="🌴" title="Not a school day"
-          message={`${fmtDay(date)} is a holiday or weekly off, so there is nothing to cover.`} />
-      ) : (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, margin: '16px 0' }}>
-            <StatCard icon="📋" label="Periods needing cover" value={s.total || 0}      color="blue" />
-            <StatCard icon="✅" label="Covered"               value={s.assigned || 0}   color="green" />
-            <StatCard icon="⚠️" label="Uncovered"             value={s.uncovered || 0}  color="red" />
-            <StatCard icon="👀" label="Needs your decision"   value={s.needsReview || 0} color="orange" />
-          </div>
-
-          {!board.absentTeachers.length ? (
-            <Empty icon="🎉" title="Full attendance"
-              message="No teacher is recorded away today, so no period needs covering." />
-          ) : board.absentTeachers.map((a) => (
-            <Card key={a.teacher._id} title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                {a.teacher.name}
-                <Badge variant={(REASON_META[a.reason] || {}).variant || 'muted'}>{a.label}</Badge>
-                <span style={{ fontSize: '.78rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                  {a.periods.length} period{a.periods.length === 1 ? '' : 's'} to cover
-                </span>
-              </span>
-            }>
-              {a.needsReview && (
-                <Alert variant="warning">
-                  This is a half-day absence — the system cannot tell which half, so it has
-                  not assigned anyone automatically. Cover the periods that apply.
-                </Alert>
-              )}
-              <div style={{ margin: '0 -16px -16px' }}>
-                {a.periods.map((p) => (
-                  <PeriodRow key={p._id} p={p} onPick={setPicking} onCancel={cancel} />
-                ))}
-              </div>
-            </Card>
-          ))}
-        </>
-      )}
-
-      {picking && (
-        <CandidateModal assignment={picking} onClose={() => setPicking(null)}
-          onDone={() => { setPicking(null); load(); }} />
-      )}
-    </>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Manual — pick a teacher, cover their periods (spec §4)
-══════════════════════════════════════════════════════════════════════════ */
-function ManualTab({ date, setDate }) {
-  const [teachers, setTeachers] = useState([]);
-  const [teacherId, setTeacherId] = useState('');
-  const [detail, setDetail]     = useState(null);
-  const [loading, setLoading]   = useState(false);
-  const [picking, setPicking]   = useState(null);
-  const [opening, setOpening]   = useState('');
-
-  useEffect(() => {
-    api.getSchedulableTeachers(date)
-      .then((res) => setTeachers((res?.data ?? res)?.teachers || []))
-      .catch(() => setTeachers([]));
-  }, [date]);
-
-  const loadPeriods = useCallback(async (id) => {
-    if (!id) { setDetail(null); return; }
-    setLoading(true);
+  const fill = async () => {
+    setRun(true);
     try {
-      const res = await api.getTeacherPeriods(id, date);
-      setDetail(res?.data ?? res);
-    } catch (e) { toast.error(e.message || 'Could not load periods'); }
-    finally { setLoading(false); }
-  }, [date]);
-
-  useEffect(() => { loadPeriods(teacherId); }, [teacherId, loadPeriods]);
-
-  // Open a substitution for a period with no recorded absence, then go straight
-  // into the candidate list — an admin doing this already knows who is away.
-  const openAndPick = async (p) => {
-    setOpening(p.timetableEntry);
-    try {
-      const res = await api.createManual({
-        timetableEntryId: p.timetableEntry,
-        originalTeacherId: teacherId,
-        date,
-      });
-      const row = res?.data ?? res;
-      await loadPeriods(teacherId);
-      setPicking(row);
-    } catch (e) { toast.error(e.message || 'Could not open this period'); }
-    finally { setOpening(''); }
+      const r = unwrap(await api.runAutoAssign(date, true));
+      setBoard(r.board);
+      toast.success(r.assigned
+        ? `${plural(r.assigned, 'period')} covered`
+        : r.uncovered ? 'No free teacher could be found for the open periods'
+        : 'Everything is already covered');
+    } catch (e) { toast.error(e.message || 'Could not run auto-assign'); }
+    finally { setRun(false); }
   };
 
-  const cancel = async (row) => {
-    if (!window.confirm('Cancel this substitution? Any assigned teacher will be notified.')) return;
+  const cancel = async (r) => {
+    if (!window.confirm(`Cancel ${r.substituteTeacher?.name}’s cover of period ${r.periodNumber}? They will be told.`)) return;
     try {
-      await api.cancel(row._id, 'Cancelled by admin');
-      toast.success('Cancelled');
-      loadPeriods(teacherId);
+      await api.cancel(r._id, 'Cancelled by admin');
+      toast.success('Cancelled — the teacher has been told');
+      load();
     } catch (e) { toast.error(e.message || 'Could not cancel'); }
   };
 
+  const exportCsv = () => {
+    const head = ['Period', 'Time', 'Class & Section', 'Subject', 'Regular teacher', 'Reason', 'Substitute', 'Status'];
+    const body = filtered.map((r) => [
+      r.periodNumber, timeRange(r.startTime, r.endTime), r.section?.label, r.subject?.name,
+      r.originalTeacher?.name, (REASON_META[r.reason] || {}).label || r.reason,
+      r.substituteTeacher?.name || 'Not assigned', STATUS_META[statusOf(r)].label,
+    ]);
+    downloadCsv([head, ...body], `substitutions-${date}.csv`);
+  };
+
   return (
     <>
-      <Card>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', padding: 4 }}>
-          <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            style={{ maxWidth: 190 }} />
-          <Select label="Subject teacher to cover" value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)} style={{ maxWidth: 320 }}>
-            <option value="">Select a teacher…</option>
-            {teachers.map((t) => (
-              <option key={t._id} value={t._id}>{t.name} — {t.periods} period{t.periods === 1 ? '' : 's'}</option>
-            ))}
-          </Select>
-        </div>
-        <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', padding: '0 4px' }}>
-          Only teachers with periods on {fmtDay(date)} are listed.
-        </div>
+      <Card icon="calendarDays" title={fmtDay(date, { weekday: 'long' })}
+        subtitle={manualOnly
+          ? 'Attendance and Leave are both off — cover periods from the Manual Assignment tab'
+          : `Detecting absences from ${[sources.attendance && 'attendance', sources.leave && 'approved leave']
+            .filter(Boolean).join(' and ') || 'nothing yet'}`}
+        actions={<>
+          <DateStepper value={date} onChange={setDate} today={todayIso()} />
+          <Button size="sm" variant="secondary" onClick={load} disabled={loading}>
+            <Icon name="refresh" size={15} /> Refresh
+          </Button>
+          <Button size="sm" onClick={fill} loading={running} disabled={loading || !board?.isWorkingDay}>
+            <Icon name="sparkle" size={15} /> Detect &amp; fill
+          </Button>
+        </>}>
+        <Body>
+          <Stats cols={4}>
+            <Stat icon="calendarDays" tone="blue" value={s.total || 0} label="Total Periods" cap="Needing cover today" />
+            <Stat icon="checkCircle" tone="green" value={s.assigned || 0} label="Covered"
+              pct={pct(s.assigned, s.total)} />
+            <Stat icon="clock" tone="amber" value={s.needsReview || 0} label="Pending"
+              pct={pct(s.needsReview, s.total)} />
+            <Stat icon="alert" tone="red" value={Math.max(0, (s.uncovered || 0) - (s.needsReview || 0))}
+              label="Uncovered"
+              pct={pct(Math.max(0, (s.uncovered || 0) - (s.needsReview || 0)), s.total)} />
+          </Stats>
+        </Body>
+
+        <Filters>
+          <Pick label="Class" value={f.className} allLabel="All Classes"
+            onChange={(v) => { setF((x) => ({ ...x, className: v, sectionName: '' })); setPage(1); }}>
+            {classes.map((c) => <option key={c._id} value={c.className}>{c.className}</option>)}
+          </Pick>
+          <Pick label="Section" value={f.sectionName} allLabel="All Sections" disabled={!f.className}
+            onChange={(v) => { setF((x) => ({ ...x, sectionName: v })); setPage(1); }}>
+            {(klass?.sections || []).map((x) => <option key={x._id} value={x.sectionName}>{x.sectionName}</option>)}
+          </Pick>
+          <Pick label="Regular teacher" value={f.teacher} allLabel="All Teachers"
+            onChange={(v) => { setF((x) => ({ ...x, teacher: v })); setPage(1); }}>
+            {teachers.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+          </Pick>
+          <Pick label="Substitute" value={f.substitute} allLabel="All Teachers"
+            onChange={(v) => { setF((x) => ({ ...x, substitute: v })); setPage(1); }}>
+            {substitutes.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+          </Pick>
+          <Pick label="Status" value={f.status} allLabel="All Status"
+            onChange={(v) => { setF((x) => ({ ...x, status: v })); setPage(1); }}>
+            <option value="covered">Covered</option>
+            <option value="pending">Pending</option>
+            <option value="uncovered">Uncovered</option>
+          </Pick>
+          <Search value={f.q} onChange={(v) => { setF((x) => ({ ...x, q: v })); setPage(1); }}
+            placeholder="Search by subject, teacher or reason…" />
+          {canExport && (
+            <Button variant="secondary" onClick={exportCsv} disabled={!filtered.length}>
+              <Icon name="download" size={15} /> Export
+            </Button>
+          )}
+        </Filters>
+
+        {loading ? <Loading label="Reading today’s register…" /> : !board?.hasTimetable ? (
+          <Body>
+            <Note tone="warn">
+              No published timetable for the active academic year. Substitution works off the
+              published week — publish one from the Versions tab first.
+            </Note>
+          </Body>
+        ) : !board.isWorkingDay ? (
+          <Body>
+            <Note tone="quiet">
+              {fmtDay(date, { weekday: 'long' })} is a holiday or a weekly off, so there is nothing to cover.
+            </Note>
+          </Body>
+        ) : (
+          <>
+            <div className="tt-tablewrap">
+              <table className="tt-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 70 }}>Period</th>
+                    <th style={{ width: 130 }}>Time</th>
+                    <th>Class &amp; Section</th>
+                    <th>Subject</th>
+                    <th>Regular Teacher</th>
+                    <th>Reason</th>
+                    <th>Substitute Teacher</th>
+                    <th>Status</th>
+                    <th style={{ width: 120 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grid.map((item, i) => (item.kind === 'break' ? (
+                    <tr key={`b${i}`} className="is-break">
+                      <td>—</td>
+                      <td className="tt-nowrap">{timeRange(item.period.startTime, item.period.endTime)}</td>
+                      <td colSpan={7}>
+                        <span className="tt-break"><Icon name="clock" size={15} />{item.period.label}</span>
+                      </td>
+                    </tr>
+                  ) : (
+                    <BoardRow key={item.row._id} r={item.row} focused={focusId === String(item.row._id)}
+                      onPick={setPick} onCancel={cancel} />
+                  )))}
+                  {!filtered.length && (
+                    <tr><td colSpan={9}>
+                      <div className="tt-table__empty">
+                        <strong>
+                          {live.length ? 'No period matches those filters' : 'Nobody is away today'}
+                        </strong>
+                        <span>
+                          {live.length
+                            ? 'Clear the filters to see the whole day.'
+                            : 'No teacher is recorded absent, so no period needs covering.'}
+                        </span>
+                      </div>
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="tt-card__foot">
+              <Legend items={[
+                [STATUS_META.covered.dot, 'Covered'],
+                [STATUS_META.pending.dot, 'Pending'],
+                [STATUS_META.uncovered.dot, 'Uncovered'],
+              ]} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <span className="tt-count">
+                  Showing {filtered.length ? `${(page - 1) * PAGE + 1}–${Math.min(page * PAGE, filtered.length)}` : 0} of{' '}
+                  {plural(filtered.length, 'period')}
+                </span>
+                <Pager page={page} pages={pages} onPage={setPage} />
+              </div>
+            </div>
+          </>
+        )}
       </Card>
 
-      {loading ? (
-        <div style={{ padding: 60, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-      ) : !detail ? (
-        <Empty icon="🧑‍🏫" title="Pick a teacher"
-          message="Choose whose periods need covering. You can do this whether or not an absence has been recorded." />
-      ) : !detail.periods.length ? (
-        <Empty icon="📭" title={`${detail.teacher.name} has no periods on ${detail.dayOfWeek}`} />
-      ) : (
-        <Card title={`${detail.teacher.name} · ${detail.periods.length} period${detail.periods.length === 1 ? '' : 's'} on ${detail.dayOfWeek}`}>
-          <div style={{ margin: '0 -16px -16px' }}>
-            {detail.periods.map((p) => {
-              const row = p.assignment;
-              return (
-                <div key={p.timetableEntry} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                  borderTop: '1px solid var(--border)', flexWrap: 'wrap',
-                }}>
-                  <div style={{ minWidth: 92 }}>
-                    <div style={{ fontWeight: 700 }}>Period {p.periodNumber}</div>
-                    <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{periodTime(p) || '—'}</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 170 }}>
-                    <div style={{ fontWeight: 600 }}>{p.sectionLabel}</div>
-                    <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{p.subjectName || '—'}</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 160 }}>
-                    {row?.substituteTeacher
-                      ? <span style={{ fontWeight: 600 }}>{row.substituteTeacher.name}</span>
-                      : row ? <Badge variant="danger">Uncovered</Badge>
-                      : <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>No substitution</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {row ? (
-                      <>
-                        <Button size="sm" onClick={() => setPicking(row)}>
-                          {row.substituteTeacher ? 'Change' : 'Assign'}
-                        </Button>
-                        <Button size="sm" variant="danger" onClick={() => cancel(row)}>Cancel</Button>
-                      </>
-                    ) : (
-                      <Button size="sm" variant="secondary" loading={opening === p.timetableEntry}
-                        onClick={() => openAndPick(p)}>
-                        Cover this period
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      <div className="tt-split tt-split--half">
+        <Card icon="history" title="Recent Substitution Requests"
+          actions={<Button size="sm" variant="secondary" onClick={() => setHist(true)}>
+            View All <Icon name="arrowRight" size={14} />
+          </Button>}>
+          <Body>
+            <RecentTable rows={recent.rows} loading={recent.loading} columns="day"
+              onOpen={(r) => setDate(r.date)} />
+          </Body>
         </Card>
-      )}
+
+        <div>
+          <Panel icon="sparkle" title="Quick Actions">
+            <QuickActions items={[
+              { icon: 'pencil', tone: 'indigo', title: 'Manual Assignment',
+                hint: 'Assign a substitute to a period', onClick: () => onSwitchTab('manual') },
+              { icon: 'wand', tone: 'violet', title: 'Auto Assign',
+                hint: 'Let the system find the best match', onClick: fill, disabled: running || !board?.isWorkingDay },
+              { icon: 'users', tone: 'green', title: 'Bulk Assignment',
+                hint: `Cover ${plural(open.length, 'open period')}`, onClick: () => setBulk(true), disabled: !open.length },
+              { icon: 'history', tone: 'amber', title: 'Substitution History',
+                hint: 'Everything that happened today', onClick: () => setHist(true) },
+            ]} />
+          </Panel>
+        </div>
+      </div>
 
       {picking && (
-        <CandidateModal assignment={picking} onClose={() => setPicking(null)}
-          onDone={() => { setPicking(null); loadPeriods(teacherId); }} />
+        <CandidateModal assignment={picking} onClose={() => setPick(null)}
+          onDone={() => { setPick(null); load(); }} />
       )}
+      {bulk && (
+        <BulkModal rows={open} date={date} onClose={() => setBulk(false)}
+          onDone={() => { setBulk(false); load(); }} />
+      )}
+      {history && <HistoryModal date={date} onClose={() => setHist(false)} />}
     </>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   Workload & reporting (spec §8)
-══════════════════════════════════════════════════════════════════════════ */
-function WorkloadTab({ date }) {
-  const monthStart = useMemo(() => `${date.slice(0, 7)}-01`, [date]);
-  const [from, setFrom] = useState(monthStart);
-  const [to, setTo]     = useState(date);
-  const [report, setReport] = useState(null);
-  const [today, setToday]   = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [r, w] = await Promise.all([api.getReport(from, to), api.getWorkload(date)]);
-      setReport(r?.data ?? r);
-      setToday(w?.data ?? w);
-    } catch (e) { toast.error(e.message || 'Could not load the report'); }
-    finally { setLoading(false); }
-  }, [from, to, date]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const byId = useMemo(
-    () => new Map((today?.teachers || []).map((t) => [String(t.teacher._id), t])),
-    [today],
-  );
-
-  const columns = [
-    { key: 'name', label: 'Teacher', render: (r) => r.teacher.name },
-    { key: 'normal', label: 'Normal periods', render: (r) => r.normalPeriods },
-    {
-      key: 'subs', label: 'Substitutions taken',
-      render: (r) => (
-        <strong style={{ color: r.substitutesTaken ? 'var(--danger, #dc2626)' : 'inherit' }}>
-          {r.substitutesTaken}
-        </strong>
-      ),
-    },
-    { key: 'given', label: 'Own periods covered by others', render: (r) => r.periodsHandedOver },
-    { key: 'total', label: 'Periods actually taught', render: (r) => r.totalTaught },
-    {
-      key: 'todaycols', label: 'Substitutes today / week / month',
-      render: (r) => {
-        const w = byId.get(String(r.teacher._id));
-        return w ? `${w.subsToday} / ${w.subsWeek} / ${w.subsMonth}` : '—';
-      },
-    },
-  ];
-
+function BoardRow({ r, focused, onPick, onCancel }) {
+  const state = statusOf(r);
+  const reason = REASON_META[r.reason] || REASON_META.manual;
+  const covered = r.status === 'assigned';
   return (
-    <>
-      <Card>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', padding: 4 }}>
-          <Input label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ maxWidth: 180 }} />
-          <Input label="To"   type="date" value={to}   onChange={(e) => setTo(e.target.value)}   style={{ maxWidth: 180 }} />
-          <Button onClick={load} loading={loading}>Apply</Button>
-          {report && (
-            <div style={{ marginLeft: 'auto', paddingBottom: 8, fontSize: '.8rem', color: 'var(--text-muted)' }}>
-              {report.schoolDays} school day{report.schoolDays === 1 ? '' : 's'} ·{' '}
-              {report.totals.substitutions} substitution{report.totals.substitutions === 1 ? '' : 's'} ·{' '}
-              {report.totals.teachersUsed} teacher{report.totals.teachersUsed === 1 ? '' : 's'} used
-            </div>
+    // `data-focus-id` is the SubstituteAssignment, which is what a cover
+    // notification names — so ?focus= can flag this exact period.
+    <tr data-focus-id={r._id} className={focused ? 'is-on' : ''}>
+      <td><span className="tt-period">{r.periodNumber}</span></td>
+      <td className="tt-nowrap tt-table__muted">{timeRange(r.startTime, r.endTime)}</td>
+      <td className="tt-nowrap">{r.section?.label || '—'}</td>
+      <td><Chip tone={toneFor(r.subject?._id)}>{r.subject?.name || '—'}</Chip></td>
+      <td><Person name={r.originalTeacher?.name} /></td>
+      <td><Chip tone={reason.tone}>{reason.label}</Chip></td>
+      <td>
+        {covered
+          ? <Person name={r.substituteTeacher?.name}
+              sub={r.assignedVia === 'auto' ? 'Auto-assigned' : r.notifiedAt ? 'Notified' : undefined} />
+          : <span className="tt-table__muted">Not Assigned</span>}
+      </td>
+      <td><StatusChip state={state} /></td>
+      <td>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button size="sm" variant={covered ? 'secondary' : 'primary'} onClick={() => onPick(r)}>
+            {covered ? 'View' : 'Assign'}
+          </Button>
+          {covered && (
+            <button type="button" className="btn btn-secondary btn-sm" title="Cancel this cover"
+              onClick={() => onCancel(r)}>
+              <Icon name="close" size={14} />
+            </button>
           )}
         </div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', padding: '0 4px' }}>
-          Normal periods count the timetable across the school days actually in this range,
-          so holidays and weekly offs are already excluded.
-        </div>
-      </Card>
-
-      <Card title="Normal load vs substitute load">
-        <div style={{ margin: '0 -16px -16px' }}>
-          <Table columns={columns} data={report?.teachers || []} loading={loading}
-            emptyIcon="📊" emptyTitle="No teachers to report on" />
-        </div>
-      </Card>
-    </>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Settings
-══════════════════════════════════════════════════════════════════════════ */
-function SettingsTab() {
-  const [s, setS] = useState(null);
-  const [flags, setFlags] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-
-  useEffect(() => {
-    api.getSettings()
-      .then((res) => {
-        const d = res?.data ?? res;
-        setS(d.settings); setFlags(d.moduleFlags || {});
-      })
-      .catch((e) => toast.error(e.message || 'Could not load settings'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const set = (k) => (e) => {
-    const v = e.target.type === 'checkbox' ? e.target.checked
-      : e.target.type === 'number' ? Number(e.target.value) : e.target.value;
-    setS((p) => ({ ...p, [k]: v }));
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const res = await api.saveSettings(s);
-      setS(res?.data ?? res);
-      toast.success('Settings saved');
-    } catch (e) { toast.error(e.message || 'Could not save'); }
-    finally { setSaving(false); }
-  };
-
-  if (loading) return <div style={{ padding: 60, display: 'flex', justifyContent: 'center' }}><Spinner /></div>;
-  if (!s) return null;
-
-  const Check = ({ k, label, hint, disabled }) => (
-    <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 0', opacity: disabled ? 0.55 : 1 }}>
-      <input type="checkbox" checked={!!s[k]} onChange={set(k)} disabled={disabled} style={{ marginTop: 3 }} />
-      <span>
-        <div style={{ fontWeight: 600 }}>{label}</div>
-        {hint && <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{hint}</div>}
-      </span>
-    </label>
-  );
-
-  return (
-    <>
-      <Card title="Automation">
-        <Check k="autoAssign" label="Assign substitutes automatically"
-          hint="A background sweep covers each affected period with the fairest available teacher and notifies them. Turn this off to keep every assignment a manual decision — detection and ranking still run." />
-        <Check k="useAttendance" label="Detect absences from teacher attendance"
-          disabled={!flags.attendance}
-          hint={flags.attendance
-            ? 'Absent, Half-Day and Leave records, plus teachers who never marked after the cutoff below.'
-            : 'The Attendance module is not enabled for this school.'} />
-        <Check k="useLeave" label="Detect absences from approved leave"
-          disabled={!flags.leave}
-          hint={flags.leave
-            ? 'Any approved leave application covering the date.'
-            : 'The Leave module is not enabled for this school.'} />
-        <div style={{ maxWidth: 240, marginTop: 8 }}>
-          <Input label="Treat unmarked attendance as absent after" type="time"
-            value={s.unmarkedAbsentAfter || '09:30'} onChange={set('unmarkedAbsentAfter')}
-            hint="Before this time a teacher who hasn't marked is assumed to be on their way. Ignored entirely on days nobody marked attendance at all." />
-        </div>
-        <Check k="skipPeriodsAlreadyStarted" label="Don't auto-assign a period that has already started"
-          hint="Nobody can act on a notification that arrives mid-class. You can still assign these by hand." />
-      </Card>
-
-      <Card title="Who may be offered">
-        <Check k="respectAvailabilityBlocks" label="Respect teacher availability blocks"
-          hint="The same blocked slots the timetable generator honours." />
-        <Check k="respectDailyPeriodCap" label="Respect each teacher's maximum periods per day"
-          hint="Counts normal periods and substitutions together against the cap set in Teacher Availability." />
-        <Check k="requireSubjectMatch" label="Only offer teachers who teach this subject"
-          hint="Off by default — covering a period is usually supervision, and a strict filter can leave periods with nobody at all. A subject match is still rewarded in the ranking." />
-        <div style={{ maxWidth: 240 }}>
-          <Input label="Maximum substitutions per teacher per day" type="number" min={0}
-            value={s.maxSubstitutionsPerDay} onChange={set('maxSubstitutionsPerDay')}
-            hint="0 means no limit." />
-        </div>
-      </Card>
-
-      <Card title="Fairness weights">
-        <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginTop: 0 }}>
-          Candidates are ranked by score, lowest first. Weights push a teacher down the list
-          as their load grows; bonuses lift a teacher who already knows the subject or the class.
-          The defaults favour "hasn't covered anything today" above everything else.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-          <Input label="Substitutions today"  type="number" min={0} value={s.weightSubsToday}   onChange={set('weightSubsToday')} />
-          <Input label="Substitutions this week"  type="number" min={0} value={s.weightSubsWeek} onChange={set('weightSubsWeek')} />
-          <Input label="Substitutions this month" type="number" min={0} value={s.weightSubsMonth} onChange={set('weightSubsMonth')} />
-          <Input label="Normal periods today" type="number" min={0} value={s.weightNormalToday} onChange={set('weightNormalToday')} />
-          <Input label="Bonus: teaches the subject" type="number" min={0} value={s.bonusSubjectMatch} onChange={set('bonusSubjectMatch')} />
-          <Input label="Bonus: already teaches the class" type="number" min={0} value={s.bonusSameSection} onChange={set('bonusSameSection')} />
-        </div>
-      </Card>
-
-      <Card title="Notifications">
-        <Check k="notifySubstitute" label="Notify the substitute teacher"
-          hint="Class, section, subject, date, period and time, the original teacher's name, and any instructions you added." />
-        <Check k="notifyOriginalTeacher" label="Tell the absent teacher who is covering their class" />
-        <Check k="notifyOnChange" label="Notify on change or cancellation"
-          hint="A teacher moved off a period, or whose substitution is cancelled, is told." />
-        <Check k="emailSubstitute" label="Also send by email"
-          hint="Uses the school's own SMTP settings when configured." />
-      </Card>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-        <Button onClick={save} loading={saving}>Save settings</Button>
-      </div>
-    </>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════ */
-const TABS = [
-  ['board',    '📋 Today’s board'],
-  ['manual',   '✍️ Manual assignment'],
-  ['workload', '📊 Workload'],
-  ['settings', '⚙️ Settings'],
-];
-
-export default function Substitutions() {
-  // A substitution notification carries the day it is about. The board opens on
-  // today, so without this the reader lands on a board that will never render
-  // the cover they were told about — and the ?focus= highlight waits for a row
-  // that cannot arrive.
-  const [params] = useSearchParams();
-  const [tab, setTab]   = useState('board');
-  const [date, setDate] = useState(() => params.get('date') || todayIso());
-
-  return (
-    <div className="page">
-      <PageHeader title="Substitute Teachers"
-        subtitle="Cover the periods of absent subject teachers, fairly and automatically" />
-
-      <div className="tabs" style={{ marginBottom: 16 }}>
-        {TABS.map(([key, label]) => (
-          <button key={key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'board'    && <BoardTab    date={date} setDate={setDate} />}
-      {tab === 'manual'   && <ManualTab   date={date} setDate={setDate} />}
-      {tab === 'workload' && <WorkloadTab date={date} />}
-      {tab === 'settings' && <SettingsTab />}
-    </div>
+      </td>
+    </tr>
   );
 }

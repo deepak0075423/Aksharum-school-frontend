@@ -1,283 +1,316 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Admin → Timetable → Reports.
+ *
+ * What the published week actually looks like once it is running. Seven views
+ * of one set of facts: the overview, then teaching load, room use, how the week
+ * divides between subjects, where the holes are, what clashes, and how all of
+ * that compares with another year.
+ *
+ * Every tab reads the LIVE timetable. A report drawn from a draft version would
+ * describe a school that does not exist yet.
+ */
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/timetable.api';
 import { getAcademicYears } from '../../../api/admin.api';
-import useFetch from '../../../hooks/useFetch';
-import { PageHeader, Card, Button, Table, Spinner, Badge, Modal, Alert } from '../../../components/ui/index';
-import { DAY_SHORT, Stat } from './shared';
+import { Button } from '../../../components/ui/index';
+import Icon from '../../../components/ui/icons';
+import {
+  TtHead, YearPicker, Seg, Card, Body, Stats, Stat, Panel, Chip, Note, Person, Bar,
+  Search, Filters, Loading, Pager, Pie, Donut, Columns, plural, pct, toneFor, TONE_INK,
+} from './ttUI';
+import {
+  TeachingLoadTab, RoomUseTab, SubjectSplitTab, FreePeriodsTab, ConflictsTab, YearComparisonTab,
+} from './reportTabs';
+import { downloadCsv } from './subsTabs';
 
-/**
- * What the published week actually looks like once it is running: who is
- * carrying how much, which rooms are working and which sit empty, and the
- * one-click way to start next year from this year's plan.
- */
+const unwrap = (res) => res?.data ?? res;
+
+const TABS = [
+  ['overview', 'Overview'],
+  ['load', 'Teaching Load'],
+  ['rooms', 'Room Use'],
+  ['subjects', 'Subject Distribution'],
+  ['free', 'Free Periods'],
+  ['conflicts', 'Conflicts'],
+  ['years', 'Year Comparison'],
+];
+
 export default function TimetableReports() {
-  const [tab, setTab] = useState('teachers');
+  const [params, setParams] = useSearchParams();
+  const [tab, setTab]   = useState(params.get('tab') || 'overview');
+  const [years, setYears] = useState([]);
   const [yearId, setYearId] = useState('');
-  const [workload, setWorkload] = useState(null);
-  const [rooms, setRooms] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  const { data: yearsRaw } = useFetch(getAcademicYears, []);
-  const years = yearsRaw || [];
+  // Each tab hands up the rows its own Export would write, so one button in the
+  // header exports whatever is actually on screen.
+  const exportRef = useRef(null);
+  const setExport = useCallback((fn) => { exportRef.current = fn; }, []);
 
   useEffect(() => {
-    if (years.length && !yearId) {
-      const active = years.find(y => y.status === 'active');
-      if (active) setYearId(active._id);
-    }
-  }, [years]); // eslint-disable-line react-hooks/exhaustive-deps
+    getAcademicYears().then((res) => {
+      const list = unwrap(res) || [];
+      setYears(list);
+      const active = list.find((y) => y.status === 'active') || list[0];
+      if (active) setYearId(String(active._id));
+    }).catch(() => {});
+  }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [w, r] = await Promise.all([
-        api.getTeacherWorkload(yearId || undefined),
-        api.getRoomUtilisation(yearId || undefined),
-      ]);
-      setWorkload(w.data ?? w);
-      setRooms(r.data ?? r);
-    } catch (e) { toast.error(e.message); }
-    finally { setLoading(false); }
-  }, [yearId]);
+  const choose = (k) => {
+    setTab(k);
+    setParams(k === 'overview' ? {} : { tab: k }, { replace: true });
+    exportRef.current = null;
+  };
 
-  useEffect(() => { load(); }, [load]);
-
-  const days = workload?.days || [];
+  const doExport = () => {
+    const rows = exportRef.current?.();
+    if (!rows?.length) return toast.error('Nothing on this tab to export yet');
+    const name = TABS.find(([k]) => k === tab)?.[1] || 'report';
+    downloadCsv(rows, `timetable-${name.toLowerCase().replace(/\s+/g, '-')}.csv`);
+  };
 
   return (
-    <div>
-      <PageHeader
-        title="Timetable Reports"
-        subtitle="The published week — teaching load, room use, and next year's starting point"
-        action={
-          <select className="form-control" style={{ width: 200 }} value={yearId}
-            onChange={e => setYearId(e.target.value)}>
-            {years.map(y => (
-              <option key={y._id} value={y._id}>{y.yearName}{y.status === 'active' ? ' (active)' : ''}</option>
-            ))}
-          </select>
-        }
-      />
+    <div className="page tt-page">
+      <TtHead icon="chart" title="Timetable Reports"
+        subtitle="Insights into teaching load, room utilisation, subject distribution and more.">
+        <YearPicker years={years} value={yearId} onChange={setYearId} />
+        <Button variant="secondary" onClick={doExport}>
+          <Icon name="download" size={16} /> Export Report
+        </Button>
+      </TtHead>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {[['teachers', 'Teaching load'], ['rooms', 'Room use'], ['carry', 'Carry forward']].map(([k, label]) => (
-          <button key={k} className={`btn btn-sm ${tab === k ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setTab(k)}>{label}</button>
-        ))}
+      <div style={{ overflowX: 'auto' }}>
+        <Seg value={tab} onChange={choose} options={TABS} />
       </div>
 
-      {loading && tab !== 'carry' ? <Spinner /> : null}
-
-      {/* ── Teaching load ─────────────────────────────────────────────────── */}
-      {!loading && tab === 'teachers' && workload && (
+      {!yearId ? <Card><Loading /></Card> : (
         <>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-            <Stat label="Teaching" value={workload.summary.teaching} />
-            <Stat label="Nothing timetabled" value={workload.summary.idle} />
-            <Stat label="Average load" value={`${workload.summary.average} / wk`} />
-            <Stat label="Busiest" value={`${workload.summary.busiest} / wk`} />
-            <Stat label="Over their cap" value={workload.summary.overCap} />
-          </div>
-          <Card>
-            <div style={{ overflowX: 'auto' }}>
-              <Table
-                columns={[
-                  { key: 'name', label: 'Teacher' },
-                  {
-                    key: 'periods', label: 'Periods',
-                    render: r => (
-                      <span style={{ fontWeight: 700, color: r.overCap ? 'var(--danger)' : 'var(--text)' }}>
-                        {r.periods}{r.cap > 0 && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> / {r.cap}</span>}
-                      </span>
-                    ),
-                  },
-                  { key: 'freePeriods', label: 'Free' },
-                  { key: 'sections', label: 'Sections' },
-                  { key: 'busiestDay', label: 'Heaviest day', render: r => DAY_SHORT[r.busiestDay] || '—' },
-                  {
-                    key: 'spread', label: 'Across the week',
-                    render: r => (
-                      <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 22 }}>
-                        {days.map(d => {
-                          const n = r.byDay[d] || 0;
-                          const max = Math.max(1, ...days.map(x => r.byDay[x] || 0));
-                          return (
-                            <span key={d} title={`${d}: ${n}`} style={{
-                              width: 9, height: `${Math.max(2, (n / max) * 22)}px`,
-                              background: n ? 'var(--primary)' : 'var(--border)', borderRadius: 2,
-                            }} />
-                          );
-                        })}
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'bySubject', label: 'Subjects',
-                    render: r => r.bySubject.length
-                      ? <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
-                          {r.bySubject.map(s => `${s.subjectName} ${s.periods}`).join(' · ')}
-                        </span>
-                      : <span style={{ color: 'var(--text-light)' }}>—</span>,
-                  },
-                ]}
-                data={workload.teachers}
-                emptyTitle="Nothing published yet"
-              />
-            </div>
-          </Card>
+          {tab === 'overview'  && <OverviewTab yearId={yearId} onRows={setExport} onTab={choose} />}
+          {tab === 'load'      && <TeachingLoadTab yearId={yearId} onRows={setExport} />}
+          {tab === 'rooms'     && <RoomUseTab yearId={yearId} onRows={setExport} />}
+          {tab === 'subjects'  && <SubjectSplitTab yearId={yearId} onRows={setExport} />}
+          {tab === 'free'      && <FreePeriodsTab yearId={yearId} onRows={setExport} />}
+          {tab === 'conflicts' && <ConflictsTab yearId={yearId} onRows={setExport} />}
+          {tab === 'years'     && <YearComparisonTab yearId={yearId} onRows={setExport} />}
         </>
       )}
-
-      {/* ── Room use ──────────────────────────────────────────────────────── */}
-      {!loading && tab === 'rooms' && rooms && (
-        <>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-            <Stat label="Rooms" value={rooms.summary.total} />
-            <Stat label="In use" value={rooms.summary.used} />
-            <Stat label="Never used" value={rooms.summary.idle} />
-            <Stat label="Periods with no room" value={rooms.summary.periodsWithoutARoom} />
-          </div>
-          {rooms.summary.idle > 0 && (
-            <Alert variant="info">
-              {rooms.summary.idle} room{rooms.summary.idle === 1 ? ' is' : 's are'} not used by the timetable at all.
-              Either nothing requires them, or no subject is set to need that room type.
-            </Alert>
-          )}
-          <Card>
-            <div style={{ overflowX: 'auto' }}>
-              <Table
-                columns={[
-                  { key: 'roomName', label: 'Room' },
-                  { key: 'roomType', label: 'Type', render: r => <Badge label={r.roomType} /> },
-                  { key: 'periods', label: 'Periods used' },
-                  { key: 'freeSlots', label: 'Free' },
-                  {
-                    key: 'utilisation', label: 'Utilisation',
-                    render: r => (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 130 }}>
-                        <div style={{ flex: 1, height: 7, background: 'var(--bg-secondary)', borderRadius: 4 }}>
-                          <div style={{
-                            width: `${r.utilisation}%`, height: '100%', borderRadius: 4,
-                            background: r.utilisation > 85 ? 'var(--danger)' : r.utilisation > 0 ? 'var(--primary)' : 'transparent',
-                          }} />
-                        </div>
-                        <span style={{ fontSize: '.8rem', width: 34, textAlign: 'right' }}>{r.utilisation}%</span>
-                      </div>
-                    ),
-                  },
-                  { key: 'sections', label: 'Sections' },
-                ]}
-                data={rooms.rooms}
-                emptyTitle="No rooms configured"
-              />
-            </div>
-          </Card>
-        </>
-      )}
-
-      {tab === 'carry' && <CarryForward years={years} currentYearId={yearId} onDone={load} />}
     </div>
   );
 }
 
-/* ── Carry forward ─────────────────────────────────────────────────────────── */
-function CarryForward({ years, currentYearId, onDone }) {
-  const [fromYearId, setFrom] = useState(currentYearId || '');
-  const [toYearId, setTo] = useState('');
-  const [preview, setPreview] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+/* ══════════════════════════════════════════════════════════════════════════
+   Overview
+══════════════════════════════════════════════════════════════════════════ */
 
-  useEffect(() => { setFrom(currentYearId || ''); }, [currentYearId]);
+const PAGE = 8;
 
-  const run = async (apply) => {
-    if (!fromYearId || !toYearId) return toast.error('Pick both years');
-    setBusy(true);
-    try {
-      const res = await api.carryForward({ fromYearId, toYearId, ...(apply ? { apply: true } : {}) });
-      const d = res.data ?? res;
-      setPreview(d);
-      if (apply) { toast.success('Plan carried forward'); setConfirm(false); onDone?.(); }
-    } catch (e) { toast.error(e.message); setConfirm(false); }
-    finally { setBusy(false); }
-  };
+function OverviewTab({ yearId, onRows, onTab }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    api.getReportOverview(yearId)
+      .then((res) => { if (alive) setData(unwrap(res)); })
+      .catch((e) => { if (alive) { toast.error(e?.data?.message || e.message); setData(null); } })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [yearId]);
+
+  const rows = useMemo(() => (data?.teachers || []).filter((t) => !q
+    || t.name.toLowerCase().includes(q.toLowerCase())
+    || t.subjects.some((s) => s.name.toLowerCase().includes(q.toLowerCase()))), [data, q]);
+
+  useEffect(() => {
+    onRows(() => [
+      ['Teacher', 'Subjects', 'Periods a week', 'Cap', 'Free periods', 'Load %', 'Status'],
+      ...rows.map((r) => [r.name, r.subjects.map((s) => s.name).join(' / '),
+        r.periods, r.cap, r.freePeriods, r.loadPct, r.status]),
+    ]);
+  }, [rows, onRows]);
+
+  if (loading) return <Card><Loading label="Reading the published week…" /></Card>;
+  if (!data) return <Card><Body><Note tone="warn">Could not read the timetable for this year.</Note></Body></Card>;
+
+  const s = data.summary;
+
+  if (!data.hasTimetable) {
+    return (
+      <Card icon="chart" title="Nothing published yet">
+        <Body>
+          <Note tone="info">
+            These reports describe the live timetable. Generate a version and publish it, and
+            every figure on this screen fills in.
+          </Note>
+          <div style={{ marginTop: 12 }}>
+            <Button onClick={() => { window.location.href = '/admin/timetable/generate'; }}>
+              <Icon name="sparkle" size={15} /> Generate a timetable
+            </Button>
+          </div>
+        </Body>
+      </Card>
+    );
+  }
+
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  const shown = rows.slice((page - 1) * PAGE, page * PAGE);
+
+  const topSubjects = data.subjects.slice(0, 4);
+  const otherShare = data.subjects.slice(4).reduce((n, x) => n + x.periods, 0);
+  const subjectSegments = [
+    ...topSubjects.map((x) => ({ label: x.name, value: x.periods, colour: TONE_INK[toneFor(x._id)] })),
+    ...(otherShare ? [{ label: 'Others', value: otherShare, colour: '#cbd5e1' }] : []),
+  ];
+  const scheduledTotal = data.subjects.reduce((n, x) => n + x.periods, 0);
+
+  const roomSegments = [
+    { label: 'In use', value: data.roomSplit.inUse, colour: TONE_INK.green },
+    { label: 'Free', value: data.roomSplit.free, colour: '#e2e8f0' },
+  ];
 
   return (
-    <Card title="Start a year from another year's plan">
-      <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '.9rem', maxWidth: '68ch' }}>
-        Copies the subject requirements, combined classes, period grid and solver settings across.
-        Sections are matched by class and section name. The <strong>placements are not copied</strong> —
-        you still generate, so the schedule fits this year&rsquo;s staff.
-      </p>
+    <>
+      <Stats cols={5}>
+        <Stat icon="users" tone="indigo" value={s.teachers} label="Teachers"
+          cap={`${s.teachersActive} active · ${s.teachersInactive} inactive`} />
+        <Stat icon="book" tone="blue" value={s.totalSlots} label="Total Periods"
+          cap={`${data.perSectionWeek} per section a week`} />
+        <Stat icon="checkCircle" tone="green" value={`${s.utilisation}%`} label="Utilisation"
+          cap={`${s.scheduled} of ${s.totalSlots} periods`} />
+        <Stat icon="alert" tone="red" value={s.conflicts} label="Conflicts"
+          cap={s.conflicts ? 'Need attention' : 'None found'} />
+        <Stat icon="building" tone="violet" value={s.rooms} label="Rooms"
+          cap={`${s.labs} labs · ${s.classrooms} classrooms`} />
+      </Stats>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
-        <div className="form-group" style={{ marginBottom: 0, minWidth: 190 }}>
-          <label className="form-label">Copy from</label>
-          <select className="form-control" value={fromYearId} onChange={e => { setFrom(e.target.value); setPreview(null); }}>
-            <option value="">— Choose —</option>
-            {years.map(y => <option key={y._id} value={y._id}>{y.yearName}</option>)}
-          </select>
+      <div className="tt-charts">
+        <div className="tt-chart">
+          <div className="tt-chart__head">
+            <span className="tt-chart__icon"><Icon name="barsUp" size={17} /></span>
+            <h3>Teaching Load Distribution</h3>
+          </div>
+          <Columns data={data.loadBands} height={150} />
+          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: 6 }}>
+            Teachers, by periods a week
+          </div>
         </div>
-        <div className="form-group" style={{ marginBottom: 0, minWidth: 190 }}>
-          <label className="form-label">Into</label>
-          <select className="form-control" value={toYearId} onChange={e => { setTo(e.target.value); setPreview(null); }}>
-            <option value="">— Choose —</option>
-            {years.filter(y => y._id !== fromYearId).map(y => <option key={y._id} value={y._id}>{y.yearName}</option>)}
-          </select>
+
+        <div className="tt-chart">
+          <div className="tt-chart__head">
+            <span className="tt-chart__icon"><Icon name="target" size={17} /></span>
+            <h3>Room Utilisation</h3>
+          </div>
+          <div className="tt-chart__body">
+            <Donut size={124} segments={roomSegments}
+              total={`${pct(data.roomSplit.inUse, data.roomSplit.slots)}%`} label="in use" />
+            <div className="tt-chart__legend">
+              <div><i style={{ background: TONE_INK.green }} />In use
+                <b>{pct(data.roomSplit.inUse, data.roomSplit.slots)}% ({data.roomSplit.inUse})</b></div>
+              <div><i style={{ background: '#e2e8f0' }} />Free
+                <b>{pct(data.roomSplit.free, data.roomSplit.slots)}% ({data.roomSplit.free})</b></div>
+              <div><i style={{ background: TONE_INK.amber }} />Rooms never used
+                <b>{data.roomSplit.roomsIdle}</b></div>
+            </div>
+          </div>
         </div>
-        <Button variant="secondary" loading={busy} onClick={() => run(false)}
-          disabled={!fromYearId || !toYearId}>
-          Check what would move
-        </Button>
+
+        <div className="tt-chart">
+          <div className="tt-chart__head">
+            <span className="tt-chart__icon"><Icon name="book" size={17} /></span>
+            <h3>Subjects Overview</h3>
+          </div>
+          <div className="tt-chart__body">
+            <Pie segments={subjectSegments} size={124} />
+            <div className="tt-chart__legend">
+              {subjectSegments.map((x) => (
+                <div key={x.label}>
+                  <i style={{ background: x.colour }} />
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.label}</span>
+                  <b>{pct(x.value, scheduledTotal)}%</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {preview && !preview.applied && (
-        <>
-          <Alert variant="info">
-            <strong>{preview.sections.length} section(s) matched</strong> between {preview.fromYear} and {preview.toYear}.
-          </Alert>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', margin: '12px 0' }}>
-            <Stat label="Subject requirements" value={preview.requirements} />
-            <Stat label="Combined classes" value={preview.merges} />
-            <Stat label="Period grids" value={preview.periodStructures} />
+      {s.conflicts > 0 && (
+        <Note tone="bad">
+          The published week contains {plural(s.conflicts, 'clash', 'clashes')}
+          {s.warnings ? ` and ${plural(s.warnings, 'thing')} worth a look` : ''}.{' '}
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => onTab('conflicts')}>
+            See what is wrong
+          </button>
+        </Note>
+      )}
+
+      <Card icon="users" title="Teaching Load by Teacher"
+        subtitle="See how many periods each teacher has, and whether they are over or under their target."
+        flush>
+        <Filters>
+          <Search value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search teachers…" />
+          <div style={{ marginLeft: 'auto' }}>
+            <Button variant="secondary" onClick={() => onTab('load')}>
+              <Icon name="externalLink" size={15} /> Full teaching-load report
+            </Button>
           </div>
-          {preview.unmatchedSections?.length > 0 && (
-            <Alert variant="warning">
-              No match in {preview.toYear} for: {preview.unmatchedSections.join(', ')}. Create those sections
-              first if they should carry across.
-            </Alert>
-          )}
-          {preview.mergesDropped > 0 && (
-            <Alert variant="warning">
-              {preview.mergesDropped} combined class dropped — not all of its sections exist in {preview.toYear}.
-            </Alert>
-          )}
-          <Button variant="danger" onClick={() => setConfirm(true)} disabled={!preview.requirements && !preview.merges}>
-            Carry it forward
-          </Button>
-        </>
-      )}
+        </Filters>
 
-      {preview?.applied && (
-        <Alert variant="success">
-          Carried {preview.requirements} requirement(s), {preview.merges} combined class(es) and{' '}
-          {preview.periodStructures} period grid(s) into {preview.toYear}. Generate when you are ready.
-        </Alert>
-      )}
+        <div className="tt-tablewrap">
+          <table className="tt-table">
+            <thead>
+              <tr>
+                <th>Teacher</th><th>Subjects</th><th>Periods / Week</th><th>Free Periods</th>
+                <th style={{ minWidth: 170 }}>Load %</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r._id}>
+                  <td><Person name={r.name} /></td>
+                  <td>
+                    <span className="tt-chiprow">
+                      {r.subjects.slice(0, 2).map((x) => (
+                        <Chip key={x.name} tone={toneFor(x.name)}>{x.name}</Chip>
+                      ))}
+                      {r.subjects.length > 2 && <Chip tone="slate">+{r.subjects.length - 2}</Chip>}
+                      {!r.subjects.length && <span className="tt-table__muted">—</span>}
+                    </span>
+                  </td>
+                  <td className="tt-num">
+                    <strong>{r.periods}</strong>
+                    {r.cap > 0 && <span className="tt-table__muted"> / {r.cap}</span>}
+                  </td>
+                  <td className="tt-num">{r.freePeriods}</td>
+                  <td>
+                    <Bar value={r.periods} max={r.cap || 1}
+                      tone={r.status === 'over' ? 'bad' : r.status === 'under' ? 'warn' : 'good'} />
+                  </td>
+                  <td>
+                    <Chip tone={r.status === 'over' ? 'red' : r.status === 'under' ? 'amber' : 'green'}>
+                      {r.status === 'over' ? 'Overloaded' : r.status === 'under' ? 'Underloaded' : 'On target'}
+                    </Chip>
+                  </td>
+                </tr>
+              ))}
+              {!rows.length && (
+                <tr><td colSpan={6}>
+                  <div className="tt-table__empty"><strong>No teacher matches that</strong></div>
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      <Modal open={confirm} onClose={() => setConfirm(false)} title="Replace the target year's plan?" maxWidth={460}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setConfirm(false)}>Cancel</Button>
-            <Button variant="danger" loading={busy} onClick={() => run(true)}>Carry forward</Button>
-          </>
-        }>
-        <p style={{ marginTop: 0 }}>
-          Any subject requirements and combined classes already set up in {preview?.toYear} will be replaced
-          by {preview?.fromYear}&rsquo;s. Published timetables are not touched.
-        </p>
-      </Modal>
-    </Card>
+        <div className="tt-card__foot">
+          <span className="tt-count">{plural(rows.length, 'teacher')}</span>
+          <Pager page={page} pages={pages} onPage={setPage} />
+        </div>
+      </Card>
+    </>
   );
 }

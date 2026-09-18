@@ -1,1129 +1,985 @@
-import { useState, useCallback, useEffect } from 'react';
+/**
+ * Admin → Timetable → Section Editor.
+ *
+ * One section's week, built by hand. The module's other screens generate,
+ * version and report on timetables; this is the one where somebody sits down
+ * and says "Monday period 1 is English with Ms Sharma".
+ *
+ * Four steps, in the order the work actually happens:
+ *   1  Class & section   whose week this is
+ *   2  Periods           when the bells go — the section's own grid, or the
+ *                        school-wide one from Configuration
+ *   3  Subjects          the grid itself: drag a subject onto a slot, or click
+ *                        a slot to choose subject, teacher, a split period and
+ *                        the sections taught alongside it
+ *   4  Review            what is about to be written, and what is still missing
+ *
+ * Nothing is saved until Save Timetable, and the server refuses a save that
+ * would double-book a teacher or a room — that refusal is shown as the list of
+ * clashes, with the option to overrule it.
+ */
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
-import useFetch from '../../hooks/useFetch';
 import {
-  getClassesWithSections, getSubjects, getTeachers,
-  getSchoolSettings, getAcademicYears,
+  getClassesWithSections, getSubjects, getSchoolSettings, getAcademicYears,
   getSectionTimetable, saveTimetableStructure,
   getSectionEntries, saveTimetableEntries,
   getSectionSubjectTeachers, getTimetableTeachers,
   downloadSectionTimetable, downloadAllTimetables,
 } from '../../api/admin.api';
-import { PageHeader, Spinner, Modal, Button } from '../../components/ui/index';
+import * as ttApi from '../../api/timetable.api';
+import { Modal, Button, Spinner } from '../../components/ui/index';
+import Icon from '../../components/ui/icons';
+import {
+  TtHead, YearPicker, Card, Body, Filters, Field, Pick, Seg, Steps, Search,
+  Chip, Note, Panel, Loading, plural, duration, timeRange, toneFor, TONE_BG, TONE_INK,
+} from '../timetable/admin/ttUI';
+import {
+  DAYS, defaultPeriods, isTeaching, gridMinutes,
+  PeriodStructure, CellModal, AutoFillModal, CopyModal, ImportModal, FullWeekModal, ReviewPanel,
+} from '../timetable/admin/editorParts';
 
-const DAYS      = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const DAY_SHORT = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
-const MAX_EXTRA = 2;
+const unwrap = (res) => res?.data ?? res;
 
-const defaultPeriods = Array.from({ length: 8 }, (_, i) => ({
-  periodNumber: i + 1, startTime: '', endTime: '', isRecess: false, recessName: 'Break',
-}));
+const STEPS = [
+  { key: 'scope',   title: 'Select Class & Section', hint: 'Choose class, section and view' },
+  { key: 'periods', title: 'Configure Periods',      hint: 'Set time slots and breaks' },
+  { key: 'grid',    title: 'Assign Subjects',        hint: 'Create your timetable' },
+  { key: 'review',  title: 'Review & Save',          hint: 'Check and publish' },
+];
 
-function triggerBlobDownload(blob, filename) {
+function blobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
+  const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
-/* ── Auto-generate algorithm ─────────────────────────────────────────────── */
-function generateTimetable(subjects, periodsPerWeek, activeDays, periods) {
+/** A rough fill of this section's empty week. Deliberately not the solver. */
+function scatter(subjects, perWeek, days, periods) {
   const slots = [];
-  activeDays.forEach(day => periods.filter(p => !p.isRecess).forEach(p => slots.push({ day, period: p.periodNumber })));
+  for (const day of days) for (const p of periods.filter(isTeaching)) slots.push({ day, period: p.periodNumber });
   const queue = [];
-  subjects.forEach(s => { for (let i = 0; i < (periodsPerWeek[s._id] || 0); i++) queue.push(s); });
-  for (let i = queue.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [queue[i], queue[j]] = [queue[j], queue[i]]; }
-  const map = {};
-  let qi = 0;
-  slots.forEach(slot => {
-    if (qi >= queue.length) return;
-    const subj = queue[qi++];
-    map[`${slot.day}-${slot.period}`] = {
-      subject: subj._id, teacher: subj.teacher?._id || '',
-      subjectName: subj.subjectName || subj.name || '', teacherName: subj.teacher?.name || '',
+  for (const s of subjects) for (let i = 0; i < (perWeek[s._id] || 0); i++) queue.push(s);
+  for (let i = queue.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [queue[i], queue[j]] = [queue[j], queue[i]];
+  }
+  const out = {};
+  let q = 0;
+  for (const slot of slots) {
+    if (q >= queue.length) break;
+    const s = queue[q++];
+    out[`${slot.day}-${slot.period}`] = {
+      subject: s._id, teacher: s.teacher?._id || '',
+      subjectName: s.subjectName || '', teacherName: s.teacher?.name || '',
       additionalSubjects: [], mergedSections: [],
     };
-  });
-  return map;
+  }
+  return out;
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════════════════════════════════════════════ */
 export default function AdminTimetable() {
-  const [selectedSection,  setSelectedSection]  = useState(null);
-  const [tab,              setTab]              = useState('schedule');
-  const [ttId,             setTtId]             = useState(null);
-  const [ttLoading,        setTtLoading]        = useState(false);
-  const [cellData,         setCellData]         = useState({});
-  const [saving,           setSaving]           = useState(false);
-  const [downloading,      setDownloading]      = useState('');
-  const [sameSections,     setSameSections]     = useState([]);
-  const [saturdayConfig,   setSaturdayConfig]   = useState({ working: true, halfDay: false, mode: 'all' });
+  /* ── What we are looking at ────────────────────────────────────────────── */
+  const [years, setYears]       = useState([]);
+  const [yearId, setYearId]     = useState('');
+  const [classes, setClasses]   = useState([]);
+  const [classId, setClassId]   = useState('');
+  const [sectionId, setSectionId] = useState('');
+  const [view, setView]         = useState('week');       // week | day
+  const [day, setDay]           = useState('Monday');
+  const [step, setStep]         = useState('scope');
+  const [booting, setBooting]   = useState(true);
 
-  // Structure form — openOnSaturday comes from school config, not editable here
-  const [structureForm,    setStructureForm]    = useState({
-    schoolStartTime: '', schoolEndTime: '', periods: defaultPeriods,
-  });
-  const [autoCalc,         setAutoCalc]         = useState({ totalPeriods: 8, lunchTimeTotalInMinutes: 30, lunchAfterPeriod: 4 });
-  const [structureSaving,  setStructureSaving]  = useState(false);
+  /* ── The section's own data ────────────────────────────────────────────── */
+  const [ttId, setTtId]           = useState(null);
+  const [loadingSection, setLoad] = useState(false);
+  const [cells, setCells]         = useState({});
+  const [subjects, setSubjects]   = useState([]);
+  const [saturday, setSaturday]   = useState({ working: true, halfDay: false, mode: 'all' });
+  const [form, setForm]           = useState({ schoolStartTime: '', schoolEndTime: '', periods: defaultPeriods() });
+  const [autoCalc, setAutoCalc]   = useState({ totalPeriods: 8, lunchTimeTotalInMinutes: 30, lunchAfterPeriod: 4 });
+  const [dirty, setDirty]         = useState(false);
 
-  // Cell edit modal
-  const [editModal,        setEditModal]        = useState(null); // { day, period }
-  const [modalSubject,     setModalSubject]     = useState('');
-  const [modalTeacher,     setModalTeacher]     = useState('');
-  const [modalExtra,       setModalExtra]       = useState([]);   // [{subject,teacher}]
-  const [modalMerged,      setModalMerged]      = useState([]);
-  const [teacherOpts,         setTeacherOpts]         = useState([]);
-  const [teacherLoading,      setTeacherLoading]      = useState(false);
-  const [extraTeacherOpts,    setExtraTeacherOpts]    = useState([]); // per extra-slot available teachers
-  const [extraTeacherLoading, setExtraTeacherLoading] = useState([]); // per extra-slot loading flags
+  /* ── Editing ───────────────────────────────────────────────────────────── */
+  const [edit, setEdit]       = useState(null);           // { day, period }
+  const [modal, setModal]     = useState({ subject: '', teacher: '', extra: [], merged: [] });
+  const [teacherOpts, setTeacherOpts]   = useState([]);
+  const [teacherBusy, setTeacherBusy]   = useState(false);
+  const [extraOpts, setExtraOpts]       = useState([]);
+  const [extraBusy, setExtraBusy]       = useState([]);
+  const [armed, setArmed]     = useState(null);           // subject clicked in the rail
+  const [dragOver, setDragOver] = useState(null);
+  const [palette, setPalette] = useState('');
 
-  // Generate modal
-  const [showGenerate,     setShowGenerate]     = useState(false);
-  const [sectionSubjects,  setSectionSubjects]  = useState([]);
-  const [ppw,              setPpw]              = useState({});   // periods per week
-  const [genDays,          setGenDays]          = useState(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+  /* ── Things that open on top ───────────────────────────────────────────── */
+  const [saving, setSaving]     = useState(false);
+  const [structSaving, setStructSaving] = useState(false);
+  const [blocked, setBlocked]   = useState(null);         // the save the server refused
+  const [autofill, setAutofill] = useState(null);         // { subjects, ppw, days }
+  const [copying, setCopying]   = useState(false);
+  const [importing, setImporting] = useState(null);       // { versions, loading }
+  const [fullWeek, setFullWeek] = useState(null);
+  const [busy, setBusy]         = useState('');
+  const [menu, setMenu]         = useState(false);
+  const menuRef = useRef(null);
 
-  // Keep genDays in sync when saturdayConfig changes
+  /* ── Boot ──────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    setGenDays(prev => {
-      const hasSat = prev.includes('Saturday');
-      if (saturdayConfig.working && !hasSat) return [...prev, 'Saturday'];
-      if (!saturdayConfig.working && hasSat) return prev.filter(d => d !== 'Saturday');
-      return prev;
-    });
-  }, [saturdayConfig.working]);
-  const [generating,       setGenerating]       = useState(false);
-  const [loadingSubjects,  setLoadingSubjects]  = useState(false);
+    (async () => {
+      try {
+        const [y, c, s] = await Promise.all([
+          getAcademicYears(), getClassesWithSections(true), getSchoolSettings(),
+        ]);
+        const yr = unwrap(y) || [];
+        setYears(yr);
+        setClasses(unwrap(c) || []);
+        const ls = unwrap(s)?.leaveSettings;
+        if (ls) {
+          setSaturday({
+            working: ls.saturdayWorking !== false,
+            mode: ls.saturdayMode || 'all',
+            halfDay: !!ls.saturdayHalfDay,
+          });
+        }
+        const active = yr.find((x) => x.status === 'active') || yr[0];
+        if (active) setYearId(String(active._id));
+      } catch (e) { toast.error(e.message || 'Could not load the timetable module'); }
+      finally { setBooting(false); }
+    })();
+  }, []);
 
-  const [selectedYearId, setSelectedYearId] = useState('');
-
-  const { data: classesRaw,       loading: classesLoading } = useFetch(() => getClassesWithSections(true), []);
-  const { data: subjectsRaw }     = useFetch(getSubjects, []);
-  const { data: teachersRaw }     = useFetch(() => getTeachers({ limit: 200, status: 'active' }), []);
-  const { data: schoolSettingsRaw } = useFetch(getSchoolSettings, []);
-  const { data: yearsRaw }        = useFetch(getAcademicYears, []);
-
-  // Derive saturdayConfig from school settings
+  // Close the More-options menu on any click outside it.
   useEffect(() => {
-    if (!schoolSettingsRaw?.leaveSettings) return;
-    const ls = schoolSettingsRaw.leaveSettings;
-    setSaturdayConfig({
-      working: ls.saturdayWorking !== false,
-      mode:    ls.saturdayMode    || 'all',
-      halfDay: !!ls.saturdayHalfDay,
-    });
-  }, [schoolSettingsRaw]);
+    if (!menu) return undefined;
+    const close = (e) => { if (!menuRef.current?.contains(e.target)) setMenu(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [menu]);
 
-  const classes  = classesRaw        || [];
-  const subjects = subjectsRaw       || [];
-  const teachers = teachersRaw?.data || [];
-  const years    = yearsRaw          || [];
+  const klass = classes.find((c) => String(c._id) === classId);
+  const sections = useMemo(() => klass?.sections || [], [klass]);
+  const section = useMemo(() => {
+    const s = sections.find((x) => String(x._id) === sectionId);
+    return s ? { ...s, className: klass.className, classId: klass._id } : null;
+  }, [sections, sectionId, klass]);
 
-  // Default selectedYearId to active year once years are loaded
-  useEffect(() => {
-    if (years.length && !selectedYearId) {
-      const active = years.find(y => y.status === 'active');
-      if (active) setSelectedYearId(active._id);
-    }
-  }, [years]);
+  const periods = form.periods.length ? form.periods : defaultPeriods();
+  const days = useMemo(() => DAYS.filter((d) => d !== 'Saturday' || saturday.working), [saturday.working]);
+  const teaching = periods.filter(isTeaching);
+  const slotCount = teaching.length * days.length;
+  const filled = Object.values(cells).filter((c) => c?.subject).length;
+  const mins = gridMinutes(periods);
 
-  const periods      = structureForm.periods.length ? structureForm.periods : defaultPeriods;
-  const displayDays  = DAYS.filter(d => d !== 'Saturday' || saturdayConfig.working);
-  const filledSlots  = Object.values(cellData).filter(c => c?.subject).length;
-  const totalSlots   = periods.filter(p => !p.isRecess).length * displayDays.length;
-
-  /* ── Load section ──────────────────────────────────────────────────────── */
-  const loadSection = useCallback(async (section, allClasses, yearId) => {
-    setSelectedSection(section);
-    setEditModal(null);
-    setCellData({});
+  /* ── Load one section ──────────────────────────────────────────────────── */
+  const loadSection = useCallback(async (secId, yid) => {
+    if (!secId) return;
+    setLoad(true);
+    setCells({});
     setTtId(null);
-    setTtLoading(true);
-
-    const cls  = (allClasses || classes).find(c => c._id === section.classId);
-    const peers = (cls?.sections || []).filter(s => s._id !== section._id).map(s => ({
-      _id: s._id, sectionName: s.sectionName, className: cls.className,
-    }));
-    setSameSections(peers);
-
-    const yid = yearId ?? selectedYearId;
+    setEdit(null);
+    setDirty(false);
     try {
-      const [ttRes, entriesRes, subjRes] = await Promise.all([
-        getSectionTimetable(section._id, yid),
-        getSectionEntries(section._id, yid),
-        getSectionSubjectTeachers(section._id).catch(() => ({ data: [] })),
+      const [ttRes, entryRes, subjRes] = await Promise.all([
+        getSectionTimetable(secId, yid),
+        getSectionEntries(secId, yid),
+        getSectionSubjectTeachers(secId).catch(() => ({ data: [] })),
       ]);
-      const tt      = ttRes?.data;
-      const entries = entriesRes?.data || [];
+      const tt = unwrap(ttRes);
+      const entries = unwrap(entryRes) || [];
 
-      const subjSeen = new Set();
-      setSectionSubjects((subjRes?.data || [])
-        .map(item => ({
-          _id: item.subject?._id || item.subject,
-          subjectName: item.subject?.subjectName || item.subject?.name || '',
-          teacher: item.teacher ? { _id: item.teacher._id, name: item.teacher.name } : null,
+      const seen = new Set();
+      setSubjects((unwrap(subjRes) || [])
+        .map((row) => ({
+          _id: row.subject?._id || row.subject,
+          subjectName: row.subject?.subjectName || row.subject?.name || '',
+          teacher: row.teacher ? { _id: row.teacher._id, name: row.teacher.name } : null,
         }))
-        .filter(s => s._id && !subjSeen.has(s._id) && subjSeen.add(s._id)));
+        .filter((s) => s._id && !seen.has(s._id) && seen.add(s._id)));
 
-      setStructureForm({
+      setForm({
         schoolStartTime: tt?.schoolStartTime || '',
-        schoolEndTime:   tt?.schoolEndTime   || '',
-        periods:         tt?.periodsStructure?.length ? tt.periodsStructure : defaultPeriods,
+        schoolEndTime: tt?.schoolEndTime || '',
+        periods: tt?.periodsStructure?.length ? tt.periodsStructure : defaultPeriods(),
       });
-      if (tt?.saturdayConfig) setSaturdayConfig(tt.saturdayConfig);
+      if (tt?.saturdayConfig) setSaturday(tt.saturdayConfig);
       setTtId(tt?._id || null);
 
       const map = {};
-      entries.forEach(e => {
+      for (const e of entries) {
         map[`${e.dayOfWeek}-${e.periodNumber}`] = {
-          subject:            e.subject?._id  || '',
-          teacher:            e.teacher?._id  || '',
-          subjectName:        e.subject?.subjectName || '',
-          teacherName:        e.teacher?.name || '',
-          additionalSubjects: (e.additionalSubjects || []).map(a => ({
-            subject:     a.subject?._id || '', teacher:     a.teacher?._id || '',
+          subject: e.subject?._id || '',
+          teacher: e.teacher?._id || '',
+          subjectName: e.subject?.subjectName || '',
+          teacherName: e.teacher?.name || '',
+          additionalSubjects: (e.additionalSubjects || []).map((a) => ({
+            subject: a.subject?._id || '', teacher: a.teacher?._id || '',
             subjectName: a.subject?.subjectName || '', teacherName: a.teacher?.name || '',
           })),
-          mergedSections: (e.mergedSections || []).map(m => m?._id || m || '').filter(Boolean),
+          mergedSections: (e.mergedSections || []).map((m) => m?._id || m).filter(Boolean),
         };
-      });
-      setCellData(map);
-    } catch (e) {
-      toast.error(e?.response?.data?.message || e.message);
-    } finally { setTtLoading(false); }
-  }, [classes, selectedYearId]);
-
-  /* ── Auto-calc periods ─────────────────────────────────────────────────── */
-  const handleAutoCalc = () => {
-    const { schoolStartTime, schoolEndTime } = structureForm;
-    if (!schoolStartTime || !schoolEndTime) return toast.error('Set school start and end time first');
-    if (schoolStartTime >= schoolEndTime)   return toast.error('Start time must be before end time');
-
-    const parseTime  = t => { const [h, m] = t.split(':'); return parseInt(h) * 60 + parseInt(m); };
-    const fmt        = m => `${Math.floor(m / 60).toString().padStart(2, '0')}:${Math.floor(m % 60).toString().padStart(2, '0')}`;
-    const lunchMins  = parseInt(autoCalc.lunchTimeTotalInMinutes) || 30;
-    const lunchAfter = parseInt(autoCalc.lunchAfterPeriod) || 4;
-    const nPeriods   = parseInt(autoCalc.totalPeriods) || 8;
-    let   cur        = parseTime(schoolStartTime);
-    const endMin     = parseTime(schoolEndTime);
-    const avail      = endMin - cur - lunchMins;
-    if (avail <= 0) return toast.error('Not enough time for given lunch duration');
-    const pLen  = Math.floor(avail / nPeriods);
-    const rem   = avail % nPeriods;
-    const computed = [];
-    let pn = 1;
-    for (let i = 1; i <= nPeriods + 1; i++) {
-      if (i - 1 === lunchAfter) {
-        computed.push({ periodNumber: 0, startTime: fmt(cur), endTime: fmt(cur + lunchMins), isRecess: true, recessName: 'Lunch' });
-        cur += lunchMins;
       }
-      if (pn <= nPeriods) {
-        const dur = pLen + (pn === nPeriods ? rem : 0);
-        computed.push({ periodNumber: pn, startTime: fmt(cur), endTime: fmt(cur + dur), isRecess: false });
-        cur += dur; pn++;
-      }
-    }
-    setStructureForm(f => ({ ...f, periods: computed }));
-    toast.success(`${nPeriods} periods calculated`);
+      setCells(map);
+      setStep((cur) => (cur === 'scope' ? 'grid' : cur));
+    } catch (e) { toast.error(e.message || 'Could not load this section'); }
+    finally { setLoad(false); }
+  }, []);
+
+  useEffect(() => { if (sectionId && yearId) loadSection(sectionId, yearId); }, [sectionId, yearId, loadSection]);
+
+  const chooseClass = (id) => {
+    setClassId(id);
+    const k = classes.find((c) => String(c._id) === id);
+    const only = k?.sections?.length === 1 ? String(k.sections[0]._id) : '';
+    setSectionId(only);
+    if (!only) { setCells({}); setStep('scope'); }
   };
 
-  /* ── Save structure ────────────────────────────────────────────────────── */
-  const handleSaveStructure = async () => {
-    if (!structureForm.schoolStartTime) return toast.error('School start time required');
-    if (!structureForm.schoolEndTime)   return toast.error('School end time required');
-    if (structureForm.schoolStartTime >= structureForm.schoolEndTime) return toast.error('Start must be before end');
-    if (!periods.filter(p => !p.isRecess).length) return toast.error('Add at least one teaching period');
-    setStructureSaving(true);
+  /* ── The grid ──────────────────────────────────────────────────────────── */
+  const setCell = (key, value) => {
+    setCells((prev) => {
+      const next = { ...prev };
+      if (value) next[key] = value; else delete next[key];
+      return next;
+    });
+    setDirty(true);
+  };
+
+  const place = (key, subject) => {
+    setCell(key, {
+      subject: subject._id, teacher: subject.teacher?._id || '',
+      subjectName: subject.subjectName, teacherName: subject.teacher?.name || '',
+      additionalSubjects: [], mergedSections: [],
+    });
+  };
+
+  const openCell = async (d, period) => {
+    const cur = cells[`${d}-${period}`] || {};
+    const extra = cur.additionalSubjects || [];
+    setModal({ subject: cur.subject || '', teacher: cur.teacher || '', extra, merged: cur.mergedSections || [] });
+    setTeacherOpts([]);
+    setExtraOpts(extra.map(() => []));
+    setExtraBusy(extra.map(() => false));
+    setEdit({ day: d, period });
+
+    if (cur.subject) loadTeachers(cur.subject, d, period);
+    if (extra.length) {
+      const lists = await Promise.all(extra.map((e) => (e.subject
+        ? getTimetableTeachers({ subjectId: e.subject, day: d, period, timetableId: ttId, sectionId })
+          .then((r) => unwrap(r) || []).catch(() => [])
+        : Promise.resolve([]))));
+      setExtraOpts(lists);
+    }
+  };
+
+  const loadTeachers = async (subjectId, d, period) => {
+    setTeacherBusy(true);
     try {
-      const res = await saveTimetableStructure(selectedSection._id, {
-        schoolStartTime:  structureForm.schoolStartTime,
-        schoolEndTime:    structureForm.schoolEndTime,
-        periods:          structureForm.periods,
-        periodsStructure: structureForm.periods,
-        yearId:           selectedYearId || undefined,
+      const res = await getTimetableTeachers({ subjectId, day: d, period, timetableId: ttId, sectionId });
+      setTeacherOpts(unwrap(res) || []);
+    } catch { setTeacherOpts([]); }
+    finally { setTeacherBusy(false); }
+  };
+
+  const onModalSubject = (id) => {
+    setModal((m) => ({ ...m, subject: id, teacher: '' }));
+    setTeacherOpts([]);
+    if (id && edit) loadTeachers(id, edit.day, edit.period);
+  };
+
+  const onExtraSubject = async (i, subjectId) => {
+    if (!subjectId || !edit) return;
+    setExtraBusy((p) => { const n = [...p]; n[i] = true; return n; });
+    try {
+      const res = await getTimetableTeachers({
+        subjectId, day: edit.day, period: edit.period, timetableId: ttId, sectionId,
       });
-      setTtId(res?.data?._id || ttId);
-      toast.success('Structure saved');
-    } catch (e) { toast.error(e?.response?.data?.message || e.message); }
-    finally { setStructureSaving(false); }
-  };
-
-  /* ── Open cell modal ───────────────────────────────────────────────────── */
-  const openCell = async (day, period) => {
-    const cur = cellData[`${day}-${period}`] || {};
-    const existingExtra = cur.additionalSubjects || [];
-    setModalSubject(cur.subject  || '');
-    setModalTeacher(cur.teacher  || '');
-    setModalExtra(existingExtra);
-    setModalMerged(cur.mergedSections    || []);
-    setTeacherOpts([]);
-    setExtraTeacherOpts(existingExtra.map(() => []));
-    setExtraTeacherLoading(existingExtra.map(() => false));
-    setEditModal({ day, period });
-
-    if (cur.subject) {
-      setTeacherLoading(true);
-      try {
-        const res = await getTimetableTeachers({ subjectId: cur.subject, day, period, timetableId: ttId, sectionId: selectedSection._id });
-        setTeacherOpts(res?.data || []);
-      } catch (e) { toast.error(e?.message || 'Failed to load teachers'); setTeacherOpts([]); }
-      finally { setTeacherLoading(false); }
-    }
-
-    // Fetch teachers for already-assigned extra subjects
-    if (existingExtra.length > 0) {
-      Promise.all(
-        existingExtra.map(es =>
-          es.subject
-            ? getTimetableTeachers({ subjectId: es.subject, day, period, timetableId: ttId, sectionId: selectedSection._id })
-                .then(r => r?.data || []).catch(() => [])
-            : Promise.resolve([])
-        )
-      ).then(results => setExtraTeacherOpts(results));
-    }
-  };
-
-  const onModalSubjectChange = async (subjectId) => {
-    setModalSubject(subjectId);
-    setModalTeacher('');
-    setTeacherOpts([]);
-    if (!subjectId || !editModal) return;
-    setTeacherLoading(true);
-    try {
-      const res = await getTimetableTeachers({ subjectId, day: editModal.day, period: editModal.period, timetableId: ttId, sectionId: selectedSection._id });
-      setTeacherOpts(res?.data || []);
-    } catch (e) { toast.error(e?.message || 'Failed to load teachers'); setTeacherOpts([]); }
-    finally { setTeacherLoading(false); }
-  };
-
-  const onExtraSubjectChange = async (idx, subjectId) => {
-    if (!subjectId || !editModal) return;
-    setExtraTeacherLoading(prev => { const n = [...prev]; n[idx] = true; return n; });
-    try {
-      const res = await getTimetableTeachers({ subjectId, day: editModal.day, period: editModal.period, timetableId: ttId, sectionId: selectedSection._id });
-      setExtraTeacherOpts(prev => { const n = [...prev]; n[idx] = res?.data || []; return n; });
+      setExtraOpts((p) => { const n = [...p]; n[i] = unwrap(res) || []; return n; });
     } catch {
-      setExtraTeacherOpts(prev => { const n = [...prev]; n[idx] = []; return n; });
+      setExtraOpts((p) => { const n = [...p]; n[i] = []; return n; });
     } finally {
-      setExtraTeacherLoading(prev => { const n = [...prev]; n[idx] = false; return n; });
+      setExtraBusy((p) => { const n = [...p]; n[i] = false; return n; });
     }
   };
 
-  const saveModal = () => {
-    if (!editModal) return;
-    const key = `${editModal.day}-${editModal.period}`;
-    if (!modalSubject) {
-      setCellData(prev => { const next = { ...prev }; delete next[key]; return next; });
-      setEditModal(null);
+  const saveCell = () => {
+    if (!edit) return;
+    const key = `${edit.day}-${edit.period}`;
+    if (!modal.subject) { setCell(key, null); setEdit(null); return; }
+
+    const ids = [modal.subject, ...modal.extra.filter((e) => e.subject).map((e) => e.subject)];
+    if (new Set(ids).size !== ids.length) {
+      toast.error('The same subject cannot appear twice in one period');
       return;
     }
-    const allSubIds = [modalSubject, ...modalExtra.filter(e => e.subject).map(e => e.subject)];
-    if (new Set(allSubIds).size !== allSubIds.length)
-      return toast.error('Duplicate subjects are not allowed in the same period');
-    const subj = sectionSubjects.find(s => s._id === modalSubject);
-    const tchr = teacherOpts.find(t => t._id === modalTeacher);
-    const resolvedExtra = modalExtra.map((a, originalIdx) => {
-      if (!a.subject) return null;
-      const eSubj = sectionSubjects.find(s => s._id === a.subject);
-      const eTchr = (extraTeacherOpts[originalIdx] || []).find(t => t._id === a.teacher);
-      return { subject: a.subject, teacher: a.teacher, subjectName: eSubj?.subjectName || eSubj?.name || '', teacherName: eTchr?.name || '' };
-    }).filter(Boolean);
-    setCellData(prev => ({
-      ...prev,
-      [key]: {
-        subject: modalSubject, teacher: modalTeacher,
-        subjectName: subj?.subjectName || subj?.name || '',
-        teacherName: tchr?.name || '',
-        additionalSubjects: resolvedExtra,
-        mergedSections:     modalMerged.filter(Boolean),
-      },
-    }));
-    setEditModal(null);
+    const subject = subjects.find((s) => s._id === modal.subject);
+    const teacher = teacherOpts.find((t) => t._id === modal.teacher);
+    setCell(key, {
+      subject: modal.subject,
+      teacher: modal.teacher,
+      subjectName: subject?.subjectName || '',
+      teacherName: teacher?.name || '',
+      additionalSubjects: modal.extra.filter((e) => e.subject).map((e, i) => {
+        const es = subjects.find((s) => s._id === e.subject);
+        const et = (extraOpts[i] || []).find((t) => t._id === e.teacher);
+        return { subject: e.subject, teacher: e.teacher, subjectName: es?.subjectName || '', teacherName: et?.name || '' };
+      }),
+      mergedSections: modal.merged.filter(Boolean),
+    });
+    setEdit(null);
   };
 
-  /* ── Save all entries ──────────────────────────────────────────────────── */
-  // The server now refuses a save that would break the timetable. It hands back
-  // what is wrong; this holds it while the admin decides to fix or override.
-  const [blocked, setBlocked] = useState(null);   // { conflicts, entries }
-
-  const handleSave = async (force = false) => {
-    if (!selectedSection) return;
+  /* ── Saving ────────────────────────────────────────────────────────────── */
+  const save = async (force = false) => {
+    if (!sectionId) return;
     setSaving(true);
     try {
       const entries = [];
-      DAYS.forEach(day => {
-        periods.filter(p => !p.isRecess).forEach(p => {
-          const cell = cellData[`${day}-${p.periodNumber}`];
-          if (cell?.subject) entries.push({
-            dayOfWeek: day, periodNumber: p.periodNumber,
+      for (const d of DAYS) {
+        for (const p of teaching) {
+          const cell = cells[`${d}-${p.periodNumber}`];
+          if (!cell?.subject) continue;
+          entries.push({
+            dayOfWeek: d, periodNumber: p.periodNumber,
             subject: cell.subject, teacher: cell.teacher || null,
-            additionalSubjects: (cell.additionalSubjects || []).filter(a => a.subject),
-            mergedSections:     (cell.mergedSections     || []).filter(Boolean),
+            additionalSubjects: (cell.additionalSubjects || []).filter((a) => a.subject),
+            mergedSections: (cell.mergedSections || []).filter(Boolean),
           });
-        });
+        }
+      }
+      const res = await saveTimetableEntries(sectionId, {
+        entries, yearId: yearId || undefined, ...(force ? { force: true } : {}),
       });
-      const res = await saveTimetableEntries(selectedSection._id, {
-        entries, yearId: selectedYearId || undefined, ...(force ? { force: true } : {}),
-      });
-      if (res?.data?.timetableId && !ttId) setTtId(String(res.data.timetableId));
+      if (unwrap(res)?.timetableId && !ttId) setTtId(String(unwrap(res).timetableId));
       setBlocked(null);
-      const warnings = (res?.data?.conflicts || []).filter(c => c.severity === 'warning');
-      if (force) toast.success('Saved with conflicts');
-      else if (warnings.length) toast.success(`Saved — ${warnings.length} thing(s) worth checking`);
+      setDirty(false);
+      const warnings = (unwrap(res)?.conflicts || []).filter((c) => c.severity === 'warning');
+      if (force) toast.success('Saved, clashes and all');
+      else if (warnings.length) toast.success(`Saved — ${plural(warnings.length, 'thing')} worth a look`);
       else toast.success('Timetable saved');
     } catch (e) {
-      if (e?.status === 409 && e?.data?.data?.conflicts) {
-        setBlocked({ conflicts: e.data.data.conflicts });
-      } else {
-        toast.error(e?.data?.message || e?.message || 'Could not save');
+      if (e?.status === 409 && e?.data?.data?.conflicts) setBlocked(e.data.data.conflicts);
+      else toast.error(e?.data?.message || e.message || 'Could not save');
+    } finally { setSaving(false); }
+  };
+
+  const saveStructure = async () => {
+    if (!form.schoolStartTime || !form.schoolEndTime) return toast.error('Set the school start and end time first');
+    if (form.schoolStartTime >= form.schoolEndTime) return toast.error('The day has to end after it starts');
+    if (!teaching.length) return toast.error('Add at least one teaching period');
+    setStructSaving(true);
+    try {
+      const res = await saveTimetableStructure(sectionId, {
+        schoolStartTime: form.schoolStartTime,
+        schoolEndTime: form.schoolEndTime,
+        periods: form.periods,
+        periodsStructure: form.periods,
+        yearId: yearId || undefined,
+      });
+      setTtId(unwrap(res)?._id || ttId);
+      toast.success('Period structure saved');
+      setStep('grid');
+    } catch (e) { toast.error(e.message || 'Could not save the structure'); }
+    finally { setStructSaving(false); }
+  };
+
+  /* ── Step 2 helpers ────────────────────────────────────────────────────── */
+  const runAutoCalc = () => {
+    const { schoolStartTime: start, schoolEndTime: end } = form;
+    if (!start || !end) return toast.error('Set the school start and end time first');
+    const toMin = (t) => { const [h, m] = t.split(':'); return (+h) * 60 + (+m); };
+    const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const n = Math.max(1, Number(autoCalc.totalPeriods) || 8);
+    const lunch = Math.max(0, Number(autoCalc.lunchTimeTotalInMinutes) || 0);
+    const after = Math.max(0, Number(autoCalc.lunchAfterPeriod) || 0);
+    let cur = toMin(start);
+    const avail = toMin(end) - cur - lunch;
+    if (avail < n) return toast.error('The day is too short for that many periods');
+    const len = Math.floor(avail / n);
+    const rem = avail % n;
+    const out = [];
+    let p = 1;
+    for (let i = 1; i <= n + 1; i++) {
+      if (i - 1 === after && lunch > 0) {
+        out.push({ periodNumber: 0, startTime: fmt(cur), endTime: fmt(cur + lunch), isRecess: true, recessName: 'Lunch Break' });
+        cur += lunch;
+      }
+      if (p <= n) {
+        const dur = len + (p === n ? rem : 0);
+        out.push({ periodNumber: p, startTime: fmt(cur), endTime: fmt(cur + dur), isRecess: false });
+        cur += dur; p += 1;
       }
     }
-    finally { setSaving(false); }
+    setForm((f) => ({ ...f, periods: out }));
+    toast.success(`${n} periods laid out`);
   };
 
-  /* ── Downloads ─────────────────────────────────────────────────────────── */
-  const handleDownloadSection = async () => {
-    setDownloading('section');
+  const loadTemplate = async () => {
     try {
-      const res  = await downloadSectionTimetable(selectedSection._id, selectedYearId || undefined);
-      const blob = res instanceof Blob ? res : new Blob([res], { type: 'application/pdf' });
-      triggerBlobDownload(blob, `timetable-${selectedSection.className}-${selectedSection.sectionName}.pdf`);
-    } catch (e) { toast.error('Download failed'); }
-    finally { setDownloading(''); }
+      const cfg = unwrap(await ttApi.getConfig(yearId || undefined));
+      const rows = cfg?.periodTemplate || [];
+      if (!rows.length) return toast.error('No school-wide grid is saved yet — set one in Configuration');
+      setForm((f) => ({
+        ...f,
+        schoolStartTime: f.schoolStartTime || cfg.dayStartsAt || '',
+        schoolEndTime: f.schoolEndTime || cfg.dayEndsAt || '',
+        periods: rows.map((p) => ({
+          periodNumber: p.periodType === 'Teaching' ? Number(p.periodNumber) || 0 : 0,
+          startTime: p.startTime || '', endTime: p.endTime || '',
+          isRecess: (p.periodType || 'Teaching') !== 'Teaching',
+          recessName: p.label || p.periodType || 'Break',
+        })),
+      }));
+      toast.success('School grid loaded — save it to keep it for this section');
+    } catch (e) { toast.error(e.message || 'Could not load the school grid'); }
   };
 
-  const handleDownloadAll = async () => {
-    setDownloading('all');
+  /* ── Auto fill / copy / import / full week ─────────────────────────────── */
+  const openAutofill = async () => {
+    setAutofill({ loading: true, subjects: [], ppw: {}, days: days.filter((d) => d !== 'Saturday' || saturday.working) });
     try {
-      const res  = await downloadAllTimetables(selectedYearId ? { year: selectedYearId } : {});
-      const blob = res instanceof Blob ? res : new Blob([res], { type: 'application/pdf' });
-      triggerBlobDownload(blob, 'all-timetables.pdf');
-    } catch (e) { toast.error('Download failed'); }
-    finally { setDownloading(''); }
-  };
-
-  /* ── Generate modal ────────────────────────────────────────────────────── */
-  const openGenerate = async () => {
-    setShowGenerate(true);
-    setLoadingSubjects(true);
-    try {
-      const res  = await getSectionSubjectTeachers(selectedSection._id);
+      const rows = unwrap(await getSectionSubjectTeachers(sectionId)) || [];
       const seen = new Set();
-      const list = (res?.data || [])
-        .map(item => ({
-          _id: item.subject?._id || item.subject,
-          subjectName: item.subject?.subjectName || item.subject?.name || '',
-          teacher: item.teacher ? { _id: item.teacher._id, name: item.teacher.name } : null,
-        }))
-        .filter(s => s._id && !seen.has(s._id) && seen.add(s._id));
-      setSectionSubjects(list);
-      const def = {};
-      list.forEach(s => { def[s._id] = ppw[s._id] || 1; });
-      setPpw(def);
-    } catch { toast.error('Failed to load subjects'); setShowGenerate(false); }
-    finally { setLoadingSubjects(false); }
-  };
-
-  const handleGenerate = () => {
-    if (!sectionSubjects.length) return toast.error('No subjects assigned to this section');
-    const slots = genDays.length * periods.filter(p => !p.isRecess).length;
-    const total = Object.values(ppw).reduce((s, v) => s + (v || 0), 0);
-    if (!total) return toast.error('Set at least 1 period/week for one subject');
-    if (total > slots) return toast.error(`Total periods (${total}) exceeds available slots (${slots})`);
-    setGenerating(true);
-    setTimeout(() => {
-      const generated = generateTimetable(sectionSubjects, ppw, genDays, periods);
-      setCellData(generated);
-      setShowGenerate(false);
-      setGenerating(false);
-      toast.success(`${Object.keys(generated).length} slots generated — review and save`);
-    }, 80);
-  };
-
-  // Reload section data when year changes (if a section is already selected)
-  useEffect(() => {
-    if (selectedSection && selectedYearId) {
-      loadSection(selectedSection, classes, selectedYearId);
+      const list = rows.map((row) => ({
+        _id: row.subject?._id || row.subject,
+        subjectName: row.subject?.subjectName || row.subject?.name || '',
+        teacher: row.teacher ? { _id: row.teacher._id, name: row.teacher.name } : null,
+      })).filter((s) => s._id && !seen.has(s._id) && seen.add(s._id));
+      const ppw = {};
+      for (const s of list) ppw[s._id] = 1;
+      setAutofill((a) => ({ ...a, loading: false, subjects: list, ppw }));
+    } catch (e) {
+      toast.error(e.message || 'Could not load this section’s subjects');
+      setAutofill(null);
     }
-  }, [selectedYearId]); // eslint-disable-line
+  };
 
-  if (classesLoading) return <div className="loading-page"><Spinner /></div>;
+  const runAutofill = () => {
+    const total = Object.values(autofill.ppw).reduce((n, v) => n + (v || 0), 0);
+    const slots = autofill.days.length * teaching.length;
+    if (total > slots) return toast.error(`${total} periods will not fit in ${slots} slots`);
+    setCells(scatter(autofill.subjects, autofill.ppw, autofill.days, periods));
+    setDirty(true);
+    setAutofill(null);
+    setStep('grid');
+    toast.success(`${plural(total, 'period')} placed — check them and save`);
+  };
+
+  const copyFrom = async (fromId, withTeachers) => {
+    setBusy('copy');
+    try {
+      const entries = unwrap(await getSectionEntries(fromId, yearId)) || [];
+      const map = {};
+      for (const e of entries) {
+        map[`${e.dayOfWeek}-${e.periodNumber}`] = {
+          subject: e.subject?._id || '',
+          teacher: withTeachers ? (e.teacher?._id || '') : '',
+          subjectName: e.subject?.subjectName || '',
+          teacherName: withTeachers ? (e.teacher?.name || '') : '',
+          additionalSubjects: [],
+          // Merges name sections of the SOURCE class, which mean nothing here.
+          mergedSections: [],
+        };
+      }
+      setCells(map);
+      setDirty(true);
+      setCopying(false);
+      setStep('grid');
+      toast.success(`${plural(Object.keys(map).length, 'period')} copied — review and save`);
+    } catch (e) { toast.error(e.message || 'Could not copy that section'); }
+    finally { setBusy(''); }
+  };
+
+  const openImport = async () => {
+    setImporting({ loading: true, versions: [] });
+    try {
+      const d = unwrap(await ttApi.getVersions({ yearId: yearId || undefined }));
+      setImporting({
+        loading: false,
+        versions: (d?.versions || []).filter((v) => v.status !== 'generating' && v.status !== 'failed'),
+      });
+    } catch (e) { toast.error(e.message); setImporting(null); }
+  };
+
+  const runImport = async (versionId) => {
+    setBusy('import');
+    try {
+      const d = unwrap(await ttApi.getVersion(versionId));
+      const mine = (d.entries || []).filter((e) => String(e.section?._id || e.section) === String(sectionId));
+      if (!mine.length) {
+        toast.error('That version does not cover this section');
+        return;
+      }
+      const map = {};
+      for (const e of mine) {
+        map[`${e.dayOfWeek}-${e.periodNumber}`] = {
+          subject: e.subject?._id || e.subject || '',
+          teacher: e.teacher?._id || e.teacher || '',
+          subjectName: e.subject?.subjectName || e.subjectName || '',
+          teacherName: e.teacher?.name || e.teacherName || '',
+          additionalSubjects: [],
+          mergedSections: [],
+        };
+      }
+      setCells(map);
+      setDirty(true);
+      setImporting(null);
+      setStep('grid');
+      toast.success(`${plural(Object.keys(map).length, 'period')} imported — review and save`);
+    } catch (e) { toast.error(e.message || 'Could not import that version'); }
+    finally { setBusy(''); }
+  };
+
+  const openFullWeek = async () => {
+    setFullWeek({ loading: true, weeks: [] });
+    try {
+      const weeks = await Promise.all(sections.map(async (s) => {
+        const [tt, entries] = await Promise.all([
+          getSectionTimetable(s._id, yearId).catch(() => null),
+          getSectionEntries(s._id, yearId).catch(() => ({ data: [] })),
+        ]);
+        const map = {};
+        for (const e of unwrap(entries) || []) {
+          map[`${e.dayOfWeek}-${e.periodNumber}`] = {
+            subject: e.subject?._id || '',
+            subjectName: e.subject?.subjectName || '',
+            teacherName: e.teacher?.name || '',
+          };
+        }
+        return {
+          sectionId: s._id,
+          sectionName: s.sectionName,
+          periods: unwrap(tt)?.periodsStructure?.length ? unwrap(tt).periodsStructure : periods,
+          cells: map,
+        };
+      }));
+      setFullWeek({ loading: false, weeks: weeks.filter((w) => Object.keys(w.cells).length) });
+    } catch (e) { toast.error(e.message); setFullWeek(null); }
+  };
+
+  const download = async (what) => {
+    setBusy(what);
+    try {
+      const res = what === 'section'
+        ? await downloadSectionTimetable(sectionId, yearId || undefined)
+        : await downloadAllTimetables(yearId ? { year: yearId } : {});
+      const blob = res instanceof Blob ? res : new Blob([res], { type: 'application/pdf' });
+      blobDownload(blob, what === 'section'
+        ? `timetable-${section.className}-${section.sectionName}.pdf`
+        : 'all-timetables.pdf');
+    } catch { toast.error('That download failed'); }
+    finally { setBusy(''); setMenu(false); }
+  };
+
+  /* ── Render ────────────────────────────────────────────────────────────── */
+  if (booting) return <div className="page tt-page"><Loading label="Loading the timetable module…" /></div>;
+
+  const doneSteps = [
+    sectionId && 'scope',
+    teaching.length && ttId && 'periods',
+    filled > 0 && 'grid',
+  ].filter(Boolean);
+
+  const paletteList = subjects.filter((s) => !palette
+    || s.subjectName.toLowerCase().includes(palette.toLowerCase()));
+
+  const dayCells = (d) => teaching.map((p) => ({ p, cell: cells[`${d}-${p.periodNumber}`] }));
 
   return (
-    <div className="page">
-      <PageHeader
-        title="Timetable Manager"
-        subtitle={(() => {
-          const yr = years.find(y => y._id === selectedYearId);
-          const yrLabel = yr ? ` [${yr.yearName}]` : '';
-          return selectedSection
-            ? `${selectedSection.className} — Section ${selectedSection.sectionName}${yrLabel}`
-            : `Select a section to manage its timetable${yrLabel}`;
-        })()}
-        action={selectedSection && !ttLoading ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            {ttId && (
-              <button className="btn btn-secondary btn-sm" disabled={!!downloading} onClick={handleDownloadSection}>
-                {downloading === 'section' ? '…' : '⬇ PDF'}
-              </button>
-            )}
-            <button className="btn btn-secondary btn-sm" disabled={!!downloading} onClick={handleDownloadAll}>
-              {downloading === 'all' ? '…' : '⬇ All PDFs'}
-            </button>
-          </div>
-        ) : undefined}
-      />
+    <div className="page tt-page">
+      <TtHead icon="calendar" title="Timetable"
+        subtitle="Create, manage and publish class timetables">
+        <YearPicker years={years} value={yearId} onChange={setYearId} />
+      </TtHead>
 
-      {/* ── Academic Year Selector ───────────────────────────────────────── */}
-      {years.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <label style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-            Academic Year:
-          </label>
-          <select
-            className="form-control"
-            style={{ width: 'auto', minWidth: 160 }}
-            value={selectedYearId}
-            onChange={e => setSelectedYearId(e.target.value)}
-          >
-            {years.map(y => (
-              <option key={y._id} value={y._id}>
-                {y.yearName}{y.status === 'active' ? ' (Active)' : ''}
-              </option>
+      <Card icon="calendarDays" title="Create Timetable (Manual)"
+        subtitle="Set class-wise subjects, assign teachers and configure time slots"
+        actions={<>
+          <Button size="sm" variant="secondary" disabled={!sectionId} onClick={openImport}>
+            <Icon name="upload" size={15} /> Import
+          </Button>
+          <Button size="sm" variant="secondary" disabled={!sectionId} onClick={() => setCopying(true)}>
+            <Icon name="copy" size={15} /> Copy from Existing
+          </Button>
+          <Button size="sm" disabled={!sectionId} onClick={openFullWeek}>
+            <Icon name="grid" size={15} /> View Full Timetable
+          </Button>
+        </>}>
+        <Steps steps={STEPS} current={step} done={doneSteps}
+          onPick={(k) => { if (k === 'scope' || sectionId) setStep(k); }} />
+
+        <Filters>
+          <Pick label="Academic Year" value={yearId} onChange={setYearId}>
+            {years.map((y) => (
+              <option key={y._id} value={y._id}>{y.yearName}{y.status === 'active' ? ' (Active)' : ''}</option>
             ))}
-          </select>
-        </div>
-      )}
-
-      {/* ── Section Selector ─────────────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div className="card-body" style={{ padding: '12px 16px' }}>
-          {classes.length === 0
-            ? <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>No classes found — create classes and sections first.</span>
-            : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                {classes.map(cls => (
-                  <div key={cls._id}>
-                    <div style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{cls.className}</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {(cls.sections || []).map(sec => (
-                        <button key={sec._id}
-                          className={`btn btn-sm ${selectedSection?._id === sec._id ? 'btn-primary' : 'btn-secondary'}`}
-                          onClick={() => loadSection({ ...sec, className: cls.className, classId: cls._id }, classes)}>
-                          {sec.sectionName}
-                        </button>
-                      ))}
-                      {!(cls.sections || []).length && <span style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>no sections</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          }
-        </div>
-      </div>
-
-      {/* Empty state */}
-      {!selectedSection && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🕐</div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Select a section above</div>
-          <div style={{ fontSize: '.85rem' }}>Configure the period structure, then assign subjects to each slot</div>
-        </div>
-      )}
-
-      {selectedSection && ttLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
-      )}
-
-      {selectedSection && !ttLoading && (
-        <>
-          {/* ── Tabs ───────────────────────────────────────────────────────── */}
-          <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', marginBottom: 20 }}>
-            {[['schedule', 'Weekly Schedule'], ['structure', 'Period Structure']].map(([id, label]) => (
-              <button key={id} onClick={() => setTab(id)} style={{
-                padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
-                fontWeight: tab === id ? 700 : 400,
-                color: tab === id ? 'var(--primary)' : 'var(--text-muted)',
-                borderBottom: tab === id ? '2px solid var(--primary)' : '2px solid transparent',
-                marginBottom: -2, transition: 'color .15s',
-              }}>{label}</button>
-            ))}
-          </div>
-
-          {/* ══ PERIOD STRUCTURE TAB ═══════════════════════════════════════ */}
-          {tab === 'structure' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-              {/* School timing + saturday */}
-              <div className="card">
-                <div className="card-header"><strong>School Timing</strong></div>
-                <div className="card-body">
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <div className="form-group" style={{ flex: '1 1 150px', marginBottom: 0 }}>
-                      <label className="form-label">Start Time</label>
-                      <input type="time" className="form-control" value={structureForm.schoolStartTime}
-                        onChange={e => setStructureForm(f => ({ ...f, schoolStartTime: e.target.value }))} />
-                    </div>
-                    <div className="form-group" style={{ flex: '1 1 150px', marginBottom: 0 }}>
-                      <label className="form-label">End Time</label>
-                      <input type="time" className="form-control" value={structureForm.schoolEndTime}
-                        onChange={e => setStructureForm(f => ({ ...f, schoolEndTime: e.target.value }))} />
-                    </div>
-
-                    {/* Saturday — read-only, driven by School Settings */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 2 }}>
-                      <SaturdayBadge config={saturdayConfig} />
-                      <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
-                        From&nbsp;<a href="/admin/settings" style={{ color: 'var(--primary)', textDecoration: 'none' }}>School Settings</a>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Auto-calculate */}
-              <div className="card">
-                <div className="card-header"><strong>⚡ Auto-Calculate Periods</strong></div>
-                <div className="card-body">
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <div className="form-group" style={{ flex: '1 1 120px', marginBottom: 0 }}>
-                      <label className="form-label">Total Periods</label>
-                      <input type="number" className="form-control" min="1" max="20" value={autoCalc.totalPeriods}
-                        onChange={e => setAutoCalc(f => ({ ...f, totalPeriods: e.target.value }))} />
-                    </div>
-                    <div className="form-group" style={{ flex: '1 1 160px', marginBottom: 0 }}>
-                      <label className="form-label">Lunch Duration (min)</label>
-                      <input type="number" className="form-control" min="0" value={autoCalc.lunchTimeTotalInMinutes}
-                        onChange={e => setAutoCalc(f => ({ ...f, lunchTimeTotalInMinutes: e.target.value }))} />
-                    </div>
-                    <div className="form-group" style={{ flex: '1 1 150px', marginBottom: 0 }}>
-                      <label className="form-label">Lunch After Period #</label>
-                      <input type="number" className="form-control" min="1" value={autoCalc.lunchAfterPeriod}
-                        onChange={e => setAutoCalc(f => ({ ...f, lunchAfterPeriod: e.target.value }))} />
-                    </div>
-                    <button className="btn btn-primary" style={{ paddingBottom: '7px' }} onClick={handleAutoCalc}>
-                      Calculate
-                    </button>
-                  </div>
-                  <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
-                    Period duration is equally distributed. Any leftover minutes are added to the last period.
-                  </p>
-                </div>
-              </div>
-
-              {/* Period list */}
-              <div className="card">
-                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong>Period List</strong>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setStructureForm(f => ({
-                      ...f, periods: [...f.periods, { periodNumber: f.periods.filter(p => !p.isRecess).length + 1, startTime: '', endTime: '', isRecess: false }],
-                    }))}>+ Period</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setStructureForm(f => ({
-                      ...f, periods: [...f.periods, { periodNumber: 0, startTime: '', endTime: '', isRecess: true, recessName: 'Break' }],
-                    }))}>+ Break</button>
-                    <button className="btn btn-primary btn-sm" disabled={structureSaving} onClick={handleSaveStructure}>
-                      {structureSaving ? 'Saving…' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-                <div className="card-body" style={{ padding: 0 }}>
-                  {!periods.length
-                    ? <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>No periods yet — use auto-calculate or click "+ Period"</div>
-                    : (
-                      <table className="table" style={{ marginBottom: 0 }}>
-                        <thead>
-                          <tr>
-                            <th style={{ width: 70 }}>#</th>
-                            <th>Start</th><th>End</th>
-                            <th style={{ width: 80, textAlign: 'center' }}>Break?</th>
-                            <th>Break Name</th>
-                            <th style={{ width: 40 }}></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {periods.map((p, idx) => (
-                            <tr key={idx} style={{ background: p.isRecess ? 'var(--bg-secondary)' : undefined }}>
-                              <td><strong style={{ color: p.isRecess ? 'var(--text-muted)' : 'var(--primary)' }}>{p.isRecess ? '—' : `P${p.periodNumber}`}</strong></td>
-                              <td>
-                                <input type="time" className="form-control" value={p.startTime || ''}
-                                  onChange={e => setStructureForm(f => { const ps = [...f.periods]; ps[idx] = { ...ps[idx], startTime: e.target.value }; return { ...f, periods: ps }; })} />
-                              </td>
-                              <td>
-                                <input type="time" className="form-control" value={p.endTime || ''}
-                                  onChange={e => setStructureForm(f => { const ps = [...f.periods]; ps[idx] = { ...ps[idx], endTime: e.target.value }; return { ...f, periods: ps }; })} />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <input type="checkbox" checked={!!p.isRecess}
-                                  onChange={e => setStructureForm(f => { const ps = [...f.periods]; ps[idx] = { ...ps[idx], isRecess: e.target.checked }; return { ...f, periods: ps }; })} />
-                              </td>
-                              <td>
-                                {p.isRecess
-                                  ? <input type="text" className="form-control" value={p.recessName || 'Break'}
-                                      onChange={e => setStructureForm(f => { const ps = [...f.periods]; ps[idx] = { ...ps[idx], recessName: e.target.value }; return { ...f, periods: ps }; })} />
-                                  : <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>—</span>
-                                }
-                              </td>
-                              <td>
-                                <button className="btn btn-danger btn-sm" onClick={() => setStructureForm(f => {
-                                  const ps = f.periods.filter((_, i) => i !== idx);
-                                  let pn = 0;
-                                  return { ...f, periods: ps.map(x => x.isRecess ? x : { ...x, periodNumber: ++pn }) };
-                                })}>×</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )
-                  }
-                </div>
-              </div>
-            </div>
+          </Pick>
+          <Pick label="Class" value={classId} onChange={chooseClass} allLabel="Choose a class…">
+            {classes.map((c) => <option key={c._id} value={c._id}>{c.className}</option>)}
+          </Pick>
+          <Pick label="Section" value={sectionId} onChange={setSectionId} allLabel="Choose a section…"
+            disabled={!classId}>
+            {sections.map((s) => <option key={s._id} value={s._id}>{s.sectionName}</option>)}
+          </Pick>
+          <Field label="View Mode" fix>
+            <Seg value={view} onChange={setView} options={[['week', 'Weekly View'], ['day', 'Day View']]} />
+          </Field>
+          {view === 'day' && (
+            <Pick label="Day" value={day} onChange={setDay}>
+              {days.map((d) => <option key={d} value={d}>{d}</option>)}
+            </Pick>
           )}
 
-          {/* ══ SCHEDULE TAB ════════════════════════════════════════════════ */}
-          {tab === 'schedule' && (
-            <div className="card">
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <strong>Weekly Schedule</strong>
-                  <span style={{ fontSize: '.8rem', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 99 }}>
-                    {filledSlots} / {totalSlots} filled
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setCellData({})}>Clear</button>
-                  <button className="btn btn-secondary btn-sm" onClick={openGenerate} title="Rough scratch fill for this one section. For a conflict-free school-wide timetable use the Generate tab.">⚡ Quick Fill</button>
-                  <button className="btn btn-primary btn-sm" disabled={saving} onClick={() => handleSave(false)}>
-                    {saving ? 'Saving…' : 'Save Timetable'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle('#', true)}>Period</th>
-                      {displayDays.map(d => <th key={d} style={thStyle(d)}>{DAY_SHORT[d]}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {periods.map((p, idx) => (
-                      <tr key={idx}>
-                        {/* Period label cell */}
-                        <td style={{
-                          ...tdBase,
-                          background: p.isRecess ? 'var(--bg-secondary)' : 'var(--bg)',
-                          width: 88, whiteSpace: 'nowrap',
-                        }}>
-                          {p.isRecess
-                            ? <span style={{ fontSize: '.78rem', color: '#92400e', fontStyle: 'italic' }}>{p.recessName || 'Break'}</span>
-                            : <>
-                                <div style={{ fontWeight: 700, fontSize: '.85rem' }}>P{p.periodNumber}</div>
-                                {p.startTime && <div style={{ fontSize: '.68rem', color: 'var(--text-muted)', marginTop: 2 }}>{p.startTime}–{p.endTime}</div>}
-                              </>
-                          }
-                        </td>
-
-                        {displayDays.map(day => {
-                          if (p.isRecess) return (
-                            <td key={day} style={{ ...tdBase, background: '#fef9c3', textAlign: 'center', color: '#92400e', fontSize: '.78rem', fontStyle: 'italic' }}>
-                              {p.recessName || 'Break'}
-                            </td>
-                          );
-
-                          const key  = `${day}-${p.periodNumber}`;
-                          const cell = cellData[key];
-                          return (
-                            <td key={day} style={{ ...tdBase, padding: 6, verticalAlign: 'top', cursor: 'pointer' }}
-                              onClick={() => openCell(day, p.periodNumber)}>
-                              <GridCell cell={cell} />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* The save the server refused, and why. */}
-      <Modal open={!!blocked} onClose={() => setBlocked(null)} title="This timetable has conflicts" maxWidth={560}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setBlocked(null)}>Go back and fix</Button>
-            <Button variant="danger" loading={saving} onClick={() => handleSave(true)}>Save anyway</Button>
-          </>
-        }>
-        <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '.88rem' }}>
-          Saving as it stands would double-book a teacher or a room. Fix the periods below, or override
-          if you know something the timetable does not.
-        </p>
-        <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-          {(blocked?.conflicts || []).map((c, i) => (
-            <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-              <span style={{
-                fontWeight: 700,
-                color: c.severity === 'error' ? 'var(--danger)' : '#b45309',
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, position: 'relative' }} ref={menuRef}>
+            <Button variant="secondary" disabled={!sectionId} onClick={() => setMenu((m) => !m)}>
+              <Icon name="sliders" size={15} /> More Options
+            </Button>
+            <Button variant="secondary" disabled={!sectionId} onClick={loadTemplate}>
+              <Icon name="fileDoc" size={15} /> Load Template
+            </Button>
+            {menu && (
+              <div style={{
+                position: 'absolute', top: 48, right: 0, zIndex: 40, minWidth: 230,
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow)', padding: 6,
               }}>
-                {c.dayOfWeek} P{c.periodNumber}
-              </span>
-              <span style={{ color: 'var(--text-muted)' }}> — {c.message}</span>
+                <MenuItem icon="filePdf" label="Download this section (PDF)" disabled={!ttId || !!busy}
+                  onClick={() => download('section')} />
+                <MenuItem icon="files" label="Download every section (PDF)" disabled={!!busy}
+                  onClick={() => download('all')} />
+                <MenuItem icon="clock" label="Edit the period structure"
+                  onClick={() => { setStep('periods'); setMenu(false); }} />
+                <MenuItem icon="trash" label="Clear the whole week" danger
+                  onClick={() => { setCells({}); setDirty(true); setMenu(false); }} />
+              </div>
+            )}
+          </div>
+        </Filters>
+
+        {!sectionId && (
+          <Body>
+            <Note tone="info">
+              Pick a class and a section to start. Everything below is that section’s own week —
+              its periods, its subjects and its teachers.
+            </Note>
+          </Body>
+        )}
+      </Card>
+
+      {sectionId && loadingSection && <Card><Loading label="Loading this section…" /></Card>}
+
+      {sectionId && !loadingSection && step === 'periods' && (
+        <Card icon="clock" title="Configure Periods"
+          subtitle={`When the bells go for ${section.className} · Section ${section.sectionName}`}>
+          <PeriodStructure
+            form={form} setForm={(u) => { setForm(u); setDirty(true); }}
+            autoCalc={autoCalc} setAutoCalc={setAutoCalc}
+            onAutoCalc={runAutoCalc} onLoadTemplate={loadTemplate}
+            saving={structSaving} onSave={saveStructure} saturday={saturday}
+          />
+        </Card>
+      )}
+
+      {sectionId && !loadingSection && step === 'review' && (
+        <Card icon="checkSquare" title="Review & Save" subtitle="What is about to be written">
+          <ReviewPanel section={section} periods={periods} days={days} cells={cells}
+            subjects={subjects} onJump={() => setStep('grid')} />
+        </Card>
+      )}
+
+      {sectionId && !loadingSection && step === 'grid' && (
+        <div className="tt-split tt-split--wide">
+          <Card icon="calendarDays"
+            title={view === 'week' ? 'Weekly Timetable' : `${day} Timetable`}
+            subtitle="Drag and drop subjects to assign. Click a cell to edit."
+            actions={<>
+              <Button size="sm" variant="secondary" onClick={openAutofill}>
+                <Icon name="sparkle" size={15} /> Auto Fill
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => { setCells({}); setDirty(true); }}>
+                <Icon name="trash" size={15} /> Clear All
+              </Button>
+            </>}>
+            <div className="tt-card__body">
+              {!teaching.length ? (
+                <Note tone="warn">
+                  This section has no periods yet. <button type="button" className="btn btn-sm btn-secondary"
+                    onClick={() => setStep('periods')}>Set them up</button>
+                </Note>
+              ) : view === 'week' ? (
+                <div className="tt-tablewrap">
+                  <table className="tt-week">
+                    <thead>
+                      <tr>
+                        <th>Period</th>
+                        <th style={{ width: 100 }}>Time</th>
+                        {days.map((d) => <th key={d}>{d}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {periods.map((p, i) => (p.isRecess ? (
+                        <tr key={`b${i}`}>
+                          <td className="tt-week__rowhead tt-week__break-head">
+                            <Icon name="clock" size={16} />
+                          </td>
+                          <td className="tt-week__break">{timeRange(p.startTime, p.endTime)}</td>
+                          <td className="tt-week__break" colSpan={days.length}>{p.recessName || 'Break'}</td>
+                        </tr>
+                      ) : (
+                        <tr key={`p${p.periodNumber}`}>
+                          <td className="tt-week__rowhead"><span className="tt-period">{p.periodNumber}</span></td>
+                          <td className="tt-week__rowhead"><small>{timeRange(p.startTime, p.endTime)}</small></td>
+                          {days.map((d) => {
+                            const key = `${d}-${p.periodNumber}`;
+                            return (
+                              <td key={d}>
+                                <GridCell cell={cells[key]} over={dragOver === key}
+                                  onClick={() => (armed ? (place(key, armed), setArmed(null)) : openCell(d, p.periodNumber))}
+                                  onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                                  onDragLeave={() => setDragOver((k) => (k === key ? null : k))}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    setDragOver(null);
+                                    const id = e.dataTransfer.getData('text/plain');
+                                    const subject = subjects.find((s) => s._id === id);
+                                    if (subject) place(key, subject);
+                                  }} />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {dayCells(day).map(({ p, cell }) => {
+                    const key = `${day}-${p.periodNumber}`;
+                    const tone = toneFor(cell?.subject);
+                    return (
+                      <button key={p.periodNumber} type="button"
+                        onClick={() => (armed ? (place(key, armed), setArmed(null)) : openCell(day, p.periodNumber))}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px',
+                          border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+                          background: 'var(--bg-card)', textAlign: 'left', width: '100%', cursor: 'pointer',
+                        }}>
+                        <span className="tt-period">{p.periodNumber}</span>
+                        <span style={{ fontSize: '.8rem', color: 'var(--text-muted)', width: 110 }}>
+                          {timeRange(p.startTime, p.endTime)}
+                        </span>
+                        {cell?.subject ? (
+                          <>
+                            <Chip tone={tone}>{cell.subjectName}</Chip>
+                            <span style={{ fontSize: '.84rem', color: 'var(--text-muted)' }}>
+                              {cell.teacherName || 'No teacher'}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: '.84rem', color: 'var(--text-light)' }}>Nothing assigned</span>
+                        )}
+                        <Icon name="chevronRight" size={16} style={{ marginLeft: 'auto' }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ))}
+          </Card>
+
+          <div className="tt-rail">
+            <Panel icon="book" title="Subjects" right={<span className="tt-count">Drag to assign</span>}>
+              <Search value={palette} onChange={setPalette} placeholder="Search subjects…" />
+              {!subjects.length ? (
+                <Note tone="warn">
+                  No subjects are assigned to this section yet. Set them on the section’s own page first.
+                </Note>
+              ) : (
+                <div className="tt-palette">
+                  {paletteList.map((s) => {
+                    const tone = toneFor(s._id);
+                    const used = Object.values(cells).filter((c) => c?.subject === s._id).length;
+                    return (
+                      <button key={s._id} type="button" draggable
+                        className={`tt-pal${armed?._id === s._id ? ' is-armed' : ''}`}
+                        style={{ background: TONE_BG[tone], color: TONE_INK[tone], borderColor: `${TONE_INK[tone]}33` }}
+                        onDragStart={(e) => e.dataTransfer.setData('text/plain', s._id)}
+                        onClick={() => setArmed((a) => (a?._id === s._id ? null : s))}
+                        title={s.teacher?.name ? `Usually ${s.teacher.name}` : 'No teacher assigned'}>
+                        <span className="tt-pal__dot" />
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.subjectName}</span>
+                        {used > 0 && <span className="tt-pal__n">{used}</span>}
+                      </button>
+                    );
+                  })}
+                  {!paletteList.length && (
+                    <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>No subject matches that.</span>
+                  )}
+                </div>
+              )}
+              {armed && (
+                <Note tone="info">
+                  <strong>{armed.subjectName}</strong> is armed — click any slot to drop it there.
+                </Note>
+              )}
+            </Panel>
+          </div>
+        </div>
+      )}
+
+      {sectionId && !loadingSection && (
+        <Card>
+          <div className="tt-card__foot" style={{ borderTop: 0 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <Chip tone="indigo"><Icon name="layers" size={14} /> Total Periods {teaching.length}</Chip>
+              <Chip tone="green"><Icon name="clock" size={14} /> Working Hours {duration(mins.teaching)}</Chip>
+              <Chip tone="amber"><Icon name="clock" size={14} /> Break Time {duration(mins.breaks)}</Chip>
+              <Chip tone={filled === slotCount && slotCount ? 'green' : 'slate'}>
+                {filled} of {slotCount} slots filled
+              </Chip>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {dirty && <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Unsaved changes</span>}
+              <Button variant="secondary" onClick={() => loadSection(sectionId, yearId)}>Cancel</Button>
+              {step === 'review'
+                ? <Button onClick={() => save(false)} loading={saving}>
+                    <Icon name="save" size={15} /> Save Timetable
+                  </Button>
+                : <>
+                    <Button variant="secondary" onClick={() => setStep('review')}>Review</Button>
+                    <Button onClick={() => save(false)} loading={saving}>
+                      <Icon name="save" size={15} /> Save Timetable
+                    </Button>
+                  </>}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* ── What the server refused, and why ──────────────────────────────── */}
+      <Modal open={!!blocked} onClose={() => setBlocked(null)} maxWidth={560}
+        title="This week clashes with itself"
+        footer={<>
+          <Button variant="secondary" onClick={() => setBlocked(null)}>Go back and fix it</Button>
+          <Button variant="danger" loading={saving} onClick={() => save(true)}>Save it anyway</Button>
+        </>}>
+        <Note tone="bad">
+          Saved as it stands, this would put a teacher or a room in two places at once.
+          Fix the periods below, or overrule it if you know something the timetable does not.
+        </Note>
+        <div className="tt-tablewrap" style={{ marginTop: 12, maxHeight: 300, overflowY: 'auto' }}>
+          <table className="tt-table">
+            <tbody>
+              {(blocked || []).map((c, i) => (
+                <tr key={i}>
+                  <td className="tt-nowrap">
+                    <Chip tone={c.severity === 'error' ? 'red' : 'amber'}>
+                      {c.dayOfWeek} P{c.periodNumber}
+                    </Chip>
+                  </td>
+                  <td>{c.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Modal>
 
-      {/* ══ CELL EDIT MODAL ═══════════════════════════════════════════════ */}
-      {editModal && (
+      {edit && (
         <CellModal
-          day={editModal.day} period={editModal.period}
-          subjects={sectionSubjects}
-          teachers={teacherOpts}
-          allTeachers={[]}
-          teacherLoading={teacherLoading}
-          subject={modalSubject} teacher={modalTeacher}
-          extraSubs={modalExtra} merged={modalMerged}
-          sameSections={sameSections}
-          extraTeacherOpts={extraTeacherOpts}
-          extraTeacherLoading={extraTeacherLoading}
-          onSubjectChange={onModalSubjectChange}
-          onTeacherChange={setModalTeacher}
-          onExtraChange={setModalExtra}
-          onExtraSubjectChange={onExtraSubjectChange}
-          onMergedChange={setModalMerged}
-          onSave={saveModal}
-          onClose={() => setEditModal(null)}
-          onClear={() => {
-            const key = `${editModal.day}-${editModal.period}`;
-            setCellData(prev => { const n = { ...prev }; delete n[key]; return n; });
-            setEditModal(null);
-          }}
+          day={edit.day} period={edit.period}
+          subjects={subjects} teachers={teacherOpts} teacherLoading={teacherBusy}
+          subject={modal.subject} teacher={modal.teacher}
+          extraSubs={modal.extra} merged={modal.merged}
+          sameSections={sections.filter((s) => String(s._id) !== String(sectionId))
+            .map((s) => ({ _id: s._id, sectionName: s.sectionName, className: klass.className }))}
+          extraTeacherOpts={extraOpts} extraTeacherLoading={extraBusy}
+          onSubjectChange={onModalSubject}
+          onTeacherChange={(v) => setModal((m) => ({ ...m, teacher: v }))}
+          onExtraChange={(v) => setModal((m) => ({ ...m, extra: v }))}
+          onExtraSubjectChange={onExtraSubject}
+          onMergedChange={(v) => setModal((m) => ({ ...m, merged: v }))}
+          onSave={saveCell}
+          onClose={() => setEdit(null)}
+          onClear={() => { setCell(`${edit.day}-${edit.period}`, null); setEdit(null); }}
         />
       )}
 
-      {/* ══ GENERATE MODAL ════════════════════════════════════════════════ */}
-      {showGenerate && (
-        <GenerateModal
-          subjects={sectionSubjects} loading={loadingSubjects}
-          ppw={ppw} setPpw={setPpw}
-          days={DAYS} genDays={genDays} setGenDays={setGenDays}
-          DAY_SHORT={DAY_SHORT}
-          availableSlots={genDays.length * periods.filter(p => !p.isRecess).length}
-          generating={generating}
-          onGenerate={handleGenerate}
-          onClose={() => setShowGenerate(false)}
+      {autofill && (
+        <AutoFillModal
+          subjects={autofill.subjects} loading={autofill.loading}
+          ppw={autofill.ppw} setPpw={(fn) => setAutofill((a) => ({ ...a, ppw: typeof fn === 'function' ? fn(a.ppw) : fn }))}
+          days={days} genDays={autofill.days}
+          setGenDays={(fn) => setAutofill((a) => ({ ...a, days: typeof fn === 'function' ? fn(a.days) : fn }))}
+          slots={autofill.days.length * teaching.length}
+          busy={false} onRun={runAutofill} onClose={() => setAutofill(null)}
         />
+      )}
+
+      {copying && (
+        <CopyModal classes={classes} current={section} busy={busy === 'copy'}
+          onCopy={copyFrom} onClose={() => setCopying(false)} />
+      )}
+
+      {importing && (
+        <ImportModal versions={importing.versions} loading={importing.loading} busy={busy === 'import'}
+          onImport={runImport} onClose={() => setImporting(null)} />
+      )}
+
+      {fullWeek && (
+        <FullWeekModal klass={klass} weeks={fullWeek.weeks} days={days}
+          loading={fullWeek.loading} onClose={() => setFullWeek(null)} />
       )}
     </div>
   );
 }
 
-/* ── Grid cell display ─────────────────────────────────────────────────────── */
-const thStyle = (_, first) => ({
-  padding: '10px 12px', textAlign: 'center', fontSize: '.78rem', fontWeight: 700,
-  background: 'var(--bg-secondary)', color: 'var(--text-muted)',
-  border: '1px solid var(--border)', letterSpacing: .5,
-  ...(first ? { width: 88 } : {}),
-});
-const tdBase = { border: '1px solid var(--border)', padding: '8px 10px', verticalAlign: 'middle', minWidth: 100 };
-
-function GridCell({ cell }) {
-  const empty   = !cell?.subject;
-  const extras  = (cell?.additionalSubjects || []).filter(a => a.subject);
+/* ── One slot of the grid ──────────────────────────────────────────────────── */
+function GridCell({ cell, over, onClick, onDragOver, onDragLeave, onDrop }) {
+  const tone = toneFor(cell?.subject);
+  const extras = (cell?.additionalSubjects || []).filter((a) => a.subject);
   return (
-    <div style={{
-      minHeight: 56, borderRadius: 6, padding: '6px 8px',
-      background: empty ? 'transparent' : 'color-mix(in srgb, var(--primary) 10%, transparent)',
-      border: `1px solid ${empty ? 'var(--border)' : 'color-mix(in srgb, var(--primary) 30%, transparent)'}`,
-      display: 'flex', flexDirection: 'column', justifyContent: 'center',
-      transition: 'background .15s, box-shadow .15s',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,.1)'; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}
-    >
-      {empty
-        ? <span style={{ fontSize: '.72rem', color: 'var(--border)' }}>+ Assign</span>
-        : <>
-            <div style={{ fontWeight: 700, fontSize: '.82rem', color: 'var(--primary)', lineHeight: 1.2 }}>{cell.subjectName}</div>
-            <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 3 }}>
-              {cell.teacherName || <span style={{ color: '#f59e0b' }}>No teacher</span>}
-            </div>
-            {extras.map((a, i) => (
-              <div key={i} style={{ fontSize: '.68rem', marginTop: 3, borderTop: '1px dashed var(--border)', paddingTop: 2 }}>
-                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{a.subjectName}</span>
-                {a.teacherName
-                  ? <span style={{ color: 'var(--text-muted)' }}> · {a.teacherName}</span>
-                  : <span style={{ color: '#f59e0b' }}> · No teacher</span>}
-              </div>
-            ))}
-            {(cell.mergedSections || []).length > 0 && (
-              <div style={{ fontSize: '.65rem', color: 'var(--primary)', marginTop: 1 }}>
-                🔗 with {cell.mergedSections.map(m => m.sectionName || m).join(', ')}
-              </div>
-            )}
-          </>
-      }
-    </div>
+    <button type="button"
+      className={`tt-cell${cell?.subject ? ' is-set' : ''}${over ? ' is-over' : ''}`}
+      style={cell?.subject ? {
+        background: TONE_BG[tone], borderColor: `${TONE_INK[tone]}55`, color: TONE_INK[tone],
+      } : undefined}
+      onClick={onClick} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      {cell?.subject ? (
+        <>
+          <span className="tt-cell__subject">{cell.subjectName}</span>
+          <span className="tt-cell__teacher">
+            {cell.teacherName || <span style={{ color: '#b45309' }}>No teacher</span>}
+          </span>
+          {extras.map((a, i) => (
+            <span key={i} className="tt-cell__extra">
+              {a.subjectName}{a.teacherName ? ` · ${a.teacherName}` : ''}
+            </span>
+          ))}
+          {(cell.mergedSections || []).length > 0 && (
+            <span className="tt-cell__extra">with {cell.mergedSections.length} more section(s)</span>
+          )}
+        </>
+      ) : (
+        <span className="tt-cell__empty">+ Assign</span>
+      )}
+    </button>
   );
 }
 
-/* ── Cell edit modal ───────────────────────────────────────────────────────── */
-function CellModal({
-  day, period, subjects, teachers, allTeachers, teacherLoading,
-  subject, teacher, extraSubs, merged, sameSections,
-  extraTeacherOpts, extraTeacherLoading,
-  onSubjectChange, onTeacherChange, onExtraChange, onExtraSubjectChange, onMergedChange,
-  onSave, onClose, onClear,
-}) {
-  const usedIds  = new Set([subject, ...extraSubs.map(e => e.subject)].filter(Boolean));
-
-  const addExtra = () => {
-    if (extraSubs.length >= MAX_EXTRA) return;
-    onExtraChange([...extraSubs, { subject: '', teacher: '', subjectName: '', teacherName: '' }]);
-  };
-  const updateExtra = (idx, field, val) => {
-    onExtraChange(extraSubs.map((es, i) => i === idx ? { ...es, [field]: val } : es));
-  };
-  const handleExtraSubjectChange = (idx, subjectId) => {
-    onExtraChange(extraSubs.map((es, i) => i === idx ? { ...es, subject: subjectId, teacher: '' } : es));
-    if (onExtraSubjectChange) onExtraSubjectChange(idx, subjectId);
-  };
-  const removeExtra = (idx) => onExtraChange(extraSubs.filter((_, i) => i !== idx));
-
-  const toggleMerge = (id) => {
-    onMergedChange(merged.includes(id) ? merged.filter(x => x !== id) : [...merged, id]);
-  };
-
+function MenuItem({ icon, label, onClick, disabled, danger }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
-        {/* Header */}
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <strong style={{ fontSize: '.95rem' }}>{day} — Period {period}</strong>
-            <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Assign subject and teacher</div>
-          </div>
-          <button className="btn btn-secondary btn-sm" onClick={onClose}>✕</button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Primary subject */}
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Subject</label>
-            {subjects.length === 0
-              ? <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', padding: '8px 12px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                  No subjects assigned to this section. Assign subjects first via <em>Section Subject Teachers</em>.
-                </div>
-              : <select className="form-control" value={subject} onChange={e => onSubjectChange(e.target.value)}>
-                  <option value="">— Select Subject —</option>
-                  {subjects.map(s => <option key={s._id} value={s._id}>{s.subjectName || s.name}</option>)}
-                </select>
-            }
-          </div>
-
-          {/* Primary teacher */}
-          {subject && (
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Teacher</label>
-              <select className="form-control" value={teacher} onChange={e => onTeacherChange(e.target.value)} disabled={teacherLoading}>
-                <option value="">{teacherLoading ? 'Loading available teachers…' : teachers.length === 0 ? '— No available teachers for this slot —' : '— Select Teacher (optional) —'}</option>
-                {teachers.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* Additional subjects */}
-          {extraSubs.length > 0 && (
-            <div>
-              <label className="form-label">Additional Subjects</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {extraSubs.map((es, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', position: 'relative' }}>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <select className="form-control" value={es.subject} onChange={e => handleExtraSubjectChange(idx, e.target.value)}>
-                        <option value="">— Extra Subject —</option>
-                        {subjects.filter(s => !usedIds.has(s._id) || s._id === es.subject)
-                          .map(s => <option key={s._id} value={s._id}>{s.subjectName || s.name}</option>)}
-                      </select>
-                      <select className="form-control" value={es.teacher} onChange={e => updateExtra(idx, 'teacher', e.target.value)} disabled={!!extraTeacherLoading?.[idx]}>
-                        <option value="">{extraTeacherLoading?.[idx] ? 'Loading available teachers…' : '— Teacher (optional) —'}</option>
-                        {(extraTeacherOpts?.[idx] || allTeachers).map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-                      </select>
-                    </div>
-                    <button onClick={() => removeExtra(idx)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem', padding: '2px 4px', flexShrink: 0 }}>×</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Add extra button */}
-          {subject && extraSubs.length < MAX_EXTRA && (
-            <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={addExtra}>
-              + Add Extra Subject
-            </button>
-          )}
-
-          {/* Merged sections */}
-          {sameSections.length > 0 && (
-            <div>
-              <label className="form-label">Merge Sections <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '.8rem' }}>(students attend together)</span></label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {sameSections.map(sec => (
-                  <label key={sec._id} style={{
-                    display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-                    padding: '5px 10px', borderRadius: 99, fontSize: '.82rem',
-                    border: `1px solid ${merged.includes(sec._id) ? 'var(--primary)' : 'var(--border)'}`,
-                    background: merged.includes(sec._id) ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
-                    color: merged.includes(sec._id) ? 'var(--primary)' : 'var(--text)',
-                  }}>
-                    <input type="checkbox" style={{ display: 'none' }} checked={merged.includes(sec._id)} onChange={() => toggleMerge(sec._id)} />
-                    🔗 {sec.className} - {sec.sectionName}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn btn-danger btn-sm" onClick={onClear}>Clear Slot</button>
-          <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary btn-sm" onClick={onSave}>Save</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Generate modal ──────────────────────────────────────────────────────── */
-function GenerateModal({ subjects, loading, ppw, setPpw, days, genDays, setGenDays, DAY_SHORT, availableSlots, generating, onGenerate, onClose }) {
-  const totalPeriods = Object.values(ppw).reduce((s, v) => s + (v || 0), 0);
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong>⚡ Quick Fill (this section only)</strong>
-          <button className="btn btn-secondary btn-sm" onClick={onClose}>✕</button>
-        </div>
-
-        {loading ? <div style={{ padding: 48, textAlign: 'center' }}><Spinner /></div> : (
-          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '.8rem', color: 'var(--text-muted)' }}>
-              This fills empty slots for this section only and does <strong>not</strong> check teacher,
-              room or workload clashes. For a validated, conflict-free timetable use{' '}
-              <a href="/admin/timetable/generate" style={{ color: 'var(--primary)' }}>Generate</a>.
-            </div>
-            {!subjects.length && (
-              <div style={{ padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, color: 'var(--text-muted)', textAlign: 'center', fontSize: '.88rem' }}>
-                No subjects assigned to this section yet.
-              </div>
-            )}
-
-            {/* Working days */}
-            <div>
-              <label className="form-label">Working Days</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {days.map(d => (
-                  <label key={d} style={{
-                    display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: '.85rem',
-                    padding: '5px 12px', borderRadius: 99,
-                    border: `1px solid ${genDays.includes(d) ? 'var(--primary)' : 'var(--border)'}`,
-                    background: genDays.includes(d) ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
-                    color: genDays.includes(d) ? 'var(--primary)' : 'var(--text)',
-                  }}>
-                    <input type="checkbox" style={{ display: 'none' }} checked={genDays.includes(d)}
-                      onChange={e => setGenDays(p => e.target.checked ? [...p, d] : p.filter(x => x !== d))} />
-                    {DAY_SHORT[d]}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Periods per week */}
-            {subjects.length > 0 && (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>Periods per Week</label>
-                  <span style={{ fontSize: '.8rem', color: totalPeriods > availableSlots ? '#ef4444' : 'var(--text-muted)' }}>
-                    {totalPeriods} / {availableSlots} slots
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {subjects.map(s => (
-                    <div key={s._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '.85rem' }}>{s.subjectName}</div>
-                        <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{s.teacher?.name || 'No teacher'}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <button className="btn btn-secondary btn-sm" style={{ width: 28, padding: 0, textAlign: 'center' }}
-                          onClick={() => setPpw(p => ({ ...p, [s._id]: Math.max(0, (p[s._id] || 0) - 1) }))}>−</button>
-                        <span style={{ fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{ppw[s._id] || 0}</span>
-                        <button className="btn btn-secondary btn-sm" style={{ width: 28, padding: 0, textAlign: 'center' }}
-                          onClick={() => setPpw(p => ({ ...p, [s._id]: (p[s._id] || 0) + 1 }))}>+</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn btn-primary" disabled={generating || !subjects.length || totalPeriods === 0} onClick={onGenerate}>
-                {generating ? 'Filling…' : '⚡ Quick Fill'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Saturday badge ──────────────────────────────────────────────────────── */
-function SaturdayBadge({ config }) {
-  if (!config) return null;
-
-  const SAT_MODE_LABEL = { all: 'All Saturdays', '1_3_5': '1st, 3rd & 5th Sat', '2_4': '2nd & 4th Sat' };
-
-  let label, bg, color;
-  if (!config.working) {
-    label = 'Saturday Off';
-    bg    = 'rgba(239,68,68,.1)';
-    color = '#ef4444';
-  } else if (config.halfDay) {
-    label = `${SAT_MODE_LABEL[config.mode] || 'Saturday'} — Half Day`;
-    bg    = 'rgba(245,158,11,.12)';
-    color = '#d97706';
-  } else {
-    label = `${SAT_MODE_LABEL[config.mode] || 'Saturday'} Working`;
-    bg    = 'rgba(34,197,94,.12)';
-    color = '#16a34a';
-  }
-
-  return (
-    <span style={{
-      fontSize: '.78rem', fontWeight: 600, padding: '3px 10px',
-      borderRadius: 99, background: bg, color,
-      border: `1px solid ${color}33`,
-      whiteSpace: 'nowrap',
-    }}>
-      🗓 {label}
-    </span>
+    <button type="button" onClick={onClick} disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 11px',
+        borderRadius: 8, background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: '.85rem', color: danger ? 'var(--danger)' : 'var(--text)', opacity: disabled ? .5 : 1,
+        textAlign: 'left',
+      }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--bg)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+      <Icon name={icon} size={16} />{label}
+    </button>
   );
 }

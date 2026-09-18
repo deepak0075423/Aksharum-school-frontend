@@ -16,6 +16,11 @@ export const saveConfig   = (data)   => api.put(`${base}/config`, data);
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────
 export const getRooms     = (params) => api.get(`${base}/rooms`, { params });
+// The Rooms screen's own read: rooms, the tiles above them, and how hard the
+// published week works each one. getRooms stays for callers that want the list.
+export const getRoomsOverview = (params) => api.get(`${base}/rooms/overview`, { params });
+export const getRoomSchedule  = (id, yearId) => api.get(`${base}/rooms/${id}/schedule`, { params: yearId ? { yearId } : {} });
+export const importRooms      = (rooms) => api.post(`${base}/rooms/import`, { rooms });
 export const createRoom   = (data)   => api.post(`${base}/rooms`, data);
 export const updateRoom   = (id, d)  => api.put(`${base}/rooms/${id}`, d);
 export const deleteRoom   = (id)     => api.delete(`${base}/rooms/${id}`);
@@ -23,6 +28,15 @@ export const deleteRoom   = (id)     => api.delete(`${base}/rooms/${id}`);
 // ── Reports over the published week ───────────────────────────────────────────
 export const getTeacherWorkload  = (yearId) => api.get(`${base}/reports/teacher-workload`, { params: yearId ? { yearId } : {} });
 export const getRoomUtilisation  = (yearId) => api.get(`${base}/reports/room-utilisation`, { params: yearId ? { yearId } : {} });
+// One call per tab of the Reports screen — each returns its tiles, its charts
+// and its table together, rather than the screen stitching four endpoints.
+export const getReportOverview   = (yearId) => api.get(`${base}/reports/overview`, { params: yearId ? { yearId } : {} });
+export const getSubjectSplit     = (yearId) => api.get(`${base}/reports/subject-distribution`, { params: yearId ? { yearId } : {} });
+export const getFreePeriods      = (yearId) => api.get(`${base}/reports/free-periods`, { params: yearId ? { yearId } : {} });
+export const getLiveConflicts    = (yearId) => api.get(`${base}/reports/conflicts`, { params: yearId ? { yearId } : {} });
+export const getYearComparison   = (yearId, compareTo) => api.get(`${base}/reports/year-comparison`, {
+  params: { ...(yearId ? { yearId } : {}), ...(compareTo ? { compareTo } : {}) },
+});
 
 // ── Carry a year's plan into the next one ─────────────────────────────────────
 // Without `apply` this only reports what would happen.
@@ -37,6 +51,11 @@ export const deleteMerge = (id)      => api.delete(`${base}/merges/${id}`);
 
 // ── Teacher availability ──────────────────────────────────────────────────────
 export const getAvailability  = (yearId)        => api.get(`${base}/availability`, { params: yearId ? { yearId } : {} });
+// Availability plus the load it has to accommodate, which is the number an
+// admin is actually weighing when they block a slot.
+export const getAvailabilityOverview = (yearId) => api.get(`${base}/availability/overview`, { params: yearId ? { yearId } : {} });
+// Without `apply` this only reports the weekday patterns it found.
+export const importAvailability = (data) => api.post(`${base}/availability/import`, data);
 export const saveAvailability = (teacherId, d)  => api.put(`${base}/availability/${teacherId}`, d);
 
 // ── Generation & versions ─────────────────────────────────────────────────────

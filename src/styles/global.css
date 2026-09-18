@@ -19334,14 +19334,28 @@ button.atn-act:hover { background: #f8fafc; }
 .ttg-addrow { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
 
 /* ── Preferences ─────────────────────────────────────────────────────────── */
-.ttg-prefs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ttg-prefs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* The note under the toggles is a separate thought, not another row of them. */
+.ttg-prefs:not(:last-child) { margin-bottom: 16px; }
 .ttg-pref {
   display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 14px; text-align: left;
   border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); color: var(--text);
 }
 .ttg-pref:hover { border-color: #c7d2fe; }
 .ttg-pref b { display: block; font-size: .86rem; font-weight: 600; line-height: 1.35; }
-.ttg-pref span { display: block; font-size: .76rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+/* Scoped to the text block on purpose. As a plain descendant rule this also
+   caught the card's icon tile — turning a 34px centred flex box into a muted
+   0.76rem block, which is why the glyph rendered pale and off-centre. */
+.ttg-pref__body > span { display: block; font-size: .76rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.ttg-pref__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.ttg-pref__body { min-width: 0; }
+/* An odd number of preferences would otherwise leave a hole in the second
+   column; the last one takes the whole row instead. */
+.ttg-pref:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .ttg-switch {
   position: relative; width: 36px; height: 20px; margin-top: 1px; border-radius: 999px; flex-shrink: 0;
   background: #cbd5e1; transition: background .15s ease;
@@ -19628,3 +19642,684 @@ button.ttg-slot:hover { border-color: #c7d2fe; background: #eef2ff; color: #3730
   .ttg-prob__icon { display: none; }
 }
 @media (max-width: 560px) { .ttg-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIMETABLE MODULE — the admin screens (Section Editor, Substitutions,
+   Generate, Versions, Teacher Availability, Rooms, Reports, Configuration).
+
+   Its own frame, built to the mockups the module was designed against, not the
+   listParts frame: every one of these screens pairs a wide working area with a
+   narrow rail that reacts to the row you picked, and the list frame has no
+   place to put that rail.
+
+   Prefix `tt-`. The generator's own older blocks use `ttg-` and are left alone;
+   the two never style the same element.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page.tt-page { display: flex; flex-direction: column; gap: 18px; container-type: inline-size; container-name: ttpage; }
+
+/* ── Page header ───────────────────────────────────────────────────────────
+   A tinted glyph, the name of the screen, what it is for, and — on the right —
+   either the academic year the screen is reading or the actions it offers. */
+.tt-head {
+  display:     grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap:         18px;
+}
+.tt-head__icon {
+  width: 58px; height: 58px; border-radius: 16px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.tt-head__text { min-width: 0; }
+.tt-head__text h1 { font-size: 1.72rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.tt-head__text p  { font-size: .89rem; color: var(--text-muted); margin-top: 4px; }
+.tt-head__acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.tt-head__acts .btn { height: 42px; }
+
+/* The academic-year control reads as one object: a calendar, a caption, and
+   the year itself — not a bare <select> floating beside a 58px glyph. */
+.tt-year {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  height:        50px;
+  padding:       0 12px 0 14px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+}
+.tt-year > svg { color: var(--primary); flex-shrink: 0; }
+.tt-year__body { display: flex; flex-direction: column; min-width: 0; }
+.tt-year__cap  { font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.tt-year select {
+  border: none; background: none; outline: none; padding: 0; height: auto;
+  font: inherit; font-size: .88rem; font-weight: 600; color: var(--text); cursor: pointer;
+}
+
+/* ── Sub-tabs ──────────────────────────────────────────────────────────────
+   Inside a screen, a tab switches views of the same subject, so it is an
+   underline rather than the filled pill the module bar uses — two filled pill
+   rows stacked read as one confused nav. */
+.tt-tabs {
+  display:       flex;
+  gap:           2px;
+  align-items:   stretch;
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding:       0 10px;
+  overflow-x:    auto;
+  scrollbar-width: none;
+}
+.tt-tabs::-webkit-scrollbar { display: none; }
+.tt-tab {
+  display:     inline-flex;
+  align-items: center;
+  gap:         8px;
+  flex-shrink: 0;
+  padding:     16px 18px;
+  border:      none;
+  border-bottom: 3px solid transparent;
+  background:  none;
+  font-size:   .88rem;
+  font-weight: 600;
+  color:       var(--text-muted);
+  white-space: nowrap;
+  cursor:      pointer;
+  transition:  color var(--transition), border-color var(--transition);
+}
+.tt-tab > svg      { color: var(--text-light); transition: color var(--transition); }
+.tt-tab:hover      { color: var(--text); }
+.tt-tab:hover > svg{ color: var(--text-muted); }
+.tt-tab.is-on      { color: var(--primary); border-bottom-color: var(--primary); }
+.tt-tab.is-on > svg{ color: var(--primary); }
+.tt-tab__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px;
+  background: var(--bg); color: var(--text-muted); font-size: .72rem; font-weight: 700;
+}
+.tt-tab.is-on .tt-tab__count { background: #eef2ff; color: var(--primary); }
+
+/* Segmented control — Weekly / Day, All classes / Selected, Available /
+   Unavailable / All. A choice between renderings of one thing, so it is filled
+   and small rather than an underline. */
+.tt-seg {
+  display:       inline-flex;
+  gap:           2px;
+  padding:       3px;
+  border:        1px solid var(--border);
+  border-radius: 10px;
+  background:    var(--bg);
+}
+.tt-seg button {
+  padding:       8px 16px;
+  border:        none;
+  border-radius: 8px;
+  background:    none;
+  font-size:     .84rem;
+  font-weight:   600;
+  color:         var(--text-muted);
+  white-space:   nowrap;
+  cursor:        pointer;
+  transition:    background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+.tt-seg button.is-on { background: var(--primary); color: #fff; box-shadow: var(--shadow-sm); }
+.tt-seg--quiet button.is-on { background: var(--bg-card); color: var(--primary); }
+/* In the rail the control is as wide as the panel and its labels share it
+   evenly, rather than the last one running off the edge. */
+.tt-panel__body > .tt-seg { width: 100%; }
+.tt-panel__body > .tt-seg button { flex: 1 1 0; min-width: 0; padding: 8px 6px; font-size: .79rem; }
+
+/* ── Summary tiles ─────────────────────────────────────────────────────────
+   The count first, its name under it, and a caption for the qualifier — a tile
+   whose number needs a sentence to be read is not a tile. */
+.tt-stats { display: grid; grid-template-columns: repeat(var(--tt-cols, 4), minmax(0, 1fr)); gap: 14px; }
+.tt-stat {
+  display:       flex;
+  align-items:   center;
+  gap:           14px;
+  padding:       16px 18px;
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:    var(--bg-card);
+  text-align:    left;
+  font:          inherit;
+  color:         inherit;
+  transition:    transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+button.tt-stat { width: 100%; cursor: pointer; }
+button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.tt-stat.is-on { border-color: currentColor; box-shadow: 0 0 0 3px rgba(79,70,229,.08); }
+.tt-stat__icon {
+  width: 46px; height: 46px; border-radius: 13px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.tt-stat__body  { min-width: 0; flex: 1; }
+.tt-stat__value { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); }
+.tt-stat__label { display: block; font-size: .84rem; font-weight: 600; color: var(--text); margin-top: 2px; }
+.tt-stat__cap   { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; }
+.tt-stat__pct   { font-size: .84rem; font-weight: 700; flex-shrink: 0; align-self: flex-end; }
+
+/* One hue per tile. The ground is the tint, the glyph sits on white inside it. */
+.tt-stat--indigo { background: #eef2ff; border-color: #e0e7ff; color: #4f46e5; }
+.tt-stat--blue   { background: #eff6ff; border-color: #dbeafe; color: #2563eb; }
+.tt-stat--green  { background: #f0fdf4; border-color: #bbf7d0; color: #059669; }
+.tt-stat--amber  { background: #fffbeb; border-color: #fde68a; color: #d97706; }
+.tt-stat--red    { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.tt-stat--violet { background: #f5f3ff; border-color: #ddd6fe; color: #7c3aed; }
+.tt-stat--teal   { background: #f0fdfa; border-color: #99f6e4; color: #0d9488; }
+.tt-stat--slate  { background: var(--bg-card); border-color: var(--border); color: var(--text-muted); }
+.tt-stat--indigo .tt-stat__icon, .tt-stat--blue .tt-stat__icon, .tt-stat--green .tt-stat__icon,
+.tt-stat--amber  .tt-stat__icon, .tt-stat--red  .tt-stat__icon, .tt-stat--violet .tt-stat__icon,
+.tt-stat--teal   .tt-stat__icon { background: #fff; }
+.tt-stat--slate  .tt-stat__icon { background: var(--bg); }
+
+/* ── The card ──────────────────────────────────────────────────────────── */
+.tt-card {
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+.tt-card--flush > .tt-card__body { padding: 0; }
+.tt-card__head {
+  display:         flex;
+  align-items:     flex-start;
+  justify-content: space-between;
+  gap:             16px;
+  flex-wrap:       wrap;
+  padding:         20px 22px;
+}
+.tt-card__head + .tt-card__body { padding-top: 0; }
+.tt-card__title { display: flex; align-items: flex-start; gap: 13px; min-width: 0; }
+.tt-card__icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: var(--primary);
+}
+.tt-card__title h2 { font-size: 1.14rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.tt-card__title p  { font-size: .84rem; color: var(--text-muted); margin-top: 3px; }
+.tt-card__acts { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.tt-card__acts .btn { height: 38px; }
+.tt-card__body { padding: 0 22px 22px; }
+/* A tab strip inside a card. The head supplies the 20px above it; without this
+   the strip sat flush on the content below, so it read as belonging to the
+   first row of cards rather than switching between them. */
+.tt-card__tabs { padding: 0 22px 18px; }
+/* A tab strip that is the whole width of the card scrolls inside its own box
+   rather than pushing the card wider. */
+.tt-card__tabs > .tt-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.tt-card__tabs > .tt-seg::-webkit-scrollbar { display: none; }
+.tt-card__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 16px 22px; border-top: 1px solid var(--border);
+}
+
+/* ── Filter row ────────────────────────────────────────────────────────────
+   Every control labelled and on the surface. These screens are read by people
+   who set three filters and then leave them set for an hour; a filter hidden
+   behind a button is a filter they forget is on. */
+.tt-filters {
+  display:     flex;
+  align-items: flex-end;
+  gap:         12px;
+  flex-wrap:   wrap;
+  padding:     16px 22px;
+  border-top:    1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.tt-card__head + .tt-filters { border-top: 0; }
+.tt-filters--plain { border: 0; padding: 0 0 16px; }
+.tt-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tt-field > label {
+  font-size: .74rem; font-weight: 600; color: var(--text-muted);
+  display: flex; align-items: center; gap: 4px;
+}
+.tt-field > label .tt-req { color: var(--danger); }
+.tt-field select, .tt-field input, .tt-field textarea { height: 42px; border-radius: 10px; font-size: .87rem; }
+.tt-field textarea { height: auto; padding-top: 10px; }
+.tt-field--grow { flex: 1 1 200px; }
+.tt-field--fix  { flex: 0 0 auto; min-width: 150px; }
+/* A filter that is doing something says so — five greyed selects all look
+   unset, and an admin re-applies the one they already had. */
+.tt-field select.is-set { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+.tt-search { position: relative; flex: 1 1 260px; min-width: 180px; }
+/* In the rail the panel body is a column, where `flex: 1` means "take the
+   leftover height" — the field stayed 42px but its box grew, stranding the
+   magnifier (positioned at 50% of the box) in the middle of the panel. */
+.tt-panel__body > .tt-search { flex: 0 0 auto; }
+.tt-search > svg {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); pointer-events: none;
+}
+.tt-search input { padding-left: 38px; padding-right: 36px; height: 42px; border-radius: 10px; font-size: .87rem; }
+.tt-search__clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 23px; height: 23px; padding: 0; border: none; border-radius: 50%;
+  background: none; color: var(--text-light); cursor: pointer;
+}
+.tt-search__clear:hover { background: var(--bg); color: var(--text); }
+.tt-filters .btn { height: 42px; }
+
+/* ── Table ─────────────────────────────────────────────────────────────────
+   Hand-written rather than the shared <Table>: these grids carry chips, bars,
+   avatars and inline break rows, and a column renderer per cell would say less
+   than the markup does. */
+.tt-tablewrap { overflow-x: auto; }
+.tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.tt-table thead th {
+  padding: 11px 12px;
+  text-align: left;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.tt-table tbody td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+/* A row of chips is a row: wrapping one chip per line turned a two-subject
+   cell into a two-line cell and pushed everything after it off the table. */
+.tt-table .tt-chiprow { display: flex; gap: 5px; align-items: center; }
+.tt-table .tt-chiprow .tt-chip { flex-shrink: 0; }
+.tt-table tbody tr:last-child td { border-bottom: 0; }
+.tt-table tbody tr.is-on   { background: #eef2ff; }
+.tt-table tbody tr:hover:not(.is-break) { background: var(--bg); }
+.tt-table tbody tr.is-pick { cursor: pointer; }
+.tt-table td.tt-num { font-variant-numeric: tabular-nums; }
+.tt-table .tt-nowrap { white-space: nowrap; }
+.tt-table__muted { color: var(--text-muted); }
+/* A wide table beside the rail: two-word headers stack instead of forcing the
+   last columns off the end. The cells themselves still hold their line. */
+.tt-table--wrap thead th { white-space: normal; line-height: 1.3; }
+.tt-table--wrap thead th { min-width: 0; }
+/* A break in the middle of the day, spanning the whole row: the day reads in
+   order instead of jumping from period 3 to period 4 with no lunch in it. */
+.tt-table tr.is-break td { background: var(--bg); color: var(--text-muted); font-size: .84rem; }
+.tt-table tr.is-break .tt-break {
+  display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600;
+}
+.tt-table__empty { padding: 44px 20px; text-align: center; color: var(--text-muted); }
+.tt-table__empty strong { display: block; font-size: .95rem; color: var(--text); margin-bottom: 4px; }
+
+.tt-period {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px;
+  background: #eef2ff; color: var(--primary); font-size: .82rem; font-weight: 700;
+}
+
+/* ── Chips, pills, avatars, bars ──────────────────────────────────────── */
+.tt-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 8px;
+  font-size: .76rem; font-weight: 600; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.tt-chip--indigo { background: #eef2ff; color: #4338ca; border-color: #e0e7ff; }
+.tt-chip--blue   { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
+.tt-chip--green  { background: #f0fdf4; color: #047857; border-color: #bbf7d0; }
+.tt-chip--amber  { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.tt-chip--red    { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.tt-chip--violet { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.tt-chip--pink   { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+.tt-chip--teal   { background: #f0fdfa; color: #0f766e; border-color: #99f6e4; }
+.tt-chip--slate  { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
+.tt-chip--dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.tt-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  font-size: .72rem; font-weight: 700; letter-spacing: .02em;
+  background: #eef2ff; color: #4338ca;
+}
+.tt-avatar--lg { width: 40px; height: 40px; font-size: .82rem; }
+.tt-person { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.tt-person__name { font-weight: 600; color: var(--text); white-space: nowrap; }
+.tt-person__sub  { font-size: .76rem; color: var(--text-muted); }
+
+.tt-bar { display: flex; align-items: center; gap: 9px; min-width: 96px; }
+/* Both are spans, so both need a box: an inline element has no height to fill,
+   which left every load bar showing its empty track and nothing else. */
+.tt-bar__track { display: block; flex: 1; height: 7px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
+.tt-bar__fill  { display: block; height: 100%; border-radius: 4px; background: var(--primary); transition: width var(--transition); }
+.tt-bar__pct   { font-size: .78rem; font-weight: 600; color: var(--text-muted); width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+.tt-bar--good .tt-bar__fill { background: #10b981; }
+.tt-bar--warn .tt-bar__fill { background: #f59e0b; }
+.tt-bar--bad  .tt-bar__fill { background: #ef4444; }
+
+/* ── Main + rail ───────────────────────────────────────────────────────────
+   The rail is what the row you picked has to say. It follows the page rather
+   than the row, so picking the tenth row does not scroll its detail off. */
+.tt-split { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+.tt-split--wide { grid-template-columns: minmax(0, 1fr) 380px; }
+/* Two equal halves: a table that needs room beside a panel that also does. */
+.tt-split--half { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tt-rail { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 84px; }
+
+.tt-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.tt-panel__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.tt-panel__head h3 { font-size: .95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.tt-panel__head h3 > svg { color: var(--primary); }
+.tt-panel--danger .tt-panel__head h3,
+.tt-panel--danger .tt-panel__head h3 > svg { color: var(--danger); }
+.tt-panel__body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.tt-panel__body--tight { padding: 10px; gap: 8px; }
+
+.tt-kv { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; font-size: .84rem; }
+.tt-kv__k { display: flex; align-items: center; gap: 8px; color: var(--text-muted); min-width: 0; }
+.tt-kv__k > svg { color: var(--text-light); flex-shrink: 0; }
+.tt-kv__v { font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+
+.tt-note {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 12px 14px; border-radius: var(--radius-lg);
+  font-size: .82rem; line-height: 1.5;
+}
+.tt-note > svg { flex-shrink: 0; margin-top: 1px; }
+.tt-note--info   { background: #eff6ff; color: #1e40af; }
+.tt-note--good   { background: #f0fdf4; color: #047857; }
+.tt-note--warn   { background: #fffbeb; color: #b45309; }
+.tt-note--bad    { background: #fef2f2; color: #b91c1c; }
+.tt-note--quiet  { background: var(--bg); color: var(--text-muted); }
+.tt-note strong  { font-weight: 700; }
+
+/* Checklist in the rail — the run's preconditions, each either met or not. */
+.tt-check { display: flex; align-items: flex-start; gap: 10px; font-size: .85rem; }
+.tt-check > svg { flex-shrink: 0; margin-top: 1px; }
+.tt-check--ok   > svg { color: #10b981; }
+.tt-check--bad  > svg { color: #ef4444; }
+.tt-check--warn > svg { color: #f59e0b; }
+.tt-check__body small { display: block; color: var(--text-muted); font-size: .76rem; margin-top: 2px; }
+
+/* Quick actions — two tinted cards per row, each an action with its own colour.
+   Deliberately not buttons in a row: these are the ways out of the screen, and
+   they should look like doors, not like a toolbar. */
+.tt-qa { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tt-qa__item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px 14px; border-radius: var(--radius-lg);
+  border: 1px solid transparent; text-align: left; font: inherit; cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.tt-qa__item:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.tt-qa__item > svg { flex-shrink: 0; margin-top: 2px; }
+.tt-qa__item strong { display: block; font-size: .84rem; font-weight: 700; overflow-wrap: break-word; hyphens: none; }
+.tt-qa__item span   { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.tt-qa--indigo { background: #eef2ff; color: #4338ca; }
+.tt-qa--blue   { background: #eff6ff; color: #1d4ed8; }
+.tt-qa--green  { background: #f0fdf4; color: #047857; }
+.tt-qa--amber  { background: #fffbeb; color: #b45309; }
+.tt-qa--violet { background: #f5f3ff; color: #6d28d9; }
+.tt-qa--red    { background: #fef2f2; color: #b91c1c; }
+
+/* ── The numbered stepper ──────────────────────────────────────────────────
+   Where you are in a four-part job. The chevron between steps is drawn by the
+   step itself so the row survives wrapping. */
+.tt-steps {
+  display: grid;
+  grid-template-columns: repeat(var(--tt-steps, 4), minmax(0, 1fr));
+  gap: 0;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+.tt-step {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 8px 14px; border: none; background: none; text-align: left;
+  font: inherit; color: inherit; cursor: pointer; position: relative;
+}
+.tt-step + .tt-step::before {
+  content: ''; position: absolute; left: -1px; top: 50%; width: 10px; height: 10px;
+  border-top: 2px solid var(--border); border-right: 2px solid var(--border);
+  transform: translateY(-50%) rotate(45deg);
+}
+.tt-step__num {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--text-muted);
+  font-size: .88rem; font-weight: 700; border: 1px solid var(--border);
+}
+.tt-step__body { min-width: 0; }
+.tt-step__body strong { display: block; font-size: .87rem; font-weight: 600; color: var(--text-muted); }
+.tt-step__body span   { display: block; font-size: .75rem; color: var(--text-light); margin-top: 1px; }
+.tt-step.is-on  .tt-step__num  { background: var(--primary); color: #fff; border-color: var(--primary); }
+.tt-step.is-on  .tt-step__body strong { color: var(--primary); }
+.tt-step.is-done .tt-step__num { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+.tt-step.is-done .tt-step__body strong { color: var(--text); }
+/* The step you are on gets the ground as well as the ring, so the row reads at
+   a glance from across a desk. */
+.tt-step.is-on { background: #eef2ff; border-radius: var(--radius-lg); }
+
+/* ── Switch rows ───────────────────────────────────────────────────────────
+   A setting is a sentence with a switch at one end. The whole row is the
+   label, so the target is the row and not a 36px rectangle. */
+.tt-switchrow {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 0; cursor: pointer;
+}
+.tt-switchrow + .tt-switchrow { border-top: 1px solid var(--border); }
+.tt-switchrow.is-off { opacity: .55; cursor: not-allowed; }
+.tt-switchrow__body { min-width: 0; flex: 1; }
+.tt-switchrow__body strong { display: block; font-size: .87rem; font-weight: 600; }
+.tt-switchrow__body span   { display: block; font-size: .78rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45; }
+.tt-switch {
+  position: relative; flex-shrink: 0; width: 40px; height: 22px; border-radius: 99px;
+  background: #cbd5e1; transition: background var(--transition); margin-top: 2px;
+}
+.tt-switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform var(--transition);
+}
+.tt-switch.is-on { background: var(--primary); }
+.tt-switch.is-on::after { transform: translateX(18px); }
+.tt-switchrow input { position: absolute; opacity: 0; pointer-events: none; }
+/* The switch leads on the settings screen: the mockup puts it before the text,
+   because the state is what you scan for and the words are what you read. */
+.tt-switchrow--lead { flex-direction: row; }
+.tt-switchrow--lead .tt-switch { order: -1; }
+
+.tt-checkrow { display: flex; align-items: center; gap: 8px; font-size: .84rem; cursor: pointer; }
+.tt-checkrow input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+
+/* A settings card: a tinted head naming the group, then its controls. */
+.tt-set { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-card); }
+.tt-set__head { display: flex; align-items: flex-start; gap: 12px; padding: 15px 16px; }
+.tt-set__icon {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; background: #fff;
+}
+.tt-set__head h3 { font-size: .95rem; font-weight: 700; }
+.tt-set__head p  { font-size: .78rem; color: var(--text-muted); margin-top: 2px; line-height: 1.45; }
+.tt-set__body { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 4px; }
+.tt-set--indigo .tt-set__head { background: #eef2ff; } .tt-set--indigo .tt-set__icon { color: #4f46e5; }
+.tt-set--violet .tt-set__head { background: #f5f3ff; } .tt-set--violet .tt-set__icon { color: #7c3aed; }
+.tt-set--green  .tt-set__head { background: #f0fdf4; } .tt-set--green  .tt-set__icon { color: #059669; }
+.tt-set--amber  .tt-set__head { background: #fffbeb; } .tt-set--amber  .tt-set__icon { color: #d97706; }
+.tt-set--blue   .tt-set__head { background: #eff6ff; } .tt-set--blue   .tt-set__icon { color: #2563eb; }
+.tt-set--red    .tt-set__head { background: #fef2f2; } .tt-set--red    .tt-set__icon { color: #dc2626; }
+.tt-set--teal   .tt-set__head { background: #f0fdfa; } .tt-set--teal   .tt-set__icon { color: #0d9488; }
+.tt-setgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+/* Two to a row, whatever the width: these cards hold sliders and paired
+   inputs, and a third column leaves no label unwrapped. */
+.tt-setgrid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Three to a row: six settings groups read as two tidy rows rather than the
+   four-then-two an auto-fit grid falls into at this width. */
+.tt-setgrid--trio { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@container ttpage (max-width: 1040px) { .tt-setgrid--trio { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container ttpage (max-width: 760px)  { .tt-setgrid--trio, .tt-setgrid--pair { grid-template-columns: minmax(0, 1fr); } }
+
+/* A weight: a name, a slider, and the number it is set to. */
+.tt-weight { display: grid; grid-template-columns: minmax(0, 1fr) 110px 22px; align-items: center; gap: 10px; }
+.tt-weight > span:first-child { font-size: .82rem; line-height: 1.35; }
+.tt-weight input[type="range"] { width: 100%; accent-color: var(--primary); }
+.tt-weight__n { font-size: .82rem; font-weight: 700; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── The weekly grid ───────────────────────────────────────────────────────
+   The timetable itself. Cells are drop targets, so they keep their outline
+   even when empty — an invisible target is not a target. */
+.tt-week { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .82rem; }
+.tt-week th, .tt-week td { border: 1px solid var(--border); }
+.tt-week thead th {
+  padding: 11px 10px; background: var(--bg); text-align: center;
+  font-size: .76rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;
+}
+.tt-week thead th:first-child { text-align: left; }
+.tt-week tbody td { padding: 5px; vertical-align: top; }
+.tt-week__rowhead {
+  width: 92px; padding: 8px 10px !important; background: var(--bg-card); white-space: nowrap; text-align: center;
+}
+.tt-week__rowhead .tt-period { margin-bottom: 3px; }
+.tt-week__rowhead small { display: block; font-size: .68rem; color: var(--text-muted); }
+.tt-week__break {
+  background: #fffbeb; color: #b45309; text-align: center; font-weight: 600; font-size: .82rem;
+  padding: 10px !important; white-space: nowrap;
+}
+.tt-week__break-head { background: #fffbeb !important; }
+.tt-cell {
+  min-height: 52px; border-radius: 8px; padding: 7px 9px;
+  border: 1px dashed var(--border); background: transparent;
+  display: flex; flex-direction: column; justify-content: center;
+  cursor: pointer; transition: box-shadow var(--transition), border-color var(--transition);
+  width: 100%; text-align: left; font: inherit;
+}
+.tt-cell:hover { box-shadow: var(--shadow-sm); }
+.tt-cell.is-over { border-color: var(--primary); border-style: solid; background: #eef2ff; }
+.tt-cell.is-set { border-style: solid; }
+.tt-cell__subject { font-weight: 700; font-size: .8rem; line-height: 1.25; overflow-wrap: anywhere; }
+.tt-cell__teacher { font-size: .72rem; color: var(--text-muted); margin-top: 2px; overflow-wrap: anywhere; }
+.tt-cell__empty   { font-size: .74rem; color: var(--text-light); text-align: center; }
+.tt-cell__extra   { font-size: .68rem; margin-top: 3px; padding-top: 3px; border-top: 1px dashed currentColor; opacity: .85; }
+
+/* The subject rail beside the grid — drag one onto a cell, or click to arm it. */
+.tt-palette { display: flex; flex-direction: column; gap: 6px; }
+.tt-pal {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 11px; border-radius: 9px; border: 1px solid transparent;
+  font-size: .83rem; font-weight: 600; cursor: grab; text-align: left; width: 100%;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.tt-pal:active { cursor: grabbing; }
+.tt-pal:hover  { transform: translateX(2px); box-shadow: var(--shadow-sm); }
+.tt-pal.is-armed { box-shadow: 0 0 0 2px var(--primary); }
+.tt-pal__dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.tt-pal__n   { margin-left: auto; font-size: .72rem; font-weight: 700; opacity: .75; }
+
+/* ── The availability grid ─────────────────────────────────────────────────
+   Days across, periods down, one button per slot. Three states, each with a
+   glyph as well as a colour. */
+.tt-slots { width: 100%; border-collapse: collapse; font-size: .74rem; }
+.tt-slots th { padding: 5px 3px; font-size: .72rem; font-weight: 700; color: var(--text-muted); text-align: center; }
+.tt-slots th:first-child { text-align: left; width: 30px; }
+.tt-slots td { padding: 2px; text-align: center; }
+.tt-slots td:first-child { font-weight: 700; color: var(--text-muted); text-align: left; }
+.tt-slot {
+  width: 100%; min-width: 26px; height: 24px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; font-size: .7rem; font-weight: 700; cursor: pointer;
+  transition: transform var(--transition);
+}
+.tt-slot:hover { transform: scale(1.08); }
+.tt-slot--free    { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+.tt-slot--blocked { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.tt-slot--none    { background: var(--bg); color: var(--text-light); border-color: var(--border); }
+.tt-slotkey { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: .74rem; color: var(--text-muted); }
+.tt-slotkey span { display: inline-flex; align-items: center; gap: 5px; }
+.tt-slotkey i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* ── Legend, pager, footers ──────────────────────────────────────────────── */
+.tt-legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: .78rem; color: var(--text-muted); }
+.tt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tt-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.tt-pager { display: flex; align-items: center; gap: 6px; }
+.tt-pager button {
+  min-width: 32px; height: 32px; padding: 0 9px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  font-size: .82rem; font-weight: 600; color: var(--text-muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tt-pager button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.tt-pager button.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.tt-pager button:disabled { opacity: .45; cursor: not-allowed; }
+.tt-count { font-size: .8rem; color: var(--text-muted); }
+
+/* ── Chart frames ────────────────────────────────────────────────────────── */
+.tt-charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tt-charts--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tt-chart { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; }
+.tt-chart__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.tt-chart__head h3 { font-size: .95rem; font-weight: 700; }
+.tt-chart__icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; background: #eef2ff; color: var(--primary);
+}
+.tt-chart__body { display: flex; align-items: center; gap: 14px; }
+.tt-chart__legend { display: flex; flex-direction: column; gap: 9px; font-size: .8rem; min-width: 0; flex: 1; }
+.tt-chart__legend div { display: flex; align-items: center; gap: 8px; }
+.tt-chart__legend i { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.tt-chart__legend b { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* The donut's hole, which carries the total the ring is a breakdown of. */
+.tt-donut { position: relative; flex-shrink: 0; }
+.tt-donut__mid {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; pointer-events: none;
+}
+.tt-donut__mid strong { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+.tt-donut__mid span   { font-size: .7rem; color: var(--text-muted); }
+
+/* ── Ranked list — Top 5 workload, busiest rooms ────────────────────────── */
+.tt-rank { display: flex; align-items: center; gap: 10px; font-size: .84rem; }
+.tt-rank__n {
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--text-muted); font-size: .72rem; font-weight: 700;
+}
+.tt-rank__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Drop zone / import ─────────────────────────────────────────────────── */
+.tt-drop {
+  border: 2px dashed var(--border); border-radius: var(--radius-lg);
+  padding: 26px 20px; text-align: center; color: var(--text-muted); font-size: .85rem;
+}
+.tt-drop.is-over { border-color: var(--primary); background: #eef2ff; }
+
+/* ── Narrower pages ────────────────────────────────────────────────────────
+   Container queries, so the breakpoints follow the page's own width — the
+   sidebar collapsing is the same event to this page as the window narrowing. */
+@container ttpage (max-width: 1180px) {
+  .tt-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tt-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container ttpage (max-width: 1040px) {
+  .tt-split, .tt-split--wide { grid-template-columns: minmax(0, 1fr); }
+  .tt-rail { position: static; }
+}
+@container ttpage (max-width: 860px) {
+  .tt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tt-charts, .tt-charts--2 { grid-template-columns: minmax(0, 1fr); }
+  .tt-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tt-step + .tt-step::before { display: none; }
+  .tt-setgrid { grid-template-columns: minmax(0, 1fr); }
+}
+@container ttpage (max-width: 620px) {
+  .tt-head { grid-template-columns: auto minmax(0, 1fr); }
+  .tt-head__acts { grid-column: 1 / -1; justify-content: flex-start; }
+  .tt-stats { grid-template-columns: minmax(0, 1fr); }
+  .tt-steps { grid-template-columns: minmax(0, 1fr); }
+  .tt-qa { grid-template-columns: minmax(0, 1fr); }
+  .tt-weight { grid-template-columns: minmax(0, 1fr) 90px 22px; }
+}
