@@ -162,6 +162,7 @@ export default function TimetableConfiguration() {
 
   const teaching = cfg.periodTemplate.filter((p) => (p.periodType || 'Teaching') === 'Teaching');
   const lunchRow = cfg.periodTemplate.find((p) => p.periodType === 'Lunch');
+  const lunchMins = (p) => Math.max(0, (toMinutes(p.endTime) || 0) - (toMinutes(p.startTime) || 0));
 
   // Saturday runs only if this year's working days say so.
   const saturdayOpen = cfg.workingDays.includes('Saturday');
@@ -256,6 +257,14 @@ export default function TimetableConfiguration() {
                       onChange={(e) => set('lunchMinutes', Number(e.target.value))} />
                   </Field>
                 </div>
+                {/* The minutes only feed Auto-calculate; the grid's own lunch row is
+                    what runs, and what the summary shows. Say so when they differ. */}
+                {lunchRow && lunchMins(lunchRow) !== (cfg.lunchMinutes ?? 30) && (
+                  <Note tone="quiet">
+                    The period grid’s lunch runs {duration(lunchMins(lunchRow))} — this number is used
+                    when the grid is auto-calculated.
+                  </Note>
+                )}
                 <SwitchRow lead checked={cfg.autoBreaks !== false} onChange={(v) => set('autoBreaks', v)}
                   title="Auto-calculate break times"
                   hint="Breaks are distributed automatically when the grid is laid out." />
@@ -320,8 +329,8 @@ export default function TimetableConfiguration() {
                 onAdd={(t) => addPeriod('periodTemplate', t)} />
 
               {/* A Saturday grid is only meaningful on a Saturday the school is
-                  open. With the day switched off, the editor is an invitation to
-                  configure something that can never run. */}
+                  open. With the day switched off there is no Saturday grid on the
+                  page at all — unless one is still saved, which must not strand. */}
               {saturdayOpen ? (
                 <GridEditor
                   title="Saturday Grid (optional)"
@@ -347,18 +356,7 @@ export default function TimetableConfiguration() {
                     </Note>
                   </Body>
                 </Card>
-              ) : (
-                <Card icon="calendarDays" title="Saturday Grid"
-                  subtitle="Nothing to set: Saturday is not a working day.">
-                  <Body>
-                    <Note tone="quiet">
-                      Switch Saturday on under <strong>Working Days</strong> — or in{' '}
-                      <a href="/admin/school-settings">School Settings</a> for the school as a whole —
-                      and a grid for it appears here.
-                    </Note>
-                  </Body>
-                </Card>
-              )}
+              ) : null}
             </>
           )}
 
