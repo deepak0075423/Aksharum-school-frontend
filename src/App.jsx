@@ -276,7 +276,8 @@ const FbStuDetail      = lazy(() => import('./pages/feedback/student/SubmissionD
 const FbParChild        = lazy(() => import('./pages/feedback/parent/ChildFeedback'));
 
 // ── Chat ─────────────────────────────────────────────────────────────────────
-const Chat = lazy(() => import('./pages/Chat'));
+const Chat = lazy(() => import('./pages/chat/ChatPage'));
+const ChatOversight = lazy(() => import('./pages/chat/ChatOversight'));
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 const Profile = lazy(() => import('./pages/Profile'));
@@ -673,6 +674,8 @@ export default function App() {
             <Protected><ModuleGuard module="chat"><AppLayout /></ModuleGuard></Protected>
           }>
             <Route index element={<Chat />} />
+            {/* School admin: every conversation, read-only (the page redirects anyone else) */}
+            <Route path="all-chats" element={<ChatOversight />} />
           </Route>
 
           {/* Profile (all roles) */}

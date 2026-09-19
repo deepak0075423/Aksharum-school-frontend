@@ -42,7 +42,7 @@ const LABELS = {
   exams:                'Aptitude Exams',
   videos:               'Video Learning',
   feedback:             'Teacher Feedback',
-  chat:                 'Messages',
+  chat:                 'Chat',
   profile:              'My Profile',
   ctc:                  'My Payroll',
 };

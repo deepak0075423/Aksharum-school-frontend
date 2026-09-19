@@ -146,8 +146,9 @@ export default function SectionDetail() {
   const handleSyncGroup = async () => {
     setSyncingGroup(true);
     try {
-      await api.syncSectionChatGroup(id);
-      toast.success(chatGroup?._id ? 'Group chat updated' : 'Group chat created');
+      const res = await api.syncSectionChatGroup(id);
+      const { added = 0, removed = 0 } = res?.data || {};
+      toast.success(added || removed ? `Groups updated: ${added} joined, ${removed} left` : 'Groups already match the section');
       refetchGroup();
     } catch (err) { toast.error(err.message); }
     finally { setSyncingGroup(false); }
@@ -329,7 +330,8 @@ export default function SectionDetail() {
   const teachers = teacherOpts?.teachers || [];
   // useFetch falls back to the whole envelope when data is null — a real group
   // always carries an _id.
-  const group = chatGroup?._id ? chatGroup : null;
+  // Teacher-made class and subject groups of this section (none are made automatically).
+  const chatGroups = Array.isArray(chatGroup?.groups) ? chatGroup.groups : [];
 
   // Rules enforced by the API, mirrored here so the picker never offers an
   // invalid choice: the two roles must differ, and a teacher may lead only one
@@ -635,7 +637,7 @@ export default function SectionDetail() {
           onAssignSubject={openSubjectModal}
           onAssignRolls={() => setAssignConfirm(true)}
         />
-        <ChatPanel group={group} syncing={syncingGroup} onSync={handleSyncGroup} />
+        <ChatPanel groups={chatGroups} syncing={syncingGroup} onSync={handleSyncGroup} />
       </div>
 
       <PageFoot schoolName={me?.school?.name} />

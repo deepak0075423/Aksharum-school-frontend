@@ -6,7 +6,7 @@ import { getChats } from '../api/chat.api';
 import { connectSocket, getSocket } from '../socket';
 import { notificationIconUrl } from '../utils/branding';
 
-const ChatNotifyContext = createContext({ unreadTotal: 0, refresh: () => {} });
+const ChatNotifyContext = createContext({ unreadTotal: 0, refresh: () => {}, setActiveChat: () => {} });
 export const useChatNotify = () => useContext(ChatNotifyContext);
 
 const REFRESH_DEBOUNCE_MS = 400;  // coalesce bursts of socket events into one fetch
@@ -40,6 +40,11 @@ export function ChatNotifyProvider({ children }) {
   locationRef.current = location.pathname;
   const userRef     = useRef(user);   // read inside stable callbacks
   userRef.current   = user;
+  // The conversation open on the chat screen. While it is on screen its
+  // messages are read the moment they land, so they neither count towards the
+  // badge nor raise a desktop notification.
+  const activeChatRef = useRef(null);
+  const setActiveChat = useCallback((chatId) => { activeChatRef.current = chatId || null; }, []);
 
   // Ask for notification permission once (after login)
   useEffect(() => {
@@ -49,14 +54,14 @@ export function ChatNotifyProvider({ children }) {
     }
   }, [user]);
 
-  const fireNotification = useCallback((title, body) => {
+  const fireNotification = useCallback((title, body, chatId) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     // Only notify when the chat screen isn't the focused thing
     const onChat = locationRef.current.startsWith('/chat');
     if (onChat && !document.hidden) return;
     try {
-      const n = new Notification(title, { body, icon: notificationIconUrl(userRef.current?.school), tag: 'school-chat' });
-      n.onclick = () => { window.focus(); window.location.href = '/chat'; n.close(); };
+      const n = new Notification(title, { body, icon: notificationIconUrl(userRef.current?.school), tag: `school-chat-${chatId || ''}` });
+      n.onclick = () => { window.focus(); window.location.href = chatId ? `/chat?c=${chatId}` : '/chat'; n.close(); };
     } catch { /* ignore */ }
   }, []);
 
@@ -70,14 +75,15 @@ export function ChatNotifyProvider({ children }) {
       const snapshot = {};
       const newOnes = [];
 
+      const onScreen = !document.hidden && locationRef.current.startsWith('/chat') ? activeChatRef.current : null;
       for (const c of chats) {
-        const unread = c.unreadCount || 0;
-        total += unread;
+        const unread = c._id === onScreen ? 0 : (c.unreadCount || 0);
+        if (!c.isMuted && !c.isArchived) total += unread;
         const lastId = c.lastMessage?._id || c.lastMessage?.createdAt || null;
         snapshot[c._id] = { lastId, unread };
         const prev = prevRef.current[c._id];
         // A newer message arrived (id changed) and it's unread and not from me
-        if (prev && lastId && prev.lastId !== lastId && unread > prev.unread) {
+        if (prev && lastId && prev.lastId !== lastId && unread > prev.unread && !c.isMuted) {
           newOnes.push(c);
         }
       }
@@ -89,7 +95,8 @@ export function ChatNotifyProvider({ children }) {
           const name = c.displayName || c.name || 'New message';
           const preview = c.lastMessage?.isDeleted ? 'Message deleted'
             : c.lastMessage?.content || 'Sent you a message';
-          fireNotification(`💬 ${name}`, preview);
+          const who = c.type !== 'direct' && c.lastMessage?.sender?.name ? `${c.lastMessage.sender.name.split(' ')[0]}: ` : '';
+          fireNotification(name, `${who}${preview}`, c._id);
         }
       }
       prevRef.current = snapshot;
@@ -124,26 +131,22 @@ export function ChatNotifyProvider({ children }) {
     // On (re)connect, re-seed in case events were missed while disconnected.
     const onReconnect = () => scheduleRefresh();
 
-    sock.on('chat:message',       onChange);
-    sock.on('chat:group_created', onChange);
-    sock.on('chat:member_added',  onChange);
-    sock.on('chat:member_removed', onChange);
-    sock.on('chat:group_updated', onChange);
-    sock.on('connect',            onReconnect);
+    const events = ['chat:message', 'chat:message_read', 'chat:group_created', 'chat:member_added',
+      'chat:member_removed', 'chat:group_updated', 'chat:prefs'];
+    events.forEach((ev) => sock.on(ev, onChange));
+    sock.on('chat:ready', onReconnect);
+    sock.on('connect', onReconnect);   // a gateway that predates chat:ready
 
     return () => {
       clearTimeout(debounceRef.current);
-      sock.off('chat:message',       onChange);
-      sock.off('chat:group_created', onChange);
-      sock.off('chat:member_added',  onChange);
-      sock.off('chat:member_removed', onChange);
-      sock.off('chat:group_updated', onChange);
-      sock.off('connect',            onReconnect);
+      events.forEach((ev) => sock.off(ev, onChange));
+      sock.off('chat:ready', onReconnect);
+      sock.off('connect', onReconnect);
     };
   }, [user, chatOn, refresh, scheduleRefresh]);
 
   return (
-    <ChatNotifyContext.Provider value={{ unreadTotal, refresh }}>
+    <ChatNotifyContext.Provider value={{ unreadTotal, refresh: scheduleRefresh, setActiveChat }}>
       {children}
     </ChatNotifyContext.Provider>
   );

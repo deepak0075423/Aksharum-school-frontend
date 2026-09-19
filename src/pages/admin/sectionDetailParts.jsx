@@ -113,33 +113,38 @@ export const SubjectBoard = ({ groups, loading, onAssign, onUnassign }) => {
 // ── Group chat ───────────────────────────────────────────────────────────────
 
 /**
- * The section's teacher group, kept in step with its line-up.
+ * The section's class and subject group chats.
  *
- * It is created automatically as teachers are assigned; the button is here for
- * the section that predates the feature, or whose members have drifted.
+ * Nothing is created here or automatically: the class teacher or vice class
+ * teacher makes the class group, a subject teacher makes their subject's group,
+ * from Chat › Create Group. This lists what they made, links to reading it,
+ * and can bring members back in step with the section.
  */
-export const ChatPanel = ({ group, syncing, onSync }) => (
+export const ChatPanel = ({ groups = [], syncing, onSync }) => (
   <section className="lpanel sdchat">
     <div className="sdchat__head">
       <span className="lhelp__mark"><Icon name="chat" size={20} /></span>
       <div>
-        <h2>Teacher group chat</h2>
+        <h2>Class group chats</h2>
         <p>
-          {group
-            ? 'The class teacher, the vice class teacher and every subject teacher of this section.'
-            : 'Created automatically as teachers are assigned. Nothing exists for this section yet.'}
+          {groups.length
+            ? 'Made by this section’s teachers. Every student of the section is in each group; members follow the section as it changes.'
+            : 'None yet. The class teacher or vice class teacher creates the class group, and subject teachers create groups for their subjects, from Chat › Create Group.'}
         </p>
       </div>
-      <Button variant="secondary" onClick={onSync} loading={syncing}>
-        {group ? 'Sync members' : 'Create group'}
-      </Button>
+      {groups.length > 0 && (
+        <Button variant="secondary" onClick={onSync} loading={syncing}>Sync members</Button>
+      )}
     </div>
-    {group && (
+    {groups.length > 0 && (
       <div className="sdchat__members">
-        {(group.members || []).map((m) => (
-          <span key={m._id} className="lchip">
-            {m.name}{m.memberRole === 'admin' ? ' · owner' : ''}
-          </span>
+        {groups.map((g) => (
+          <Link key={g._id} to={`/chat/all-chats?c=${g._id}`} className="lchip" title="Read this group">
+            {g.name}
+            {' · '}{g.kind === 'class' ? 'Class group' : `${g.subjectName || 'Subject'} group`}
+            {' · '}{g.students} student{g.students === 1 ? '' : 's'}, {g.teachers} teacher{g.teachers === 1 ? '' : 's'}
+            {g.createdByName ? ` · by ${g.createdByName}` : ''}
+          </Link>
         ))}
       </div>
     )}

@@ -150,6 +150,17 @@ const PATHS = {
   check:       <path d="m5.5 12.5 4.2 4.2L18.5 8" />,
   phone:       <path d="M7.6 3.8 9.4 8 7.5 9.9a12.6 12.6 0 0 0 6.6 6.6L16 14.6l4.2 1.8v3.1a1.5 1.5 0 0 1-1.7 1.5C9.9 20.1 3.9 14.1 3 5.5a1.5 1.5 0 0 1 1.5-1.7z" />,
   idCard:      <><rect x="2.5" y="5" width="19" height="14" rx="2.4" /><circle cx="8.4" cy="11.2" r="2.3" /><path d="M4.9 16.4a3.9 3.9 0 0 1 7 0" /><path d="M14.5 10h4.6M14.5 13.6h3.2" /></>,
+
+  // Messaging
+  send:        <><path d="M21 3 10.2 13.8" /><path d="M21 3l-6.6 18-4.2-7.2L3 9.6z" /></>,
+  smile:       <><circle cx="12" cy="12" r="8.8" /><path d="M8.3 14.2a4.6 4.6 0 0 0 7.4 0" /><circle cx="9.1" cy="9.8" r="1" fill="currentColor" stroke="none" /><circle cx="14.9" cy="9.8" r="1" fill="currentColor" stroke="none" /></>,
+  reply:       <><path d="M9.5 14.5 4.5 9.5l5-5" /><path d="M4.5 9.5h9a6 6 0 0 1 6 6v4" /></>,
+  forward:     <><path d="m14.5 14.5 5-5-5-5" /><path d="M19.5 9.5h-9a6 6 0 0 0-6 6v4" /></>,
+  checks:      <><path d="m2.5 12.8 4 4L14 9" /><path d="m10.4 16.2.6.6L18.5 9" /></>,
+  dotsV:       <><circle cx="12" cy="5.5" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="18.5" r="1.6" fill="currentColor" stroke="none" /></>,
+  bellOff:     <><path d="M8.7 4.1A6 6 0 0 1 18 9.2c0 2.2.4 3.9 1 5.2" /><path d="M6.2 7.3A6.3 6.3 0 0 0 6 9.2c0 5.3-2.5 7.3-2.5 7.3h13" /><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0" /><path d="M3 3l18 18" /></>,
+  archive:     <><rect x="3" y="4" width="18" height="4.5" rx="1.2" /><path d="M4.8 8.5V18a2 2 0 0 0 2 2h10.4a2 2 0 0 0 2-2V8.5" /><path d="M10 12.5h4" /></>,
+  wifiOff:     <><path d="M3 3l18 18" /><path d="M8.5 16.4a5 5 0 0 1 7 0" /><path d="M5 12.9a10 10 0 0 1 4.3-2.5M14.8 10.4a10 10 0 0 1 4.2 2.5" /><path d="M2 9.3a15 15 0 0 1 4.6-2.8M11 5.6a15 15 0 0 1 11 3.7" /><circle cx="12" cy="19.6" r=".9" fill="currentColor" stroke="none" /></>,
 };
 
 // ── Spot illustrations ──────────────────────────────────────────────────────
