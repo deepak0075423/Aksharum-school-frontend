@@ -1,186 +1,191 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import toast from 'react-hot-toast';
+/**
+ * Fees → Structures (mockup 4). What each class or section is charged, head
+ * by head. A structure is "upcoming" until its year has begun and its
+ * charging-start date has come — the tile says "yet to start" rather than the
+ * mockup's "for next academic year", because a structure dated to start later
+ * THIS year is upcoming too.
+ */
+import React, { useEffect, useRef, useState } from 'react';
 import useFetch from '../../../hooks/useFetch';
-import { getFeeStructures, createFeeStructure, getFeeHeads } from '../../../api/fees.api';
-import { getClassesWithSections } from '../../../api/admin.api';
-import { PageHeader, Table, Button, Modal, Badge, Spinner } from '../../../components/ui/index';
+import { getStructureList } from '../../../api/fees.api';
+import { RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
+import Icon from '../../../components/ui/icons';
+import {
+  FeHead, Btn, Card, Tile, Tiles, Select, Search, PillTabs, StatusBadge, IconBtn, Pager, Mark,
+  money, yearOptions, Empty, Loading, saveFile, toCsv,
+} from './feeUI';
+import { StructureDialog, StructureDrawer, CopyYearDialog, StructureLifecycleDialog } from './feeForms';
+import { useFeesMeta, classOptions, sectionOptions, useUrlState } from './feeData';
 
-const fmt = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+const DEFAULTS = { academicYearId: '', classId: '', sectionId: '', categoryId: '', status: '', q: '', page: '1', limit: '10' };
 
-const classLabel = (c) => c?.className || (c?.classNumber ? `Class ${c.classNumber}` : null);
+/** Icon + tint for a structure, from what it charges: transport → bus, hostel → bed, else a cap. */
+const CAP_TONES = ['blue', 'blue', 'green', 'red', 'blue', 'indigo', 'purple', 'teal', 'amber'];
+export function structureLook(s) {
+  const cats = (s.categories || []).join(' ').toLowerCase();
+  if (/transport|bus/.test(cats) || /transport|bus/i.test(s.name)) return { glyph: 'bus', tone: 'amber' };
+  if (/hostel|boarding/.test(cats) || /hostel/i.test(s.name)) return { glyph: 'bed', tone: /girl/i.test(s.name) ? 'pink' : 'purple' };
+  const n = Number(s.class?.classNumber) || 0;
+  if (n >= 11) return { glyph: 'bed', tone: 'red' };
+  return { glyph: 'gradCap', tone: CAP_TONES[n % CAP_TONES.length] };
+}
+
+/** A small dropdown for "More Actions". */
+function MoreMenu({ items, label = 'More Actions', variant = 'outline', width = 250 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
+  return (
+    <span ref={ref} style={{ position: 'relative' }}>
+      <Btn variant={variant} onClick={() => setOpen(o => !o)}>{label} <Icon name="chevronDown" size={16} /></Btn>
+      {open ? (
+        <div className="lmenu" style={{ position: 'absolute', right: 0, top: 46, width, zIndex: 30 }}>
+          {items.map(i => (
+            <button key={i.label} type="button" className="lmenu__item" onClick={() => { setOpen(false); i.onClick(); }}>
+              <Icon name={i.icon} size={16} />{i.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
+  );
+}
+export { MoreMenu };
 
 export default function FeeStructures() {
-  const { data: structures, loading, refetch } = useFetch(getFeeStructures);
-  const [modal,  setModal]  = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [applied, setApplied] = useUrlState(DEFAULTS);
+  const [draft, setDraft] = useState(applied);
+  const [dialog, setDialog] = useState(null);      // { mode, source }
+  const [viewing, setViewing] = useState(null);
+  const [copying, setCopying] = useState(false);
+  const [act, setAct] = useState(null);           // { action, row }
+  useEffect(() => { setDraft(applied); }, [JSON.stringify(applied)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // form
-  const [form, setForm] = useState({ name: '', level: 'class', classId: '', sectionId: '', dueDay: '' });
-  const [items, setItems] = useState([]);           // [{ feeHead, name, amount }]
-  const [classes, setClasses] = useState([]);
-  const [heads,   setHeads]   = useState([]);
+  const { meta, refetchMeta } = useFeesMeta(applied.academicYearId);
+  const { meta: draftMeta } = useFeesMeta(draft.academicYearId);
+  const page = Number(applied.page) || 1, limit = Number(applied.limit) || 10;
+  const query = Object.fromEntries(Object.entries({ ...applied, page, limit }).filter(([, v]) => v !== '' && v != null));
+  const { data, meta: env, loading, refetch } = useFetch(() => getStructureList(query), [JSON.stringify(query)]);
+  const rows = data?.rows || [];
+  const c = data?.counts || {};
+  const sym = meta?.settings?.currencySymbol || '₹';
+  const yearValue = draft.academicYearId || data?.year?._id || '';
+  const setD = (k) => (v) => setDraft(d => ({ ...d, [k]: v, ...(k === 'classId' ? { sectionId: '' } : {}), ...(k === 'academicYearId' ? { classId: '', sectionId: '' } : {}) }));
+  const apply = () => setApplied({ ...draft, page: '1' });
+  const reset = () => { setDraft(DEFAULTS); setApplied({ ...DEFAULTS }); };
+  const reload = () => { refetch(); refetchMeta(); };
+  // Keep the open drawer in step with the list after an action.
+  useEffect(() => { if (viewing) setViewing(v => rows.find(r => r._id === v._id) || v); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!modal) return;
-    getClassesWithSections().then(r => setClasses(r?.data || r || [])).catch(() => {});
-    getFeeHeads().then(r => {
-      const list = r?.data || r || [];
-      setHeads(list);
-    }).catch(() => {});
-  }, [modal]);
-
-  const selectedClass = classes.find(c => c._id === form.classId);
-  const total = useMemo(() => items.reduce((s, i) => s + (Number(i.amount) || 0), 0), [items]);
-
-  const openModal = () => {
-    setForm({ name: '', level: 'class', classId: '', sectionId: '', dueDay: '' });
-    setItems([]);
-    setModal(true);
-  };
-
-  const toggleHead = (h) => {
-    setItems(prev => prev.some(i => i.feeHead === h._id)
-      ? prev.filter(i => i.feeHead !== h._id)
-      : [...prev, { feeHead: h._id, name: h.name, amount: h.defaultAmount || 0 }]);
-  };
-  const setAmount = (id, val) => setItems(prev => prev.map(i => i.feeHead === id ? { ...i, amount: val } : i));
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) return toast.error('Structure name is required');
-    if (form.level === 'class' && !form.classId)   return toast.error('Please select a class');
-    if (form.level === 'section' && !form.sectionId) return toast.error('Please select a section');
-    if (!items.length) return toast.error('Add at least one fee head');
-    setSaving(true);
-    try {
-      await createFeeStructure({
-        name: form.name.trim(),
-        level: form.level,
-        classId:   form.level === 'class'   ? form.classId   : null,
-        sectionId: form.level === 'section' ? form.sectionId : null,
-        dueDay: form.dueDay ? Number(form.dueDay) : null,
-        items: items.map(i => ({ feeHead: i.feeHead, amount: Number(i.amount) || 0 })),
-      });
-      toast.success('Fee structure created');
-      setModal(false);
-      refetch();
-    } catch (err) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
-  const columns = [
-    { key: 'name',  label: 'Structure', render: r => (
-      <div>
-        <strong>{r.name}</strong>
-        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{r.level}-level</div>
-      </div>
-    ) },
-    { key: 'class', label: 'Applies To', render: r =>
-      r.level === 'section'
-        ? (r.section?.sectionName ? `Section ${r.section.sectionName}` : '—')
-        : (classLabel(r.class) || '—') },
-    { key: 'academicYear', label: 'Academic Year', render: r => r.academicYear?.yearName || '—' },
-    { key: 'totalAmount',  label: 'Total (₹)',     render: r => fmt(r.totalAmount) },
-    { key: 'isActive',     label: 'Status',        render: r => <Badge variant={r.isActive ? 'success' : 'muted'}>{r.isActive ? 'Active' : 'Inactive'}</Badge> },
-  ];
+  const exportCsv = () => saveFile(toCsv([
+    { key: 'name', label: 'Structure' }, { label: 'Academic Year', value: r => r.academicYear?.yearName },
+    { label: 'Class', value: r => r.class?.className }, { label: 'Section', value: r => (r.level === 'section' ? r.section?.sectionName : 'All Sections') },
+    { label: 'Categories', value: r => r.categories.join('; ') }, { key: 'headCount', label: 'Fee Heads' }, { key: 'totalAmount', label: 'Total Amount' },
+    { key: 'status', label: 'Status' }, { label: 'Students Charged', value: r => r.charged.students },
+  ], rows), `fee-structures-${data?.year?.yearName || ''}.csv`);
 
   return (
-    <div className="page">
-      <PageHeader title="Fee Structures" subtitle="Class-wise fee structures"
-        action={<Button onClick={openModal}>+ Add Structure</Button>} />
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          {loading ? <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-            : <Table columns={columns} data={structures} emptyIcon="🏗️" emptyTitle="No fee structures" />}
+    <div className="fe-page">
+      <FeHead title="Fee Structures" subtitle="Create and manage fee structures by academic year, class, section and category">
+        <MoreMenu items={[
+          { icon: 'copy', label: 'Copy from another year', onClick: () => setCopying(true) },
+          { icon: 'download', label: 'Export this list (CSV)', onClick: exportCsv },
+        ]} />
+        <Btn variant="primary" icon="plus" onClick={() => setDialog({ mode: 'create' })}>Create Structure</Btn>
+      </FeHead>
+
+      <Tiles n={4}>
+        <Tile valueFirst glyph="book" tone="indigo" value={c.all || 0} label="Total Structures" caption="Across all classes" />
+        <Tile valueFirst glyph="checkCircle" tone="green" value={c.active || 0} label="Active Structures" caption="In use currently" />
+        <Tile valueFirst glyph="clock" tone="amber" value={c.upcoming || 0} label="Upcoming Structures" caption="Yet to start" />
+        <Tile valueFirst glyph="xCircle" tone="red" value={c.inactive || 0} label="Inactive Structures" caption="Not in use" />
+      </Tiles>
+
+      <Card className="fe-filters">
+        <div className="fe-frow" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr)) minmax(238px, 1.25fr)' }}>
+          <Select label="Academic Year" value={yearValue} onChange={setD('academicYearId')} options={yearOptions(draftMeta?.years || meta?.years)} />
+          <Select label="Class" value={draft.classId} onChange={setD('classId')} all="All Classes" options={classOptions(draftMeta)} />
+          <Select label="Section" value={draft.sectionId} onChange={setD('sectionId')} all="All Sections" options={sectionOptions(draftMeta, draft.classId)} disabled={!draft.classId} />
+          <Select label="Fee Category" value={draft.categoryId} onChange={setD('categoryId')} all="All Categories" options={(draftMeta?.categories || []).map(x => ({ value: x._id, label: x.name }))} />
+          <Select label="Status" value={draft.status} onChange={setD('status')} all="All Statuses" options={[{ value: 'active', label: 'Active' }, { value: 'upcoming', label: 'Upcoming' }, { value: 'inactive', label: 'Inactive' }]} />
+          <div className="fe-frow__stack">
+            <Search value={draft.q} onChange={setD('q')} onEnter={apply} placeholder="Search structures..." />
+            <div>
+              <Btn variant="primary" icon="filter" size="fit" onClick={apply}>Apply Filters</Btn>
+              <Btn variant="outline" icon="refresh" size="fit" onClick={reset}>Reset</Btn>
+            </div>
+          </div>
         </div>
-      </div>
+      </Card>
 
-      <Modal open={modal} onClose={() => setModal(false)} title="Add Fee Structure"
-        footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="struct-form" type="submit" loading={saving}>Save</Button>
-        </>}>
-        <form id="struct-form" onSubmit={handleSave}>
-          <div className="form-group">
-            <label className="form-label required">Name</label>
-            <input className="form-control" required placeholder="e.g. Class 1 Annual Fees" value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          </div>
+      <PillTabs value={applied.status} onChange={s => setApplied({ status: s, page: '1' })} items={[
+        { key: '', label: 'All Structures', count: c.all || 0, tone: 'slate' },
+        { key: 'active', label: 'Active', count: c.active || 0, tone: 'green' },
+        { key: 'upcoming', label: 'Upcoming', count: c.upcoming || 0, tone: 'amber' },
+        { key: 'inactive', label: 'Inactive', count: c.inactive || 0, tone: 'red' },
+      ]} />
 
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Level</label>
-              <select className="form-control" value={form.level}
-                onChange={e => setForm(f => ({ ...f, level: e.target.value, classId: '', sectionId: '' }))}>
-                <option value="class">Whole Class</option>
-                <option value="section">Specific Section</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Due Day (of month)</label>
-              <input type="number" min="1" max="31" className="form-control" placeholder="e.g. 10" value={form.dueDay}
-                onChange={e => setForm(f => ({ ...f, dueDay: e.target.value }))} />
-            </div>
-          </div>
+      <Card>
+        <div className="fe-tablewrap">
+          <table className="fe-table fe-table--caps fe-table--roomy">
+            <thead><tr><th>#</th><th>Structure Name</th><th>Academic Year</th><th>Applies To</th><th>Categories</th><th>Fee Heads</th><th title="What the structure charges over the whole academic year">Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const look = structureLook(r);
+                return (
+                  <tr key={r._id}>
+                    <td className="fe-w-idx">{(page - 1) * limit + i + 1}</td>
+                    <td><span className="fe-name"><Mark glyph={look.glyph} tone={look.tone} size={36} /><b>{r.name}</b></span></td>
+                    <td>{r.academicYear?.yearName}</td>
+                    <td><span className="fe-cell2"><b>{r.class?.className || '—'}</b><small>{r.level === 'section' ? `Section ${r.section?.sectionName}` : 'All Sections'}</small></span></td>
+                    <td>{r.categories.length ? (r.categories.length > 1 ? `${r.categories[0]} +${r.categories.length - 1}` : r.categories[0]) : <span className="fe-muted">—</span>}</td>
+                    <td>{r.headCount}</td>
+                    <td className="fe-num fe-strong">{money(r.totalAmount, { sym, space: true })}</td>
+                    <td><StatusBadge status={r.status} /></td>
+                    <td>
+                      <span className="fe-acts">
+                        <IconBtn icon="eye" label="View" bordered onClick={() => setViewing(r)} />
+                        <IconBtn icon="pencil" label="Edit" bordered onClick={() => setDialog({ mode: 'edit', source: r })} />
+                        <IconBtn icon="copy" label="Copy" bordered onClick={() => setDialog({ mode: 'copy', source: r })} />
+                        <RowMenu>
+                          <MenuItem icon="users" onClick={() => setAct({ action: 'demand', row: r })}>Generate demand</MenuItem>
+                          <MenuSep />
+                          <MenuItem icon="power" danger={r.isActive} onClick={() => setAct({ action: r.isActive ? 'deactivate' : 'activate', row: r })}>{r.isActive ? 'Deactivate' : 'Activate'}</MenuItem>
+                          {/* Deleting is only ever offered while nothing has been charged —
+                              after that the structure IS the record of the bill. */}
+                          {r.charged.students ? null : <MenuItem icon="trash" danger onClick={() => setAct({ action: 'delete', row: r })}>Delete</MenuItem>}
+                        </RowMenu>
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {loading && !data ? <Loading rows={6} /> : null}
+          {!loading && !rows.length ? (
+            <Empty title="No fee structures" hint={c.all ? 'Nothing matches these filters.' : 'Create one per class, or copy last year\'s from More Actions.'}>
+              {!c.all ? <Btn variant="primary" icon="plus" onClick={() => setDialog({ mode: 'create' })}>Create Structure</Btn> : null}
+            </Empty>
+          ) : null}
+        </div>
+        <Pager page={page} pages={env?.pages || 1} total={env?.total || 0} limit={limit} count={rows.length} noun="structures"
+          onPage={p => setApplied({ page: String(p) })} onLimit={l => setApplied({ limit: String(l), page: '1' })} />
+      </Card>
 
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Class</label>
-              <select className="form-control" value={form.classId}
-                onChange={e => setForm(f => ({ ...f, classId: e.target.value, sectionId: '' }))}>
-                <option value="">— Select class —</option>
-                {classes.map(c => <option key={c._id} value={c._id}>{classLabel(c)}</option>)}
-              </select>
-            </div>
-            {form.level === 'section' && (
-              <div className="form-group">
-                <label className="form-label required">Section</label>
-                <select className="form-control" value={form.sectionId}
-                  onChange={e => setForm(f => ({ ...f, sectionId: e.target.value }))} disabled={!form.classId}>
-                  <option value="">— Select section —</option>
-                  {(selectedClass?.sections || []).map(s => <option key={s._id} value={s._id}>{s.sectionName}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label required">Fee Heads</label>
-            {heads.length === 0 ? (
-              <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', margin: 0 }}>
-                No fee heads yet. Create them in the <strong>Fee Heads</strong> tab first.
-              </p>
-            ) : (
-              <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 240, overflowY: 'auto' }}>
-                {heads.map(h => {
-                  const sel = items.find(i => i.feeHead === h._id);
-                  return (
-                    <div key={h._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-                      <input type="checkbox" checked={!!sel} onChange={() => toggleHead(h)} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '.86rem' }}>{h.name}</div>
-                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{h.type}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ color: 'var(--text-muted)' }}>₹</span>
-                        <input type="number" min="0" className="form-control" style={{ width: 110, padding: '4px 8px' }}
-                          value={sel ? sel.amount : (h.defaultAmount || 0)} disabled={!sel}
-                          onChange={e => setAmount(h._id, e.target.value)} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12,
-            padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-            <strong>Total</strong>
-            <strong style={{ fontSize: '1.05rem' }}>{fmt(total)}</strong>
-          </div>
-        </form>
-      </Modal>
+      <StructureDialog open={!!dialog} onClose={() => setDialog(null)} onSaved={reload} meta={meta} years={meta?.years || []}
+        mode={dialog?.mode} source={dialog?.source} />
+      <StructureDrawer row={viewing} onClose={() => setViewing(null)} meta={meta}
+        onEdit={(r) => { setViewing(null); setDialog({ mode: 'edit', source: r }); }}
+        onAct={(action, r) => setAct({ action, row: r })} />
+      <CopyYearDialog open={copying} onClose={() => setCopying(false)} onDone={reload} years={meta?.years || []} defaultTo={data?.year?._id} />
+      <StructureLifecycleDialog action={act?.action} row={act?.row || null} sym={sym}
+        onClose={() => setAct(null)} onDone={reload} />
     </div>
   );
 }

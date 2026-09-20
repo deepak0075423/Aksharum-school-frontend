@@ -52,10 +52,22 @@ const titleCase = (seg) =>
      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
      .join(' ');
 
+// Modules whose header names the module on every one of its screens — the
+// fees mockups read "Fees Management" above all ten tabs.
+// Fees is one module wherever you stand in it, so every tab of it keeps the
+// module's name in the bar rather than the tab's.
+const MODULE_HEADERS = {
+  'admin/fees': 'Fees Management',
+  'student/fees': 'Fees Management',
+  'parent/child-fees': 'Fees Management',
+};
+
 /** The header title for a pathname. Falls back to the app name at the root. */
 export default function pageTitle(pathname = '') {
   const parts = pathname.split('/').filter(Boolean).filter(s => !IS_ID(s));
   if (!parts.length) return 'Dashboard';
+  const module = MODULE_HEADERS[parts.slice(0, 2).join('/')];
+  if (module) return module;
 
   // Trim the view suffix, but never down to nothing.
   let words = parts;

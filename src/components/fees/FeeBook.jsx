@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { loadRazorpay } from '../../utils/razorpay';
 import { Table, Badge, Button, Modal, StatCard, Spinner } from '../ui/index';
+import MonthPicker, { unpaidMonths, dueCount, amountFor, keysFor } from './MonthPicker';
 
 const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
@@ -10,6 +11,10 @@ const PAY_STATUS = {
   partial:  { label: 'Partial',  variant: 'warning' },
   due:      { label: 'Due',      variant: 'danger' },
   upcoming: { label: 'Upcoming', variant: 'muted' },
+  // Money sent, office yet to approve it — nothing more to pay on this month.
+  awaiting:  { label: 'Awaiting approval', variant: 'warning' },
+  // The school withdrew the charge; nobody owes it.
+  cancelled: { label: 'Cancelled', variant: 'muted' },
 };
 const PAYMENT_STATUS = { pending: 'warning', completed: 'success', failed: 'danger', refunded: 'muted' };
 
@@ -27,24 +32,37 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
   const [payOpen, setPayOpen]   = useState(false);
   const [paying, setPaying]     = useState(false);
   const [payForm, setPayForm]   = useState({ amount: '', paymentMode: 'upi', transactionRef: '', remarks: '' });
+  // Paying by months (the default whenever months are unpaid) or a free
+  // amount. `count` = how many unpaid months are ticked, oldest first.
+  const [byMonths, setByMonths] = useState(true);
+  const [count, setCount]       = useState(0);
 
   if (!data) return null;
   const {
-    balance, totalCharged, totalPaid, totalConcession, fineAmt,
-    monthlySchedule = [], payments = [], gateway, dueTotal, suggestedAmount, currencySymbol = '₹',
+    balance, totalCharged, totalPaid, totalConcession, fineAmt, previousDue = 0,
+    monthlySchedule = [], payments = [], gateway, dueTotal, suggestedAmount, currencySymbol = '₹', otherDue = 0,
   } = data;
+  const unpaid = unpaidMonths(monthlySchedule);
+  const monthsMode = byMonths && (unpaid.length > 0 || otherDue > 0);
+  const payAmount = monthsMode ? amountFor(monthlySchedule, otherDue, count) : +payForm.amount;
+  const payBody = () => (monthsMode
+    ? { ...payForm, amount: payAmount, months: keysFor(monthlySchedule, count) }
+    : payForm);
 
   const openPay = () => {
     setPayForm(f => ({ ...f, amount: suggestedAmount || '' }));
+    setByMonths(unpaid.length > 0 || otherDue > 0);
+    // Start on what is due now; with nothing due, on the next month.
+    setCount(dueCount(monthlySchedule) || (unpaid.length ? 1 : 0));
     setPayOpen(true);
   };
 
   const submitManual = async (e) => {
     e.preventDefault();
-    if (!payForm.amount || +payForm.amount <= 0) return toast.error('Enter a valid amount');
+    if (!payAmount || payAmount <= 0) return toast.error(monthsMode ? 'Tick at least one month' : 'Enter a valid amount');
     setPaying(true);
     try {
-      const res = await api.payNow(payForm);
+      const res = await api.payNow(payBody());
       toast.success(res.message || 'Payment submitted for verification');
       setPayOpen(false);
       onRefresh?.();
@@ -53,14 +71,16 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
   };
 
   const payOnline = async () => {
-    const amount = +payForm.amount;
-    if (!amount || amount <= 0) return toast.error('Enter a valid amount');
+    if (!payAmount || payAmount <= 0) return toast.error(monthsMode ? 'Tick at least one month' : 'Enter a valid amount');
+    const months = monthsMode ? keysFor(monthlySchedule, count) : undefined;
     setPaying(true);
     try {
       const ok = await loadRazorpay();
       if (!ok) throw new Error('Could not load payment gateway');
-      const orderRes = await api.createRazorpayOrder({ amount });
-      const { orderId, keyId, currency } = orderRes.data;
+      const orderRes = await api.createRazorpayOrder({ amount: payAmount, months });
+      // The server prices the months itself; check out exactly what it ordered.
+      const { orderId, keyId, currency, amount: paise } = orderRes.data;
+      const amount = paise ? paise / 100 : payAmount;
 
       const rzp = new window.Razorpay({
         key: keyId,
@@ -72,7 +92,7 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
         prefill: { name: payerName || '' },
         handler: async (response) => {
           try {
-            const v = await api.verifyRazorpay({ ...response, amount });
+            const v = await api.verifyRazorpay({ ...response, amount, months });
             toast.success(`Payment successful! Receipt: ${v.data.receiptNumber}`);
             setPayOpen(false);
             onRefresh?.();
@@ -112,10 +132,11 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
     )},
     { key: 'amount', label: 'Amount', render: m => fmt(m.chargedAmount || m.totalAmount) },
     { key: 'paid',   label: 'Paid',   render: m => fmt(m.amountPaid) },
-    { key: 'due',    label: 'Due',    render: m => m.amountDue > 0 ? <strong style={{ color: 'var(--danger, #ef4444)' }}>{fmt(m.amountDue)}</strong> : '—' },
+    { key: 'due',    label: 'Due',    render: m => (m.payable != null ? m.payable : m.amountDue) > 0
+      ? <strong style={{ color: 'var(--danger, #ef4444)' }}>{fmt(m.payable != null ? m.payable : m.amountDue)}</strong> : '—' },
     { key: 'status', label: 'Status', render: m => {
       const s = PAY_STATUS[m.payStatus] || PAY_STATUS.upcoming;
-      return <Badge variant={s.variant}>{s.label}</Badge>;
+      return <Badge variant={s.variant}>{m.inAdvance && m.payStatus === 'paid' ? 'Paid in advance' : s.label}</Badge>;
     }},
   ];
 
@@ -138,18 +159,20 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
         <StatCard icon="⏳" label="Balance Due"   value={fmt(Math.max(balance, 0))} color={balance > 0 ? 'red' : 'green'} />
         {totalConcession > 0 && <StatCard icon="🎁" label="Concession" value={fmt(totalConcession)} />}
         {fineAmt > 0 && <StatCard icon="⚠️" label="Late Fine" value={fmt(fineAmt)} color="red" />}
+        {previousDue > 0 && <StatCard icon="🗓️" label="Previous Year Dues" value={fmt(previousDue)} color="red" />}
       </div>
 
-      {(dueTotal > 0 || balance > 0) && (
+      {(dueTotal > 0 || balance > 0 || unpaid.length > 0) && (
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <strong>Outstanding: {fmt(dueTotal > 0 ? dueTotal : balance)}</strong>
+              <strong>{dueTotal > 0 || balance > 0 ? `Outstanding: ${fmt(dueTotal > 0 ? dueTotal : balance)}` : 'Nothing due right now'}</strong>
               <div style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>
+                {unpaid.length > 1 ? 'Pay one month or several at once — including months still to come. ' : ''}
                 {gateway !== 'none' ? 'Pay online instantly, or submit an offline payment for admin verification.' : 'Submit an offline payment for admin verification.'}
               </div>
             </div>
-            <Button onClick={openPay}>💳 Pay Now</Button>
+            <Button onClick={openPay}>💳 {dueTotal > 0 || balance > 0 ? 'Pay Now' : 'Pay in Advance'}</Button>
           </div>
         </div>
       )}
@@ -169,17 +192,37 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
       </div>
 
       {/* Pay modal */}
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Pay Fees">
-        <div className="form-group">
-          <label className="form-label required">Amount ({currencySymbol})</label>
-          <input type="number" min="1" step="0.01" className="form-control" value={payForm.amount}
-            onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} />
-          {suggestedAmount > 0 && (
-            <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
-              Suggested (all dues): {fmt(suggestedAmount)}
+      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Pay Fees" maxWidth={600}>
+        {monthsMode ? (
+          <div className="form-group">
+            <label className="form-label required">Months to pay</label>
+            <MonthPicker months={monthlySchedule} otherDue={otherDue} count={count} onCount={setCount} sym={currencySymbol} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, padding: '10px 12px', background: 'var(--bg-secondary, #f5f7fb)', borderRadius: 8 }}>
+              <span>{count} month{count === 1 ? '' : 's'}{otherDue > 0 ? ' + other charges' : ''}</span>
+              <strong style={{ fontSize: '1.05rem' }}>{fmt(payAmount)}</strong>
             </div>
-          )}
-        </div>
+            <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: 6 }}>
+              Ticking a month includes every unpaid month before it — fees are paid in order.{' '}
+              <button type="button" className="btn-link" style={{ background: 'none', border: 0, padding: 0, color: 'var(--primary)', cursor: 'pointer' }}
+                onClick={() => setByMonths(false)}>Pay a different amount</button>
+            </div>
+          </div>
+        ) : (
+          <div className="form-group">
+            <label className="form-label required">Amount ({currencySymbol})</label>
+            <input type="number" min="1" step="0.01" className="form-control" value={payForm.amount}
+              onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} />
+            {suggestedAmount > 0 && (
+              <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                Suggested (all dues): {fmt(suggestedAmount)}
+              </div>
+            )}
+            {unpaid.length > 0 && (
+              <button type="button" style={{ background: 'none', border: 0, padding: 0, marginTop: 6, color: 'var(--primary)', cursor: 'pointer', fontSize: '.8rem' }}
+                onClick={() => setByMonths(true)}>Pay by months instead</button>
+            )}
+          </div>
+        )}
 
         {gateway === 'razorpay' && (
           <div style={{ marginBottom: 16 }}>

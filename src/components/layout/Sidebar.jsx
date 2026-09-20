@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect } from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
@@ -7,6 +7,7 @@ import { ADMIN_CAPABLE_MODULES } from '../../utils/modules';
 import logoIcon from '../../assets/logo-icon.svg';
 import { schoolLogoUrl } from '../../utils/branding';
 import Icon from '../ui/icons';
+import { FEES_ADMIN_TABS } from './ModuleNav';
 
 const NavIcon = ({ name }) => (
   <span className="sidebar__link-icon"><Icon name={name} size={19} /></span>
@@ -82,7 +83,10 @@ const ADMIN_NAV = [
   { to: '/admin/attendance',        icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
   { to: '/admin/student-analytics', icon: 'compass', label: 'Student Analytics' },
   { section: 'Modules' },
-  { to: '/admin/fees/dashboard', match: '/admin/fees',    icon: 'wallet', label: 'Fees',          module: 'fees' },
+  // `children` open under the entry while you are inside the module — the
+  // fees mockups draw its ten sections in the rail as well as in the tab strip.
+  { to: '/admin/fees/dashboard', match: '/admin/fees',    icon: 'wallet', label: 'Fees',          module: 'fees',
+    children: FEES_ADMIN_TABS.map(t => ({ to: t.to, label: t.label.replace(/^[^A-Za-z]+/, '') })) },
   { to: '/admin/payroll/dashboard', match: '/admin/payroll', icon: 'banknote', label: 'Payroll',       module: 'payroll' },
   { to: '/admin/library/dashboard', match: '/admin/library', icon: 'bookOpen', label: 'Library',       module: 'library' },
   { to: '/admin/inventory/dashboard', match: '/admin/inventory', icon: 'package', label: 'Inventory',   module: 'inventory' },
@@ -286,9 +290,11 @@ export default function Sidebar({ onLinkClick, collapsed }) {
               <div key={i} className="sidebar__section-title">{item.section}</div>
             );
           }
+          const inside = item.match && (pathname === item.match || pathname.startsWith(`${item.match}/`));
+          const subOpen = !collapsed && item.children && inside;
           return (
+            <React.Fragment key={item.to}>
             <NavLink
-              key={item.to}
               to={item.to}
               // `match` marks an entry that opens one tab of a wider module, so
               // the whole module stays lit while you move between its tabs.
@@ -309,7 +315,21 @@ export default function Sidebar({ onLinkClick, collapsed }) {
               {!collapsed && item.badge && (
                 <span className="sidebar__badge">{item.badge}</span>
               )}
+              {!collapsed && item.children && (
+                <span className={`sidebar__chev${subOpen ? ' is-open' : ''}`}><Icon name="chevronDown" size={15} /></span>
+              )}
             </NavLink>
+            {subOpen && (
+              <div className="sidebar__sub">
+                {item.children.map(c => (
+                  <NavLink key={c.to} to={c.to} onClick={onLinkClick}
+                    className={({ isActive }) => `sidebar__sublink${isActive ? ' active' : ''}`}>
+                    {({ isActive }) => (<>{isActive ? <span className="sidebar__submark">✦</span> : null}{c.label}</>)}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+            </React.Fragment>
           );
         })}
       </div>

@@ -25,6 +25,64 @@ export const updateFeeSettings   = (data) => api.put('/fees/admin/settings', dat
 export const getCollectionReport = (params) => api.get('/fees/admin/reports/collection', { params });
 export const getDuesReport       = (params) => api.get('/fees/admin/reports/dues', { params });
 
+// Admin — writers added with the Sep 2026 redesign
+export const updateFeeHead       = (id, data) => api.put(`/fees/admin/fee-heads/${id}`, data);
+export const toggleFeeHead       = (id, data) => api.patch(`/fees/admin/fee-heads/${id}/toggle`, data || {});
+export const feeHeadImpact       = (id) => api.get(`/fees/admin/fee-heads/${id}/impact`);
+export const archiveFeeHead      = (id, archive = true) => api.patch(`/fees/admin/fee-heads/${id}/archive`, { archive });
+export const importFeeHeads      = (rows) => api.post('/fees/admin/fee-heads/import', { rows });
+export const toggleFeeCategory   = (id) => api.patch(`/fees/admin/fee-categories/${id}/toggle`);
+export const getFeeStructure     = (id) => api.get(`/fees/admin/fee-structures/${id}`);
+export const updateFeeStructure  = (id, data) => api.put(`/fees/admin/fee-structures/${id}`, data);
+export const toggleFeeStructure  = (id, data) => api.patch(`/fees/admin/fee-structures/${id}/toggle`, data || {});
+export const generateDemand      = (id, data) => api.post(`/fees/admin/fee-structures/${id}/generate-demand`, data || {});
+export const structureImpact     = (id) => api.get(`/fees/admin/fee-structures/${id}/impact`);
+export const deleteFeeStructure  = (id) => api.delete(`/fees/admin/fee-structures/${id}`);
+export const moveStudentStructure = (studentId, data) => api.post(`/fees/admin/students/${studentId}/fee-structure`, data);
+export const voidPayment         = (id, data) => api.post(`/fees/admin/payments/${id}/void`, data);
+export const copyStructures      = (data) => api.post('/fees/admin/structures/copy-year', data);
+export const updateFineRule      = (id, data) => api.put(`/fees/admin/fine-rules/${id}`, data);
+export const toggleFineRule      = (id) => api.patch(`/fees/admin/fine-rules/${id}/toggle`);
+export const updateConcession    = (id, data) => api.put(`/fees/admin/concessions/${id}`, data);
+export const toggleConcession    = (id) => api.patch(`/fees/admin/concessions/${id}/toggle`);
+export const assignConcession    = (id, data) => api.post(`/fees/admin/concessions/${id}/assign`, data);
+export const assignStudentConcession = (studentId, data) => api.post(`/fees/admin/student-fees/${studentId}/assign-concession`, data);
+export const removeStudentConcession = (studentId, scId) => api.delete(`/fees/admin/student-fees/${studentId}/concessions/${scId}`);
+export const chargeFine          = (studentId, data) => api.post(`/fees/admin/students/${studentId}/fine`, data);
+export const resetFeeSettings    = () => api.post('/fees/admin/settings/reset');
+export const sendFeeReminders    = (data) => api.post('/fees/admin/reminders', data);
+export const reminderPreview     = (params) => api.get('/fees/admin/reminders/preview', { params });
+export const reminderHistory     = (params) => api.get('/fees/admin/reminders/history', { params });
+export const emailReport         = (data) => api.post('/fees/admin/report-email', data);
+export const getReportSchedules  = () => api.get('/fees/admin/report-schedules');
+export const addReportSchedule   = (data) => api.post('/fees/admin/report-schedules', data);
+export const removeReportSchedule = (id) => api.delete(`/fees/admin/report-schedules/${id}`);
+
+// Admin — one read model per screen
+export const getFeesMeta         = (params) => api.get('/fees/admin/meta', { params });
+export const getFeesOverview     = (params) => api.get('/fees/admin/overview', { params });
+export const getStudentFeeList   = (params) => api.get('/fees/admin/students', { params });
+export const getStudentFeeCard   = (id, params) => api.get(`/fees/admin/students/${id}/card`, { params });
+export const getPaymentList      = (params) => api.get('/fees/admin/payments-list', { params });
+export const getReceiptsHtml     = (ids) => api.get('/fees/admin/receipts', { params: { ids: ids.join(',') }, responseType: 'text' });
+export const getStructureList    = (params) => api.get('/fees/admin/structures', { params });
+export const getHeadList         = (params) => api.get('/fees/admin/heads', { params });
+export const getHeadActivity     = (id, params) => api.get(`/fees/admin/heads/${id}/activity`, { params });
+export const getCategoryList     = (params) => api.get('/fees/admin/categories', { params });
+export const getCategoryActivity = (id, params) => api.get(`/fees/admin/categories/${id}/activity`, { params });
+export const getConcessionList   = (params) => api.get('/fees/admin/concessions-list', { params });
+export const getConcessionBeneficiaries = (id, params) => api.get(`/fees/admin/concessions/${id}/beneficiaries`, { params });
+export const getConcessionCandidates    = (id, params) => api.get(`/fees/admin/concessions/${id}/candidates`, { params });
+export const getFineRuleList     = (params) => api.get('/fees/admin/fine-rules-list', { params });
+export const getFineRuleActivity = (id, params) => api.get(`/fees/admin/fine-rules/${id}/activity`, { params });
+export const getReportOverview   = (params) => api.get('/fees/admin/reports/overview', { params });
+export const getReport           = (type, params) => api.get(`/fees/admin/report/${type}`, { params });
+export const exportReport        = (type, params) => api.get(`/fees/admin/report/${type}/export`, { params, responseType: 'blob' });
+export const getFeeSettingsFull  = () => api.get('/fees/admin/settings/full');
+export const downloadFeeBackup   = (params) => api.get('/fees/admin/backup', { params, responseType: 'blob' });
+export const getFeeAuditLogs     = (params) => api.get('/fees/admin/audit-logs', { params });
+export const getFeeAccess        = () => api.get('/fees/admin/access');
+
 // Student
 export const getMyFees    = () => api.get('/fees/student/my-fees');
 export const getMyLedger  = () => api.get('/fees/student/ledger');

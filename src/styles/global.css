@@ -245,6 +245,25 @@ input, select, textarea {
   box-shadow: 0 6px 16px rgba(79,70,229,.38);
 }
 
+/* A module entry with its sections open under it (Fees). */
+.sidebar__chev { margin-left: auto; display: inline-flex; opacity: .8; transition: transform var(--transition); transform: rotate(-90deg); }
+.sidebar__chev.is-open { transform: none; }
+.sidebar__sub {
+  position: relative; margin: 4px 10px 6px 14px; padding: 0 0 0 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.sidebar__sub::before {
+  content: ''; position: absolute; left: 20px; top: 4px; bottom: 4px; width: 1px; background: rgba(255,255,255,.14);
+}
+.sidebar__sublink {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px 6px 44px; border-radius: 8px;
+  color: rgba(255,255,255,.72); font-size: .84rem; font-weight: 500; white-space: nowrap;
+}
+.sidebar__sublink:hover { color: #fff; background: rgba(255,255,255,.06); }
+.sidebar__sublink.active { background: rgba(99,102,241,.38); color: #fff; font-weight: 600; }
+.sidebar__submark { position: absolute; left: 14px; font-size: .78rem; color: #fff; }
+
 .sidebar__link-icon {
   flex-shrink: 0;
   width:       20px;
