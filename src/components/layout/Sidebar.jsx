@@ -7,7 +7,24 @@ import { ADMIN_CAPABLE_MODULES } from '../../utils/modules';
 import logoIcon from '../../assets/logo-icon.svg';
 import { schoolLogoUrl } from '../../utils/branding';
 import Icon from '../ui/icons';
-import { FEES_ADMIN_TABS } from './ModuleNav';
+import {
+  FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, PAYROLL_TEACHER_TABS, LIBRARY_ADMIN_TABS, LIBRARY_MANAGE_TABS,
+  LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, INVENTORY_ADMIN_TABS, TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
+  HOSTEL_ADMIN_TABS, VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS, FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS,
+  FEEDBACK_PRINCIPAL_TABS, TIMETABLE_ADMIN_TABS, DIRECTORY_TABS,
+} from './ModuleNav';
+
+/**
+ * A module's tab strip, as rows in the rail. The rail carries no emoji, so the
+ * leading one is dropped; `end` rides along because a module's index tab would
+ * otherwise stay lit on every tab below it.
+ *
+ * A module with a single tab gets no submenu — one row under a row it repeats
+ * is noise, not navigation.
+ */
+const sub = (tabs) => (tabs.length > 1
+  ? tabs.map(t => ({ to: t.to, label: t.label.replace(/^[^A-Za-z]+/, ''), end: t.end }))
+  : undefined);
 
 const NavIcon = ({ name }) => (
   <span className="sidebar__link-icon"><Icon name={name} size={19} /></span>
@@ -72,28 +89,37 @@ const ADMIN_NAV = [
   { to: '/admin/students',          icon: 'student', label: 'Students' },
   { to: '/admin/admins',            icon: 'user', label: 'Admins' },
   { to: '/admin/designations',      icon: 'badge', label: 'Designations' },
-  { to: '/admin/employee-directory/dashboard', match: '/admin/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory' },
+  { to: '/admin/employee-directory/dashboard', match: '/admin/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory',
+    children: sub(DIRECTORY_TABS('/admin/employee-directory')) },
   { section: 'Academics' },
   { to: '/admin/academic-years',    icon: 'calendar', label: 'Academic Years' },
   { to: '/admin/classes',           icon: 'building', label: 'Classes' },
   { to: '/admin/subjects',          icon: 'book', label: 'Subjects' },
-  { to: '/admin/timetable',         icon: 'clock', label: 'Timetable',     module: 'timetable' },
+  { to: '/admin/timetable', match: '/admin/timetable', icon: 'clock', label: 'Timetable', module: 'timetable',
+    children: sub(TIMETABLE_ADMIN_TABS) },
   { to: '/admin/exams',             icon: 'fileCheck', label: 'Aptitude Exams', module: 'aptitudeExam' },
   { to: '/admin/results',           icon: 'chart', label: 'Results',       module: 'result' },
   { to: '/admin/attendance',        icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
   { to: '/admin/student-analytics', icon: 'compass', label: 'Student Analytics' },
   { section: 'Modules' },
-  // `children` open under the entry while you are inside the module — the
-  // fees mockups draw its ten sections in the rail as well as in the tab strip.
+  // `children` open under the entry while you are inside the module, so its
+  // sections are reachable from the rail as well as from the tab strip.
   { to: '/admin/fees/dashboard', match: '/admin/fees',    icon: 'wallet', label: 'Fees',          module: 'fees',
-    children: FEES_ADMIN_TABS.map(t => ({ to: t.to, label: t.label.replace(/^[^A-Za-z]+/, '') })) },
-  { to: '/admin/payroll/dashboard', match: '/admin/payroll', icon: 'banknote', label: 'Payroll',       module: 'payroll' },
-  { to: '/admin/library/dashboard', match: '/admin/library', icon: 'bookOpen', label: 'Library',       module: 'library' },
-  { to: '/admin/inventory/dashboard', match: '/admin/inventory', icon: 'package', label: 'Inventory',   module: 'inventory' },
-  { to: '/admin/transport/dashboard', match: '/admin/transport', icon: 'bus', label: 'Transport',   module: 'transport' },
-  { to: '/admin/hostel/dashboard', match: '/admin/hostel',  icon: 'hotel', label: 'Hostel',        module: 'hostel' },
-  { to: '/admin/videos/browse', match: '/admin/videos',     icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
-  { to: '/admin/feedback/overview', match: '/admin/feedback', icon: 'star', label: 'Teacher Feedback', module: 'feedback' },
+    children: sub(FEES_ADMIN_TABS) },
+  { to: '/admin/payroll/dashboard', match: '/admin/payroll', icon: 'banknote', label: 'Payroll',       module: 'payroll',
+    children: sub(PAYROLL_ADMIN_TABS) },
+  { to: '/admin/library/dashboard', match: '/admin/library', icon: 'bookOpen', label: 'Library',       module: 'library',
+    children: sub(LIBRARY_ADMIN_TABS) },
+  { to: '/admin/inventory/dashboard', match: '/admin/inventory', icon: 'package', label: 'Inventory',   module: 'inventory',
+    children: sub(INVENTORY_ADMIN_TABS) },
+  { to: '/admin/transport/dashboard', match: '/admin/transport', icon: 'bus', label: 'Transport',   module: 'transport',
+    children: sub(TRANSPORT_ADMIN_TABS) },
+  { to: '/admin/hostel/dashboard', match: '/admin/hostel',  icon: 'hotel', label: 'Hostel',        module: 'hostel',
+    children: sub(HOSTEL_ADMIN_TABS) },
+  { to: '/admin/videos/browse', match: '/admin/videos',     icon: 'video', label: 'Video Learning', module: 'videoLibrary',
+    children: sub(VIDEO_ADMIN_TABS) },
+  { to: '/admin/feedback/overview', match: '/admin/feedback', icon: 'star', label: 'Teacher Feedback', module: 'feedback',
+    children: sub(FEEDBACK_ADMIN_TABS) },
   { to: '/admin/leave',             icon: 'umbrella', label: 'Leave',         module: 'leave' },
   { to: '/admin/documents',         icon: 'files', label: 'Documents',     module: 'document' },
   { to: '/admin/holidays',          icon: 'party', label: 'Holidays',      module: 'holiday' },
@@ -115,20 +141,30 @@ const TEACHER_NAV = [
   { to: '/teacher/timetable',       icon: 'clock', label: 'Timetable',     module: 'timetable' },
   { to: '/teacher/substitutions',   icon: 'repeat', label: 'My Substitutions', module: 'timetable' },
   { to: '/teacher/student-analytics', icon: 'compass', label: 'Student Analytics' },
-  { to: '/teacher/employee-directory/employees', match: '/teacher/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory' },
+  // A plain teacher has one directory screen and no tab bar; only a teacher
+  // who administers the module gets the sections, exactly as the routes do.
+  { to: '/teacher/employee-directory/employees', match: '/teacher/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory',
+    children: sub(DIRECTORY_TABS('/teacher/employee-directory')),
+    childrenIf: (m) => !!m?.moduleAdmin?.employeeDirectory },
   { section: 'Academics' },
   { to: '/teacher/exams',           icon: 'fileCheck', label: 'Aptitude Exams', module: 'aptitudeExam' },
   { to: '/teacher/results',         icon: 'chart', label: 'Results',       module: 'result' },
   { section: 'Modules' },
   { to: '/teacher/leave',           icon: 'umbrella', label: 'My Leave',      module: 'leave' },
   { to: '/teacher/documents',       icon: 'files', label: 'Documents',     module: 'document' },
-  { to: '/teacher/payroll/ctc', match: '/teacher/payroll',     icon: 'banknote', label: 'Payroll',       module: 'payroll' },
-  { to: '/teacher/library',         icon: 'bookOpen', label: 'Library',       module: 'library' },
-  { to: '/teacher/manage-library/dashboard', match: '/teacher/manage-library', icon: 'book', label: 'Manage Library', module: 'library', requires: 'isLibrarian' },
+  { to: '/teacher/payroll/ctc', match: '/teacher/payroll',     icon: 'banknote', label: 'Payroll',       module: 'payroll',
+    children: sub(PAYROLL_TEACHER_TABS) },
+  { to: '/teacher/library', match: '/teacher/library', icon: 'bookOpen', label: 'Library', module: 'library',
+    children: sub(LIBRARY_STUDENT_TABS('/teacher')) },
+  { to: '/teacher/manage-library/dashboard', match: '/teacher/manage-library', icon: 'book', label: 'Manage Library', module: 'library', requires: 'isLibrarian',
+    children: sub(LIBRARY_MANAGE_TABS('/teacher/manage-library')) },
   { to: '/teacher/inventory/requests', match: '/teacher/inventory', icon: 'package', label: 'Inventory',   module: 'inventory' },
-  { to: '/teacher/videos/catalog', match: '/teacher/videos',  icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
-  { to: '/teacher/feedback/dashboard', match: '/teacher/feedback', icon: 'star', label: 'My Feedback', module: 'feedback' },
-  { to: '/teacher/feedback-review/overview', match: '/teacher/feedback-review', icon: 'school', label: 'Feedback Review', module: 'feedback', requires: 'isPrincipal' },
+  { to: '/teacher/videos/catalog', match: '/teacher/videos',  icon: 'video', label: 'Video Learning', module: 'videoLibrary',
+    children: sub(VIDEO_TEACHER_TABS) },
+  { to: '/teacher/feedback/dashboard', match: '/teacher/feedback', icon: 'star', label: 'My Feedback', module: 'feedback',
+    children: sub(FEEDBACK_TEACHER_TABS) },
+  { to: '/teacher/feedback-review/overview', match: '/teacher/feedback-review', icon: 'school', label: 'Feedback Review', module: 'feedback', requires: 'isPrincipal',
+    children: sub(FEEDBACK_PRINCIPAL_TABS) },
   { to: '/teacher/holidays',        icon: 'party', label: 'Holidays',      module: 'holiday' },
   { to: '/teacher/notifications',   icon: 'bell', label: 'Notifications', module: 'notification' },
   { to: '/chat',                    icon: 'chat', label: 'Chat',          module: 'chat' },
@@ -152,7 +188,8 @@ const STUDENT_NAV = [
   { to: '/student/transport',       icon: 'bus', label: 'Transport',     module: 'transport' },
   { to: '/student/hostel',          icon: 'hotel', label: 'Hostel',        module: 'hostel' },
   { to: '/student/videos',          icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
-  { to: '/student/library',         icon: 'bookOpen', label: 'Library',       module: 'library' },
+  { to: '/student/library', match: '/student/library', icon: 'bookOpen', label: 'Library', module: 'library',
+    children: sub(LIBRARY_STUDENT_TABS('/student')) },
   { to: '/student/feedback',        icon: 'star', label: 'Teacher Feedback', module: 'feedback' },
   { to: '/student/notifications',   icon: 'bell', label: 'Notifications', module: 'notification' },
   { to: '/chat',                    icon: 'chat', label: 'Chat',          module: 'chat' },
@@ -174,8 +211,10 @@ const PARENT_NAV = [
   { to: '/parent/holidays',         icon: 'party', label: 'Holidays',      module: 'holiday' },
   { to: '/parent/feedback',         icon: 'star', label: 'Teacher Feedback', module: 'feedback' },
   { to: '/parent/child-fees',       icon: 'wallet', label: 'Fees',          module: 'fees' },
-  { to: '/parent/library', match: '/parent/library', icon: 'bookOpen', label: 'Library',       module: 'library' },
-  { to: '/parent/transport/track', match: '/parent/transport',  icon: 'bus', label: 'Transport',     module: 'transport' },
+  { to: '/parent/library', match: '/parent/library', icon: 'bookOpen', label: 'Library',       module: 'library',
+    children: sub(LIBRARY_PARENT_TABS) },
+  { to: '/parent/transport/track', match: '/parent/transport',  icon: 'bus', label: 'Transport',     module: 'transport',
+    children: sub(TRANSPORT_PARENT_TABS) },
   { to: '/parent/hostel',           icon: 'hotel', label: 'Hostel',        module: 'hostel' },
   { to: '/parent/notifications',    icon: 'bell', label: 'Notifications', module: 'notification' },
   { to: '/chat',                    icon: 'chat', label: 'Chat',          module: 'chat' },
@@ -228,12 +267,19 @@ export default function Sidebar({ onLinkClick, collapsed }) {
         .filter(m => modules.moduleAdmin[m.key] && !TEACHER_OWN_ADMIN.has(m.key))
         .map(m => ({ to: m.adminHome, icon: m.icon, label: `Manage ${m.label}` }))
     : [];
+  // Some submenus belong only to some people — a plain teacher has one
+  // directory screen, so it must not sprout the administrator's sections.
+  const navResolved = nav.map(item => (
+    item.children && item.childrenIf && !item.childrenIf(modules)
+      ? { ...item, children: undefined }
+      : item));
+
   // Inserted just before the Account section so it reads as part of the modules.
-  let navWithManage = nav;
+  let navWithManage = navResolved;
   if (manageNav.length) {
-    const at = nav.findIndex(item => item.section === 'Account');
-    const cut = at === -1 ? nav.length : at;
-    navWithManage = [...nav.slice(0, cut), { section: 'Module Admin' }, ...manageNav, ...nav.slice(cut)];
+    const at = navResolved.findIndex(item => item.section === 'Account');
+    const cut = at === -1 ? navResolved.length : at;
+    navWithManage = [...navResolved.slice(0, cut), { section: 'Module Admin' }, ...manageNav, ...navResolved.slice(cut)];
   }
 
   const settingsTo = SETTINGS_TO[user?.role] || '/profile';
@@ -322,7 +368,7 @@ export default function Sidebar({ onLinkClick, collapsed }) {
             {subOpen && (
               <div className="sidebar__sub">
                 {item.children.map(c => (
-                  <NavLink key={c.to} to={c.to} onClick={onLinkClick}
+                  <NavLink key={c.to} to={c.to} end={c.end} onClick={onLinkClick}
                     className={({ isActive }) => `sidebar__sublink${isActive ? ' active' : ''}`}>
                     {({ isActive }) => (<>{isActive ? <span className="sidebar__submark">✦</span> : null}{c.label}</>)}
                   </NavLink>
