@@ -8,8 +8,8 @@ import AdminAreaGuard from './components/AdminAreaGuard';
 import MySectionGuard from './components/MySectionGuard';
 import { roleHome } from './pages/auth/roleHome';
 import ModuleNav, {
-  FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, LIBRARY_ADMIN_TABS,
-  LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, PAYROLL_TEACHER_TABS, LIBRARY_MANAGE_TABS,
+  FEES_ADMIN_TABS, LIBRARY_ADMIN_TABS,
+  LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, LIBRARY_MANAGE_TABS,
   INVENTORY_ADMIN_TABS, INVENTORY_TEACHER_TABS,
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS, HOSTEL_ADMIN_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
@@ -166,6 +166,9 @@ const PayDashboard  = lazy(() => import('./pages/payroll/admin/Dashboard'));
 const PayStructures = lazy(() => import('./pages/payroll/admin/Structures'));
 const PayAssignments= lazy(() => import('./pages/payroll/admin/Assignments'));
 const PayRuns       = lazy(() => import('./pages/payroll/admin/Runs'));
+const PayReports    = lazy(() => import('./pages/payroll/admin/Reports'));
+const PayAdjustments = lazy(() => import('./pages/payroll/admin/Adjustments'));
+const PaySettings   = lazy(() => import('./pages/payroll/admin/Settings'));
 const PayMyCtc      = lazy(() => import('./pages/payroll/teacher/MyCtc'));
 const PayMyPayslips = lazy(() => import('./pages/payroll/teacher/Payslips'));
 
@@ -408,13 +411,17 @@ export default function App() {
               <Route path="reports"        element={<FReports />} />
               <Route path="settings"       element={<FSettings />} />
             </Route>
-            {/* Payroll */}
-            <Route path="payroll" element={<ModuleNav tabs={PAYROLL_ADMIN_TABS} />}>
+            {/* Payroll — no <ModuleNav>: these screens draw their own tab strip
+                inside the page, next to the academic-year picker. */}
+            <Route path="payroll">
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<PayDashboard />} />
               <Route path="structures"  element={<PayStructures />} />
               <Route path="assignments" element={<PayAssignments />} />
               <Route path="runs"        element={<PayRuns />} />
+              <Route path="reports"     element={<PayReports />} />
+              <Route path="adjustments" element={<PayAdjustments />} />
+              <Route path="settings"    element={<PaySettings />} />
             </Route>
             {/* Library */}
             <Route path="library" element={<ModuleNav tabs={LIBRARY_ADMIN_TABS} />}>
@@ -545,7 +552,8 @@ export default function App() {
             <Route path="leave"        element={<TLeave />} />
             <Route path="documents"    element={<TDocuments />} />
             <Route path="documents/:id" element={<ADocDetail />} />
-            <Route path="payroll" element={<ModuleNav tabs={PAYROLL_TEACHER_TABS} />}>
+            {/* No <ModuleNav>: the payroll screens draw their own tab strip. */}
+            <Route path="payroll">
               <Route index element={<Navigate to="ctc" replace />} />
               <Route path="ctc"      element={<PayMyCtc />} />
               <Route path="payslips" element={<PayMyPayslips />} />

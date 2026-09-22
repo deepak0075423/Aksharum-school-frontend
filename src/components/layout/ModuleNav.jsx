@@ -46,11 +46,19 @@ export const FEES_ADMIN_TABS = [
   { to: '/admin/fees/settings',     label: '⚙️ Settings' },
 ];
 
+// The Payroll screens draw their OWN tab strip (pages/payroll/admin/prUI.jsx →
+// SectionBar), because the redesign's mockups put it inside the page beside the
+// academic-year picker rather than above it. These entries therefore feed the
+// SIDEBAR's sub-items only — the payroll route does not wrap itself in
+// <ModuleNav>, or the page would carry two tab bars.
 export const PAYROLL_ADMIN_TABS = [
   { to: '/admin/payroll/dashboard',   label: '🏠 Dashboard' },
   { to: '/admin/payroll/runs',        label: '💼 Payroll Runs' },
   { to: '/admin/payroll/assignments', label: '🧑‍🏫 Assignments' },
   { to: '/admin/payroll/structures',  label: '🏗 Structures' },
+  { to: '/admin/payroll/adjustments', label: '💳 Adjustments' },
+  { to: '/admin/payroll/reports',     label: '📈 Reports' },
+  { to: '/admin/payroll/settings',    label: '⚙️ Settings' },
 ];
 
 // Library management tabs — used by school admins (/admin/library) and by
@@ -81,8 +89,10 @@ export const LIBRARY_PARENT_TABS = [
   { to: '/parent/library/fines', label: '💸 Fines' },
 ];
 
+// Sidebar sub-items only — the employee's payroll screens draw their own tab
+// strip inside the page, the same way the admin ones do.
 export const PAYROLL_TEACHER_TABS = [
-  { to: '/teacher/payroll/ctc',      label: '💼 My CTC' },
+  { to: '/teacher/payroll/ctc',      label: '💼 My Salary' },
   { to: '/teacher/payroll/payslips', label: '📄 Salary Slips' },
 ];
 

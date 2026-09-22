@@ -44,7 +44,6 @@ const LABELS = {
   feedback:             'Teacher Feedback',
   chat:                 'Chat',
   profile:              'My Profile',
-  ctc:                  'My Payroll',
 };
 
 const titleCase = (seg) =>
@@ -60,6 +59,11 @@ const MODULE_HEADERS = {
   'admin/fees': 'Fees Management',
   'student/fees': 'Fees Management',
   'parent/child-fees': 'Fees Management',
+  // Payroll draws its own tab strip inside the page, so the bar above it names
+  // the module — otherwise the header read "Runs" while the page read
+  // "Payroll Runs".
+  'admin/payroll': 'Payroll',
+  'teacher/payroll': 'Payroll',
 };
 
 /** The header title for a pathname. Falls back to the app name at the root. */
