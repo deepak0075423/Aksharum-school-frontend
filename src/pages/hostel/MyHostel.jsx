@@ -6,6 +6,7 @@ import {
   PageHeader, Card, Button, Modal, Badge, Spinner, Empty, Alert, StatCard, Table,
 } from '../../components/ui/index';
 import { StatusBadge, Field, FieldGrid, PassQr, Attachments, label, dd, dt, money, today } from './shared';
+import Tabs from '../../components/ui/Tabs';
 
 const LEAVE_TYPES = ['home', 'weekend', 'short', 'medical', 'emergency', 'holiday', 'other'];
 const OUTPASS_TYPES = ['day', 'night', 'medical', 'emergency', 'academic', 'market', 'other'];
@@ -230,11 +231,7 @@ export default function MyHostel({ role = 'student' }) {
           </select>
         ) : null} />
 
-      <div className="tabs">
-        {TABS.map((t) => (
-          <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label(t)}</button>
-        ))}
-      </div>
+      <Tabs items={TABS.map((t) => ({ key: t, label: label(t) }))} value={tab} onChange={setTab} />
 
       {tab === 'overview' && (
         <div style={{ display: 'grid', gap: 16 }}>

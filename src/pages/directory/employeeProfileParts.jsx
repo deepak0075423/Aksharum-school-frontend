@@ -16,18 +16,16 @@ import { createPortal } from 'react-dom';
 import Icon from '../../components/ui/icons';
 import { Badge } from '../../components/ui/index';
 import { Avatar, STATUS_LABEL, STATUS_TONE, fmtDate } from './parts';
+import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
+import UiTabs from '../../components/ui/Tabs';
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ base, name }) => (
-  <div className="breadcrumb">
-    <Link to="/admin/dashboard">Dashboard</Link>
-    <span aria-hidden>›</span>
-    <Link to={`${base}/employees`}>Employees</Link>
-    <span aria-hidden>›</span>
-    <span>{name}</span>
-  </div>
-);
+/** Names the employee on the layout's breadcrumb. */
+export const Crumbs = ({ base, name }) => {
+  usePageCrumbs([{ label: 'Employees', to: `${base}/employees` }, { label: name }]);
+  return null;
+};
 
 /** The overflow menu on the header — everything that is not the primary action. */
 export function MoreMenu({ children }) {
@@ -153,14 +151,7 @@ export const SummaryTiles = ({ o }) => (
 
 /** The tab strip. Scrolls rather than wrapping, so the page never jumps a row. */
 export const ProfileTabs = ({ tabs, active, onPick }) => (
-  <nav className="eptabs" aria-label="Employee record">
-    {tabs.map((t) => (
-      <button key={t.key} type="button" onClick={() => onPick(t.key)}
-        className={`eptab${active === t.key ? ' is-on' : ''}`} aria-pressed={active === t.key}>
-        <Icon name={t.icon} size={15} /> {t.label}
-      </button>
-    ))}
-  </nav>
+  <UiTabs variant="line" items={tabs} value={active} onChange={onPick} label="Employee record" />
 );
 
 // ── Overview ─────────────────────────────────────────────────────────────────

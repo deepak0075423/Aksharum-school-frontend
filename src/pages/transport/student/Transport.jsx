@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/transport.api';
 import { PageHeader, Spinner, Badge, Empty, Card, Table } from '../../../components/ui/index';
+import Tabs from '../../../components/ui/Tabs';
 
 const ATT = { pending: 'muted', boarded: 'success', dropped: 'info', absent: 'danger', no_show: 'danger' };
 const ST  = { pending: 'warning', partial: 'info', paid: 'success', overdue: 'danger', cancelled: 'muted' };
@@ -29,9 +30,7 @@ export default function StudentTransport() {
   return (
     <div className="page">
       <PageHeader title="My Transport" subtitle="Bus, route, live tracking, attendance & fees" />
-      <div className="tabs" style={{ marginBottom: 16 }}>
-        {TABS.map(t => <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
-      </div>
+      <Tabs items={TABS.map(t => ({ key: t, label: t }))} value={tab} onChange={setTab} />
 
       {!info ? <Empty icon="🚌" title="No transport assigned" message="You are not assigned to a school bus. Contact the transport office." /> : (
         <>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import useFetch from '../../hooks/useFetch';
 import { getResults, getClassTests } from '../../api/student.api';
 import { PageHeader, Table, Badge, Modal, Button, Spinner } from '../../components/ui/index';
+import Tabs from '../../components/ui/Tabs';
 
 export default function StudentResults() {
   const [tab, setTab] = useState('exams');
@@ -44,11 +45,10 @@ export default function StudentResults() {
   return (
     <div className="page">
       <PageHeader title="My Results" subtitle="Published exam results and class tests" />
-      <div className="tabs">
-        {[['exams','Formal Exams'],['class-tests','Class Tests']].map(([k,l]) => (
-          <button key={k} className={`tab${tab===k?' active':''}`} onClick={() => setTab(k)}>{l}</button>
-        ))}
-      </div>
+      <Tabs value={tab} onChange={setTab} items={[
+        { key: 'exams',       label: 'Formal Exams' },
+        { key: 'class-tests', label: 'Class Tests' },
+      ]} />
       <div className="card"><div className="card-body" style={{ padding: 0 }}>
         {tab === 'exams'
           ? (rl ? <div style={{ padding:48, display:'flex', justifyContent:'center' }}><Spinner /></div>

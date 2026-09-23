@@ -22,6 +22,8 @@ import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Badge } from '../../components/ui/index';
 import { VIZ, toneColor, toneForPercent } from './palette';
+import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
+import Tabs from '../../components/ui/Tabs';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
@@ -63,13 +65,12 @@ export const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ')
 
 // ── Frame ────────────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ base, name }) => (
-  <div className="breadcrumb">
-    <Link to={base}>Student Analytics</Link>
-    <span aria-hidden>›</span>
-    <span>{name || 'Student'}</span>
-  </div>
-);
+/** Names the student on the layout's breadcrumb. */
+// eslint-disable-next-line no-unused-vars
+export const Crumbs = ({ base, name }) => {
+  usePageCrumbs([{ label: name || 'Student' }]);
+  return null;
+};
 
 /**
  * Who this is.
@@ -134,14 +135,7 @@ export const Avatar = ({ name, src, size = 40 }) => (
 
 /** The module tabs, in the order a school reads a student. */
 export const TabStrip = ({ tabs, active, onPick }) => (
-  <nav className="sdtabs" aria-label="Student sections">
-    {tabs.map((t) => (
-      <button key={t.key} type="button" onClick={() => onPick(t.key)}
-        className={`sdtab${active === t.key ? ' is-on' : ''}`} aria-pressed={active === t.key}>
-        <Icon name={t.icon} size={15} /> {t.label}
-      </button>
-    ))}
-  </nav>
+  <Tabs variant="pill" items={tabs} value={active} onChange={onPick} label="Student sections" />
 );
 
 // ── Figures ──────────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../../components/ui/icons';
 import { fileUrl } from '../../admin/listParts';
+import UiTabs from '../../../components/ui/Tabs';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
@@ -96,16 +97,7 @@ export const BookHero = ({ book, state }) => (
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
 export const Tabs = ({ tabs, active, onPick }) => (
-  <div className="libbd-tabs" role="tablist">
-    {tabs.map((t) => (
-      <button key={t.key} type="button" role="tab" aria-selected={active === t.key}
-        className={`libbd-tab${active === t.key ? ' is-on' : ''}`}
-        onClick={() => onPick(t.key)}>
-        {t.label}
-        {t.count !== undefined ? <b>{t.count}</b> : null}
-      </button>
-    ))}
-  </div>
+  <UiTabs variant="line" items={tabs} value={active} onChange={onPick} label="This book" />
 );
 
 // ── Panels ───────────────────────────────────────────────────────────────────

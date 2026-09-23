@@ -23,8 +23,7 @@ import BulkClassCreateModal from '../../components/BulkClassCreateModal';
 import AddSectionsModal from '../../components/AddSectionsModal';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot,
-} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
 import {
   ClassCard, ClassCell, ClassForm, CountCell, DeleteClassDialog, HasStudentsDialog,
   SeatCell, SetupPanel, StatusBadge, fillOf, needsSetup, setupIssues,
@@ -335,14 +334,7 @@ export default function Classes() {
       )}
 
       <section className="card">
-        <div className="ltabs">
-          {TABS.map((t) => (
-            <button key={t.value} type="button" aria-pressed={tab === t.value}
-              className={`ltab${tab === t.value ? ' is-on' : ''}`} onClick={() => pick(t.value)}>
-              {t.label} ({counts[t.value === 'all' ? 'total' : t.value]})
-            </button>
-          ))}
-        </div>
+        <ListTabs tabs={TABS} value={tab} onChange={pick} counts={counts} />
 
         <div className="ltools">
           <SearchField value={search} onChange={setSearch} placeholder="Search classes by name…" />

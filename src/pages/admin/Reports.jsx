@@ -17,7 +17,7 @@ import { useModules } from '../../contexts/ModulesContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Badge, Spinner } from '../../components/ui/index';
 import Icon, { TrophyScene } from '../../components/ui/icons';
-import { Crumbs, ListHero, ListStats, HelpPanel, PageFoot } from './listParts';
+import { Crumbs, ListHero, ListStats, HelpPanel, PageFoot, ListTabs} from './listParts';
 import { HeadCount, MissingPanel, REPORTS, ReportGroup, catalogue } from './reportParts';
 
 export default function Reports() {
@@ -65,18 +65,10 @@ export default function Reports() {
       </ListStats>
 
       <section className="card">
-        <div className="ltabs">
-          <button type="button" className={`ltab${tab === 'all' ? ' is-on' : ''}`}
-            aria-pressed={tab === 'all'} onClick={() => setTab('all')}>
-            All reports ({total})
-          </button>
-          {groups.map((g) => (
-            <button key={g.key} type="button" className={`ltab${tab === g.key ? ' is-on' : ''}`}
-              aria-pressed={tab === g.key} onClick={() => setTab(g.key)}>
-              {g.label} ({g.reports.length})
-            </button>
-          ))}
-        </div>
+        <ListTabs value={tab} onChange={setTab} tabs={[
+          { value: 'all', label: 'All reports', count: total },
+          ...groups.map((g) => ({ value: g.key, label: g.label, count: g.reports.length })),
+        ]} />
 
         <div className="repbody">
           {/* The year every figure above belongs to. It is not a picker: each

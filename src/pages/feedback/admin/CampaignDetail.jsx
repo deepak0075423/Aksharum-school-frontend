@@ -23,6 +23,7 @@ import {
 } from './fbUI';
 import { CampaignPill, homeFor, minutesFor, typeShort, useFeedbackBase } from './feedbackParts';
 import { CampaignConfirm, CampaignForm, toCampaignForm } from './campaignParts';
+import Tabs from '../../../components/ui/Tabs';
 
 const TABS = [
   { value: 'results',   label: 'Results',       icon: 'chart' },
@@ -182,17 +183,13 @@ export default function CampaignDetail() {
       )}
 
       <div className="fbcard">
-        <div className="fbsubtabs" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.value} type="button" role="tab" aria-selected={tab === t.value}
-              className={tab === t.value ? 'is-on' : ''} onClick={() => setTab(t.value)}>
-              <Icon name={t.icon} size={15} /> {t.label}
-              {t.value === 'teachers' && analytics.data?.byTeacher
-                ? <em>{analytics.data.byTeacher.length}</em> : null}
-              {t.value === 'questions' ? <em>{c.questions?.length || 0}</em> : null}
-            </button>
-          ))}
-        </div>
+        <Tabs variant="line" className="uitabs--inset" label="Campaign"
+          value={tab} onChange={setTab} items={TABS.map((t) => ({
+            ...t,
+            count: t.value === 'teachers' ? analytics.data?.byTeacher?.length
+                 : t.value === 'questions' ? (c.questions?.length || 0)
+                 : undefined,
+          }))} />
 
         {tab === 'results'   && <Results a={analytics} campaign={c} />}
         {tab === 'teachers'  && <Teachers a={analytics} campaign={c} base={base} />}

@@ -18,6 +18,7 @@ import { DialogHead, Pager, ShowingCount } from '../leaveParts';
 import {
   Card, DayRange, EmptyNote, ROLE_LABEL, StatusPill, fmtClock, fmtDay, fmtDayShort,
 } from '../attendanceParts';
+import Tabs from '../../../components/ui/Tabs';
 
 const LIMIT = 10;
 const STATUS_TABS = [
@@ -73,17 +74,11 @@ export default function Requests({ onChanged }) {
     <Card className="atn-reqcard" title="Regularization Requests"
       sub="Staff asking for a missed clock-in or clock-out to be recorded."
       actions={
-        <div className="atn-pilltabs" role="tablist" aria-label="Request status">
-          {STATUS_TABS.map((t) => {
-            const n = t.value ? counts[t.value] : counts.all;
-            return (
-              <button key={t.label} type="button" role="tab" aria-selected={status === t.value}
-                className={status === t.value ? 'is-on' : ''} onClick={touch(() => setStatus(t.value))}>
-                {t.label}{n ? <span>{n}</span> : null}
-              </button>
-            );
-          })}
-        </div>
+        <Tabs variant="solid" className="uitabs--sm" label="Request status"
+          value={status} onChange={(v) => touch(() => setStatus(v))()}
+          items={STATUS_TABS.map((t) => ({
+            key: t.value, label: t.label, count: (t.value ? counts[t.value] : counts.all) || undefined,
+          }))} />
       }>
       <div className="atn-filters">
         <label className="atn-search atn-search--wide">

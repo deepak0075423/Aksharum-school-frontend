@@ -23,6 +23,7 @@ import { Empty, Spinner } from '../../components/ui/index';
 import {
   FileMark, fileUrl, fmtSize, fmtDate, typeOf, DOC_TYPES,
 } from '../admin/documentParts';
+import Tabs from '../../components/ui/Tabs';
 
 export { FileMark, fileUrl, fmtSize, fmtDate, typeOf, DOC_TYPES };
 
@@ -147,15 +148,13 @@ export const ChildSwitch = ({ children: kids, value, onChange, countFor, allCoun
 };
 
 export const ViewerTabs = ({ tabs, value, onChange, counts }) => (
-  <div className="dvtabs" role="tablist">
-    {tabs.map((t) => (
-      <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-        className={`dvtab${value === t.value ? ' is-on' : ''}`} onClick={() => onChange(t.value)}>
-        {t.label}
-        {counts?.[t.value] != null && <b>{counts[t.value]}</b>}
-      </button>
-    ))}
-  </div>
+  <Tabs
+    variant="line"
+    label="Document types"
+    value={value}
+    onChange={onChange}
+    items={tabs.map(t => ({ ...t, count: counts?.[t.value] }))}
+  />
 );
 
 export const ViewerTools = ({ children }) => <div className="dvtools">{children}</div>;

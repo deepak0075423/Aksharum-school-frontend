@@ -148,7 +148,7 @@ export default function AdminPayments() {
           </div>
 
           <div className="fe-pay__bar">
-            <PillTabs className="fe-pills--inline" value={applied.group} onChange={g => setApplied({ group: g, page: '1' })} items={[
+            <PillTabs className="uitabs--flush uitabs--sm" value={applied.group} onChange={g => setApplied({ group: g, page: '1' })} items={[
               { key: '', label: 'All Payments', count: c.all || 0, tone: 'slate' },
               { key: 'online', label: 'Online', count: c.online || 0, tone: 'slate' },
               { key: 'cash', label: 'Cash', count: c.cash || 0, tone: 'slate' },

@@ -24,6 +24,8 @@ import Icon from '../../components/ui/icons';
 import { Spinner } from '../../components/ui/index';
 import { VIZ } from '../analytics/palette';
 import { FileMark, fileUrl, fmtSize, fmtDate, typeOf } from './documentParts';
+import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
+import Tabs from '../../components/ui/Tabs';
 
 export { fileUrl, fmtSize, fmtDate };
 
@@ -77,19 +79,12 @@ export const StatePill = ({ state }) => {
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ trail = [], here, home = '/admin/documents' }) => (
-  <div className="breadcrumb">
-    <Link to={home}>Documents</Link>
-    {trail.map((step) => (
-      <React.Fragment key={step.label}>
-        <span aria-hidden>›</span>
-        {step.to ? <Link to={step.to}>{step.label}</Link> : <span>{step.label}</span>}
-      </React.Fragment>
-    ))}
-    <span aria-hidden>›</span>
-    <span>{here}</span>
-  </div>
-);
+/** Adds this assignment's own steps to the layout's breadcrumb. */
+// eslint-disable-next-line no-unused-vars
+export const Crumbs = ({ trail = [], here, home }) => {
+  usePageCrumbs([...trail, { label: here }]);
+  return null;
+};
 
 const STATUS_TONE = { active: 'yes', overdue: 'bad', archived: 'slate' };
 const STATUS_TEXT = { active: 'Active', overdue: 'Overdue', archived: 'Archived' };
@@ -127,14 +122,7 @@ export const MetaStrip = ({ items }) => (
 );
 
 export const DetailTabs = ({ tabs, value, onChange }) => (
-  <div className="adtabs" role="tablist">
-    {tabs.map((t) => (
-      <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-        className={`adtab${value === t.value ? ' is-on' : ''}`} onClick={() => onChange(t.value)}>
-        {t.label}{t.count != null ? ` (${t.count})` : ''}
-      </button>
-    ))}
-  </div>
+  <Tabs variant="line" items={tabs} value={value} onChange={onChange} label="Assignment" />
 );
 
 // ── The four tiles ───────────────────────────────────────────────────────────
@@ -630,12 +618,12 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
         <StatePill state={student.state} />
       </div>
 
-      <div className="adside__tabs" role="tablist">
-        {[['work', 'Submission'], ['history', 'History'], ['mark', 'Feedback']].map(([v, label]) => (
-          <button key={v} type="button" role="tab" aria-selected={face === v}
-            className={`adside__tab${face === v ? ' is-on' : ''}`} onClick={() => setFace(v)}>{label}</button>
-        ))}
-      </div>
+      <Tabs variant="solid" className="uitabs--sm" label="This submission"
+        value={face} onChange={setFace} items={[
+          { key: 'work',    label: 'Submission' },
+          { key: 'history', label: 'History' },
+          { key: 'mark',    label: 'Feedback' },
+        ]} />
 
       <div className="adside__body">
         {face === 'work' && (

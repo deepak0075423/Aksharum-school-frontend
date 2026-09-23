@@ -12,6 +12,7 @@ import Icon from '../../components/ui/icons';
 import { Avatar } from '../admin/documentParts';
 import { QUESTION_TYPE_LABEL } from '../admin/examParts';
 import { VIZ, toneForPercent, toneColor } from '../analytics/palette';
+import UiTabs from '../../components/ui/Tabs';
 
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -75,16 +76,13 @@ export const BackLink = ({ to, children }) => (
 
 /** Page tabs. `badge` is a count worth seeing before opening the tab. */
 export const Tabs = ({ tabs, value, onChange }) => (
-  <div className="apxtabs" role="tablist">
-    {tabs.map((t) => (
-      <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-        className={`apxtabs__tab${value === t.value ? ' is-on' : ''}`} onClick={() => onChange(t.value)}>
-        {t.icon && <Icon name={t.icon} size={16} />}
-        {t.label}
-        {t.badge ? <span className="apxtabs__badge">{t.badge}</span> : null}
-      </button>
-    ))}
-  </div>
+  <UiTabs
+    variant="line"
+    label="Exam views"
+    value={value}
+    onChange={onChange}
+    items={tabs.map(t => ({ ...t, count: t.count ?? t.badge }))}
+  />
 );
 
 export const Pills = ({ items, value, onChange, label }) => (

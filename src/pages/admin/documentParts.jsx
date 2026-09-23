@@ -15,6 +15,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
+import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
+import Tabs from '../../components/ui/Tabs';
 
 // ── What a document can be ───────────────────────────────────────────────────
 
@@ -160,13 +162,11 @@ export const FileMark = ({ file, size = 44 }) => {
 
 // ── Page frame ───────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ here }) => (
-  <div className="breadcrumb">
-    <Link to="/admin/dashboard">Dashboard</Link>
-    <span aria-hidden>›</span>
-    <span>{here}</span>
-  </div>
-);
+/** Names this page on the layout's breadcrumb. */
+export const Crumbs = ({ here }) => {
+  usePageCrumbs([{ label: here }]);
+  return null;
+};
 
 /** The header: a mark, what the page is, the line under it, and the one action. */
 export const DocHero = ({ title, subtitle, action }) => (
@@ -229,16 +229,9 @@ export const DocStat = ({ icon, tone, value, label, change, added, onClick, on }
   );
 };
 
+/** The document kinds, as the app's one tab strip. */
 export const DocTabs = ({ tabs, value, onChange }) => (
-  <div className="doctabs" role="tablist">
-    {tabs.map((t) => (
-      <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-        className={`doctab${value === t.value ? ' is-on' : ''}`}
-        onClick={() => onChange(t.value)}>
-        {t.label}
-      </button>
-    ))}
-  </div>
+  <Tabs variant="line" items={tabs} value={value} onChange={onChange} label="Document types" />
 );
 
 // ── Toolbar ──────────────────────────────────────────────────────────────────

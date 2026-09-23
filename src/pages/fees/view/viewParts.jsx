@@ -12,20 +12,20 @@
 import React from 'react';
 import Icon from '../../../components/ui/icons';
 import { Btn, Glyph, Mark, money, fmtDate, plural } from '../admin/feeUI';
+import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
 
 /* ── Chrome ───────────────────────────────────────────────────────────────── */
 
-/** Home › Fees › <this tab>. The earlier crumbs go back to the fee book. */
-export const Crumbs = ({ trail = [] }) => (
-  <nav className="fv-crumbs" aria-label="Breadcrumb">
-    {trail.map((c, i) => (
-      <React.Fragment key={c.label}>
-        {i ? <Icon name="chevronRight" size={13} /> : null}
-        {c.onClick ? <button type="button" onClick={c.onClick}>{c.label}</button> : <b>{c.label}</b>}
-      </React.Fragment>
-    ))}
-  </nav>
-);
+/**
+ * The fee book's tabs are page state, not routes, so only their names reach
+ * the layout's breadcrumb — a step that switched a tab could not be a link,
+ * and a trail whose steps do different things depending on the page is exactly
+ * what this rebuild set out to remove.
+ */
+export const Crumbs = ({ trail = [] }) => {
+  usePageCrumbs(trail.map(c => ({ label: c.label })));
+  return null;
+};
 
 export const ViewHead = ({ title, subtitle, children }) => (
   <div className="fv-head">

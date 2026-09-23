@@ -20,6 +20,8 @@ import { NavLink, Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import Icon from '../../../components/ui/icons';
 import '../../../styles/payroll.css';
+import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
+import Tabs from '../../../components/ui/Tabs';
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
 
@@ -223,18 +225,11 @@ export const PAYROLL_MY_TABS = [
   { to: '/teacher/payroll/payslips', label: 'Salary Slips', glyph: 'docFill' },
 ];
 
-export const Crumbs = ({ trail }) => (
-  <nav className="pr-crumbs" aria-label="Breadcrumb">
-    {trail.map((t, i) => (
-      <React.Fragment key={`${t.label}-${i}`}>
-        {i > 0 && <Icon name="chevronRight" size={13} />}
-        {t.to && i < trail.length - 1
-          ? <Link to={t.to}>{t.label}</Link>
-          : <span aria-current={i === trail.length - 1 ? 'page' : undefined}>{t.label}</span>}
-      </React.Fragment>
-    ))}
-  </nav>
-);
+/** Adds this screen's steps to the layout's breadcrumb. */
+export const Crumbs = ({ trail = [] }) => {
+  usePageCrumbs(trail);
+  return null;
+};
 
 /**
  * Tabs on the left, the academic-year picker and the screen's primary action on
@@ -245,14 +240,7 @@ export function SectionBar({ tabs = PAYROLL_TABS, years = [], year, onYear, chil
   const current = years.find(y => String(y._id) === String(year)) || years.find(y => y.status === 'active') || years[0];
   return (
     <div className="pr-bar">
-      <nav className="pr-tabs" aria-label="Payroll sections">
-        {tabs.map(t => (
-          <NavLink key={t.to} to={t.to} className={({ isActive }) => `pr-tab${isActive ? ' is-on' : ''}`}>
-            <Glyph name={t.glyph} size={16} />
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
+      <Tabs variant="pill" items={tabs} label="Payroll sections" />
       <div className="pr-bar__end">
         {!hideYear && yearOptions?.length > 0 && (
           <label className="pr-yearpick">
@@ -496,15 +484,7 @@ export function Check({ checked, indeterminate, onChange, label }) {
 /* ── Pill tabs ────────────────────────────────────────────────────────────── */
 
 export const PillTabs = ({ items, value, onChange }) => (
-  <div className="pr-pills" role="tablist">
-    {items.map(it => (
-      <button key={it.value} type="button" role="tab" aria-selected={value === it.value}
-        className={`pr-pill${value === it.value ? ' is-on' : ''}`} onClick={() => onChange(it.value)}>
-        {it.label}
-        {it.count !== undefined ? <span className="pr-pill__n">({it.count})</span> : null}
-      </button>
-    ))}
-  </div>
+  <Tabs variant="pill" items={items} value={value} onChange={onChange} label="Filter" />
 );
 
 /* ── Badges, avatars, cells ───────────────────────────────────────────────── */

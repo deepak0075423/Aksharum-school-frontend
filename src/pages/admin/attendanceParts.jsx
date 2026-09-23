@@ -13,6 +13,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import Icon from '../../components/ui/icons';
+import Tabs from '../../components/ui/Tabs';
 
 // ── Dates ────────────────────────────────────────────────────────────────────
 // Attendance is kept per LOCAL calendar day as 'YYYY-MM-DD'. Keys are built
@@ -180,18 +181,9 @@ export const SideLinks = ({ items }) => (
 // ── Tabs & cards ─────────────────────────────────────────────────────────────
 
 export const UnderTabs = ({ tabs, value, onChange, children }) => (
-  <div className="atn-tabrow">
-    <div className="atn-tabs" role="tablist">
-      {tabs.map((t) => (
-        <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-          className={`atn-tab${value === t.value ? ' is-on' : ''}`} onClick={() => onChange(t.value)}>
-          {t.label}
-          {t.count ? <span className="atn-tab__count">{t.count}</span> : null}
-        </button>
-      ))}
-    </div>
-    {children ? <div className="atn-tabrow__side">{children}</div> : null}
-  </div>
+  <Tabs variant="line" items={tabs} value={value} onChange={onChange} label="Views">
+    {children}
+  </Tabs>
 );
 
 export const Card = ({ title, sub, actions, children, className = '', bodyClass = '' }) => (

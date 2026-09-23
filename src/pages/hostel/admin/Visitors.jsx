@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import * as api from '../../../api/hostel.api';
 import { PageHeader, Table, Button, Modal, Badge, Pagination, Confirm, Alert } from '../../../components/ui/index';
 import { StatusBadge, Filters, Field, FieldGrid, label, dt, dd } from '../shared';
+import Tabs from '../../../components/ui/Tabs';
 
 const ID_TYPES = ['aadhaar', 'pan', 'driving_license', 'voter_id', 'passport', 'other'];
 const STATUSES = ['pending', 'approved', 'rejected', 'checked_in', 'checked_out', 'cancelled', 'blocked'];
@@ -130,10 +131,10 @@ export default function Visitors() {
           <Button onClick={() => open(false)}>+ Register Visitor</Button>
         </div>} />
 
-      <div className="tabs">
-        <button className={`tab${tab === 'visits' ? ' active' : ''}`} onClick={() => setTab('visits')}>Visits</button>
-        <button className={`tab${tab === 'lists' ? ' active' : ''}`} onClick={() => setTab('lists')}>Authorized & restricted lists</button>
-      </div>
+      <Tabs value={tab} onChange={setTab} items={[
+        { key: 'visits', label: 'Visits' },
+        { key: 'lists',  label: 'Authorized & restricted lists' },
+      ]} />
 
       {tab === 'visits' && (
         <Filters>

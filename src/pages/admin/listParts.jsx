@@ -17,6 +17,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Button, Empty, Spinner, Pagination, PageSize } from '../../components/ui/index';
+import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
+import Tabs from '../../components/ui/Tabs';
 
 // Uploads are served from the backend root while VITE_API_URL points at /api.
 const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
@@ -80,26 +82,42 @@ export function Avatar({ name, src, size = 38, tone = 'indigo' }) {
 // ── Page frame ───────────────────────────────────────────────────────────────
 
 /**
- * Dashboard › … › here.
+ * Names this page on the app's one breadcrumb, which the layout draws.
  *
- * `trail` carries the steps in between for a page that sits under another one —
- * a class's sections are reached through Classes, and the crumb has to be able
- * to say so. `home` is for the screens a teacher, student or parent also
- * reaches — their Dashboard is not the admin one, and a crumb that walks
- * someone into a page they cannot open is worse than no crumb.
+ * It used to draw a trail of its own starting at "Dashboard" — as did nine
+ * other kits, each with its own idea of where a trail starts and what the
+ * separator looks like. Now the steps up to the module come from the
+ * navigation tree, and this adds only what the tree cannot know: the row you
+ * opened. `home` is no longer needed (the trail starts at the reader's OWN
+ * home) and is accepted so the call sites did not all have to change.
  */
-export const Crumbs = ({ here, trail = [], home = '/admin/dashboard' }) => (
-  <div className="breadcrumb">
-    <Link to={home}>Dashboard</Link>
-    {trail.map((step) => (
-      <React.Fragment key={step.to}>
-        <span aria-hidden>›</span>
-        <Link to={step.to}>{step.label}</Link>
-      </React.Fragment>
-    ))}
-    <span aria-hidden>›</span>
-    <span>{here}</span>
-  </div>
+// eslint-disable-next-line no-unused-vars
+export const Crumbs = ({ here, trail = [], home }) => {
+  usePageCrumbs([...trail, { label: here }]);
+  return null;
+};
+
+/**
+ * The strip at the top of a listing card — "All", then the subsets worth
+ * having a shortcut to, each with how many rows are behind it.
+ *
+ * Every listing screen wrote this out by hand and put the count in brackets
+ * after the label; it is the app's one tab strip now, and the count is the
+ * badge the strip already knows how to draw.
+ */
+export const ListTabs = ({ tabs, value, onChange, counts }) => (
+  <Tabs
+    variant="line"
+    className="uitabs--inset"
+    label="Filter the list"
+    value={value}
+    onChange={onChange}
+    items={tabs.map((t) => ({
+      key:   t.value ?? t.key,
+      label: t.label,
+      count: t.count ?? counts?.[(t.value ?? t.key) === 'all' ? 'total' : (t.value ?? t.key)],
+    }))}
+  />
 );
 
 /**

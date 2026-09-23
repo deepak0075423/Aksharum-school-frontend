@@ -6,6 +6,7 @@ import {
   PageHeader, Table, Button, Modal, Badge, Confirm, Card, Empty, Spinner, Alert, Pagination,
 } from '../../../components/ui/index';
 import { StatusBadge, Filters, label, dd, money, today, di } from '../shared';
+import Tabs from '../../../components/ui/Tabs';
 
 const MEALS = ['breakfast', 'lunch', 'snacks', 'dinner', 'special'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -247,11 +248,8 @@ export default function Mess() {
       <PageHeader title="Mess Management" subtitle="Setup, enrolment, menus, meal attendance and running costs"
         action={<Button onClick={() => openMess()}>+ Add Mess</Button>} />
 
-      <div className="tabs">
-        {['messes', 'members', 'menu', 'attendance', 'expenses'].map((t) => (
-          <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label(t)}</button>
-        ))}
-      </div>
+      <Tabs value={tab} onChange={setTab}
+        items={['messes', 'members', 'menu', 'attendance', 'expenses'].map((t) => ({ key: t, label: label(t) }))} />
 
       {tab !== 'messes' && (
         <Filters>

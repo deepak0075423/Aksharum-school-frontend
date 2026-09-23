@@ -30,6 +30,7 @@ import {
   HolidayDialog, HolidayList, MonthCalendar, TypeChip, dayKey, daysOf, daysUntil,
   fmtRange, spanDays, statusOf, tintFor, today,
 } from '../admin/holidayParts';
+import Tabs from '../../components/ui/Tabs';
 
 const MONTH_START = () => { const n = new Date(); return [n.getFullYear(), n.getMonth()]; };
 
@@ -123,17 +124,10 @@ export default function TeacherHolidays() {
         </div>
       </header>
 
-      <nav className="holtch-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === 'my'}
-          className={tab === 'my' ? 'is-on' : ''} onClick={() => setTab('my')}>
-          My Holidays
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'class'}
-          className={tab === 'class' ? 'is-on' : ''} onClick={() => setTab('class')}>
-          My Class Holidays
-          {classes.length ? <b>{classes.length}</b> : null}
-        </button>
-      </nav>
+      <Tabs value={tab} onChange={setTab} label="Holidays" items={[
+        { key: 'my',    label: 'My Holidays' },
+        { key: 'class', label: 'My Class Holidays', count: classes.length || undefined },
+      ]} />
 
       {tab === 'my'
         ? <MyHolidays holidays={mine} classHolidays={classes} types={types} loading={loadingMine} />

@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal } from '../../components/ui/index';
 import { RowMenu, MenuItem, MenuSep } from '../admin/listParts';
+import Tabs from '../../components/ui/Tabs';
 
 // ── What a notification looks like ───────────────────────────────────────────
 
@@ -210,19 +211,10 @@ export const NotifHero = ({ unread, subtitle, tip }) => (
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
 export const TabStrip = ({ tabs, value, onChange, children }) => (
-  <div className="nftabs">
-    <div className="nftabs__set" role="tablist">
-      {tabs.map((t) => (
-        <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-          className={`nftab${value === t.value ? ' is-on' : ''}`} onClick={() => onChange(t.value)}>
-          <Icon name={t.icon} size={16} />
-          {t.label}
-          {t.count > 0 && <span className={`nftab__n${t.accent ? ' nftab__n--accent' : ''}`}>{t.count}</span>}
-        </button>
-      ))}
-    </div>
-    <div className="nftabs__acts">{children}</div>
-  </div>
+  <Tabs variant="pill" value={value} onChange={onChange} label="Mailbox"
+    items={tabs.map((t) => ({ ...t, count: t.count > 0 ? t.count : undefined }))}>
+    {children}
+  </Tabs>
 );
 
 // ── One notification ─────────────────────────────────────────────────────────

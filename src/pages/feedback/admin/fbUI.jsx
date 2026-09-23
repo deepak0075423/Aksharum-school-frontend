@@ -30,6 +30,7 @@ import { Spinner } from '../../../components/ui/index';
 
 export { fmtDate, daysLeft, RATING_LABELS } from '../shared/kit';
 import { RATING_LABELS } from '../shared/kit';
+import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
 
 /**
  * The module's colour set.
@@ -62,21 +63,14 @@ export const toneAt = (i) => TONES[i % TONES.length];
 
 // ── Breadcrumb ───────────────────────────────────────────────────────────────
 
-// `home` is accepted and ignored: the mockups start the trail at the module,
-// and the sidebar already carries the way back to the dashboard.
+// The trail up to the module comes from the navigation tree now, so `trail`
+// and `home` are only still accepted to save changing thirty call sites; the
+// module step in them is dropped as a duplicate by the layout's crumb.
 // eslint-disable-next-line no-unused-vars
-export const Crumbs = ({ trail = [], here, home }) => (
-  <nav className="fbcrumb" aria-label="Breadcrumb">
-    {trail.map((t, i) => (
-      <React.Fragment key={t.to}>
-        {i > 0 ? <Icon name="chevronRight" size={13} /> : null}
-        <Link to={t.to}>{t.label}</Link>
-      </React.Fragment>
-    ))}
-    {trail.length ? <Icon name="chevronRight" size={13} /> : null}
-    <span>{here}</span>
-  </nav>
-);
+export const Crumbs = ({ trail = [], here, home }) => {
+  usePageCrumbs([...trail, { label: here }]);
+  return null;
+};
 
 // ── Hero ─────────────────────────────────────────────────────────────────────
 

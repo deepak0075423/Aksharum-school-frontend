@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import Header  from './Header';
 import { ChatNotifyProvider } from '../../contexts/ChatNotifyContext';
+import { BreadcrumbProvider } from '../../contexts/BreadcrumbContext';
+import Breadcrumb from './Breadcrumb';
 import useFocusHighlight from '../../hooks/useFocusHighlight';
 
 export default function AppLayout() {
@@ -44,6 +46,7 @@ export default function AppLayout() {
 
   return (
     <ChatNotifyProvider>
+    <BreadcrumbProvider>
     <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={closeSidebar} />
 
@@ -61,10 +64,14 @@ export default function AppLayout() {
       <main className="app-main">
         {/* key on div (not Outlet) avoids remounting page components; CSS handles the fade */}
         <div key={animKey} className="page-transition">
+          {/* Drawn here, not by the pages: a crumb each page writes for itself
+              is a crumb most pages forget. */}
+          <Breadcrumb />
           <Outlet />
         </div>
       </main>
     </div>
+    </BreadcrumbProvider>
     </ChatNotifyProvider>
   );
 }

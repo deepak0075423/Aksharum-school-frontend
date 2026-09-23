@@ -6,6 +6,7 @@ import { getInbox, getSent, markOneRead, clearAll } from '../../api/notification
 import { notificationPath, hasTarget } from '../../utils/notificationLink';
 import * as saApi from '../../api/superAdmin.api';
 import { PageHeader, Button, Badge, Modal, Spinner } from '../../components/ui/index';
+import Tabs from '../../components/ui/Tabs';
 
 const TARGET_LABELS = {
   all_schools:     'All Schools',
@@ -144,23 +145,10 @@ export default function SANotifications() {
       <PageHeader title="Notifications" subtitle="Send & manage notifications"
         action={<Button onClick={openSend}>+ Send Notification</Button>} />
 
-      {/* Tabs */}
-      <div className="tabs" style={{ marginBottom: 20 }}>
-        <button className={`tab${tab === 'inbox' ? ' active' : ''}`} onClick={() => setTab('inbox')}>
-          📥 Inbox{unread > 0 && (
-            <span style={{ marginLeft: 6, background: 'var(--primary)', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: '.72rem', fontWeight: 700 }}>
-              {unread}
-            </span>
-          )}
-        </button>
-        <button className={`tab${tab === 'sent' ? ' active' : ''}`} onClick={() => setTab('sent')}>
-          📤 Sent{sentData?.length > 0 && (
-            <span style={{ marginLeft: 6, background: 'var(--text-muted)', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: '.72rem' }}>
-              {sentData.length}
-            </span>
-          )}
-        </button>
-      </div>
+      <Tabs value={tab} onChange={setTab} items={[
+        { key: 'inbox', label: 'Inbox', icon: 'mail', count: unread || undefined },
+        { key: 'sent',  label: 'Sent',  icon: 'send',  count: sentData?.length || undefined },
+      ]} />
 
       {/* Inbox */}
       {tab === 'inbox' && (

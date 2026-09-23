@@ -6,6 +6,7 @@ import {
   PageHeader, Button, Badge, Spinner, Empty, Modal, Table, Pagination,
 } from '../../../components/ui/index';
 import { StatusBadge, Filters, label, today, dd, dt } from '../shared';
+import Tabs from '../../../components/ui/Tabs';
 
 const MARKS = [
   { v: 'present', l: 'Present', tone: 'success' },
@@ -128,10 +129,10 @@ export default function Attendance() {
     <div className="page">
       <PageHeader title="Hostel Attendance" subtitle="Roll call by session — one record per student, date and session" />
 
-      <div className="tabs">
-        <button className={`tab${tab === 'register' ? ' active' : ''}`} onClick={() => setTab('register')}>Take roll call</button>
-        <button className={`tab${tab === 'history' ? ' active' : ''}`} onClick={() => setTab('history')}>History & corrections</button>
-      </div>
+      <Tabs value={tab} onChange={setTab} items={[
+        { key: 'register', label: 'Take roll call' },
+        { key: 'history',  label: 'History & corrections' },
+      ]} />
 
       {tab === 'register' ? (
         <>

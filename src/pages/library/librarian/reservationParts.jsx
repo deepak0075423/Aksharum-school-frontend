@@ -12,6 +12,7 @@
  */
 import React from 'react';
 import Icon from '../../../components/ui/icons';
+import Tabs from '../../../components/ui/Tabs';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
@@ -45,15 +46,13 @@ export const StatusTabs = ({ value, counts, onPick }) => {
     ['cancelled', STATUS.cancelled.chip, counts.cancelled],
   ];
   return (
-    <div className="libr-tabs" role="group" aria-label="Filter by status">
-      {tabs.map(([v, label, n]) => (
-        <button key={v || 'all'} type="button" aria-pressed={value === v}
-          className={`libr-tab${value === v ? ' is-on' : ''}${v ? ` is-${STATUS[v].tone}` : ''}`}
-          onClick={() => onPick(v)}>
-          {v ? <i /> : null}{label} <b>{n ?? 0}</b>
-        </button>
-      ))}
-    </div>
+    <Tabs
+      variant="pill"
+      label="Filter by status"
+      value={value}
+      onChange={onPick}
+      items={tabs.map(([v, label, n]) => ({ key: v, label, count: n ?? 0 }))}
+    />
   );
 };
 

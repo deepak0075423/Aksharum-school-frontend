@@ -4,6 +4,7 @@ import * as api from '../../../api/hostel.api';
 import useFetch from '../../../hooks/useFetch';
 import { PageHeader, Table, Button, Modal, Confirm, Card } from '../../../components/ui/index';
 import { StatusBadge, Filters, label } from '../shared';
+import Tabs from '../../../components/ui/Tabs';
 
 // Buildings and floors are one screen: a floor only makes sense inside a
 // building, and a warden setting up a block does both in the same sitting.
@@ -146,14 +147,10 @@ export default function Structure() {
           <option value="">All hostels</option>
           {hostels.map((h) => <option key={h._id} value={h._id}>{h.name}</option>)}
         </select>
-        <div className="tabs" style={{ marginBottom: 0 }}>
-          <button className={`tab${tab === 'buildings' ? ' active' : ''}`} onClick={() => setTab('buildings')}>
-            Buildings ({buildings.length})
-          </button>
-          <button className={`tab${tab === 'floors' ? ' active' : ''}`} onClick={() => setTab('floors')}>
-            Floors ({floors.length})
-          </button>
-        </div>
+        <Tabs variant="solid" value={tab} onChange={setTab} items={[
+          { key: 'buildings', label: 'Buildings', count: buildings.length },
+          { key: 'floors',    label: 'Floors',    count: floors.length },
+        ]} />
       </Filters>
 
       <div className="card"><div className="card-body" style={{ padding: 0 }}>

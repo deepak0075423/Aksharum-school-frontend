@@ -20,8 +20,7 @@ import Icon, { SchoolScene, SupportScene } from '../../components/ui/icons';
 import ImportYearStructureModal from '../../components/ImportYearStructureModal';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot,
-} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
 import {
   CountCell, InUseDialog, PHASE, RolloverPanel, SessionCell, SetActiveDialog, StatusCell,
   YearCell, YearDrawer, YearForm, phaseOf, todayDay,
@@ -257,14 +256,7 @@ export default function AcademicYears() {
       )}
 
       <section className="card">
-        <div className="ltabs">
-          {TABS.map((t) => (
-            <button key={t.value} type="button" aria-pressed={tab === t.value}
-              className={`ltab${tab === t.value ? ' is-on' : ''}`} onClick={() => pick(t.value)}>
-              {t.label} ({counts[t.value === 'all' ? 'total' : t.value]})
-            </button>
-          ))}
-        </div>
+        <ListTabs tabs={TABS} value={tab} onChange={pick} counts={counts} />
 
         <div className="ltools">
           <SearchField value={search} onChange={setSearch} placeholder="Search academic year…" />

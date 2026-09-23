@@ -29,6 +29,7 @@ import {
   TABS, SORTS, applyFilters, fmtDate, fileUrl,
 } from '../documents/viewerParts';
 import ShareDocument from './ShareDocument';
+import Tabs from '../../components/ui/Tabs';
 
 const SCOPES = [
   { value: 'shared', label: 'Shared with me' },
@@ -189,15 +190,12 @@ export default function TeacherDocuments() {
       </ViewerStats>
 
       <section className="card dvpanel">
-        <div className="dvscope" role="tablist" aria-label="Which documents">
-          {SCOPES.map((s) => (
-            <button key={s.value} type="button" role="tab" aria-selected={scope === s.value}
-              className={`dvscope__btn${scope === s.value ? ' is-on' : ''}`}
-              onClick={() => { setScope(s.value); setTab('all'); }}>
-              {s.label}<b>{s.value === 'mine' ? counts.mine ?? 0 : counts.shared ?? 0}</b>
-            </button>
-          ))}
-        </div>
+        <Tabs variant="pill" className="uitabs--inset uitabs--flush" label="Which documents"
+          value={scope} onChange={(v) => { setScope(v); setTab('all'); }}
+          items={SCOPES.map((s) => ({
+            key: s.value, label: s.label,
+            count: s.value === 'mine' ? counts.mine ?? 0 : counts.shared ?? 0,
+          }))} />
 
         <ViewerTabs tabs={TABS} value={tab} counts={tabCounts} onChange={setTab} />
 

@@ -1765,113 +1765,246 @@ select.form-control {
 .alert-warning { background: #fef3c7; color: #92400e; }
 .alert-danger  { background: #fee2e2; color: #991b1b; }
 
-/* ── Tabs ──────────────────────────────────────────────────────────────────── */
-.tabs {
-  display:       flex;
-  gap:           4px;
-  border-bottom: 2px solid var(--border);
-  margin-bottom: 24px;
-  overflow-x:    auto;
-  overflow-y:    hidden;
-  scrollbar-width: thin;                 /* Firefox: slim bar, not chunky */
-  scrollbar-color: var(--border) transparent;
-  -webkit-overflow-scrolling: touch;
-}
-/* Slim, unobtrusive scrollbar so a long tab strip doesn't look broken */
-.tabs::-webkit-scrollbar        { height: 4px; }
-.tabs::-webkit-scrollbar-track  { background: transparent; }
-.tabs::-webkit-scrollbar-thumb  { background: transparent; border-radius: 99px; }
-.tabs:hover::-webkit-scrollbar-thumb { background: var(--border); }
-.tab {
-  padding:     10px 16px;
-  font-size:   0.9rem;
-  font-weight: 500;
-  color:       var(--text-muted);
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  white-space:   nowrap;
-  flex-shrink:   0;
-  transition:    color var(--transition), border-color var(--transition);
-}
-.tab:hover  { color: var(--primary); }
-.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* ── Tabs ────────────────────────────────────────────────────────────────────
+   ONE tab strip for the whole app (components/ui/Tabs.jsx). Three looks, and
+   each means something:
 
-/* ── Module section bar ────────────────────────────────────────────────────
-   The bar above every page of a module (Fees, Library, Employee Directory…).
+     .uitabs--line    views of one screen        underline under the active one
+     .uitabs--pill    sections, filters, status  the active one filled
+     .uitabs--solid   a switch inside a toolbar  enclosed in a track
 
-   It used to borrow `.tabs`, which paints a 2px rule the full width of the
-   page — landing immediately above each page's own breadcrumb, so a reader met
-   two stacked navigation layers with a hard line between them and no sense of
-   which owned the page. A closed rail of pills says "sections of this module"
-   without drawing a rule across anything, and lets the page below start with
-   its own crumb and heading.
-
-   `.tabs` is left as it is: in-page tabs switch between views of ONE screen,
-   and the underline is right for that. Two jobs, two looks. */
-.modnav__wrap { padding: 20px 24px 0; max-width: 1400px; }
-.modnav {
-  display:       flex;
-  align-items:   center;
-  gap:           3px;
-  padding:       5px;
-  background:    var(--bg-card);
-  border:        1px solid var(--border);
-  border-radius: var(--radius-xl);
-  overflow-x:    auto;
-  overflow-y:    hidden;
+   Every kit that used to draw its own (.doctabs, .lvtabs, .atn-tabs, .fe-pills,
+   .tt-tabs, .pr-tabs, .modnav, .sdtabs, .tabs…) now renders this markup, so a
+   tab is the same size, the same weight and the same shape on every screen. */
+.uitabs {
+  display:         flex;
+  align-items:     center;
+  gap:             4px;
+  min-width:       0;
+  overflow-x:      auto;
+  overflow-y:      hidden;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
-/* No edge fade: a mask is unconditional, so on the short strips (Payroll has
-   four) it would wash out the first and last pill with nothing to scroll to.
-   The rail's own border clips a long strip visibly enough. */
-.modnav::-webkit-scrollbar { display: none; }
-.modnav__tab {
-  padding:       8px 14px;
-  border-radius: var(--radius-lg);
-  font-size:     .85rem;
-  font-weight:   500;
-  line-height:   1.2;
-  color:         var(--text-muted);
-  text-decoration: none;
-  white-space:   nowrap;
+.uitabs::-webkit-scrollbar { display: none; }
+
+.uitab {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
   flex-shrink:   0;
-  transition:    background var(--transition), color var(--transition);
+  padding:       9px 14px;
+  border:        1px solid transparent;
+  border-radius: 8px;
+  font-family:   var(--font);
+  font-size:     0.875rem;
+  font-weight:   500;
+  line-height:   1.3;
+  color:         var(--text-muted);
+  white-space:   nowrap;
+  text-decoration: none;
+  background:    none;
+  cursor:        pointer;
+  transition:    color var(--transition), background var(--transition),
+                 border-color var(--transition), box-shadow var(--transition);
 }
-.modnav__tab:hover { background: var(--bg); color: var(--text); }
-.modnav__tab.is-on {
-  background:  var(--primary);
-  color:       #fff;
-  font-weight: 600;
-}
-/* <Outlet/> renders the page as the bar's own sibling, so the page's 24px top
-   padding stacked on the bar's bottom gap and read as a dead band between the
-   two. Tightened here rather than on .page, which is used everywhere. */
-.modnav__wrap ~ .page,
-.modnav__wrap ~ .page-md,
-.modnav__wrap ~ .page-sm { padding-top: 16px; }
+.uitab > svg           { color: var(--text-light); flex-shrink: 0; transition: color var(--transition); }
+.uitab:hover           { color: var(--text); }
+.uitab:hover > svg     { color: var(--text-muted); }
+.uitab:focus-visible   { outline: 2px solid var(--primary); outline-offset: 2px; }
+.uitab.is-off          { opacity: .45; pointer-events: none; }
+.uitab.is-on           { color: var(--primary); font-weight: 600; }
+.uitab.is-on > svg     { color: currentColor; }
 
-@media (max-width: 768px) {
-  .modnav__wrap { padding: 14px 16px 0; }
-  .modnav__tab  { padding: 7px 12px; font-size: .82rem; }
+/* The count on a tab: how many rows are behind it. */
+.uitab__count {
+  display:       inline-flex;
+  align-items:   center;
+  justify-content: center;
+  min-width:     20px;
+  height:        19px;
+  padding:       0 6px;
+  border-radius: 99px;
+  background:    var(--border);
+  color:         var(--text-muted);
+  font-size:     .72rem;
+  font-weight:   600;
+  font-variant-numeric: tabular-nums;
 }
+.uitab.is-on .uitab__count { background: rgba(79, 70, 229, .14); color: var(--primary); }
+.uitab__count--good { background: #d1fae5; color: #065f46; }
+.uitab__count--warn { background: #fef3c7; color: #92400e; }
+.uitab__count--bad  { background: #fee2e2; color: #991b1b; }
 
-/* ── Breadcrumb ────────────────────────────────────────────────────────────── */
-.breadcrumb {
+/* ── line: views of one screen ─────────────────────────────────────────────── */
+.uitabs--line {
+  gap:           2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.uitabs--line .uitab {
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding:       10px 14px;
+}
+.uitabs--line .uitab:hover  { background: var(--bg); }
+.uitabs--line .uitab.is-on  { border-bottom-color: var(--primary); background: none; }
+
+/* ── pill: sections, filters, a status to narrow by ────────────────────────── */
+.uitabs--pill        { gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.uitabs--pill .uitab { border-color: var(--border); background: var(--bg-card); }
+.uitabs--pill .uitab:hover { border-color: var(--primary-light); color: var(--text); }
+.uitabs--pill .uitab.is-on {
+  background:   var(--primary);
+  border-color: var(--primary);
+  color:        #fff;
+  box-shadow:   0 1px 3px rgba(79, 70, 229, .3);
+}
+.uitabs--pill .uitab.is-on > svg          { color: #fff; }
+.uitabs--pill .uitab.is-on .uitab__count  { background: rgba(255, 255, 255, .25); color: #fff; }
+
+/* ── solid: a switch inside a toolbar ──────────────────────────────────────── */
+.uitabs--solid {
+  gap:           2px;
+  padding:       3px;
+  border-radius: 10px;
+  background:    var(--bg);
+  border:        1px solid var(--border);
+  flex-wrap:     nowrap;
+}
+.uitabs--solid .uitab       { padding: 6px 12px; border-radius: 7px; font-size: .82rem; }
+.uitabs--solid .uitab.is-on { background: var(--bg-card); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* Sitting in a toolbar or a card head, where the room below is not the
+   strip's to take. */
+.uitabs--flush { margin-bottom: 0; }
+
+/* A strip that is the top edge of a card: it has to pick up the card's own
+   side padding, and its rule has to reach both edges. */
+.uitabs--inset               { padding: 0 18px; margin-bottom: 0; }
+.uitabs--inset .uitab        { padding: 13px 12px 11px; }
+@media (max-width: 768px) { .uitabs--inset { padding: 0 12px; } }
+
+/* A strip inside a card header, where a full-size tab crowds the title. */
+.uitabs--sm .uitab { padding: 6px 10px; font-size: .8rem; gap: 5px; }
+.uitabs--sm.uitabs--line .uitab { padding: 8px 10px; }
+
+/* The strip and whatever shares its row — a search box, a year picker, the
+   screen's primary action. */
+.uitabrow {
   display:     flex;
   align-items: center;
-  gap:         6px;
-  font-size:   0.85rem;
-  color:       var(--text-muted);
-  margin-bottom: 16px;
+  gap:         14px;
   flex-wrap:   wrap;
+  min-width:   0;
 }
-.breadcrumb a       { color: var(--text-muted); text-decoration: none; }
-.breadcrumb a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
-/* The last span is where you are; the ones before it are the › separators, and
-   painting those in full-strength text made the trail read as three headings. */
-.breadcrumb span                 { color: var(--text-light); font-weight: 400; }
-.breadcrumb span:last-child      { color: var(--text); font-weight: 600; }
+.uitabrow > .uitabs      { flex: 1 1 auto; }
+.uitabrow__side          { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
+.uitabrow--end > .uitabs { flex: 0 1 auto; margin-left: auto; }
+/* A line strip in a row keeps its rule under the whole row, not under itself. */
+.uitabrow > .uitabs--line { margin-bottom: 0; }
+.uitabrow:has(.uitabs--line) { border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.uitabrow:has(.uitabs--line) > .uitabs--line { border-bottom: none; }
+
+@media (max-width: 768px) {
+  .uitab            { padding: 8px 11px; font-size: .82rem; gap: 6px; }
+  .uitabs--line .uitab { padding: 9px 11px; }
+  .uitabs--pill     { flex-wrap: nowrap; }
+  .uitabrow         { gap: 10px; }
+  .uitabrow__side   { width: 100%; margin-left: 0; }
+}
+
+/* ── Tabs (legacy) ─────────────────────────────────────────────────────────── */
+/* ── Module section bar ──────────────────────────────────────────────────────
+   Where the rail of a module's sections sits (Fees, Library, Employee
+   Directory…). The strip inside it is the app's one tab component in its pill
+   form — the rail used to have a look of its own, which is how a module's
+   sections ended up looking unlike every other set of tabs in the app.
+
+   <Outlet/> renders the page as this bar's sibling, so the page's own 24px of
+   top padding stacked on the bar's bottom gap and read as a dead band between
+   the two. Tightened here rather than on .page, which is used everywhere. */
+.modnav__wrap { padding: 4px 24px 0; max-width: 1400px; }
+.modnav__wrap ~ .page,
+.modnav__wrap ~ .page-md,
+.modnav__wrap ~ .page-sm { padding-top: 12px; }
+
+@media (max-width: 768px) {
+  .modnav__wrap { padding: 4px 16px 0; }
+}
+
+/* ── Breadcrumb ──────────────────────────────────────────────────────────────
+   ONE crumb for the whole app, drawn by AppLayout above every page, never by
+   a page itself (components/layout/Breadcrumb.jsx). It always reads
+   Home › Module › Section › Page, and it is always in the same place: the top
+   of the scroll area, aligned with the page's own left edge.
+
+   The legacy per-page classes below it are kept only to silence any crumb a
+   page still draws for itself — two trails stacked is worse than one. */
+.crumbs {
+  padding: 20px 24px 0;
+  max-width: 1400px;
+}
+.crumbs ol {
+  display:     flex;
+  align-items: center;
+  flex-wrap:   wrap;
+  gap:         2px;
+  list-style:  none;
+  margin:      0;
+  padding:     0;
+  font-size:   0.82rem;
+  line-height: 1.4;
+}
+.crumbs li { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.crumbs li > svg { color: var(--text-light); flex-shrink: 0; }
+.crumbs a {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       3px 7px;
+  border-radius: 6px;
+  color:         var(--text-muted);
+  font-weight:   500;
+  text-decoration: none;
+  white-space:   nowrap;
+  transition:    background var(--transition), color var(--transition);
+}
+.crumbs a:hover  { background: rgba(79, 70, 229, .08); color: var(--primary); }
+.crumbs a > svg  { color: inherit; }
+/* A step in the middle with nowhere to go — a section that is not itself a
+   page. Stated quietly, so it does not read as where you are. */
+.crumbs li span { padding: 3px 7px; color: var(--text-muted); }
+/* Where you are: stated, not offered. */
+.crumbs [aria-current="page"] {
+  padding:   3px 7px;
+  color:     var(--text);
+  font-weight: 600;
+  overflow:  hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40ch;
+}
+/* The crumb already leaves room above the page; the page's own top padding on
+   top of it pushes the heading too far down the screen. */
+.crumbs + .page,
+.crumbs + .page-md,
+.crumbs + .page-sm,
+.crumbs + .modnav__wrap { padding-top: 12px; }
+
+@media (max-width: 768px) {
+  .crumbs { padding: 14px 16px 0; }
+  .crumbs ol { font-size: .78rem; }
+  /* On a phone the middle of a long trail is the first thing to give: where
+     you are and the way back one step are what get used. */
+  .crumbs li:not(:first-child):not(:last-child):not(:nth-last-child(2)) { display: none; }
+}
+
+/* Legacy crumb classes — every call site now registers with the layout's crumb
+   instead of drawing its own. Hidden rather than deleted so a page that is
+   added later by copying an old one cannot quietly bring back a second trail. */
+.breadcrumb, .fbcrumb, .pr-crumbs, .fv-crumbs { display: none !important; }
 
 /* ── Progress ──────────────────────────────────────────────────────────────── */
 .progress-bar {
@@ -3217,7 +3350,6 @@ a.stile:hover {
 
 .page.listpg { display: flex; flex-direction: column; gap: 18px; }
 /* The frame already spaces its children; the crumb's own margin would double it. */
-.page.listpg .breadcrumb { margin-bottom: -4px; }
 
 /* ── Header ────────────────────────────────────────────────────────────────
    Three parts on one row: what the page is, a drawing that idles in the middle,
@@ -3668,29 +3800,6 @@ button.lstat:hover, a.lstat:hover {
    thinks about the list ("what is switched off?"), and the counts answer the
    question before the tab is even pressed. Everything else stays in the
    toolbar below. */
-.ltabs {
-  display:       flex;
-  gap:           2px;
-  padding:       0 18px;
-  border-bottom: 1px solid var(--border);
-  overflow-x:    auto;
-  scrollbar-width: none;
-}
-.ltabs::-webkit-scrollbar { display: none; }
-.ltab {
-  padding:       14px 14px 12px;
-  font-size:     .85rem;
-  font-weight:   600;
-  color:         var(--text-muted);
-  white-space:   nowrap;
-  background:    none;
-  border:        none;
-  border-bottom: 2px solid transparent;
-  cursor:        pointer;
-  transition:    color var(--transition), border-color var(--transition);
-}
-.ltab:hover  { color: var(--primary); }
-.ltab.is-on  { color: var(--primary); border-bottom-color: var(--primary); }
 
 /* A dropdown sitting inline in the toolbar rather than in the filter panel.
    This page has two, and both fit — the panel exists for the account lists,
@@ -3950,7 +4059,6 @@ button.lstat:hover, a.lstat:hover {
   .laccd { padding: 4px 12px 12px; }
 }
 @media (max-width: 768px) {
-  .ltabs { padding: 0 14px; }
   .ltools .lsel { flex: 1 1 160px; width: auto; }
   .dgrid { grid-template-columns: 1fr; }
   .drow  { flex-wrap: wrap; }
@@ -3967,7 +4075,6 @@ button.lstat:hover, a.lstat:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .page.edo { display: flex; flex-direction: column; gap: 18px; }
-.page.edo .breadcrumb { margin-bottom: -4px; }
 
 /* ── Header ────────────────────────────────────────────────────────────────
    What the page is, why it matters, and which year it is reporting. The quote
@@ -4220,7 +4327,6 @@ button.lstat:hover, a.lstat:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .page.edl { display: flex; flex-direction: column; gap: 16px; }
-.page.edl .breadcrumb { margin-bottom: -2px; }
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
 .edl-top {
@@ -4760,9 +4866,10 @@ button.lstat:hover, a.lstat:hover {
    meter inside a tile, the shuffle state — lives here.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* The crumb row, with the way back out of it. */
-.sectop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.page.listpg .sectop .breadcrumb { margin-bottom: 0; }
+/* The row holding the way back out of this screen. It used to hold the crumb
+   as well, on the left, with the actions pushed to the right; the crumb is the
+   layout's now, so the actions keep the right on their own. */
+.sectop { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 
 /* ── The seat meter inside a stat tile ─────────────────────────────────────
    Occupancy is a percentage, and a percentage on its own is hard to feel. All
@@ -6767,7 +6874,6 @@ button.lstat:hover, a.lstat:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .page.eppg { display: flex; flex-direction: column; gap: 18px; }
-.page.eppg .breadcrumb { margin-bottom: -4px; }
 
 /* ── The identity band ─────────────────────────────────────────────────────
    Who, what they do, whether the account is live — and the actions beside it
@@ -6846,36 +6952,6 @@ button.lstat:hover, a.lstat:hover {
 /* ── The tab strip ─────────────────────────────────────────────────────────
    Fourteen tabs wrap onto two rows and the page jumps a line whenever one is
    picked, so this scrolls instead. */
-.eptabs {
-  display:       flex;
-  gap:           4px;
-  overflow-x:    auto;
-  scrollbar-width: none;
-  background:    var(--bg-card);
-  border:        1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding:       6px;
-}
-.eptabs::-webkit-scrollbar { display: none; }
-.eptab {
-  display:     inline-flex;
-  align-items: center;
-  gap:         7px;
-  padding:     9px 14px;
-  border:      none;
-  border-radius: var(--radius);
-  background:  none;
-  font:        inherit;
-  font-size:   .84rem;
-  font-weight: 600;
-  color:       var(--text-muted);
-  white-space: nowrap;
-  cursor:      pointer;
-  transition:  background var(--transition), color var(--transition);
-}
-.eptab:hover  { background: var(--bg); color: var(--primary); }
-.eptab.is-on  { background: var(--primary); color: var(--text-on-primary); }
-.eptab svg    { flex-shrink: 0; }
 
 /* ── The overview ──────────────────────────────────────────────────────────── */
 .epgrid {
@@ -6984,36 +7060,6 @@ button.lstat:hover, a.lstat:hover {
 /* ── The catalogue ─────────────────────────────────────────────────────────
    Ten tabs wrap onto two rows and the page jumps a line whenever one is
    picked, so this scrolls instead. */
-.edrtabs {
-  display:       flex;
-  gap:           4px;
-  overflow-x:    auto;
-  scrollbar-width: none;
-  background:    var(--bg-card);
-  border:        1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding:       6px;
-}
-.edrtabs::-webkit-scrollbar { display: none; }
-.edrtab {
-  display:     inline-flex;
-  align-items: center;
-  gap:         7px;
-  padding:     9px 14px;
-  border:      none;
-  border-radius: var(--radius);
-  background:  none;
-  font:        inherit;
-  font-size:   .84rem;
-  font-weight: 600;
-  color:       var(--text-muted);
-  white-space: nowrap;
-  cursor:      pointer;
-  transition:  background var(--transition), color var(--transition);
-}
-.edrtab:hover { background: var(--bg); color: var(--primary); }
-.edrtab.is-on { background: var(--primary); color: var(--text-on-primary); }
-.edrtab svg   { flex-shrink: 0; }
 
 /* ── What this report is ───────────────────────────────────────────────────── */
 .edrhead {
@@ -7084,7 +7130,6 @@ button.lstat:hover, a.lstat:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .page.anpg { display: flex; flex-direction: column; gap: 18px; }
-.page.anpg .breadcrumb { margin-bottom: -4px; }
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
 .anhero {
@@ -7310,8 +7355,7 @@ button.lstat:hover, a.lstat:hover {
 
 .page.sdpg { display: flex; flex-direction: column; gap: 16px; }
 
-.sdtop { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-.sdtop .breadcrumb { margin: 0; }
+.sdtop { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
 .sdtop__actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── Who this is ───────────────────────────────────────────────────────────── */
@@ -7373,21 +7417,6 @@ button.lstat:hover, a.lstat:hover {
 /* ── The tab strip ─────────────────────────────────────────────────────────
    Scrolls rather than wrapping onto three rows: twelve modules is a lot of
    labels, and a wrapped strip pushes the content off the first screen. */
-.sdtabs {
-  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 5px;
-}
-.sdtabs::-webkit-scrollbar { display: none; }
-.sdtab {
-  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
-  padding: 9px 14px; border: none; border-radius: 9px;
-  background: none; color: var(--text-muted); cursor: pointer;
-  font-size: .84rem; font-weight: 600; white-space: nowrap;
-}
-.sdtab:hover  { background: var(--bg); color: var(--text); }
-.sdtab.is-on  { background: #eef2ff; color: var(--primary); }
-.sdtab svg    { opacity: .8; }
 
 /* ── Tab bodies ────────────────────────────────────────────────────────────── */
 .sdbody { display: flex; flex-direction: column; gap: 16px; }
@@ -7679,8 +7708,6 @@ button.lstat:hover, a.lstat:hover {
 .holside { display: flex; flex-direction: column; gap: 16px; }
 
 /* A second row of tabs under the Mine/All switch: status, not data set. */
-.ltabs--sub { border-top: 1px solid var(--border); }
-.ltabs--sub .ltab { font-size: .8rem; }
 
 /* ── Cells ─────────────────────────────────────────────────────────────────── */
 .holname b     { display: block; font-size: .88rem; font-weight: 600; }
@@ -8563,25 +8590,7 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   padding: 12px 16px; border-bottom: 1px solid var(--border);
 }
 .libr-bar__acts { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
-
-.libr-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.libr-tab {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 12px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--bg-card);
-  color: var(--text-muted); cursor: pointer;
-  font-size: .78rem; font-weight: 600; white-space: nowrap;
-}
-.libr-tab i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.libr-tab b { font-weight: 700; color: var(--text); }
-.libr-tab:hover  { border-color: var(--primary); }
-.libr-tab.is-on  { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
 /* The dot is the state's colour; the label beside it is what actually names it. */
-.libr-tab.is-ok   i { color: #059669; }
-.libr-tab.is-warn i { color: #d97706; }
-.libr-tab.is-info i { color: #0284c7; }
-.libr-tab.is-bad  i { color: #dc2626; }
-.libr-tab.is-mute i { color: #94a3b8; }
 
 /* ── Cells ─────────────────────────────────────────────────────────────────── */
 .libr-book { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -9360,10 +9369,9 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .page.libbdpg { display: flex; flex-direction: column; gap: 16px; }
 
 .libbd-top {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: flex-end;
   gap: 12px; flex-wrap: wrap;
 }
-.libbd-top .breadcrumb { margin: 0; }
 
 /* ── The header ────────────────────────────────────────────────────────────── */
 .libbd-hero { display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap; padding: 2px 0; }
@@ -9447,25 +9455,6 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libbd-side__acts .btn { flex: 1; justify-content: center; }
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────── */
-.libbd-tabs {
-  display: flex; gap: 4px; flex-wrap: wrap;
-  padding: 5px; background: var(--bg-card);
-  border: 1px solid var(--border); border-radius: var(--radius-xl);
-}
-.libbd-tab {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 8px 14px; border: none; border-radius: var(--radius-lg);
-  background: none; color: var(--text-muted); cursor: pointer;
-  font-size: .85rem; font-weight: 600;
-}
-.libbd-tab:hover  { background: var(--bg); color: var(--text); }
-.libbd-tab.is-on  { background: var(--primary); color: #fff; }
-.libbd-tab b {
-  padding: 1px 7px; border-radius: 999px;
-  background: var(--bg); color: var(--text-muted);
-  font-size: .72rem; font-variant-numeric: tabular-nums;
-}
-.libbd-tab.is-on b { background: rgba(255, 255, 255, .22); color: #fff; }
 
 /* ── Panels ────────────────────────────────────────────────────────────────── */
 .libbd-panel__head {
@@ -10020,24 +10009,6 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 /* ── The two tabs ──────────────────────────────────────────────────────────── */
 /* Underlined rather than pilled: these are two views of one page, not two
    destinations. */
-.holtch-tabs {
-  display: flex; gap: 8px; margin-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-}
-.holtch-tabs button {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 11px 4px; margin-bottom: -1px;
-  border: none; border-bottom: 2px solid transparent; background: none;
-  color: var(--text-muted); cursor: pointer; font-size: .9rem; font-weight: 600;
-}
-.holtch-tabs button + button { margin-left: 18px; }
-.holtch-tabs button:hover { color: var(--text); }
-.holtch-tabs button.is-on { color: var(--primary); border-bottom-color: var(--primary); }
-.holtch-tabs b {
-  padding: 1px 8px; border-radius: 999px;
-  background: #eef2ff; color: var(--primary);
-  font-size: .72rem; font-variant-numeric: tabular-nums;
-}
 
 /* ── My holidays ───────────────────────────────────────────────────────────── */
 .holtch-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -10100,7 +10071,6 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .holtch-head__icon { width: 46px; height: 46px; border-radius: 14px; }
 }
 @media (max-width: 768px) {
-  .holtch-tabs button { flex: 1; justify-content: center; padding: 9px 10px; }
   .holtch-filters select,
   .holtch-range,
   .holtch-search { flex: 1 1 100%; width: 100%; max-width: none; }
@@ -11439,39 +11409,6 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 /* ── Tabs ──────────────────────────────────────────────────────────────────
    The module's sections as pills in their own card. The active one is filled,
    because at seven tabs an underline is too quiet to find. */
-.lvtabs {
-  display:       flex;
-  gap:           4px;
-  background:    var(--bg-card);
-  border:        1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding:       8px;
-  overflow-x:    auto;
-  scrollbar-width: none;
-}
-.lvtabs::-webkit-scrollbar { display: none; }
-.lvtab {
-  display:       inline-flex;
-  align-items:   center;
-  gap:           8px;
-  flex-shrink:   0;
-  padding:       11px 16px;
-  border:        none;
-  border-radius: var(--radius-lg);
-  background:    none;
-  font-size:     .87rem;
-  font-weight:   600;
-  color:         var(--text-muted);
-  white-space:   nowrap;
-  cursor:        pointer;
-  transition:    background var(--transition), color var(--transition);
-}
-.lvtab > svg { color: var(--text-light); transition: color var(--transition); }
-.lvtab:hover          { background: var(--bg); color: var(--text); }
-.lvtab:hover > svg    { color: var(--text-muted); }
-.lvtab.is-on          { background: var(--primary); color: #fff; }
-.lvtab.is-on > svg    { color: #fff; }
-.lvtab.is-on:hover    { background: var(--primary); color: #fff; }
 
 /* ── The card ──────────────────────────────────────────────────────────── */
 .lvcard { overflow: visible; }
@@ -11908,9 +11845,11 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   border-bottom: 1px solid var(--border);
   padding-bottom: 0;
 }
-/* The strip carries the underline itself; the row's border would double it. */
-.lvtabrow .lvsubtabs { border-bottom: none; margin-bottom: -1px; }
 .lvtabrow .btn { margin-bottom: 10px; }
+
+/* The card whose top edge is a strip of sub-views. */
+.lvsubtabcard { padding: 0 8px; }
+@media (max-width: 768px) { .lvsubtabcard { padding: 0; } }
 
 /* Pushes whatever follows it to the right of the filter row. */
 .lvfilters__sep { flex: 1 1 auto; }
@@ -12300,34 +12239,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 /* ═══ COMP OFF ══════════════════════════════════════════════════════════════ */
 
 .lvcompoff { display: flex; flex-direction: column; gap: 20px; }
-.lvsubtabcard { padding: 0 8px; }
 
 /* Underlined, not filled: the module's sections are the pill row above, and
    one section's own views must not read as the same level of navigation. */
-.lvsubtabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
-.lvsubtabs::-webkit-scrollbar { display: none; }
-.lvsubtab {
-  display:       inline-flex;
-  align-items:   center;
-  gap:           8px;
-  flex-shrink:   0;
-  padding:       15px 14px 13px;
-  border:        none;
-  border-bottom: 2px solid transparent;
-  background:    none;
-  font:          inherit;
-  font-size:     .87rem;
-  font-weight:   600;
-  color:         var(--text-muted);
-  white-space:   nowrap;
-  cursor:        pointer;
-  transition:    color var(--transition), border-color var(--transition);
-}
-.lvsubtab > svg { color: var(--text-light); transition: color var(--transition); }
-.lvsubtab:hover       { color: var(--text); }
-.lvsubtab:hover > svg { color: var(--text-muted); }
-.lvsubtab.is-on       { color: var(--primary); border-bottom-color: var(--primary); }
-.lvsubtab.is-on > svg { color: var(--primary); }
 
 /* The ticked rows and what may be done to them. Only ever appears with a
    selection, and always says the count — a bulk action that does not tell you
@@ -12374,8 +12288,6 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 768px) {
-  .lvsubtabcard { padding: 0; }
-  .lvsubtabs { padding: 0 8px; }
   .lvselbar { margin-left: 16px; margin-right: 16px; }
 }
 
@@ -12904,38 +12816,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 /* ── Tabs ──────────────────────────────────────────────────────────────────
    On the page rather than inside the card: they choose which mailbox the card
    is showing, and the actions beside them apply to that choice. */
-.nftabs {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-}
-.nftabs__set {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  padding: 5px; background: var(--bg-card);
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-}
 .nftabs__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
-
-.nftab {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 16px; border-radius: 9px;
-  border: 1px solid transparent; background: none;
-  font-size: .86rem; font-weight: 600; color: var(--text-muted);
-  cursor: pointer; white-space: nowrap;
-  transition: background var(--transition), color var(--transition), border-color var(--transition);
-}
-.nftab svg   { color: currentColor; flex-shrink: 0; }
-.nftab:hover { color: var(--primary); background: var(--bg); }
-.nftab.is-on { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
-
-.nftab__n {
-  min-width: 21px; padding: 1px 7px; border-radius: 999px;
-  background: var(--bg); color: var(--text-muted);
-  font-size: .72rem; font-weight: 700; text-align: center;
-}
 /* The unread count is the one number on this strip that is asking for
    something, so it is the one that is filled in. */
-.nftab__n--accent { background: var(--primary); color: #fff; }
-.nftab.is-on .nftab__n { background: #fff; color: var(--primary); }
-.nftab.is-on .nftab__n--accent { background: var(--primary); color: #fff; }
 
 /* ── The list ──────────────────────────────────────────────────────────────── */
 .nfloading { display: flex; justify-content: center; padding: 64px; }
@@ -13214,9 +13097,6 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .nfbulk { padding: 10px 14px; }
   /* The three boxes share one line across the full width. Left to wrap,
      "Archived" dropped under "Inbox" inside the strip's own border. */
-  .nftabs__set { width: 100%; flex-wrap: nowrap; gap: 4px; }
-  .nftab { flex: 1 1 0; min-width: 0; justify-content: center; gap: 6px; padding: 9px 6px; font-size: .84rem; }
-  .nftab__n { min-width: 0; padding: 1px 6px; }
   /* Five actions do not fit beside "2 selected" on a phone; in the bar they
      wrapped to three lines and shoved the list 75px down under the thumb that
      had just ticked a row. They sit in a tray at the foot of the screen
@@ -13239,7 +13119,6 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 /* The smallest phones: the three tab words and their counts need the icons'
    width. Each tab still says what it is in words. */
 @media (max-width: 400px) {
-  .nftab svg { display: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -13258,7 +13137,6 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 
 .page.docpg { display: flex; flex-direction: column; gap: 18px; }
 /* The frame already spaces its children; the crumb's own margin would double it. */
-.page.docpg .breadcrumb { margin-bottom: -4px; }
 
 /* ── Header ────────────────────────────────────────────────────────────────
    A mark, the title and the line under it, and the single action opposite. */
@@ -13333,29 +13211,6 @@ button.docstat:hover {
    Kind, not state: what a document IS. The archive is a state and only earns a
    tab once something is actually in it. */
 .docpanel { display: flex; flex-direction: column; }
-.doctabs {
-  display:       flex;
-  gap:           4px;
-  padding:       0 18px;
-  border-bottom: 1px solid var(--border);
-  overflow-x:    auto;
-  scrollbar-width: none;
-}
-.doctabs::-webkit-scrollbar { display: none; }
-.doctab {
-  padding:       15px 12px 13px;
-  font-size:     .875rem;
-  font-weight:   600;
-  color:         var(--text-muted);
-  white-space:   nowrap;
-  background:    none;
-  border:        none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition:    color var(--transition), border-color var(--transition);
-}
-.doctab:hover { color: var(--primary); }
-.doctab.is-on { color: var(--primary); border-bottom-color: var(--primary); }
 
 /* ── Filter bar ────────────────────────────────────────────────────────────
    Search takes the space; the three dropdowns, sort and the view switch keep
@@ -13742,7 +13597,7 @@ button.docstat:hover {
   .docstat { padding: 14px; gap: 12px; }
   .docstat__icon  { width: 40px; height: 40px; border-radius: 11px; }
   .docstat__value { font-size: 1.4rem; }
-  .doctabs, .doctools { padding-left: 14px; padding-right: 14px; }
+  .doctools { padding-left: 14px; padding-right: 14px; }
   .docsearch { flex-basis: 100%; }
   .docgrid { padding: 14px; grid-template-columns: 1fr; }
   .docfoot { padding: 14px; }
@@ -13775,7 +13630,6 @@ button.docstat:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .page.addetail { display: flex; flex-direction: column; gap: 18px; }
-.page.addetail .breadcrumb { margin-bottom: -4px; }
 
 /* ── Header ────────────────────────────────────────────────────────────────
    Title, facts and tabs in one card, so the four tabs read as faces of one
@@ -13830,21 +13684,6 @@ button.docstat:hover {
 .admeta__label { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
 .admeta__value { font-size: .88rem; font-weight: 600; line-height: 1.35; }
 .admeta__sub   { font-size: .72rem; color: var(--text-muted); }
-
-.adtabs {
-  display: flex; gap: 4px; padding: 0 18px;
-  border-top: 1px solid var(--border);
-  overflow-x: auto; scrollbar-width: none;
-}
-.adtabs::-webkit-scrollbar { display: none; }
-.adtab {
-  padding: 14px 12px 12px;
-  font-size: .875rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;
-  background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
-  transition: color var(--transition), border-color var(--transition);
-}
-.adtab:hover { color: var(--primary); }
-.adtab.is-on { color: var(--primary); border-bottom-color: var(--primary); }
 
 /* ── Pills ─────────────────────────────────────────────────────────────────── */
 .adpill {
@@ -14147,14 +13986,6 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adside__who strong { display: block; font-size: .9rem; font-weight: 700; }
 .adside__who small  { display: block; font-size: .75rem; color: var(--text-muted); }
 .adside__who > div  { flex: 1; min-width: 0; }
-
-.adside__tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--border); }
-.adside__tab {
-  padding: 11px 10px 9px; font-size: .82rem; font-weight: 600;
-  color: var(--text-muted); background: none; border: none;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-.adside__tab.is-on { color: var(--primary); border-bottom-color: var(--primary); }
 .adside__body { padding: 16px; max-height: 620px; overflow-y: auto; }
 .adside__none {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
@@ -14397,7 +14228,6 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .adhero__acts .btn { flex: 1; justify-content: center; }
   .admeta { padding: 0 16px; }
   .admeta__cell { border-right: none; margin-right: 0; padding: 11px 16px 11px 0; }
-  .adtabs { padding: 0 14px; }
   .adtiles { grid-template-columns: 1fr; gap: 12px; }
   .adpanel { padding: 14px; }
   .adtools { width: 100%; }
@@ -14505,38 +14335,6 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 
 /* The teacher's reading/managing split — above the kind tabs, because it is a
    bigger question than what kind of document this is. */
-.dvscope { display: flex; gap: 6px; padding: 14px 16px 0; }
-.dvscope__btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 14px; border-radius: 99px;
-  border: 1px solid var(--border); background: var(--bg-card);
-  font-size: .85rem; font-weight: 600; color: var(--text-muted);
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-.dvscope__btn:hover  { border-color: #c7d2fe; color: var(--primary); }
-.dvscope__btn.is-on  { background: var(--primary); border-color: var(--primary); color: #fff; }
-.dvscope__btn b      { font-weight: 700; opacity: .75; }
-
-.dvtabs {
-  display: flex; gap: 4px; padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto; scrollbar-width: none;
-}
-.dvtabs::-webkit-scrollbar { display: none; }
-.dvtab {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 14px 12px 12px; margin-bottom: -1px;
-  font-size: .87rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;
-  background: none; border: none; border-bottom: 2px solid transparent;
-  transition: color var(--transition), border-color var(--transition);
-}
-.dvtab:hover { color: var(--primary); }
-.dvtab.is-on { color: var(--primary); border-bottom-color: var(--primary); }
-.dvtab b {
-  font-size: .72rem; font-weight: 700;
-  background: var(--bg); border-radius: 6px; padding: 1px 6px; color: var(--text-muted);
-}
-.dvtab.is-on b { background: #eef2ff; color: var(--primary); }
 
 .dvtools {
   display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
@@ -14762,7 +14560,6 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .dvstats { gap: 12px; }
   .dvwho { grid-template-columns: 1fr; }
   .dvtabs, .dvtools { padding-left: 13px; padding-right: 13px; }
-  .dvscope { padding: 13px 13px 0; }
   .dvsearch { flex-basis: 100%; }
   .dvsel { flex: 1 1 140px; max-width: none; }
   .dvcard { padding: 13px; }
@@ -15699,24 +15496,6 @@ button.fbstat:hover { border-color: rgba(79,70,229,.35); }
 .fbtcard__m dd { font-size: .84rem; font-weight: 600; margin: 3px 0 0; }
 
 /* The detail page's own tab strip, inside its card. */
-.fbsubtabs {
-  display: flex; align-items: center; gap: 4px; padding: 10px 14px 0;
-  border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none;
-}
-.fbsubtabs::-webkit-scrollbar { display: none; }
-.fbsubtabs button {
-  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
-  padding: 10px 14px; border: none; background: none; cursor: pointer; font-family: inherit;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-  font-size: .85rem; font-weight: 600; color: var(--text-muted);
-}
-.fbsubtabs button:hover  { color: var(--primary); }
-.fbsubtabs button.is-on  { color: var(--primary); border-bottom-color: var(--primary); }
-.fbsubtabs em {
-  font-style: normal; padding: 1px 7px; border-radius: 999px;
-  background: var(--bg); font-size: .7rem; font-weight: 700;
-}
-.fbsubtabs button.is-on em { background: #eef2ff; color: var(--primary); }
 .fbtabbody { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
 .fbtabbody .fbgrid { gap: 16px; }
 
@@ -17137,21 +16916,6 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 }
 .form-control.is-invalid { border-color: var(--danger); }
 
-.apxtabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
-.apxtabs::-webkit-scrollbar { display: none; }
-.apxtabs__tab {
-  display: inline-flex; align-items: center; gap: 7px; padding: 13px 14px 11px; white-space: nowrap;
-  font-size: .88rem; font-weight: 600; color: var(--text-muted);
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-.apxtabs__tab:hover { color: var(--primary); }
-.apxtabs__tab.is-on { color: var(--primary); border-bottom-color: var(--primary); }
-.apxtabs__badge {
-  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; font-size: .7rem; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center; background: #eef2ff; color: var(--primary);
-}
-.apxtabs__tab.is-on .apxtabs__badge { background: var(--primary); color: #fff; }
-
 .apxpills { display: flex; flex-wrap: wrap; gap: 6px; }
 .apxpills__pill {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px;
@@ -17387,7 +17151,6 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .apxws__id p { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: .86rem; color: var(--text-muted); }
 .apxws__id p .apxtag { margin-left: 0; }
 .apxws__acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.apxws .apxtabs { padding: 0 12px; }
 .apxws .apxfacts { border-bottom: 1px solid var(--border); }
 
 /* ── Teacher: attention list & overview ─────────────────────────────────── */
@@ -17871,24 +17634,6 @@ button.atn-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm
 .atn-link__label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
-.atn-tabrow {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-}
-.atn-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
-.atn-tabs::-webkit-scrollbar { display: none; }
-.atn-tab {
-  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
-  padding: 12px 18px; margin-bottom: -1px; border-bottom: 2px solid transparent;
-  font-size: .92rem; font-weight: 500; color: var(--text-muted);
-}
-.atn-tab:hover { color: var(--text); }
-.atn-tab.is-on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
-.atn-tab__count {
-  padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: #92400e;
-  font-size: .72rem; font-weight: 700;
-}
-.atn-tabrow__side { padding-bottom: 8px; }
 /* Beside the tabs: an admin who also teaches is pointed at their teacher post. */
 .atn-tabnote {
   display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
@@ -18170,11 +17915,6 @@ button.atn-act:hover { background: #f8fafc; }
 .atn-rules li { font-size: .84rem; color: #334155; line-height: 1.5; margin-bottom: 8px; }
 
 /* ── Requests ────────────────────────────────────────────────────────────── */
-.atn-pilltabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: #f1f5f9; }
-.atn-pilltabs button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: .83rem; font-weight: 500; color: #475569; }
-.atn-pilltabs button span { padding: 0 7px; border-radius: 999px; background: var(--bg-card); font-size: .72rem; font-weight: 700; }
-.atn-pilltabs button.is-on { background: var(--bg-card); color: var(--primary); box-shadow: var(--shadow-sm); }
-.atn-pilltabs button.is-on span { background: #eef2ff; }
 .atn-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 14px; }
 .atn-filters .lvrange { height: 42px; }
 .atn-decide { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid; font-size: .8rem; font-weight: 600; }
@@ -18263,7 +18003,6 @@ button.atn-act:hover { background: #f8fafc; }
   .atn-head__acts { grid-column: 1 / -1; justify-content: flex-start; }
 }
 @container atn (max-width: 760px) {
-  .atn-tabrow__side { padding: 8px 0; }
 }
 @media (max-width: 640px) {
   .atn-regpick, .atn-choices { grid-template-columns: minmax(0, 1fr); }
@@ -18325,30 +18064,6 @@ button.atn-act:hover { background: #f8fafc; }
 .tat-body--rail-lg { grid-template-columns: minmax(0, 1fr) 372px; }
 .tat-main, .tat-rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .tat-body--rail-low .tat-rail { margin-top: 62px; }
-
-.tat-tabs { display: flex; overflow-x: auto; scrollbar-width: none; }
-.tat-tabs::-webkit-scrollbar { display: none; }
-.tat-tab {
-  display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; background: none;
-  font: inherit; font-size: .95rem; font-weight: 500; color: #475569;
-}
-.tat-tab svg { color: #64748b; }
-.tat-tab__count { padding: 1px 7px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-size: .72rem; font-weight: 700; }
-
-.tat-tabs--underline { height: 46px; gap: 8px; border-bottom: 1px solid var(--tat-line); }
-.tat-tabs--underline .tat-tab { padding: 0 16px; margin-bottom: -1px; border-bottom: 2px solid transparent; }
-.tat-tabs--underline .tat-tab:hover { color: var(--tat-text); }
-.tat-tabs--underline .tat-tab.is-on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
-.tat-tabs--underline .tat-tab.is-on svg { color: var(--primary); }
-
-.tat-tabs--pills {
-  align-self: flex-start; max-width: 100%; height: 46px; padding: 2px; gap: 6px;
-  border: 1px solid var(--tat-line); border-radius: 10px; background: #fff;
-}
-.tat-tabs--pills .tat-tab { height: 40px; padding: 0 22px; border-radius: 8px; }
-.tat-tabs--pills .tat-tab:hover:not(.is-on) { background: #f5f6fb; }
-.tat-tabs--pills .tat-tab.is-on { background: var(--primary); color: #fff; font-weight: 600; box-shadow: 0 2px 6px rgba(79,70,229,.25); }
-.tat-tabs--pills .tat-tab.is-on svg { color: #fff; }
 
 /* ── Buttons & controls ──────────────────────────────────────────────────── */
 .tat-btn {
@@ -19721,45 +19436,6 @@ button.ttg-slot:hover { border-color: #c7d2fe; background: #eef2ff; color: #3730
    Inside a screen, a tab switches views of the same subject, so it is an
    underline rather than the filled pill the module bar uses — two filled pill
    rows stacked read as one confused nav. */
-.tt-tabs {
-  display:       flex;
-  gap:           2px;
-  align-items:   stretch;
-  background:    var(--bg-card);
-  border:        1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding:       0 10px;
-  overflow-x:    auto;
-  scrollbar-width: none;
-}
-.tt-tabs::-webkit-scrollbar { display: none; }
-.tt-tab {
-  display:     inline-flex;
-  align-items: center;
-  gap:         8px;
-  flex-shrink: 0;
-  padding:     16px 18px;
-  border:      none;
-  border-bottom: 3px solid transparent;
-  background:  none;
-  font-size:   .88rem;
-  font-weight: 600;
-  color:       var(--text-muted);
-  white-space: nowrap;
-  cursor:      pointer;
-  transition:  color var(--transition), border-color var(--transition);
-}
-.tt-tab > svg      { color: var(--text-light); transition: color var(--transition); }
-.tt-tab:hover      { color: var(--text); }
-.tt-tab:hover > svg{ color: var(--text-muted); }
-.tt-tab.is-on      { color: var(--primary); border-bottom-color: var(--primary); }
-.tt-tab.is-on > svg{ color: var(--primary); }
-.tt-tab__count {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px;
-  background: var(--bg); color: var(--text-muted); font-size: .72rem; font-weight: 700;
-}
-.tt-tab.is-on .tt-tab__count { background: #eef2ff; color: var(--primary); }
 
 /* Segmented control — Weekly / Day, All classes / Selected, Available /
    Unavailable / All. A choice between renderings of one thing, so it is filled
@@ -20452,3 +20128,12 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .tt-now__body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .tt-dayrow__time { width: auto; }
 }
+
+
+/* ── Retired tab kits ────────────────────────────────────────────────────────
+   Sixteen strips used to be drawn by hand — `.tabs`, `.doctabs`, `.lvtabs`,
+   `.atn-tabs`, `.ltabs`, `.fe-pills`, `.tt-tabs`, `.pr-tabs`, `.sdtabs`,
+   `.modnav` and the rest. Every one of them renders components/ui/Tabs.jsx
+   now. Their rules are gone; these two lines stand in their place so that a
+   page copied from an old one shows up wrong immediately rather than quietly
+   bringing back a seventeenth look. */

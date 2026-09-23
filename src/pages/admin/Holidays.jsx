@@ -22,8 +22,7 @@ import { Alert, Button, Confirm, Empty, Spinner } from '../../components/ui/inde
 import Icon, { SchoolScene, SupportScene } from '../../components/ui/icons';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, SelectionBar, useSelection, HelpPanel, PageFoot,
-} from './listParts';
+  RowActions, IconAction, SelectionBar, useSelection, HelpPanel, PageFoot, ListTabs} from './listParts';
 import {
   AppliesCell, DateCell, HolidayCell, HolidayForm, ImportDialog, MineList,
   MonthCalendar, STATUS, TypeChip, TypesDialog, TypesPanel, UpcomingPanel,
@@ -368,18 +367,10 @@ export default function Holidays() {
 
       <div className="holgrid">
         <section className="card">
-          <div className="ltabs">
-            <button type="button" className={`ltab${view === 'manage' ? ' is-on' : ''}`}
-              aria-pressed={view === 'manage'}
-              onClick={() => { setView('manage'); clearAll(); }}>
-              School calendar ({all.length})
-            </button>
-            <button type="button" className={`ltab${view === 'mine' ? ' is-on' : ''}`}
-              aria-pressed={view === 'mine'}
-              onClick={() => { setView('mine'); clearAll(); }}>
-              Applies to me ({mine.length})
-            </button>
-          </div>
+          <ListTabs value={view} tabs={[
+            { value: 'manage', label: 'School calendar', count: all.length },
+            { value: 'mine',   label: 'Applies to me',   count: mine.length },
+          ]} onChange={(v) => { setView(v); clearAll(); }} />
 
           {view === 'mine' ? (
             <div className="holminewrap">
@@ -400,14 +391,7 @@ export default function Holidays() {
             </div>
           ) : (
             <>
-              <div className="ltabs ltabs--sub">
-                {TABS.map((t) => (
-                  <button key={t.value} type="button" aria-pressed={tab === t.value}
-                    className={`ltab${tab === t.value ? ' is-on' : ''}`} onClick={() => pick(t.value)}>
-                    {t.label} ({t.value === 'all' ? counts.total : counts[t.value]})
-                  </button>
-                ))}
-              </div>
+              <ListTabs tabs={TABS} value={tab} onChange={pick} counts={counts} />
 
               <div className="ltools">
                 <SearchField value={search} onChange={setSearch} placeholder="Search holidays…" />

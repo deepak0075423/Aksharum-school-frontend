@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import Tabs from '../ui/Tabs';
 
 /**
  * The section bar for a module (Fees, Payroll, Library…) plus its outlet. Used
@@ -19,14 +20,10 @@ export default function ModuleNav({ tabs }) {
   return (
     <>
       <div className="modnav__wrap">
-        <nav className="modnav" aria-label="Module sections">
-          {tabs.map(t => (
-            <NavLink key={t.to} to={t.to} end={t.end}
-              className={({ isActive }) => `modnav__tab${isActive ? ' is-on' : ''}`}>
-              {t.label}
-            </NavLink>
-          ))}
-        </nav>
+        {/* The arrays carry a leading emoji for the rail's own use; the tab
+            strip is icon-and-label everywhere else, so it is dropped here. */}
+        <Tabs variant="pill" label="Module sections"
+          items={tabs.map(t => ({ ...t, label: t.label.replace(/^[^A-Za-z]+/, '') }))} />
       </div>
       <Outlet />
     </>

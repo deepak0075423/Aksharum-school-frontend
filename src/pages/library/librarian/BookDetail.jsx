@@ -32,6 +32,7 @@ import {
   BookHero, CopyStatus, Facts, LoanStatus, Panel, QuickActions, RelatedBooks,
   StockBar, Tabs, Who, authorsOf, fmtDate, stateOf,
 } from './bookParts';
+import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
 
 const CONDITIONS = ['new', 'good', 'fair', 'damaged'];
 // 'issued' is absent on purpose — circulation owns that transition.
@@ -56,6 +57,10 @@ export default function LibraryBookDetail() {
     () => getBook(id, { page, limit, status: status || undefined, code: code.trim() || undefined }),
     [id, page, limit, status, code],
   );
+  // Books › <this book> on the app's breadcrumb; the steps before it come from
+  // the navigation tree.
+  usePageCrumbs([{ label: 'Books', to: booksPath }, { label: book?.title }]);
+
   const { data: activity, loading: loadingActivity, refetch: refetchActivity } = useFetch(
     () => getBookActivity(id),
     [id],
@@ -298,13 +303,6 @@ export default function LibraryBookDetail() {
   return (
     <div className="page libdpg libbdpg">
       <div className="libbd-top">
-        <div className="breadcrumb">
-          <Link to={`${base}/dashboard`}>Library</Link>
-          <span aria-hidden>›</span>
-          <Link to={booksPath}>Books</Link>
-          <span aria-hidden>›</span>
-          <span>{book.title}</span>
-        </div>
         <Button variant="secondary" onClick={() => navigate(booksPath)}>
           <Icon name="chevronLeft" size={16} /> Back to Books
         </Button>

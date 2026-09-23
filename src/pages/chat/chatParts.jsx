@@ -7,6 +7,7 @@ import {
 import {
   singleEmoji, motionFor, particlesFor, durationOf, hasPlayed, markPlayed, prefersReducedMotion,
 } from './emojiMotion';
+import Tabs from '../../components/ui/Tabs';
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -177,15 +178,11 @@ export function ChatSidebar({
         </Popover>
       </div>
 
-      <div className="ch-tabs" role="tablist" aria-label="Conversation type">
-        {tabs.map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key}
-            className={`ch-tab${tab === key ? ' is-active' : ''}`} onClick={() => setTab(key)}>
-            {label}
-            {key === 'unread' && unreadChats > 0 && <span className="ch-count">{unreadChats}</span>}
-          </button>
-        ))}
-      </div>
+      <Tabs variant="solid" className="uitabs--sm" value={tab} onChange={setTab}
+        label="Conversation type"
+        items={tabs.map(([key, label]) => ({
+          key, label, count: key === 'unread' && unreadChats > 0 ? unreadChats : undefined,
+        }))} />
 
       <div className={`ch-actions${canGroup ? '' : ' ch-actions--one'}`}>
         <button type="button" className="ch-btn ch-btn--primary" onClick={onNewChat}>

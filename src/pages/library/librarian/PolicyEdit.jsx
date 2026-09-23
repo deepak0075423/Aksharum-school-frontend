@@ -26,11 +26,14 @@ import { quoteOfTheDay } from './dashParts';
 import {
   FIELD_KEYS, LastUpdated, Panel, SECTIONS, SectionRail, money,
 } from './policyParts';
+import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
 
 export default function LibraryPolicyEdit() {
   const { pathname, hash } = useLocation();
   const navigate = useNavigate();
   const policyPath = pathname.replace(/\/edit\/?$/, '');
+
+  usePageCrumbs([{ label: 'Policy', to: policyPath }, { label: 'Edit' }]);
 
   const { data: policy, meta, loading, error } = useFetch(getPolicy);
   const limits    = meta?.limits   || {};
@@ -180,14 +183,6 @@ export default function LibraryPolicyEdit() {
 
   return (
     <div className="page libdpg libpolpg libpoledit">
-      <div className="breadcrumb">
-        <Link to={policyPath.replace(/\/policy$/, '/dashboard')}>Library</Link>
-        <span aria-hidden>›</span>
-        <Link to={policyPath}>Policy</Link>
-        <span aria-hidden>›</span>
-        <span>Edit</span>
-      </div>
-
       <header className="libpol-edithead">
         <div>
           <h1>Edit Library Policy</h1>

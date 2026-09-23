@@ -7,6 +7,7 @@ import {
   PageHeader, Table, Button, Modal, Badge, Pagination, Confirm, Alert, StatCard, Card,
 } from '../../../components/ui/index';
 import { StatusBadge, Filters, Field, FieldGrid, label, dd, dt, money, di, today } from '../shared';
+import Tabs from '../../../components/ui/Tabs';
 
 const FEE_TYPES = ['admission', 'monthly', 'quarterly', 'annual', 'mess', 'laundry', 'electricity',
                    'maintenance', 'security_deposit', 'fine', 'late_fee', 'other'];
@@ -250,10 +251,10 @@ export default function Fees() {
         <StatCard icon="↩️" color="purple" label="Refunded"    value={money(summary.refunded)} />
       </div>
 
-      <div className="tabs" style={{ marginTop: 18 }}>
-        <button className={`tab${tab === 'invoices' ? ' active' : ''}`} onClick={() => setTab('invoices')}>Invoices</button>
-        <button className={`tab${tab === 'plans' ? ' active' : ''}`} onClick={() => setTab('plans')}>Fee plans</button>
-      </div>
+      <Tabs value={tab} onChange={setTab} className="u-mt-18" items={[
+        { key: 'invoices', label: 'Invoices' },
+        { key: 'plans',    label: 'Fee plans' },
+      ]} />
 
       {tab === 'invoices' ? (
         <>

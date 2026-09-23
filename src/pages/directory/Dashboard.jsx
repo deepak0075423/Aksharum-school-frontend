@@ -105,14 +105,6 @@ export default function DirectoryDashboard() {
 
   return (
     <div className="page edo">
-      <div className="breadcrumb">
-        <Link to="/admin/dashboard">Dashboard</Link>
-        <span aria-hidden>›</span>
-        <Link to={`${base}/employees`}>Employee Directory</Link>
-        <span aria-hidden>›</span>
-        <span>Overview</span>
-      </div>
-
       <header className="edo-head">
         <div className="edo-head__text">
           <h1 className="edo-title">Employee Directory</h1>

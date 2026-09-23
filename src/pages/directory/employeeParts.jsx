@@ -13,18 +13,16 @@ import {
   Avatar, Blank, BadgeIcon, BuildingIcon, MailIcon, PhoneIcon, SearchIcon,
   STATUS_LABEL, STATUS_TONE,
 } from './parts';
+import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ base, here }) => (
-  <div className="breadcrumb">
-    <Link to="/admin/dashboard">Dashboard</Link>
-    <span aria-hidden>›</span>
-    <Link to={`${base}/dashboard`}>Employee Directory</Link>
-    <span aria-hidden>›</span>
-    <span>{here}</span>
-  </div>
-);
+/** Names this page on the layout's breadcrumb. */
+// eslint-disable-next-line no-unused-vars
+export const Crumbs = ({ base, here }) => {
+  usePageCrumbs([{ label: here }]);
+  return null;
+};
 
 export const PageTop = ({ title, subtitle, children }) => (
   <header className="edl-top">

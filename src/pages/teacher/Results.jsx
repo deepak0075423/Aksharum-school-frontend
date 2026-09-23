@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/teacher.api';
 import { PageHeader, Table, Button, Badge, Modal, Spinner } from '../../components/ui/index';
+import Tabs from '../../components/ui/Tabs';
 
 const EXAM_STATUS = {
   MARKS_PENDING:  { label: 'Marks pending', variant: 'warning' },
@@ -334,11 +335,11 @@ export default function TeacherResults() {
     <div className="page">
       <PageHeader title="Results & Marks" subtitle="Enter, validate and track exam marks" />
 
-      <div className="tabs">
-        {[['marks-entry','Marks Entry'],['class-tests','Class Tests'],['validation','Validation']].map(([k,l]) => (
-          <button key={k} className={`tab${tab===k?' active':''}`} onClick={() => setTab(k)}>{l}</button>
-        ))}
-      </div>
+      <Tabs value={tab} onChange={setTab} items={[
+        { key: 'marks-entry', label: 'Marks Entry' },
+        { key: 'class-tests', label: 'Class Tests' },
+        { key: 'validation',  label: 'Validation' },
+      ]} />
 
       {tab === 'marks-entry' && (
         <div className="card">

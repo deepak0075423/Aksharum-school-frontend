@@ -20,8 +20,7 @@ import Icon, { AdminsScene, SupportScene } from '../../components/ui/icons';
 import { saveFile } from '../../utils/downloadFile';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, Blank,
-} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, Blank, ListTabs} from './listParts';
 import {
   AccessDetail, AccessSummary, DesignationCell, DesignationDrawer, DesignationEditor,
   Holders, HoldersModal, countBy, levelOf,
@@ -355,15 +354,8 @@ export default function Designations() {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <section className="card">
-        <div className="ltabs">
-          {TABS.map((t) => (
-            <button key={t.value} type="button" aria-pressed={tab === t.value}
-              className={`ltab${tab === t.value ? ' is-on' : ''}`}
-              onClick={() => { setTab(t.value); setPage(1); setExpanded(null); }}>
-              {t.label} ({counts[t.value === 'all' ? 'total' : t.value]})
-            </button>
-          ))}
-        </div>
+        <ListTabs tabs={TABS} value={tab} counts={counts}
+          onChange={(v) => { setTab(v); setPage(1); setExpanded(null); }} />
 
         <div className="ltools">
           <SearchField value={search} onChange={setSearch} placeholder="Search designation or description…" />

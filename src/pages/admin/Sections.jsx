@@ -23,8 +23,7 @@ import AddSectionsModal from '../../components/AddSectionsModal';
 import SectionCapacityModal from '../../components/SectionCapacityModal';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot,
-} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
 import {
   CountCell, DeleteSectionDialog, HasStudentsDialog, SeatCell, SectionCard, SectionCell,
   SectionForm, SectionSetupPanel, SeatBar, ShuffleBanner, StatusBadge, TeacherLine,
@@ -316,14 +315,11 @@ export default function Sections() {
       )}
 
       <section className="card">
-        <div className="ltabs">
-          <button type="button" className={`ltab${tab === 'all' ? ' is-on' : ''}`}
-            aria-pressed={tab === 'all'} onClick={() => pick('all')}>All Sections ({counts.total})</button>
-          <button type="button" className={`ltab${tab === 'setup' ? ' is-on' : ''}`}
-            aria-pressed={tab === 'setup'} onClick={() => pick('setup')}>Needs setup ({counts.setup})</button>
-          <button type="button" className={`ltab${tab === 'inactive' ? ' is-on' : ''}`}
-            aria-pressed={tab === 'inactive'} onClick={() => pick('inactive')}>Inactive ({counts.inactive})</button>
-        </div>
+        <ListTabs value={tab} onChange={pick} tabs={[
+          { value: 'all',      label: 'All Sections', count: counts.total },
+          { value: 'setup',    label: 'Needs setup',  count: counts.setup },
+          { value: 'inactive', label: 'Inactive',     count: counts.inactive },
+        ]} />
 
         <div className="ltools">
           <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }}

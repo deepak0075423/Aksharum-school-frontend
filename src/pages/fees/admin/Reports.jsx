@@ -21,6 +21,7 @@ import { AreaTrend, Donut, DonutLegend, INK } from './feeCharts';
 import { EmailReportDialog, ScheduleDialog, REPORT_TABS } from './feeForms';
 import { useFeesMeta, classOptions, sectionOptions, useUrlState } from './feeData';
 import { MoreMenu } from './FeeStructures';
+import Tabs from '../../../components/ui/Tabs';
 
 const DEFAULTS = { tab: 'collection', academicYearId: '', term: '', classId: '', sectionId: '', from: '', to: '', categoryId: '', status: '', studentType: '' };
 const HEAD_INK = ['#2563eb', '#16a34a', '#f59e0b', '#ec4899', '#a21caf', '#94a3b8'];
@@ -173,11 +174,8 @@ export default function FeesReports() {
         </div>
       </Card>
 
-      <div className="fe-segs" role="tablist">
-        {REPORT_TABS.map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} className={`fe-seg${tab === key ? ' is-on' : ''}`} onClick={() => setApplied({ tab: key })}>{label}</button>
-        ))}
-      </div>
+      <Tabs variant="solid" value={tab} onChange={(key) => setApplied({ tab: key })} label="Reports"
+        items={REPORT_TABS.map(([key, label]) => ({ key, label }))} />
 
       {tab === 'collection' ? (
         <>

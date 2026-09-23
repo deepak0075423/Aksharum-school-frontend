@@ -22,13 +22,12 @@ import { fmtMoney } from './viz';
 
 // ── Frame ────────────────────────────────────────────────────────────────────
 
-export const Crumbs = ({ home = '/admin/dashboard' }) => (
-  <div className="breadcrumb">
-    <Link to={home}>Dashboard</Link>
-    <span aria-hidden>›</span>
-    <span>Student Analytics</span>
-  </div>
-);
+/**
+ * The landing screen needs nothing of its own — the navigation tree already
+ * knows this page as Student Analytics. Kept so the call sites still compile.
+ */
+// eslint-disable-next-line no-unused-vars
+export const Crumbs = ({ home }) => null;
 
 export const Hero = ({ scope, sections }) => (
   <header className="anhero">

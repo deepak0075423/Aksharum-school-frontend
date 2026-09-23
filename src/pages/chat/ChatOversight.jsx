@@ -8,6 +8,7 @@ import { Avatar, MessageList } from './chatParts';
 import { HistoryDialog } from './chatDialogs';
 import { listTime, shortName, ROLE_LABEL } from './chatFormat';
 import '../../styles/chat.css';
+import Tabs from '../../components/ui/Tabs';
 
 const ROLES = [['', 'Everyone'], ['teacher', 'Teachers'], ['student', 'Students'], ['parent', 'Parents'], ['school_admin', 'Admins']];
 const KINDS = [['all', 'All'], ['direct', 'Direct'], ['group', 'Groups']];
@@ -273,14 +274,12 @@ export default function ChatOversight() {
                 <input value={cq} onChange={(e) => setCq(e.target.value)} placeholder={`Search ${shortName(p.name)}'s conversations...`} />
               </label>
             </div>
-            <div className="ch-tabs" role="tablist" aria-label="Conversation kind">
-              {KINDS.map(([k, label]) => (
-                <button key={k} type="button" role="tab" aria-selected={kind === k} className={`ch-tab${kind === k ? ' is-active' : ''}`} onClick={() => setKind(k)}>
-                  {label}
-                  {k !== 'all' && <span className="cho-count" style={{ marginLeft: 6 }}>{k === 'direct' ? stats.direct : stats.groups}</span>}
-                </button>
-              ))}
-            </div>
+            <Tabs variant="solid" className="uitabs--sm" label="Conversation kind"
+              value={kind} onChange={setKind}
+              items={KINDS.map(([k, label]) => ({
+                key: k, label,
+                count: k === 'all' ? undefined : (k === 'direct' ? stats.direct : stats.groups),
+              }))} />
             <div className="cho-list">
               {!convs.length ? (
                 <div className="ch-empty-list">{cq ? `Nothing matches “${cq}”.` : `${shortName(p.name)} has no ${kind === 'all' ? '' : kind === 'direct' ? 'direct ' : 'group '}conversations.`}</div>

@@ -13,6 +13,7 @@ import React from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal, Spinner } from '../../components/ui/index';
 import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
+import Tabs from '../../components/ui/Tabs';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 
@@ -125,21 +126,7 @@ export const LeaveStats = ({ children, className = '' }) => (
 
 /** The module's sections, as a row of pills. The active one is filled. */
 export const LeaveTabs = ({ tabs, value, onChange }) => (
-  <div className="lvtabs" role="tablist">
-    {tabs.map((t) => (
-      <button
-        key={t.value}
-        type="button"
-        role="tab"
-        aria-selected={value === t.value}
-        className={`lvtab${value === t.value ? ' is-on' : ''}`}
-        onClick={() => onChange(t.value)}
-      >
-        <Icon name={t.icon} size={17} />
-        {t.label}
-      </button>
-    ))}
-  </div>
+  <Tabs variant="pill" items={tabs} value={value} onChange={onChange} label="Leave sections" />
 );
 
 // ── Card furniture ───────────────────────────────────────────────────────────
@@ -1232,16 +1219,7 @@ export function ReportDrawer({
  * and one section's own views never read as the same level of navigation.
  */
 export const SubTabs = ({ tabs, value, onChange }) => (
-  <div className="lvsubtabs" role="tablist">
-    {tabs.map((t) => (
-      <button key={t.value} type="button" role="tab" aria-selected={value === t.value}
-        className={`lvsubtab${value === t.value ? ' is-on' : ''}`}
-        onClick={() => onChange(t.value)}>
-        <Icon name={t.icon} size={16} />
-        {t.label}
-      </button>
-    ))}
-  </div>
+  <Tabs variant="line" items={tabs} value={value} onChange={onChange} label="Views" />
 );
 
 /** The kind of day that earned the comp off, in words rather than a slug. */

@@ -26,6 +26,7 @@ import {
 } from './feeUI';
 import { CopyYearDialog } from './feeForms';
 import { describe } from './feeHistory';
+import Tabs from '../../../components/ui/Tabs';
 
 const TABS = [
   ['general', 'General', 'settings'], ['payment', 'Payment Settings', 'creditCard'], ['receipt', 'Receipt & Invoice', 'fileDoc'],
@@ -302,13 +303,8 @@ export default function FeesSettings() {
         <Btn variant="primary" icon="save" onClick={() => (dirty ? save() : toast('No changes to save'))} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn>
       </FeHead>
 
-      <div className="fe-bigtabs" role="tablist">
-        {TABS.map(([key, label, icon]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'is-on' : ''} onClick={() => setTab(key)}>
-            <Icon name={icon} size={18} />{label}
-          </button>
-        ))}
-      </div>
+      <Tabs variant="pill" value={tab} onChange={setTab} label="Settings sections"
+        items={TABS.map(([key, label, icon]) => ({ key, label, icon }))} />
 
       <div className="fe-settings">
         <div style={{ minWidth: 0 }}>

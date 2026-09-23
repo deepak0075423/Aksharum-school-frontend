@@ -18,6 +18,7 @@ export {
   STATUS, StatusPill, Dot, plural, todayKey, dateOf, addDays, addMonths, monthStart, monthEnd,
   fmtMonth, fmtClock, fmtTime, workedFor, downloadCsv,
 } from '../../pages/admin/attendanceParts';
+import Tabs from '../ui/Tabs';
 
 // Short month names spelled out: current ICU writes September as "Sept" in both
 // en-IN and en-GB, and the design reads "Sep".
@@ -86,15 +87,13 @@ export function Frame({
       <div className={['tat-body', rail && 'tat-body--rail', rail && `tat-body--rail-${railWidth}`,
         rail && railAlign === 'content' && 'tat-body--rail-low'].filter(Boolean).join(' ')}>
         <div className="tat-main">
-          <nav className={`tat-tabs tat-tabs--${tabStyle}`} role="tablist" aria-label="Attendance">
-            {tabs.map((t) => (
-              <button key={t.value} type="button" role="tab" aria-selected={tab === t.value}
-                className={`tat-tab${tab === t.value ? ' is-on' : ''}`} onClick={() => onTab(t.value)}>
-                <Icon name={t.icon} size={18} />{t.label}
-                {counts[t.value] ? <span className="tat-tab__count">{counts[t.value]}</span> : null}
-              </button>
-            ))}
-          </nav>
+          <Tabs
+            variant={tabStyle === 'pill' ? 'pill' : 'line'}
+            label="Attendance"
+            value={tab}
+            onChange={onTab}
+            items={tabs.map((t) => ({ ...t, count: counts[t.value] || undefined }))}
+          />
           {children}
         </div>
         {rail ? <aside className="tat-rail">{rail}</aside> : null}

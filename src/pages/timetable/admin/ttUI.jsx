@@ -13,6 +13,7 @@
  */
 import React from 'react';
 import Icon from '../../../components/ui/icons';
+import Tabs from '../../../components/ui/Tabs';
 
 /* ── Small helpers every screen reaches for ───────────────────────────────── */
 
@@ -138,18 +139,7 @@ export const YearPicker = ({ years = [], value, onChange, label = 'Academic Year
 
 /** tabs: [{ key, label, icon?, count? }] */
 export const TtTabs = ({ tabs, value, onChange }) => (
-  <nav className="tt-tabs" aria-label="Sections of this screen">
-    {tabs.map((t) => (
-      <button key={t.key} type="button"
-        className={`tt-tab${value === t.key ? ' is-on' : ''}`}
-        aria-current={value === t.key ? 'page' : undefined}
-        onClick={() => onChange(t.key)}>
-        {t.icon && <Icon name={t.icon} size={17} />}
-        {t.label}
-        {t.count != null && <span className="tt-tab__count">{t.count}</span>}
-      </button>
-    ))}
-  </nav>
+  <Tabs variant="line" items={tabs} value={value} onChange={onChange} label="Sections of this screen" />
 );
 
 /** options: [[value, label], …] */

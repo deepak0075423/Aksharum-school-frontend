@@ -143,7 +143,7 @@ export default function Concessions() {
       <div className="fe-split fe-split--narrow">
         <Card>
           <CardHead title={`Concessions (${c.all || 0})`}>
-            <PillTabs className="fe-pills--inline" value={applied.status} onChange={s => setApplied({ status: s, page: '1' })} items={[
+            <PillTabs className="uitabs--flush uitabs--sm" value={applied.status} onChange={s => setApplied({ status: s, page: '1' })} items={[
               { key: '', label: 'All', count: c.all || 0, tone: 'slate' },
               { key: 'active', label: 'Active', count: c.active || 0, tone: 'green' },
               { key: 'upcoming', label: 'Upcoming', count: c.upcoming || 0, tone: 'amber' },

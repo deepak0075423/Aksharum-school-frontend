@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../../../components/ui/icons';
 import '../../../styles/fees.css';
+import Tabs from '../../../components/ui/Tabs';
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
 
@@ -349,28 +350,14 @@ export function Toggle({ checked, onChange, disabled, label }) {
 /** Pill tabs with a count badge each, the active one filled. */
 export function PillTabs({ items, value, onChange, className = '' }) {
   return (
-    <div className={`fe-pills ${className}`} role="tablist">
-      {items.map(t => (
-        <button key={t.key} type="button" role="tab" aria-selected={value === t.key}
-          className={`fe-pill${value === t.key ? ' is-on' : ''}`} onClick={() => onChange(t.key)}>
-          {t.label}
-          {t.count !== undefined ? <span className={`fe-pill__n fe-b-${t.tone || 'slate'}`}>{Number(t.count).toLocaleString('en-IN')}</span> : null}
-        </button>
-      ))}
-    </div>
+    <Tabs variant="pill" items={items} value={value} onChange={onChange}
+      className={className} label="Filter" />
   );
 }
 
 /** Underlined tabs (detail panels). */
 export function UnderTabs({ items, value, onChange }) {
-  return (
-    <div className="fe-utabs" role="tablist">
-      {items.map(t => (
-        <button key={t.key} type="button" role="tab" aria-selected={value === t.key}
-          className={value === t.key ? 'is-on' : ''} onClick={() => onChange(t.key)}>{t.label}</button>
-      ))}
-    </div>
-  );
+  return <Tabs variant="line" items={items} value={value} onChange={onChange} label="Views" />;
 }
 
 /** Two-state view switch (List / Card, list / grid icons). */

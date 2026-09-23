@@ -14,6 +14,7 @@
  */
 import React from 'react';
 import Icon from '../../components/ui/icons';
+import Tabs from '../../components/ui/Tabs';
 
 export const REPORT_META = {
   directory: { icon: 'users', tone: 'indigo',
@@ -44,17 +45,13 @@ export const metaFor = (key) => REPORT_META[key] || { icon: 'chart', tone: 'indi
 
 /** The reports this school can run. Scrolls rather than wrapping onto two rows. */
 export const ReportTabs = ({ reports, active, onPick }) => (
-  <nav className="edrtabs" aria-label="Reports">
-    {reports.map((r) => {
-      const m = metaFor(r.key);
-      return (
-        <button key={r.key} type="button" onClick={() => onPick(r.key)}
-          className={`edrtab${active === r.key ? ' is-on' : ''}`} aria-pressed={active === r.key}>
-          <Icon name={m.icon} size={15} /> {r.label}
-        </button>
-      );
-    })}
-  </nav>
+  <Tabs
+    variant="pill"
+    label="Reports"
+    value={active}
+    onChange={onPick}
+    items={reports.map(r => ({ key: r.key, label: r.label, icon: metaFor(r.key).icon }))}
+  />
 );
 
 // ── The table ────────────────────────────────────────────────────────────────
