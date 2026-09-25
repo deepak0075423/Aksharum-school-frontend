@@ -1,45 +1,65 @@
-import React, { useState, useEffect } from 'react';
+/** Transport → Transport Fees. What is billed for the bus, and what is left. */
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/transport.api';
-import { PageHeader, Table, Badge, StatCard } from '../../../components/ui/index';
-import { useChildPicker } from './_shared';
-
-const ST = { pending: 'warning', partial: 'info', paid: 'success', overdue: 'danger', cancelled: 'muted' };
-const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
+import {
+  Card, CardHead, CardBody, Rows, Empty, Loading, Tiles, Tile, Note, money,
+} from '../admin/trUI';
+import { InvoiceRow } from '../portal/portalParts';
+import { useChildPicker, ParentPage } from './_shared';
 
 export default function ParentFees() {
-  const { studentId, picker } = useChildPicker();
+  const { studentId, picker, loading: pl, children } = useChildPicker();
   const [rows, setRows] = useState([]);
-  const [loading, setLoad] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!studentId) return;
-    setLoad(true);
-    api.parentInvoices({ studentId }).then(r => setRows(r.data ?? r)).catch(e => toast.error(e.message)).finally(() => setLoad(false));
+    setLoading(true);
+    api.parentInvoices({ studentId })
+      .then((r) => setRows((r?.data ?? r) || []))
+      .catch((e) => toast.error(e?.message || 'Could not load the invoices'))
+      .finally(() => setLoading(false));
   }, [studentId]);
 
-  const due = rows.reduce((s, r) => s + Math.max(0, (r.netAmount || 0) - (r.paidAmount || 0)) * (r.status === 'cancelled' ? 0 : 1), 0);
-  const paid = rows.reduce((s, r) => s + (r.paidAmount || 0), 0);
-
-  const columns = [
-    { key: 'inv', label: 'Invoice', render: r => <div><strong>{r.invoiceNumber}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.period?.label}</div></div> },
-    { key: 'net', label: 'Amount', render: r => fmt(r.netAmount) },
-    { key: 'paid', label: 'Paid', render: r => fmt(r.paidAmount) },
-    { key: 'due', label: 'Due', render: r => fmt(Math.max(0, r.netAmount - r.paidAmount)) },
-    { key: 'status', label: 'Status', render: r => <Badge variant={ST[r.status]}>{r.status}</Badge> },
-  ];
+  const billed = rows.reduce((n, x) => n + (x.netAmount || 0), 0);
+  const paid = rows.reduce((n, x) => n + (x.paidAmount || 0), 0);
+  const due = Math.max(0, billed - paid);
+  const overdue = rows.filter((x) => x.status === 'overdue').length;
 
   return (
-    <div className="page">
-      <PageHeader title="Transport Fees" subtitle="Invoices, dues & payment status" action={picker} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 14, marginBottom: 16 }}>
-        <StatCard label="Total Paid" value={fmt(paid)} icon="💰" color="green" />
-        <StatCard label="Outstanding" value={fmt(due)} icon="⏳" color="orange" />
-      </div>
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="💳" emptyTitle="No transport invoices yet" />
-      </div></div>
-      <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 12 }}>To pay, visit the school office or use the online fee payment link shared by the school.</p>
-    </div>
+    <ParentPage icon="wallet" iconTone={due ? 'red' : 'green'} title="Transport Fees"
+                subtitle="What the bus is billed at, what has been paid, and what is left"
+                picker={picker} loading={pl} children={children}
+                body={loading ? <Loading /> : (
+                  <>
+                    <Tiles>
+                      <Tile icon="wallet"   tone="indigo" label="Billed"      value={money(billed)} />
+                      <Tile icon="check"    tone="green"  label="Paid"        value={money(paid)} />
+                      <Tile icon="banknote" tone={due ? 'red' : 'green'} label="Outstanding" value={money(due)} />
+                      <Tile icon="alert"    tone={overdue ? 'red' : 'slate'} label="Overdue" value={overdue} />
+                    </Tiles>
+                    {overdue ? (
+                      <div style={{ marginBottom: 14 }}>
+                        <Note tone="warn" title={`${overdue} invoice${overdue === 1 ? ' is' : 's are'} past due`}>
+                          Transport can be suspended while fees are outstanding. Settle it at the
+                          school office, or ring them if something is wrong with the bill.
+                        </Note>
+                      </div>
+                    ) : null}
+                    <Card>
+                      <CardHead icon="wallet" iconTone="green" title="Invoices" sub="Newest first" />
+                      <CardBody flush>
+                        {rows.length
+                          ? <Rows>{rows.map((x) => <InvoiceRow key={x._id || x.invoiceNumber} inv={x} />)}</Rows>
+                          : (
+                            <Empty icon="wallet" title="No transport invoices yet">
+                              Nothing has been billed for this child&apos;s bus.
+                            </Empty>
+                          )}
+                      </CardBody>
+                    </Card>
+                  </>
+                )} />
   );
 }

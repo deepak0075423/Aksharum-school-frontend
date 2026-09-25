@@ -116,7 +116,9 @@ export const TRANSPORT_ADMIN_TABS = [
   { to: '/admin/transport/dashboard',   label: '🏠 Dashboard' },
   { to: '/admin/transport/live',        label: '🛰️ Live Map' },
   { to: '/admin/transport/vehicles',    label: '🚌 Vehicles' },
-  { to: '/admin/transport/staff',       label: '🧑‍✈️ Drivers & Crew' },
+  { to: '/admin/transport/drivers',     label: '🧑‍✈️ Drivers' },
+  { to: '/admin/transport/conductors',  label: '🎫 Conductors' },
+  { to: '/admin/transport/crew',        label: '👥 Crew Members' },
   { to: '/admin/transport/routes',      label: '🛣️ Routes' },
   { to: '/admin/transport/assignments', label: '🎒 Assignments' },
   { to: '/admin/transport/trips',       label: '📅 Trips' },
@@ -129,7 +131,7 @@ export const TRANSPORT_ADMIN_TABS = [
   { to: '/admin/transport/requests',    label: '📨 Requests' },
   { to: '/admin/transport/reports',     label: '📈 Reports' },
   { to: '/admin/transport/settings',    label: '⚙️ Settings' },
-  { to: '/admin/transport/audit',       label: '🧾 Activity Log' },
+  { to: '/admin/transport/activity',    label: '🧾 Activity Log' },
 ];
 
 export const HOSTEL_ADMIN_TABS = [
@@ -160,11 +162,14 @@ export const HOSTEL_ADMIN_TABS = [
   { to: '/admin/hostel/audit',       label: '🧾 Activity Log' },
 ];
 
+// The label is also what the breadcrumb says, so it has to match the heading on
+// the page it opens — a tab reading "My Transport" over a page headed "My
+// Child's Bus" reads as two different places.
 export const TRANSPORT_PARENT_TABS = [
-  { to: '/parent/transport/track',      label: '🛰️ Track Bus' },
-  { to: '/parent/transport/details',    label: '🚌 My Transport' },
-  { to: '/parent/transport/attendance', label: '✅ Attendance' },
-  { to: '/parent/transport/fees',       label: '💳 Fees' },
+  { to: '/parent/transport/track',      label: '🛰️ Track the Bus' },
+  { to: '/parent/transport/details',    label: "🚌 My Child's Bus" },
+  { to: '/parent/transport/attendance', label: '✅ Boarding History' },
+  { to: '/parent/transport/fees',       label: '💳 Transport Fees' },
   { to: '/parent/transport/requests',   label: '📨 Requests' },
 ];
 

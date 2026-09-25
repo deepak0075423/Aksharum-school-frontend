@@ -1,38 +1,76 @@
-import React, { useState, useEffect } from 'react';
+/** Transport → Boarding History. Was my child on the bus, and when. */
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/transport.api';
-import { PageHeader, Table, Badge } from '../../../components/ui/index';
-import { useChildPicker } from './_shared';
-
-const ATT = { pending: 'muted', boarded: 'success', dropped: 'info', absent: 'danger', no_show: 'danger' };
-const tm = (v) => v ? new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+import {
+  Card, CardHead, CardBody, Rows, Badge, Mark, Empty, Loading, Tiles, Tile,
+  fmtDate, fmtTime, pct, words,
+} from '../admin/trUI';
+import { BOARD_TONE, BOARD_WORD, runWord } from '../portal/portalParts';
+import { useChildPicker, ParentPage } from './_shared';
 
 export default function ParentAttendance() {
-  const { studentId, picker } = useChildPicker();
+  const { studentId, picker, loading: pl, children } = useChildPicker();
   const [rows, setRows] = useState([]);
-  const [loading, setLoad] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!studentId) return;
-    setLoad(true);
-    api.parentAttendance({ studentId }).then(r => setRows(r.data ?? r)).catch(e => toast.error(e.message)).finally(() => setLoad(false));
+    setLoading(true);
+    api.parentAttendance({ studentId })
+      .then((r) => setRows((r?.data ?? r) || []))
+      .catch((e) => toast.error(e?.message || 'Could not load the history'))
+      .finally(() => setLoading(false));
   }, [studentId]);
 
-  const columns = [
-    { key: 'date', label: 'Date', render: r => new Date(r.date).toLocaleDateString() },
-    { key: 'route', label: 'Route', render: r => r.route || '—' },
-    { key: 'shift', label: 'Trip', render: r => <Badge variant="info">{r.shift} · {r.direction}</Badge> },
-    { key: 'board', label: 'Boarded', render: r => tm(r.boardTime) },
-    { key: 'drop', label: 'Dropped', render: r => tm(r.dropTime) },
-    { key: 'status', label: 'Status', render: r => <Badge variant={ATT[r.status] || 'muted'}>{r.status}</Badge> },
-  ];
+  const on = rows.filter((x) => ['boarded', 'dropped'].includes(x.status)).length;
+  const missed = rows.filter((x) => ['absent', 'no_show'].includes(x.status)).length;
 
   return (
-    <div className="page">
-      <PageHeader title="Bus Attendance History" subtitle="Boarding & drop timeline" action={picker} />
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="✅" emptyTitle="No attendance records yet" />
-      </div></div>
-    </div>
+    <ParentPage icon="checkSquare" iconTone="green" title="Boarding History"
+                subtitle="Every run, and whether your child was scanned on to it"
+                picker={picker} loading={pl} children={children}
+                body={loading ? <Loading /> : (
+                  <>
+                    <Tiles>
+                      <Tile icon="bus" tone="indigo" label="Runs recorded" value={rows.length} />
+                      <Tile icon="check" tone="green" label="Boarded" value={on}
+                            sub={rows.length ? `${pct(on, rows.length)}% of runs` : undefined} />
+                      <Tile icon="close" tone={missed ? 'red' : 'slate'} label="Missed" value={missed} />
+                    </Tiles>
+                    <Card>
+                      <CardHead icon="checkSquare" iconTone="green" title="Run by run"
+                                sub="Newest first. Boarding is scanned on the bus itself." />
+                      <CardBody flush>
+                        {rows.length ? (
+                          <Rows>
+                            {rows.map((x, i) => (
+                              <div className="tr-row" key={i}>
+                                <Mark name="bus" size={34} glyph={16}
+                                      tone={BOARD_TONE[x.status] === 'green' ? 'green'
+                                        : BOARD_TONE[x.status] === 'red' ? 'red' : 'slate'} />
+                                <div className="tr-row__text">
+                                  <b>{fmtDate(x.date)}</b>
+                                  <span>{runWord(x.shift, x.direction)}{x.route ? ` · ${x.route}` : ''}</span>
+                                </div>
+                                <div className="tr-row__end">
+                                  <b>{x.boardTime ? fmtTime(x.boardTime) : '—'}</b>
+                                  <span>{x.dropTime ? `dropped ${fmtTime(x.dropTime)}` : 'no drop recorded'}</span>
+                                </div>
+                                <Badge tone={BOARD_TONE[x.status] || 'slate'}>
+                                  {BOARD_WORD[x.status] || words(x.status || '')}
+                                </Badge>
+                              </div>
+                            ))}
+                          </Rows>
+                        ) : (
+                          <Empty icon="checkSquare" title="Nothing recorded yet">
+                            Once your child has ridden the bus, every run shows up here.
+                          </Empty>
+                        )}
+                      </CardBody>
+                    </Card>
+                  </>
+                )} />
   );
 }

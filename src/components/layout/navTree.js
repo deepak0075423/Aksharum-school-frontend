@@ -119,6 +119,8 @@ export const TEACHER_NAV = [
   { section: 'Modules' },
   { to: '/teacher/leave',           icon: 'umbrella', label: 'My Leave',      module: 'leave' },
   { to: '/teacher/documents',       icon: 'files', label: 'Documents',     module: 'document' },
+  // A teacher sees Transport when they ride the bus themselves or crew one.
+  { to: '/teacher/transport',       icon: 'bus', label: 'Transport',     module: 'transport', requires: 'transportEnrolled' },
   { to: '/teacher/payroll/ctc', match: '/teacher/payroll',     icon: 'banknote', label: 'Payroll',       module: 'payroll',
     children: sub(PAYROLL_TEACHER_TABS) },
   { to: '/teacher/library', match: '/teacher/library', icon: 'bookOpen', label: 'Library', module: 'library',
@@ -152,7 +154,9 @@ export const STUDENT_NAV = [
   { to: '/student/documents',       icon: 'files', label: 'Documents',     module: 'document' },
   { to: '/student/holidays',        icon: 'party', label: 'Holidays',      module: 'holiday' },
   { to: '/student/fees',            icon: 'wallet', label: 'Fees',          module: 'fees' },
-  { to: '/student/transport',       icon: 'bus', label: 'Transport',     module: 'transport' },
+  // Only for a student actually enrolled in the service — services/
+  // transportEnrolment on the server decides, and enforces it on the routes too.
+  { to: '/student/transport',       icon: 'bus', label: 'Transport',     module: 'transport', requires: 'transportEnrolled' },
   { to: '/student/hostel',          icon: 'hotel', label: 'Hostel',        module: 'hostel' },
   { to: '/student/videos',          icon: 'video', label: 'Video Learning', module: 'videoLibrary' },
   { to: '/student/library', match: '/student/library', icon: 'bookOpen', label: 'Library', module: 'library',
@@ -180,8 +184,9 @@ export const PARENT_NAV = [
   { to: '/parent/child-fees',       icon: 'wallet', label: 'Fees',          module: 'fees' },
   { to: '/parent/library', match: '/parent/library', icon: 'bookOpen', label: 'Library',       module: 'library',
     children: sub(LIBRARY_PARENT_TABS) },
+  // Only when one of their children rides.
   { to: '/parent/transport/track', match: '/parent/transport',  icon: 'bus', label: 'Transport',     module: 'transport',
-    children: sub(TRANSPORT_PARENT_TABS) },
+    requires: 'transportEnrolled', children: sub(TRANSPORT_PARENT_TABS) },
   { to: '/parent/hostel',           icon: 'hotel', label: 'Hostel',        module: 'hostel' },
   { to: '/parent/notifications',    icon: 'bell', label: 'Notifications', module: 'notification' },
   { to: '/chat',                    icon: 'chat', label: 'Chat',          module: 'chat' },

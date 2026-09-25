@@ -1,162 +1,289 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Transport → Routes.
+ *
+ * Three panes: the routes, the picked route on a map, and its details. The Map
+ * view widens the middle pane to every route at once; the Calendar view lays
+ * the week out by shift, which is the question "when does each route run?"
+ * that neither of the other two answers.
+ */
+import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import useFetch from '../../../hooks/useFetch';
+import Icon from '../../../components/ui/icons';
 import * as api from '../../../api/transport.api';
-import { PageHeader, Table, Button, Modal, Confirm, Badge, Pagination, Spinner } from '../../../components/ui/index';
+import {
+  TrHead, TopBar, DayChip, Tiles, Tile, Card, CardHead, CardBody, Panel, Btn, IconBtn, Select, Search,
+  Seg, Rows, Row, Badge, StatusBadge, RouteBadge, Chip, Facts, Fact, Thumb, Avatar, Loading, Empty, Note,
+  Confirm, count, fmtDate, fmtTime, ago, words, SHIFT, useBoard, useDebounced, Cell2, plural } from './trUI';
+import { RankBars } from './trCharts';
+import TrMap from './trMap';
+import { RouteForm } from './trForms';
 
-const empty = {
-  name: '', routeCode: '', shift: 'both', routeType: 'regular', vehicle: '', driver: '', backupDriver: '', attendant: '',
-  startPoint: '', endPoint: 'School', distanceKm: '', estimatedDurationMin: '', geofenceRadiusM: 150, status: 'active', stops: [],
-};
-const newStop = () => ({ name: '', arrivalTime: '', eveningTime: '', landmark: '', latitude: '', longitude: '', distanceFromStart: '', maxStudents: '' });
+const VIEWS = [
+  { value: 'list', label: 'List', icon: 'list' },
+  { value: 'map', label: 'Map', icon: 'mapPin' },
+  { value: 'calendar', label: 'Calendar', icon: 'calendar' },
+];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function TransportRoutes() {
-  const { data: meta } = useFetch(api.getMeta);
-  const [rows, setRows] = useState([]);
-  const [pg, setPg]     = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoad] = useState(true);
-  const [search, setSearch] = useState('');
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState('');
+  const [view, setView] = useState('list');
+  const [picked, setPicked] = useState(null);
+  const [form, setForm] = useState(null);
   const [del, setDel] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const vehicles = meta?.vehicles || [], drivers = meta?.drivers || [], attendants = meta?.attendants || [];
+  const search = useDebounced(q);
 
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
-    try { const res = await api.getRoutes({ page, limit: 20, search }); const d = res.data ?? res;
-      setRows(d.data || []); setPg({ page: d.page, pages: d.pages, total: d.total }); }
-    catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [search]);
-  useEffect(() => { load(1); }, []); // eslint-disable-line
+  const { data, loading, error, reload } = useBoard(
+    () => api.getRouteBoard({ search, status }), [search, status],
+  );
+  const d = data || {};
+  const rows = d.data || [];
+  const t = d.tiles || {};
+  const route = useMemo(() => rows.find((r) => String(r._id) === String(picked)) || rows[0], [rows, picked]);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const setStop = (i, k, v) => setForm(f => ({ ...f, stops: f.stops.map((s, j) => j === i ? { ...s, [k]: v } : s) }));
-  const addStop = () => setForm(f => ({ ...f, stops: [...f.stops, newStop()] }));
-  const rmStop  = (i) => setForm(f => ({ ...f, stops: f.stops.filter((_, j) => j !== i) }));
-
-  const open = (row) => {
-    if (row) setEditId(row._id), setForm({ ...empty, ...row,
-      vehicle: row.vehicle?._id || row.vehicle || '', driver: row.driver?._id || row.driver || '',
-      backupDriver: row.backupDriver || '', attendant: row.attendant?._id || row.attendant || '',
-      stops: (row.stops || []).map(s => ({ ...newStop(), ...s })) });
-    else setEditId(null), setForm({ ...empty, stops: [newStop()] });
-    setModal(true);
+  const optimize = async (r) => {
+    try { await api.optimizeRoute(r._id); toast.success('Stops reordered by distance'); reload(); }
+    catch (e) { toast.error(e?.message || 'Could not reorder'); }
   };
-  const save = async (e) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      const p = { ...form, distanceKm: +form.distanceKm || 0, estimatedDurationMin: +form.estimatedDurationMin || 0,
-        vehicle: form.vehicle || null, driver: form.driver || null, backupDriver: form.backupDriver || null, attendant: form.attendant || null,
-        stops: form.stops.filter(s => s.name).map((s, i) => ({ ...s, sequence: i + 1,
-          latitude: s.latitude === '' ? null : +s.latitude, longitude: s.longitude === '' ? null : +s.longitude,
-          distanceFromStart: +s.distanceFromStart || 0, maxStudents: +s.maxStudents || 0 })) };
-      if (editId) await api.updateRoute(editId, p); else await api.createRoute(p);
-      toast.success('Route saved'); setModal(false); load(pg.page);
-    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
+  const remove = async () => {
+    try { await api.deleteRoute(del._id); toast.success(`${del.name} removed`); setDel(null); reload(); }
+    catch (e) { toast.error(e?.message || 'Could not remove that route'); setDel(null); }
   };
-  const remove = async () => { try { await api.deleteRoute(del._id); toast.success('Deleted'); setDel(null); load(pg.page); } catch (err) { toast.error(err.message); setDel(null); } };
-  const optimize = async (id) => { try { await api.optimizeRoute(id); toast.success('Stops re-ordered by distance'); } catch (err) { toast.error(err.message); } };
-  const openDetail = async (row) => { setDetail({ loading: true }); try { const r = await api.getRoute(row._id); setDetail(r.data ?? r); } catch (err) { toast.error(err.message); setDetail(null); } };
 
-  const columns = [
-    { key: 'name', label: 'Route', render: r => <div><strong style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>{r.name}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.routeCode} · {r.stops?.length || 0} stops</div></div> },
-    { key: 'shift', label: 'Shift', render: r => <Badge variant="info">{r.shift}</Badge> },
-    { key: 'vehicle', label: 'Vehicle', render: r => r.vehicle?.vehicleNumber || <span style={{ color: 'var(--warning,#f59e0b)' }}>Unassigned</span> },
-    { key: 'driver', label: 'Driver', render: r => r.driver?.name || '—' },
-    { key: 'students', label: 'Students', render: r => <Badge variant={r.vehicle && r.studentCount >= r.vehicle.capacity ? 'warning' : 'muted'}>{r.studentCount || 0}{r.vehicle ? `/${r.vehicle.capacity}` : ''}</Badge> },
-    { key: 'status', label: 'Status', render: r => <Badge variant={r.status === 'active' ? 'success' : 'muted'}>{r.status}</Badge> },
-    { key: 'a', label: '', render: r => <div style={{ display: 'flex', gap: 6 }}>
-      <Button size="sm" variant="secondary" onClick={() => open(r)}>Edit</Button>
-      <Button size="sm" variant="danger" onClick={() => setDel(r)}>Delete</Button></div> },
-  ];
+  if (loading && !data) return <div className="tr-page"><Loading /></div>;
+  if (error) return <div className="tr-page"><Note tone="bad" title="Could not load the routes">{error}</Note></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="Route Management" subtitle="Stops, timings, crew & vehicle assignment"
-        action={<Button onClick={() => open()}>+ Create Route</Button>} />
-      <div style={{ marginBottom: 16, maxWidth: 320 }}>
-        <input className="form-control" placeholder="🔍 Search route name / code…" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && load(1)} />
-      </div>
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="🛣️" emptyTitle="No routes yet" />
-      </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
+    <div className="tr-page">
+      <TopBar>
+        <DayChip label={t.yearName || new Date().getFullYear()} sub="Academic Year" icon="calendar" />
+        <Btn kind="primary" icon="plus" onClick={() => setForm({})}>Add Route</Btn>
+      </TopBar>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? 'Edit Route' : 'Create Route'} maxWidth={820}
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="rt-form" type="submit" loading={saving}>Save Route</Button></>}>
-        <form id="rt-form" onSubmit={save}>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label required">Route Name</label><input className="form-control" required value={form.name} onChange={e => set('name', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Route Code</label><input className="form-control" value={form.routeCode} onChange={e => set('routeCode', e.target.value)} placeholder="auto if blank" /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Shift</label>
-              <select className="form-control" value={form.shift} onChange={e => set('shift', e.target.value)}>{['morning','evening','both'].map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">Route Type</label>
-              <select className="form-control" value={form.routeType} onChange={e => set('routeType', e.target.value)}>{['regular','holiday','temporary','alternative'].map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Vehicle</label>
-              <select className="form-control" value={form.vehicle} onChange={e => set('vehicle', e.target.value)}>
-                <option value="">— Unassigned —</option>{vehicles.map(v => <option key={v._id} value={v._id}>{v.vehicleNumber} ({v.capacity} seats)</option>)}</select></div>
-            <div className="form-group"><label className="form-label">Driver</label>
-              <select className="form-control" value={form.driver} onChange={e => set('driver', e.target.value)}>
-                <option value="">— None —</option>{drivers.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Attendant</label>
-              <select className="form-control" value={form.attendant} onChange={e => set('attendant', e.target.value)}>
-                <option value="">— None —</option>{attendants.map(a => <option key={a._id} value={a._id}>{a.name}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">Distance (km)</label><input type="number" step="0.1" className="form-control" value={form.distanceKm} onChange={e => set('distanceKm', e.target.value)} /></div>
-          </div>
+      <TrHead title="Routes" subtitle="Create and manage transport routes, stops and schedules">
+        <Search value={q} onChange={setQ} placeholder="Search routes…" grow={false} style={{ width: 210 }} />
+        <Select value={status} onChange={setStatus} placeholder="All Status" width={140}
+                options={['active', 'inactive', 'maintenance', 'draft'].map((v) => ({ value: v, label: words(v) }))} />
+        <Seg value={view} onChange={setView} items={VIEWS} solid />
+      </TrHead>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0 6px' }}>
-            <div style={{ fontSize: '.85rem', fontWeight: 700 }}>Stops ({form.stops.length})</div>
-            <Button size="sm" variant="secondary" type="button" onClick={addStop}>+ Add Stop</Button>
-          </div>
-          <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-            {form.stops.length === 0 && <div style={{ padding: 14, fontSize: '.8rem', color: 'var(--text-muted)' }}>No stops added yet.</div>}
-            {form.stops.map((s, i) => (
-              <div key={i} style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '20px 1.6fr .9fr .9fr .8fr .8fr 24px', gap: 6, alignItems: 'center' }}>
-                <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>{i + 1}</span>
-                <input className="form-control" placeholder="Stop name" value={s.name} onChange={e => setStop(i, 'name', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <input className="form-control" placeholder="AM 07:15" value={s.arrivalTime} onChange={e => setStop(i, 'arrivalTime', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <input className="form-control" placeholder="PM 15:20" value={s.eveningTime} onChange={e => setStop(i, 'eveningTime', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <input className="form-control" placeholder="km" value={s.distanceFromStart} onChange={e => setStop(i, 'distanceFromStart', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <input className="form-control" placeholder="max" value={s.maxStudents} onChange={e => setStop(i, 'maxStudents', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <button type="button" onClick={() => rmStop(i)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--danger,#ef4444)' }}>✕</button>
-              </div>
-            ))}
-          </div>
-        </form>
-      </Modal>
+      <Tiles>
+        <Tile icon="route" tone="indigo" value={count(t.total)} label="Total Routes"
+              sub={t.newThisTerm ? `↑ ${t.newThisTerm} new this term` : `Term: ${t.term || '—'}`} />
+        <Tile icon="check" tone="green" value={count(t.active)} label="Active Routes"
+              sub={`${t.total ? Math.round((t.active / t.total) * 100) : 0}% of total`} />
+        <Tile icon="pause" tone="orange" value={count(t.inactive)} label="Inactive Routes"
+              sub={`${t.total ? Math.round((t.inactive / t.total) * 100) : 0}% of total`} />
+        <Tile icon="wrench" tone="red" value={count(t.maintenance)} label="Under Maintenance"
+              sub={`${t.total ? Math.round((t.maintenance / t.total) * 100) : 0}% of total`} />
+        <Tile icon="students" tone="blue" value={count(t.students)} label="Students Assigned"
+              delta={t.studentsDelta} deltaNote="vs. last term" />
+      </Tiles>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.name || 'Route'} maxWidth={720}>
-        {detail?.loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div> : detail && (
-          <div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
-              <Badge variant="primary">{detail.routeCode}</Badge>
-              <Badge variant="info">{detail.shift}</Badge>
-              {detail.vehicle && <Badge variant="muted">{detail.vehicle.vehicleNumber}</Badge>}
-              {detail.driver && <Badge variant="muted">👨‍✈️ {detail.driver.name}</Badge>}
-              <Badge variant="success">{detail.studentCount} students</Badge>
-              <Button size="sm" variant="secondary" onClick={() => optimize(detail._id)} style={{ marginLeft: 'auto' }}>⚡ Optimize order</Button>
+      {view === 'map' ? (
+        <Card>
+          <CardHead title="All Routes" sub={`${plural(rows.length, 'route')} · ${plural(t.students, 'student')}`} />
+          <CardBody fill>
+            <TrMap height={520} routes={rows} school={d.school} showStopLabels map={d.map}
+                   vehicles={rows.filter((r) => r.live).map((r) => ({
+                     _id: r._id, vehicleNumber: r.vehicle?.vehicleNumber || r.tag, latitude: r.live.latitude,
+                     longitude: r.live.longitude, state: 'on_route', route: r, speed: r.live.speed,
+                   }))} />
+          </CardBody>
+        </Card>
+      ) : view === 'calendar' ? (
+        <Card>
+          <CardHead title="Weekly Schedule" sub="When each route runs — from its published morning and afternoon windows" />
+          <CardBody flush>
+            <div className="tr-tablewrap">
+              <table className="tr-table">
+                <thead><tr><th style={{ minWidth: 190 }}>Route</th><th>Shift</th>{DAYS.map((x) => <th key={x}>{x}</th>)}</tr></thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r._id}>
+                      <td><div className="tr-who"><RouteBadge route={r} /><Cell2 top={r.name} sub={r.zone} /></div></td>
+                      <td><Badge tone="slate" square>{SHIFT[r.shift]}</Badge></td>
+                      {DAYS.map((day) => (
+                        <td key={day} style={{ fontSize: '.75rem' }}>
+                          {r.status !== 'active' ? <span style={{ color: 'var(--tr-faint)' }}>—</span> : (
+                            <>
+                              {r.shift !== 'evening' && r.schedule.morningStart
+                                ? <div style={{ color: '#2563eb' }}>{fmtTime(r.schedule.morningStart)}</div> : null}
+                              {r.shift !== 'morning' && r.schedule.eveningStart
+                                ? <div style={{ color: '#7c3aed' }}>{fmtTime(r.schedule.eveningStart)}</div> : null}
+                              {!r.schedule.morningStart && !r.schedule.eveningStart
+                                ? <span style={{ color: 'var(--tr-faint)' }}>No time set</span> : null}
+                            </>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div style={{ fontSize: '.8rem', fontWeight: 600, margin: '6px 0 4px' }}>Stops</div>
-            <table className="table" style={{ width: '100%' }}>
-              <thead><tr><th>#</th><th>Stop</th><th>AM</th><th>PM</th><th>km</th></tr></thead>
-              <tbody>{[...(detail.stops || [])].sort((a,b)=>a.sequence-b.sequence).map(s => (
-                <tr key={s._id} data-focus-id={s._id}><td>{s.sequence}</td><td>{s.name}</td><td>{s.arrivalTime || '—'}</td><td>{s.eveningTime || '—'}</td><td>{s.distanceFromStart || 0}</td></tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-      </Modal>
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} title="Delete route" message={`Delete "${del?.name}"?`} />
+            {!rows.length ? <Empty icon="calendar" title="No routes to schedule" /> : null}
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="tr-split tr-split--three">
+          <Panel title={`All Routes (${rows.length})`} flush
+                 right={<Select value="" onChange={() => {}} options={[{ value: '', label: 'Sort by Route Name' }]} width={150} />}>
+            <div className="tr-scroller tr-scroller--fill" style={{ maxHeight: 520 }}>
+              {rows.length ? (
+                <Rows>
+                  {rows.map((r) => (
+                    <Row key={r._id} selected={String(r._id) === String(route?._id)} onClick={() => setPicked(r._id)}
+                         avatar={<RouteBadge route={r} />} title={r.name} sub={r.stopSummary || 'No stops yet'}
+                         end={`${r.students}`} endSub={r.students === 1 ? 'student' : 'students'}>
+                      <StatusBadge value={r.status} />
+                    </Row>
+                  ))}
+                </Rows>
+              ) : <Empty icon="route" sm title="No routes match" />}
+            </div>
+          </Panel>
+
+          <Card>
+            <CardHead title={route ? `Route Map — ${route.tag} (${route.zone || route.name})` : 'Route Map'}
+                      right={route?.live ? <Badge tone="green" dot="green">Live</Badge> : null} />
+            <CardBody fill>
+              <TrMap height={382} routes={route ? [route] : []} school={d.school} showStopLabels
+                     map={d.map} viewKey={route?._id}
+                     vehicles={route?.live ? [{
+                       _id: route._id, vehicleNumber: route.vehicle?.vehicleNumber || route.tag,
+                       latitude: route.live.latitude, longitude: route.live.longitude,
+                       state: 'on_route', route, speed: route.live.speed,
+                     }] : []}
+                     emptyHint="Add latitude and longitude to this route's stops and the line, its stops and the bus on it are drawn here." />
+            </CardBody>
+          </Card>
+
+          <Panel title="Route Details" right={route ? <Btn size="sm" icon="pencil" onClick={() => setForm(route)}>Edit Route</Btn> : null}>
+            {route ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
+                  <RouteBadge route={route} />
+                  <div style={{ minWidth: 0 }}>
+                    <b style={{ fontSize: '.98rem' }}>{route.zone || route.name}</b>
+                    <div style={{ fontSize: '.76rem', color: 'var(--tr-muted)' }}>{route.stopSummary}</div>
+                  </div>
+                  <span style={{ marginLeft: 'auto' }}><StatusBadge value={route.status} /></span>
+                </div>
+                <Facts>
+                  <Fact icon="users" k="Students" v={route.students} />
+                  <Fact icon="mapPin" k="Stops" v={route.stopCount} />
+                  <Fact icon="compass" k="Distance" v={route.distanceKm ? `${route.distanceKm} km` : '—'} />
+                  <Fact icon="clock" k="Est. Duration" v={route.durationMin ? `${route.durationMin} mins` : '—'} />
+                </Facts>
+
+                <div style={{ marginTop: 14 }}>
+                  <div className="tr-fact__k" style={{ marginBottom: 6 }}>Driver</div>
+                  {route.driver ? (
+                    <div className="tr-who">
+                      <Avatar name={route.driver.name} src={route.driver.photo} id={route.driver._id} />
+                      <Cell2 top={route.driver.name} sub={route.driver.phone} />
+                      <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                        {route.driver.phone ? <IconBtn icon="phone" label="Call" as="a" onClick={() => { window.location.href = `tel:${route.driver.phone}`; }} /> : null}
+                        <IconBtn icon="chat" label="Message" onClick={() => toast('Messaging the driver opens in Chat')} />
+                      </span>
+                    </div>
+                  ) : <span style={{ fontSize: '.82rem', color: 'var(--tr-faint)' }}>No driver assigned</span>}
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <div className="tr-fact__k" style={{ marginBottom: 6 }}>Vehicle</div>
+                  {route.vehicle ? (
+                    <div className="tr-who">
+                      <Thumb src={route.vehicle.photo} alt={route.vehicle.vehicleNumber} />
+                      <Cell2 top={`${route.vehicle.vehicleNumber}${route.vehicle.manufacturer ? ` (${route.vehicle.manufacturer})` : ''}`}
+                             sub={route.vehicle.registrationNumber} />
+                      <span style={{ marginLeft: 'auto' }}><IconBtn icon="eye" label="View vehicle" /></span>
+                    </div>
+                  ) : <span style={{ fontSize: '.82rem', color: 'var(--tr-faint)' }}>No vehicle assigned</span>}
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <div className="tr-fact__k" style={{ marginBottom: 6 }}>Schedule</div>
+                  <div style={{ display: 'grid', gap: 6, fontSize: '.82rem' }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ width: 78, color: 'var(--tr-muted)' }}>Morning</span>
+                      <b>{route.schedule.morningStart ? `${fmtTime(route.schedule.morningStart)} – ${fmtTime(route.schedule.morningEnd)}` : 'Not set'}</b>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ width: 78, color: 'var(--tr-muted)' }}>Afternoon</span>
+                      <b>{route.schedule.eveningStart ? `${fmtTime(route.schedule.eveningStart)} – ${fmtTime(route.schedule.eveningEnd)}` : 'Not set'}</b>
+                    </div>
+                  </div>
+                </div>
+
+                {route.description ? (
+                  <div style={{ marginTop: 14 }}>
+                    <div className="tr-fact__k" style={{ marginBottom: 4 }}>Route Description</div>
+                    <p style={{ margin: 0, fontSize: '.81rem', color: 'var(--tr-ink-2)', lineHeight: 1.5 }}>{route.description}</p>
+                  </div>
+                ) : null}
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  <Btn size="sm" icon="repeat" onClick={() => optimize(route)}>Reorder stops</Btn>
+                  <Btn size="sm" kind="danger" icon="trash" onClick={() => setDel(route)}>Delete</Btn>
+                </div>
+              </>
+            ) : <Empty icon="route" sm title="Pick a route">Its stops, crew, schedule and map appear here.</Empty>}
+          </Panel>
+        </div>
+      )}
+
+      <div className="tr-grid tr-grid--3" style={{ marginTop: 14 }}>
+        <Card>
+          <CardHead title="Route Utilization" sub="Students per route" />
+          <CardBody>
+            {d.utilization?.length ? (
+              <RankBars nameWidth={78} fmt={count}
+                        data={d.utilization.map((r) => ({ key: r.tag, label: r.tag, value: r.students, color: r.color }))} />
+            ) : <Empty icon="chart" sm title="Nobody is assigned yet" />}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Upcoming Trips" />
+          <CardBody flush>
+            {d.upcoming?.length ? (
+              <Rows>
+                {d.upcoming.map((u) => (
+                  <Row key={u._id} icon={u.shift === 'morning' ? 'sun' : 'moon'} iconTone={u.shift === 'morning' ? 'amber' : 'purple'}
+                       title={`${u.route?.tag || ''} - ${u.shift === 'morning' ? 'Morning' : 'Afternoon'} Trip`}
+                       sub={`Today, ${u.plannedTime ? fmtTime(u.plannedTime) : 'time not set'}`}
+                       badge={<StatusBadge value={u.delayMinutes > 0 ? 'delayed' : u.status === 'started' ? 'in_progress' : 'scheduled'}
+                                           label={u.delayMinutes > 0 ? `${u.delayMinutes}m late` : undefined} />} />
+                ))}
+              </Rows>
+            ) : <Empty icon="trips" sm title="No trips lined up" />}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Recent Activity" />
+          <CardBody flush>
+            {d.activity?.length ? (
+              <Rows>
+                {d.activity.map((a, i) => (
+                  <Row key={i}
+                       avatar={<i className={`tr-dot tr-dot--${/delete|cancel/i.test(a.action) ? 'red' : /update/i.test(a.action) ? 'green' : 'blue'}`} />}
+                       title={a.text} sub={a.by} endSub={ago(a.at)} />
+                ))}
+              </Rows>
+            ) : <Empty icon="clock" sm title="Nothing changed recently" />}
+          </CardBody>
+        </Card>
+      </div>
+
+      {form ? <RouteForm open onClose={() => setForm(null)} row={form._id ? form : null} palette={d.palette || []}
+                         onSaved={() => { setForm(null); reload(); }} /> : null}
+      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} tone="danger"
+               title="Delete this route?" confirmLabel="Delete"
+               message={`${del?.name} will be removed. A route with students still assigned cannot be deleted — move them first.`} />
     </div>
   );
 }

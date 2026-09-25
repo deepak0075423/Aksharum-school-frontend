@@ -1,0 +1,1374 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRANSPORT — admin (Sep 2026 redesign, to the user's sixteen mockups)
+
+   Every class is prefixed `tr-`. Imported by pages/transport/admin/trUI.jsx,
+   so it only loads with the transport screens. Breakpoints are container
+   queries on `.tr-page`: the sidebar collapses, so the viewport is the wrong
+   ruler for deciding whether a five-across tile row fits.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --tr-ink: #0f172a;
+  --tr-ink-2: #334155;
+  --tr-muted: #64748b;
+  --tr-faint: #94a3b8;
+  --tr-line: #e6eaf1;
+  --tr-line-2: #eff2f7;
+  --tr-bg: #f6f8fc;
+  --tr-primary: #4f46e5;
+  --tr-primary-2: #4338ca;
+  --tr-primary-soft: #eef2ff;
+  --tr-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+  --tr-shadow-2: 0 8px 28px rgba(15, 23, 42, .12);
+  --tr-radius: 14px;
+}
+
+.tr-page {
+  container: tr / inline-size;
+  padding: 16px 24px 28px;
+  /* Centred, or a 1900px window leaves 340px of nothing down the right-hand
+     side of every screen in the module. */
+  max-width: 1560px;
+  margin-inline: auto;
+  color: var(--tr-ink);
+  font-size: .9rem;
+}
+.tr-page *, .tr-portal * { box-sizing: border-box; }
+
+/* ── Tones: one table, used by tiles, badges, dots and marks ─────────────── */
+.tr-t-indigo { background: #e0e7ff; color: #4f46e5; }
+.tr-t-blue   { background: #dbeafe; color: #2563eb; }
+.tr-t-green  { background: #dcfce7; color: #16a34a; }
+.tr-t-amber  { background: #fef3c7; color: #d97706; }
+.tr-t-orange { background: #ffedd5; color: #ea580c; }
+.tr-t-red    { background: #fee2e2; color: #dc2626; }
+.tr-t-purple { background: #ede9fe; color: #7c3aed; }
+.tr-t-pink   { background: #fce7f3; color: #db2777; }
+.tr-t-teal   { background: #ccfbf1; color: #0d9488; }
+.tr-t-slate  { background: #e9eef5; color: #475569; }
+
+.tr-b-green  { background: #dcfce7; color: #15803d; }
+.tr-b-blue   { background: #dbeafe; color: #1d4ed8; }
+.tr-b-indigo { background: #e0e7ff; color: #4338ca; }
+.tr-b-amber  { background: #fef3c7; color: #b45309; }
+.tr-b-orange { background: #ffedd5; color: #c2410c; }
+.tr-b-red    { background: #fee2e2; color: #b91c1c; }
+.tr-b-purple { background: #ede9fe; color: #6d28d9; }
+.tr-b-pink   { background: #fce7f3; color: #be185d; }
+.tr-b-teal   { background: #ccfbf1; color: #0f766e; }
+.tr-b-slate  { background: #eef2f7; color: #475569; }
+
+.tr-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }
+.tr-dot--green { background: #22c55e; } .tr-dot--amber { background: #f59e0b; }
+.tr-dot--red { background: #ef4444; }   .tr-dot--blue { background: #3b82f6; }
+.tr-dot--slate { background: #94a3b8; } .tr-dot--purple { background: #8b5cf6; }
+.tr-dot--indigo { background: #6366f1; } .tr-dot--teal { background: #14b8a6; }
+.tr-dot--pink { background: #ec4899; }  .tr-dot--orange { background: #f97316; }
+
+.tr-mark {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  border-radius: 12px;
+}
+.tr-mark--round { border-radius: 50%; }
+
+/* ── Page head ──────────────────────────────────────────────────────────── */
+.tr-head { display: flex; align-items: flex-start; gap: 16px; margin: 4px 0 18px; flex-wrap: wrap; }
+.tr-head__text { flex: 1 1 340px; min-width: 0; }
+.tr-head__title { display: flex; align-items: center; gap: 12px; }
+.tr-head h1 { margin: 0; font-size: 1.72rem; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; }
+.tr-head p { margin: 6px 0 0; color: var(--tr-muted); font-size: .92rem; }
+.tr-head__acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* The date / year chip that sits at the far right of the breadcrumb row. */
+.tr-topbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: -4px 0 12px; flex-wrap: wrap; }
+.tr-daychip {
+  display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px;
+  border: 1px solid var(--tr-line); border-radius: 10px; background: #fff; color: var(--tr-ink);
+  font-size: .86rem; font-weight: 600; cursor: pointer;
+}
+.tr-daychip__ico { color: var(--tr-primary); display: inline-flex; }
+.tr-daychip__lab { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.tr-daychip__lab small { font-size: .68rem; font-weight: 600; color: var(--tr-faint); }
+.tr-daychip select { border: 0; background: transparent; font: inherit; font-weight: 600; color: inherit; cursor: pointer; padding: 0; }
+.tr-daychip select:focus { outline: none; }
+.tr-livechip {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px;
+  border-radius: 999px; background: #dcfce7; color: #15803d; font-size: .76rem; font-weight: 700;
+}
+.tr-livechip .tr-dot { animation: tr-pulse 1.6s ease-in-out infinite; }
+@keyframes tr-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.tr-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 16px; border-radius: 10px; font: inherit; font-size: .875rem; font-weight: 600;
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap; line-height: 1;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+}
+.tr-btn:disabled { opacity: .55; cursor: not-allowed; }
+.tr-btn--primary { background: var(--tr-primary); color: #fff; }
+.tr-btn--primary:hover:not(:disabled) { background: var(--tr-primary-2); }
+.tr-btn--ghost { background: #fff; color: var(--tr-ink-2); border-color: var(--tr-line); }
+.tr-btn--ghost:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+.tr-btn--soft { background: var(--tr-primary-soft); color: var(--tr-primary); }
+.tr-btn--soft:hover:not(:disabled) { background: #e0e7ff; }
+.tr-btn--danger { background: #fee2e2; color: #b91c1c; }
+.tr-btn--danger:hover:not(:disabled) { background: #fecaca; }
+.tr-btn--sm { height: 32px; padding: 0 12px; font-size: .8rem; border-radius: 8px; }
+.tr-btn--lg { height: 44px; padding: 0 18px; }
+.tr-btn--block { width: 100%; }
+/* The dashboard's "New Request ▾" split button. */
+.tr-split-btn { display: inline-flex; }
+.tr-split-btn .tr-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tr-split-btn .tr-btn:last-child {
+  border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 10px;
+  border-left: 1px solid rgba(255, 255, 255, .28);
+}
+
+.tr-iconbtn {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 8px; border: 1px solid var(--tr-line); background: #fff; color: var(--tr-muted);
+  cursor: pointer; flex: 0 0 auto; transition: background .15s, color .15s, border-color .15s;
+}
+.tr-iconbtn:hover { background: #f1f5f9; color: var(--tr-ink); }
+.tr-iconbtn--primary { color: var(--tr-primary); border-color: #c7d2fe; background: var(--tr-primary-soft); }
+.tr-iconbtn--danger:hover { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.tr-iconbtn--plain { border-color: transparent; background: transparent; }
+/* Done: a stop that has been placed on the map. */
+.tr-iconbtn--good { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+.tr-linkbtn {
+  background: none; border: 0; padding: 0; font: inherit; font-size: .8rem; font-weight: 600;
+  color: var(--tr-primary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+}
+.tr-linkbtn:hover { text-decoration: underline; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.tr-card {
+  background: #fff; border: 1px solid var(--tr-line); border-radius: var(--tr-radius);
+  box-shadow: var(--tr-shadow); min-width: 0;
+  display: flex; flex-direction: column;
+}
+.tr-card__head {
+  display: flex; align-items: center; gap: 12px; padding: 15px 18px 12px;
+}
+.tr-card__head h3 { margin: 0; font-size: .98rem; font-weight: 700; letter-spacing: -.005em; }
+.tr-card__head p { margin: 3px 0 0; font-size: .78rem; color: var(--tr-muted); }
+.tr-card__head--line { border-bottom: 1px solid var(--tr-line-2); padding-bottom: 14px; }
+.tr-card__grow { flex: 1 1 auto; min-width: 0; }
+.tr-card__body { padding: 0 18px 16px; }
+.tr-card__body--flush { padding: 0; }
+.tr-card__foot { padding: 12px 18px; border-top: 1px solid var(--tr-line-2); }
+/* A body that should take the slack when its card has been stretched to a row
+   height — the map and the charts, which look wrong with a band of white under
+   them. `.tr-map` reads its own size from a ResizeObserver, so `height: auto`
+   here is enough for it to redraw at whatever it is given. */
+.tr-card__body--fill { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.tr-card__body--fill > .tr-map { flex: 1 1 auto; height: auto; min-height: 220px; }
+.tr-card__body--fill > .tr-chart { flex: 1 1 auto; }
+/* A donut in a stretched card sits in the middle of the space it was given
+   rather than at the top of it with a band of white underneath. */
+.tr-card__body--fill > .tr-donutwrap { flex: 1 1 auto; align-items: center; }
+
+/* ── Tiles ──────────────────────────────────────────────────────────────── */
+/* Flex, not grid, and deliberately.
+   A grid of five tiles in three columns leaves the third cell of the second row
+   empty — a hole the width of a tile, which is what a 1200px window showed on
+   almost every screen here. Wrapped flex items grow into whatever is left, so
+   the last row always finishes flush no matter how many tiles a screen has or
+   how wide the container is. The basis decides how many fit per row; nothing
+   steps at a breakpoint. */
+.tr-tiles { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
+.tr-tiles > * { flex: 1 1 200px; }
+.tr-tiles--6 > * { flex-basis: 175px; }
+.tr-tiles--4 > * { flex-basis: 230px; }
+.tr-tiles--3 > * { flex-basis: 260px; }
+.tr-tile {
+  background: #fff; border: 1px solid var(--tr-line); border-radius: var(--tr-radius);
+  padding: 15px 16px; box-shadow: var(--tr-shadow); min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit;
+  position: relative;
+  /* Its own container, so the tile can decide what it has room for. The named
+     `tr` queries below still address the page, not this. */
+  container-type: inline-size;
+}
+a.tr-tile:hover { border-color: #c7d2fe; }
+.tr-tile__top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.tr-tile__mark { width: 46px; height: 46px; border-radius: 13px; }
+/* The figure takes the slack and the ring never gives any up, or a six-tile row
+   squeezes "Students On Board" underneath its own percentage ring. */
+.tr-tile__fig { min-width: 0; flex: 1 1 auto; }
+.tr-tile__value { font-size: 1.62rem; font-weight: 700; line-height: 1.05; letter-spacing: -.02em; white-space: nowrap; }
+.tr-tile__label { font-size: .82rem; color: var(--tr-muted); margin-top: 3px; line-height: 1.25; }
+.tr-tile__chev { position: absolute; top: 15px; right: 14px; color: var(--tr-faint); display: inline-flex; }
+/* Three breakdown items have to share a 300px tile, so the row is tight and
+   only wraps when it genuinely cannot fit. */
+.tr-tile__legend { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: .71rem; color: var(--tr-muted); }
+.tr-tile__legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tr-tile__legend b { color: var(--tr-ink-2); font-weight: 700; }
+.tr-tile__sub { font-size: .73rem; color: var(--tr-muted); }
+.tr-tile__delta { display: inline-flex; align-items: center; gap: 4px; font-size: .74rem; font-weight: 700; }
+.tr-tile__delta--up { color: #16a34a; } .tr-tile__delta--down { color: #dc2626; }
+.tr-tile__delta--flat { color: var(--tr-faint); }
+.tr-tile__ring { margin-left: auto; flex: 0 0 auto; }
+/* A six-across row can leave a tile ~185px wide: mark 46 + ring 44 + gaps take
+   all but ~40px, and "Students On Board" then runs underneath its own ring.
+   The ring is the redundant part — the figure and its sub-line already say the
+   same thing — so it is what gives way. */
+@container (max-width: 180px) {          /* the tile's CONTENT box, not its border box */
+  .tr-tile__ring { display: none; }
+}
+.tr-tile__bar { height: 6px; border-radius: 3px; background: #eef2f7; overflow: hidden; display: block; }
+.tr-tile__bar i { display: block; height: 100%; border-radius: 3px; background: var(--tr-primary); }
+
+/* ── Layout grids ───────────────────────────────────────────────────────── */
+/* Peer-card rows share a row height: a ragged bottom edge across three cards
+   in one band is the thing that read as "unfinished" in review. `.tr-split`
+   (list + aside) keeps `start`, because there the two columns are different
+   kinds of thing and stretching a six-row table to an aside's height would
+   leave a tall empty table body. */
+.tr-grid { display: grid; gap: 14px; margin-bottom: 14px; align-items: stretch; }
+.tr-grid > .tr-card, .tr-grid > .tr-stack { height: 100%; }
+/* …except a strip whose cards are not really peers — a one-line note beside a
+   feed of a dozen rows. Matching those heights buys a straight edge with three
+   hundred pixels of white inside two of the cards, which is the worse trade. */
+.tr-grid--loose { align-items: start; }
+.tr-grid--loose > .tr-card, .tr-grid--loose > .tr-stack { height: auto; }
+.tr-stack { display: flex; flex-direction: column; gap: 14px; }
+.tr-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tr-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tr-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tr-grid--dash { grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+.tr-grid--2a { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.tr-grid--2b { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.tr-grid--chart3 { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, .95fr); }
+/* Working area beside a rail that reacts to the picked row. */
+.tr-split { display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 14px; align-items: start; }
+.tr-split--wide { grid-template-columns: minmax(0, 1fr) 420px; }
+.tr-split--three { grid-template-columns: 336px minmax(0, 1fr) 340px; }
+/* All three columns take the height of the tallest, and their contents fill it:
+   a 380px map and a 400px route rail beside a 670px detail panel left two holes
+   across the middle of the page. */
+.tr-split--three > * { align-self: stretch; }
+.tr-rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* ── Filters ────────────────────────────────────────────────────────────── */
+.tr-filters {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--tr-line); border-radius: var(--tr-radius);
+  padding: 12px 14px; box-shadow: var(--tr-shadow); margin-bottom: 14px;
+}
+.tr-filters--plain { background: transparent; border: 0; padding: 0; box-shadow: none; }
+.tr-filters__grow { flex: 1 1 220px; min-width: 0; }
+.tr-filters__end { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+.tr-search { position: relative; display: block; min-width: 0; }
+.tr-search__ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--tr-faint); pointer-events: none; display: inline-flex; }
+.tr-search input {
+  width: 100%; height: 40px; padding: 0 12px 0 38px; border: 1px solid var(--tr-line);
+  border-radius: 10px; font: inherit; font-size: .86rem; background: #fff; color: var(--tr-ink);
+}
+.tr-search input::placeholder { color: var(--tr-faint); }
+.tr-search input:focus { outline: none; border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(79, 70, 229, .12); }
+
+.tr-select { position: relative; display: inline-flex; min-width: 0; }
+.tr-select select {
+  appearance: none; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--tr-line);
+  border-radius: 10px; font: inherit; font-size: .86rem; background: #fff; color: var(--tr-ink);
+  cursor: pointer; width: 100%; min-width: 120px; text-overflow: ellipsis;
+}
+.tr-select select:focus { outline: none; border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(79, 70, 229, .12); }
+.tr-select__ico { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); color: var(--tr-faint); pointer-events: none; display: inline-flex; }
+
+.tr-field { display: block; min-width: 0; }
+.tr-field__label { display: block; font-size: .78rem; font-weight: 600; color: var(--tr-ink-2); margin-bottom: 6px; }
+.tr-field__hint { display: block; font-size: .73rem; color: var(--tr-muted); margin-top: 5px; }
+.tr-input, .tr-textarea {
+  width: 100%; min-height: 40px; padding: 9px 12px; border: 1px solid var(--tr-line); border-radius: 10px;
+  font: inherit; font-size: .86rem; background: #fff; color: var(--tr-ink);
+}
+.tr-textarea { min-height: 84px; resize: vertical; }
+.tr-input:focus, .tr-textarea:focus { outline: none; border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(79, 70, 229, .12); }
+.tr-formgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.tr-formgrid--1 { grid-template-columns: 1fr; }
+.tr-formgrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tr-formgrid__full { grid-column: 1 / -1; }
+.tr-formgrid__span2 { grid-column: span 2; }
+/* Six columns divide by two and by three, so a row can mix halves and thirds
+   without a second grid underneath it. */
+.tr-formgrid--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.tr-formgrid--6 > .tr-sp2 { grid-column: span 2; }
+.tr-formgrid--6 > .tr-sp3 { grid-column: span 3; }
+
+/* ── Form sections ───────────────────────────────────────────────────────────
+   A dialog with fourteen fields in one grid is a wall. Grouping them under
+   named sections is what makes a form scannable, so every Create/Edit dialog in
+   the module is built from these rather than from a bare grid. */
+.tr-fsec + .tr-fsec { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--tr-line-2); }
+.tr-fsec__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.tr-fsec__head h4 {
+  margin: 0; font-size: .85rem; font-weight: 700; color: var(--tr-ink); letter-spacing: -.005em;
+}
+.tr-fsec__head p { margin: 0; font-size: .76rem; color: var(--tr-muted); }
+.tr-fsec__num {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 7px; background: var(--tr-primary-soft);
+  color: var(--tr-primary); font-size: .72rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* ── Validation ──────────────────────────────────────────────────────────────
+   A field that failed says so under itself, and the dialog repeats the list at
+   the top so a long form does not need scrolling to find out what is wrong. */
+.tr-field__err { display: block; font-size: .73rem; color: #b91c1c; margin-top: 5px; font-weight: 600; }
+.tr-input[aria-invalid="true"], .tr-textarea[aria-invalid="true"], .tr-select[aria-invalid="true"] {
+  border-color: #fca5a5; background: #fffafa;
+}
+.tr-input[aria-invalid="true"]:focus, .tr-textarea[aria-invalid="true"]:focus {
+  border-color: #f87171; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12);
+}
+.tr-errsum {
+  display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px;
+  padding: 11px 13px; border-radius: 11px; background: #fef2f2; color: #991b1b; font-size: .8rem;
+}
+.tr-errsum b { display: block; margin-bottom: 4px; font-size: .82rem; }
+.tr-errsum ul { margin: 0; padding-left: 17px; line-height: 1.6; }
+.tr-reqnote { font-size: .74rem; color: var(--tr-muted); margin-right: auto; }
+
+/* ── Tabs & switches ────────────────────────────────────────────────────── */
+.tr-seg { display: inline-flex; gap: 4px; padding: 3px; background: #eef2f7; border-radius: 10px; }
+.tr-seg button {
+  border: 0; background: transparent; font: inherit; font-size: .82rem; font-weight: 600;
+  color: var(--tr-muted); padding: 7px 14px; border-radius: 8px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.tr-seg button[aria-pressed="true"] { background: #fff; color: var(--tr-ink); box-shadow: var(--tr-shadow); }
+.tr-seg--solid { background: transparent; padding: 0; gap: 8px; }
+.tr-seg--solid button { border: 1px solid var(--tr-line); background: #fff; }
+.tr-seg--solid button[aria-pressed="true"] { background: var(--tr-primary); border-color: var(--tr-primary); color: #fff; }
+
+.tr-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tr-pills button {
+  border: 1px solid var(--tr-line); background: #fff; font: inherit; font-size: .82rem; font-weight: 600;
+  color: var(--tr-ink-2); padding: 8px 14px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.tr-pills button:hover { background: #f8fafc; }
+.tr-pills button[aria-pressed="true"] { background: var(--tr-primary); border-color: var(--tr-primary); color: #fff; }
+.tr-pills__count { font-size: .72rem; opacity: .8; font-weight: 700; }
+
+.tr-utabs { display: flex; gap: 20px; border-bottom: 1px solid var(--tr-line); overflow-x: auto; scrollbar-width: none; }
+.tr-utabs::-webkit-scrollbar { display: none; }
+.tr-utabs button {
+  border: 0; background: none; font: inherit; font-size: .85rem; font-weight: 600; color: var(--tr-muted);
+  padding: 10px 0 11px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.tr-utabs button[aria-selected="true"] { color: var(--tr-primary); border-bottom-color: var(--tr-primary); }
+
+.tr-toggle {
+  position: relative; display: inline-flex; align-items: center; width: 42px; height: 24px;
+  border-radius: 999px; background: #cbd5e1; cursor: pointer; border: 0; flex: 0 0 auto;
+  transition: background .18s ease;
+}
+.tr-toggle[aria-checked="true"] { background: var(--tr-primary); }
+.tr-toggle i {
+  position: absolute; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  transition: transform .18s ease; box-shadow: 0 1px 2px rgba(15, 23, 42, .3);
+}
+.tr-toggle[aria-checked="true"] i { transform: translateX(18px); }
+.tr-toggle:disabled { opacity: .5; cursor: not-allowed; }
+.tr-switchrow { display: flex; align-items: flex-start; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--tr-line-2); }
+.tr-switchrow:last-child { border-bottom: 0; }
+.tr-switchrow__text { flex: 1 1 auto; min-width: 0; }
+.tr-switchrow__text b { display: block; font-size: .86rem; font-weight: 600; }
+.tr-switchrow__text span { display: block; font-size: .76rem; color: var(--tr-muted); margin-top: 2px; }
+
+.tr-radio { display: inline-flex; align-items: center; gap: 8px; font-size: .84rem; cursor: pointer; white-space: nowrap; }
+/* The mockup stacks a pair of choices rather than setting them side by side,
+   which is also the only way "Kilometers (km)" fits a third-width card. */
+.tr-radios { display: flex; flex-direction: column; gap: 9px; padding-top: 6px; }
+.tr-radio input, .tr-check input { accent-color: var(--tr-primary); width: 16px; height: 16px; cursor: pointer; }
+.tr-check { display: inline-flex; align-items: center; gap: 8px; font-size: .84rem; cursor: pointer; }
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+.tr-tablewrap { overflow-x: auto; }
+.tr-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.tr-table th {
+  text-align: left; font-weight: 600; font-size: .76rem; color: var(--tr-muted);
+  padding: 10px 12px; border-bottom: 1px solid var(--tr-line); white-space: nowrap; background: #fbfcfe;
+}
+.tr-table td { padding: 11px 12px; border-bottom: 1px solid var(--tr-line-2); vertical-align: middle; }
+/* A wrapped phone number or date made neighbouring rows different heights and
+   the table look ragged; these columns get their width instead. */
+.tr-table td.tr-nowrap, .tr-table .tr-num { white-space: nowrap; }
+.tr-table tbody tr:last-child td { border-bottom: 0; }
+.tr-table tbody tr:hover { background: #fafbfe; }
+.tr-table tbody tr[aria-selected="true"] { background: var(--tr-primary-soft); }
+.tr-table td.tr-r, .tr-table th.tr-r { text-align: right; }
+.tr-table td.tr-c, .tr-table th.tr-c { text-align: center; }
+.tr-table .tr-num { font-variant-numeric: tabular-nums; }
+.tr-table__pick { width: 36px; }
+.tr-table__idx { width: 34px; color: var(--tr-faint); font-size: .78rem; }
+/* These tables carry a lot of columns beside a rail, so they scroll sideways.
+   Pinning the actions column keeps the row's buttons reachable instead of
+   leaving them off the right edge. */
+.tr-table__acts {
+  width: 1%; white-space: nowrap;
+  position: sticky; right: 0; z-index: 1;
+  background: #fff;
+  /* Strong enough to read as a pinned column sitting OVER content that scrolls
+     under it. At -8px/.12 the overlap just looked like a clipped cell. */
+  box-shadow: -10px 0 10px -6px rgba(15, 23, 42, .16);
+}
+.tr-table th.tr-table__acts { background: #fbfcfe; }
+.tr-table tbody tr:hover .tr-table__acts { background: #fafbfe; }
+.tr-table tbody tr[aria-selected="true"] .tr-table__acts { background: var(--tr-primary-soft); }
+.tr-table__acts > div { display: inline-flex; gap: 6px; }
+/* A name broken across two lines makes neighbouring rows different heights and
+   the whole table look ragged — the column gets its width instead. */
+.tr-cell2 b {
+  display: block; font-weight: 600; font-size: .85rem; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tr-cell2 span { display: block; font-size: .74rem; color: var(--tr-muted); margin-top: 2px; white-space: nowrap; }
+.tr-rowlink { cursor: pointer; }
+
+.tr-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tr-avatar {
+  width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: .76rem; font-weight: 700; color: #fff; flex: 0 0 auto; overflow: hidden; object-fit: cover;
+}
+.tr-avatar--sm { width: 26px; height: 26px; font-size: .66rem; }
+.tr-avatar--lg { width: 56px; height: 56px; font-size: 1rem; }
+.tr-avatar--xl { width: 74px; height: 74px; font-size: 1.3rem; }
+.tr-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.tr-thumb {
+  width: 44px; height: 32px; border-radius: 7px; object-fit: cover; flex: 0 0 auto;
+  background: #eef2f7; display: inline-flex; align-items: center; justify-content: center; color: var(--tr-faint);
+}
+.tr-thumb--lg { width: 100%; height: 168px; border-radius: 12px; }
+
+.tr-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px;
+  font-size: .73rem; font-weight: 700; white-space: nowrap; line-height: 1.3;
+}
+.tr-badge--sq { border-radius: 7px; }
+.tr-tagchip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 7px;
+  font-size: .74rem; font-weight: 700; white-space: nowrap;
+}
+.tr-chiprow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* The R1/R2 route badge: one colour per route, everywhere. */
+.tr-rbadge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 30px;
+  padding: 0 8px; border-radius: 9px; font-size: .78rem; font-weight: 700; color: #fff; flex: 0 0 auto;
+}
+.tr-rbadge--sm { min-width: 26px; height: 22px; font-size: .7rem; border-radius: 7px; }
+
+.tr-bar { height: 5px; border-radius: 3px; background: #eef2f7; overflow: hidden; display: block; width: 100%; }
+.tr-bar i { display: block; height: 100%; border-radius: 3px; background: var(--tr-primary); }
+.tr-bar--lg { height: 9px; border-radius: 5px; }
+
+/* ── Pager ──────────────────────────────────────────────────────────────── */
+.tr-pager {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px; border-top: 1px solid var(--tr-line-2); font-size: .8rem; color: var(--tr-muted);
+}
+.tr-pager__pages { display: flex; align-items: center; gap: 6px; }
+.tr-pager__pages button {
+  min-width: 32px; height: 32px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--tr-line);
+  background: #fff; font: inherit; font-size: .8rem; font-weight: 600; color: var(--tr-ink-2); cursor: pointer;
+}
+.tr-pager__pages button[aria-current="true"] { background: var(--tr-primary); border-color: var(--tr-primary); color: #fff; }
+.tr-pager__pages button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Rail panels ────────────────────────────────────────────────────────── */
+.tr-panel {
+  background: #fff; border: 1px solid var(--tr-line); border-radius: var(--tr-radius);
+  box-shadow: var(--tr-shadow); overflow: hidden;
+  display: flex; flex-direction: column;     /* so a body can be told to fill */
+}
+.tr-panel__head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; }
+.tr-panel__head h4 { margin: 0; font-size: .92rem; font-weight: 700; }
+.tr-panel__body { padding: 0 16px 16px; }
+.tr-panel__body--flush { padding: 0; }
+
+.tr-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tr-facts--1 { grid-template-columns: 1fr; }
+.tr-fact {
+  border: 1px solid var(--tr-line); border-radius: 11px; padding: 10px 12px; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.tr-fact__ico { color: var(--tr-primary); display: inline-flex; flex: 0 0 auto; }
+.tr-fact__text { min-width: 0; }
+.tr-fact__k { font-size: .71rem; color: var(--tr-muted); display: block; }
+.tr-fact__v { font-size: .85rem; font-weight: 600; display: block; margin-top: 2px; word-break: break-word; }
+
+.tr-rows { display: flex; flex-direction: column; }
+.tr-row {
+  display: flex; align-items: center; gap: 11px; padding: 11px 16px;
+  border-bottom: 1px solid var(--tr-line-2); min-width: 0; text-decoration: none; color: inherit;
+}
+.tr-row:last-child { border-bottom: 0; }
+/* A capped list that ends mid-row looks broken rather than scrollable; the fade
+   says "there is more" and hides the half-row doing the saying. */
+.tr-scroller { overflow: auto; position: relative; }
+/* Takes the slack in a panel that has been stretched to a row's height. */
+.tr-scroller--fill { flex: 1 1 auto; min-height: 0; }
+.tr-scroller--fade { -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent);
+                     mask-image: linear-gradient(#000 calc(100% - 26px), transparent); }
+.tr-row--pick { cursor: pointer; }
+.tr-row--pick:hover { background: #fafbfe; }
+.tr-row[aria-selected="true"] { background: var(--tr-primary-soft); box-shadow: inset 3px 0 0 var(--tr-primary); }
+.tr-row__text { flex: 1 1 auto; min-width: 0; }
+.tr-row__text b {
+  display: block; font-size: .85rem; font-weight: 600; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tr-row__text span {
+  display: block; font-size: .75rem; color: var(--tr-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tr-row__end { margin-left: auto; text-align: right; flex: 0 0 auto; font-size: .76rem; color: var(--tr-muted); }
+.tr-row__end b { display: block; font-size: .8rem; color: var(--tr-ink); font-weight: 600; }
+
+.tr-note {
+  display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: 11px;
+  font-size: .8rem; line-height: 1.45;
+}
+.tr-note--good { background: #f0fdf4; color: #166534; }
+.tr-note--info { background: #eff6ff; color: #1e40af; }
+.tr-note--warn { background: #fffbeb; color: #92400e; }
+.tr-note--bad  { background: #fef2f2; color: #991b1b; }
+.tr-note b { display: block; font-weight: 700; margin-bottom: 1px; }
+
+.tr-qa { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tr-qa button, .tr-qa a {
+  display: flex; align-items: center; gap: 9px; padding: 12px; border-radius: 11px;
+  border: 1px solid var(--tr-line); background: #fff; font: inherit; font-size: .81rem; font-weight: 600;
+  color: var(--tr-ink-2); cursor: pointer; text-align: left; text-decoration: none; min-width: 0;
+}
+.tr-qa button:hover, .tr-qa a:hover { background: #f8fafc; border-color: #c7d2fe; }
+.tr-qa span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tr-qa__ico { color: var(--tr-primary); display: inline-flex; flex: 0 0 auto; }
+
+.tr-help {
+  background: linear-gradient(135deg, #eef2ff, #f5f3ff); border: 1px solid #ddd6fe;
+  border-radius: 12px; padding: 13px 14px; display: flex; gap: 11px; align-items: flex-start;
+}
+.tr-help b { display: block; font-size: .85rem; }
+.tr-help p { margin: 3px 0 7px; font-size: .77rem; color: var(--tr-muted); }
+
+/* ── Timeline ───────────────────────────────────────────────────────────── */
+.tr-timeline { position: relative; padding-left: 24px; }
+.tr-timeline::before {
+  content: ''; position: absolute; left: 6px; top: 8px; bottom: 12px; width: 2px; background: var(--tr-line);
+}
+.tr-tl { position: relative; padding: 0 0 15px; }
+.tr-tl:last-child { padding-bottom: 0; }
+.tr-tl::before {
+  content: ''; position: absolute; left: -24px; top: 4px; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: 3px solid #22c55e;
+}
+.tr-tl--pending::before { border-color: #cbd5e1; }
+.tr-tl--now::before { border-color: var(--tr-primary); box-shadow: 0 0 0 4px rgba(79, 70, 229, .16); }
+.tr-tl--bad::before { border-color: #ef4444; }
+.tr-tl__time { font-size: .75rem; color: var(--tr-muted); font-variant-numeric: tabular-nums; }
+.tr-tl__title { font-size: .85rem; font-weight: 600; margin-top: 1px; }
+.tr-tl__sub { font-size: .75rem; color: var(--tr-muted); margin-top: 1px; }
+.tr-tl__row { display: flex; align-items: baseline; gap: 10px; }
+.tr-tl__row .tr-tl__time { flex: 0 0 62px; }
+
+/* Stop list in the live rail: numbered, with a connecting spine. */
+.tr-stops { position: relative; padding-left: 26px; }
+.tr-stops::before { content: ''; position: absolute; left: 7px; top: 10px; bottom: 14px; width: 2px; background: var(--tr-line); }
+.tr-stop { position: relative; padding: 0 0 13px; display: flex; align-items: flex-start; gap: 10px; }
+.tr-stop:last-child { padding-bottom: 0; }
+.tr-stop::before {
+  content: ''; position: absolute; left: -26px; top: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: #22c55e; border: 3px solid #fff; box-shadow: 0 0 0 1.5px #22c55e;
+}
+.tr-stop--upcoming::before { background: #fff; box-shadow: 0 0 0 1.5px #6366f1; }
+.tr-stop--skipped::before { background: #ef4444; box-shadow: 0 0 0 1.5px #ef4444; }
+.tr-stop__text { flex: 1 1 auto; min-width: 0; }
+.tr-stop__text b { display: block; font-size: .83rem; font-weight: 600; }
+.tr-stop__text span { display: block; font-size: .74rem; color: var(--tr-muted); margin-top: 1px; }
+
+/* ── Map surface ────────────────────────────────────────────────────────── */
+.tr-map {
+  position: relative; border-radius: 12px; overflow: hidden; background: #eaf2fb;
+  border: 1px solid var(--tr-line); min-height: 220px;
+}
+/* The basemap and the marks are stacked: a MapLibre canvas (OpenFreeMap vector
+   tiles) underneath, one SVG of the school's own marks over it. The overlay is
+   click-through except on the marks themselves, so panning still reaches the
+   map beneath.
+
+   The child selector is not decoration. MapLibre puts its own `maplibregl-map`
+   class on this same element and its stylesheet sets `position: relative;
+   overflow: hidden`. That is one class against one class — a specificity tie
+   that source order decides, and MapLibre's CSS is imported after this file.
+   It therefore WON, the element stopped being absolutely positioned, collapsed
+   to height 0, and clipped the canvas out of existence: a blank basemap under a
+   perfectly good overlay. `.tr-map >` outranks it, and the explicit 100%/100%
+   means the box has a size even if `position` is ever overridden again. */
+.tr-map > .tr-map__canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+.tr-map__canvas .maplibregl-ctrl-attrib { font-size: .64rem; }
+.tr-map__canvas .maplibregl-ctrl-bottom-right { z-index: 2; }
+.tr-map__loading { position: absolute; inset: 0; padding: 10px; }
+.tr-map__loading .tr-skel { display: block; width: 100%; height: 100%; border-radius: 10px; }
+.tr-map__grid {
+  position: absolute; inset: 0; background: #f4f8fd;
+  background-image: linear-gradient(rgba(37, 99, 235, .07) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(37, 99, 235, .07) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+.tr-map__marks { position: absolute; inset: 0; display: block; pointer-events: none; z-index: 1; }
+.tr-map__marks .tr-map__pin { pointer-events: auto; cursor: pointer; }
+.tr-map__tools { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; z-index: 2; }
+.tr-map__zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+.tr-map__zoom button, .tr-map__tools .tr-iconbtn {
+  width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--tr-line); background: #fff;
+  color: var(--tr-ink-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--tr-shadow);
+}
+.tr-map__legend {
+  position: absolute; left: 12px; bottom: 24px; z-index: 2; display: flex; gap: 14px; flex-wrap: wrap;
+  background: rgba(255, 255, 255, .95); border: 1px solid var(--tr-line); border-radius: 10px;
+  padding: 8px 12px; font-size: .74rem; color: var(--tr-ink-2); box-shadow: var(--tr-shadow);
+}
+.tr-map__legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tr-map__empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; text-align: center; padding: 22px; color: var(--tr-muted); font-size: .82rem;
+  overflow: hidden;
+}
+/* A narrow panel (the one in the crew aside is 300px) must not let a sentence
+   run under its own edges. */
+.tr-map__empty > span, .tr-map__empty > b { max-width: 46ch; overflow-wrap: anywhere; }
+.tr-map__pin { cursor: pointer; }
+.tr-map__flag {
+  font-size: 10px; font-weight: 700; fill: #fff;
+}
+.tr-maplegend-inline { display: flex; gap: 16px; flex-wrap: wrap; font-size: .74rem; color: var(--tr-muted); padding-top: 10px; }
+.tr-maplegend-inline span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── Charts ─────────────────────────────────────────────────────────────── */
+.tr-chart { width: 100%; }
+.tr-chart svg { display: block; width: 100%; overflow: visible; }
+
+/* The plot frame: fixed-width axis gutters as real columns, the SVG filling
+   what is left. The SVG's horizontal units are percentages of ITS width, so any
+   padding kept inside it would scale with the card — which is what squeezed
+   every chart into a corner. Ticks are HTML, positioned by pixel offset. */
+.tr-plot { display: flex; align-items: flex-start; gap: 6px; }
+.tr-plot__main { flex: 1 1 auto; min-width: 0; }
+.tr-plot__y { position: relative; flex: 0 0 auto; width: 46px; }
+.tr-plot__y span {
+  position: absolute; right: 0; transform: translateY(-50%);
+  font-size: .66rem; color: #94a3b8; white-space: nowrap; line-height: 1;
+}
+.tr-plot__y--right span { right: auto; left: 0; }
+.tr-plot__x {
+  display: flex; margin-top: 6px; font-size: .66rem; color: #94a3b8; overflow: hidden;
+}
+/* A label may spill into its neighbours' slots: when the axis is thinned those
+   neighbours are blank, and clipping every other one mid-word ("28 Au", "13
+   Se") was the alternative. The two ends align inwards so they stay inside the
+   plot instead of running under the y axis. */
+.tr-plot__x span { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: visible; }
+.tr-plot__x span:first-child { text-align: left; }
+.tr-plot__x span:last-child { text-align: right; }
+/* One category is centred under its own bar, not shoved against the frame. */
+.tr-plot__x span:only-child { text-align: center; }
+.tr-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .76rem; color: var(--tr-muted); }
+.tr-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tr-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.tr-donutwrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.tr-donutwrap__chart { flex: 0 0 auto; }
+.tr-donutwrap__legend { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.tr-dleg { display: flex; align-items: center; gap: 9px; font-size: .79rem; min-width: 0; }
+.tr-dleg__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tr-ink-2); }
+.tr-dleg__val { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--tr-ink); }
+.tr-hbars { display: flex; flex-direction: column; gap: 12px; }
+.tr-hbar { display: flex; align-items: center; gap: 10px; font-size: .79rem; min-width: 0; }
+.tr-hbar__name { flex: 0 0 96px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-hbar__track { flex: 1 1 auto; height: 8px; border-radius: 4px; background: #eef2f7; overflow: hidden; }
+.tr-hbar__fill { display: block; height: 100%; border-radius: 4px; }
+.tr-hbar__val { flex: 0 0 auto; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 40px; text-align: right; }
+
+.tr-statuslist { display: flex; flex-direction: column; gap: 12px; }
+.tr-statusrow { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.tr-statusrow__mark { width: 34px; height: 34px; border-radius: 10px; }
+.tr-statusrow__text { flex: 1 1 auto; min-width: 0; }
+.tr-statusrow__text b { font-size: .95rem; font-weight: 700; }
+.tr-statusrow__text span { display: block; font-size: .74rem; color: var(--tr-muted); }
+
+/* ── Date chips used by "upcoming" lists ────────────────────────────────── */
+.tr-datechip {
+  width: 42px; border-radius: 10px; text-align: center; padding: 5px 0; flex: 0 0 auto; line-height: 1.15;
+}
+.tr-datechip b { display: block; font-size: .95rem; font-weight: 700; }
+.tr-datechip span { display: block; font-size: .6rem; font-weight: 700; letter-spacing: .04em; opacity: .85; }
+
+/* ── Empty & loading ────────────────────────────────────────────────────── */
+.tr-empty { padding: 34px 20px; text-align: center; color: var(--tr-muted); }
+/* A card stretched to its row's height presents whatever it has in the space it
+   was given rather than pinned to the top of it. An empty state centres — the
+   alternative is a 200px band of white under "Nothing changed recently", which
+   is what made these bands read as unfinished. */
+.tr-grid > .tr-card > .tr-card__body:last-child,
+.tr-grid > .tr-card > .tr-panel__body:last-child { flex: 1 1 auto; }
+.tr-card__body > .tr-empty:only-child,
+.tr-panel__body > .tr-empty:only-child {
+  height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+/* A single reassurance note ("All vehicles are within their routes") does the
+   same — it sits in the middle of its card rather than at the top of it. The
+   parent has to do the centring, so only the bodies that hold nothing else
+   become flex; `margin: auto` on a block child would do nothing. */
+.tr-card__body:has(> .tr-note:only-child),
+.tr-panel__body:has(> .tr-note:only-child) {
+  display: flex; flex-direction: column; justify-content: center;
+}
+.tr-empty__ico { color: var(--tr-faint); margin-bottom: 8px; display: inline-flex; }
+.tr-empty b { display: block; font-size: .92rem; color: var(--tr-ink-2); margin-bottom: 4px; }
+.tr-empty p { margin: 0; font-size: .82rem; }
+.tr-empty--sm { padding: 20px 14px; }
+.tr-skel { border-radius: 10px; background: linear-gradient(90deg, #eef2f7 25%, #f6f8fc 37%, #eef2f7 63%); background-size: 400% 100%; animation: tr-sk 1.3s ease infinite; }
+@keyframes tr-sk { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.tr-loading { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 20px; }
+
+/* ── Modal & drawer ─────────────────────────────────────────────────────── */
+.tr-scrim {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .44); z-index: 1200;
+  display: flex; align-items: center; justify-content: center; padding: 22px;
+  animation: tr-fade .16s ease;
+}
+@keyframes tr-fade { from { opacity: 0; } to { opacity: 1; } }
+/* ── Dialogs ─────────────────────────────────────────────────────────────────
+   Deliberately the SAME chrome and the same field language as every other
+   module's dialogs (see .modal / .form-control in global.css, and the Library's
+   book dialog): a school admin opens an "Add Book" and an "Add Vehicle" in the
+   same afternoon and they should not feel like two products. The module keeps
+   its own class names because its screens do — the look is what is shared, and
+   everything below is scoped to `.tr-modal` so the screens are untouched. */
+.tr-modal {
+  background: var(--bg-card, #fff); border-radius: var(--radius-xl, 16px);
+  box-shadow: var(--shadow-lg, var(--tr-shadow-2)); width: 100%; max-width: 620px;
+  max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px);
+  display: flex; flex-direction: column; overflow: hidden;
+  color: var(--tr-ink); font-size: .9rem;
+}
+.tr-modal--wide { max-width: 900px; }
+.tr-modal--slim { max-width: 480px; }
+.tr-modal__head {
+  display: flex; align-items: center; gap: 12px; padding: 20px 24px;
+  border-bottom: 1px solid var(--border, var(--tr-line-2)); flex-shrink: 0;
+}
+.tr-modal__head h3 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: -.005em; }
+.tr-modal__head p { margin: 2px 0 0; font-size: .78rem; font-weight: 400; color: var(--tr-muted); }
+/* The 40px tinted tile the other modules' dialogs lead with. */
+.tr-modal__head .tr-mark { width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto; }
+.tr-modal__body { padding: 24px; overflow: auto; flex: 1 1 auto; }
+.tr-modal__foot {
+  display: flex; gap: 10px; align-items: center; justify-content: flex-end;
+  padding: 16px 24px; border-top: 1px solid var(--border, var(--tr-line-2)); flex-shrink: 0;
+}
+
+/* ── Fields inside a dialog ──────────────────────────────────────────────────
+   Matched to .form-label / .form-control / .form-hint, so a transport dialog
+   and a library one have the same label weight, the same control height and the
+   same focus ring. The screens' own denser fields are left alone. */
+.tr-modal .tr-field__label { font-size: .875rem; font-weight: 500; color: var(--text, var(--tr-ink)); margin-bottom: 6px; }
+.tr-modal .tr-field__hint  { font-size: .8rem; margin-top: 4px; }
+.tr-modal .tr-field__err   { font-size: .8rem; margin-top: 4px; font-weight: 500; }
+.tr-modal .tr-input,
+.tr-modal .tr-textarea,
+.tr-modal .tr-select select {
+  padding: 9px 14px; font-size: .9rem; border-radius: var(--radius, 10px);
+  border-color: var(--border, var(--tr-line));
+}
+.tr-modal .tr-select, .tr-modal .tr-select select { width: 100%; }
+.tr-modal .tr-textarea { min-height: 82px; }
+.tr-modal .tr-input:focus,
+.tr-modal .tr-textarea:focus { border-color: var(--border-focus, #a5b4fc); box-shadow: 0 0 0 3px rgba(79, 70, 229, .12); }
+.tr-modal .tr-formgrid { gap: 16px; }
+/* A field filled in for you — the designation a crew role implies — reads as
+   information, not as something you failed to type into. */
+.tr-input:disabled, .tr-textarea:disabled, .tr-select select:disabled {
+  background: #f8fafc; color: var(--tr-muted); cursor: not-allowed;
+}
+
+/* ── Sections ────────────────────────────────────────────────────────────────
+   The Library's pane heading: a small uppercase label over the group, not a
+   numbered step. Numbered chips were this module's own invention; the house
+   style is this. */
+.tr-modal .tr-fsec + .tr-fsec { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border, var(--tr-line-2)); }
+.tr-modal .tr-fsec__head { display: block; margin-bottom: 12px; }
+.tr-modal .tr-fsec__head h4 {
+  font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--tr-muted); margin: 0;
+}
+.tr-modal .tr-fsec__head p { margin: 6px 0 0; font-size: .78rem; color: var(--tr-muted); }
+.tr-modal .tr-fsec__num { display: none; }
+
+/* ── Rows that are <button>s ─────────────────────────────────────────
+   A pickable row is a <button>, so its chrome has to be reset — but resetting it
+   inline (border: 0; background: none) also beat .tr-row's separator and both
+   .tr-row--pick's hover and selected backgrounds, so a list drew as one flat
+   slab with no feedback at all. Reset here instead, where the later rules can
+   still win. */
+button.tr-row--pick {
+  width: 100%; font: inherit; text-align: left; cursor: pointer;
+  border: 0; border-bottom: 1px solid var(--tr-line-2); background: none;
+  color: inherit; -webkit-appearance: none; appearance: none;
+}
+button.tr-row--pick:last-child { border-bottom: 0; }
+button.tr-row--pick:focus-visible {
+  outline: none; background: #fafbfe; box-shadow: inset 0 0 0 2px var(--border-focus, #a5b4fc);
+}
+/* An already-enrolled row stays visible on purpose — hiding it invites someone
+   to submit a duplicate — so it is dimmed rather than dropped. */
+button.tr-row--pick:disabled { opacity: .55; cursor: not-allowed; }
+button.tr-row--pick:disabled:hover { background: none; }
+/* The tick on the chosen row, in the same indigo as the rail beside it. */
+.tr-row--pick[aria-selected="true"] > svg { color: var(--tr-primary); flex: 0 0 auto; margin-left: auto; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOTE — the rules from here to the end of this block were recovered from a
+   production build after they were deleted by mistake. The rules are exactly
+   what shipped; the comments that stood over them are not, and are gone.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tr-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 100vw);
+  background: #fff;
+  z-index: 1201;
+  box-shadow: -14px 0 40px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  animation: tr-slide .2s ease;
+  color: var(--tr-ink);
+}
+@keyframes tr-slide {
+  0% { transform: translateX(22px); opacity: .6; }
+  to { transform: none; opacity: 1; }
+}
+.tr-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 26px;
+  border-radius: var(--tr-radius);
+  background: linear-gradient(110deg, #eef2ff, #f5f3ff 55%, #eef6ff);
+  border: 1px solid #e0e7ff;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.tr-hero__text { flex: 1 1 320px; min-width: 0; }
+.tr-hero__text h2 { margin: 0; font-size: 1.16rem; font-weight: 700; color: #3730a3; }
+.tr-hero__text p { margin: 5px 0 0; font-size: .86rem; color: #4c51bf; }
+.tr-hero__art { flex: 0 0 auto; display: flex; align-items: center; }
+.tr-hero__quote {
+  font-size: .88rem;
+  font-style: italic;
+  color: #4338ca;
+  font-weight: 600;
+  text-align: right;
+  flex: 0 0 auto;
+}
+.tr-swatches { display: flex; gap: 10px; align-items: center; }
+.tr-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.tr-swatch[aria-pressed=true] { border-color: var(--tr-ink); box-shadow: 0 0 0 2px #fff inset; }
+.tr-repgrid { display: flex; flex-wrap: wrap; gap: 12px; }
+.tr-repgrid>* { flex: 1 1 260px; }
+.tr-repcard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--tr-line);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  min-width: 0;
+  transition: border-color .15s, box-shadow .15s;
+}
+.tr-repcard:hover { border-color: #c7d2fe; box-shadow: var(--tr-shadow); }
+.tr-repcard__text { flex: 1 1 auto; min-width: 0; }
+.tr-repcard__text b { display: block; font-size: .87rem; font-weight: 700; }
+.tr-repcard__text span {
+  display: block;
+  font-size: .76rem;
+  color: var(--tr-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.tr-repcard__go { color: var(--tr-primary); display: inline-flex; flex: 0 0 auto; align-self: center; }
+.tr-seats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; max-width: 280px; }
+.tr-seat {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1px solid var(--tr-line);
+  background: #f8fafc;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--tr-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.tr-seat--taken { background: #e0e7ff; border-color: #c7d2fe; color: #4338ca; }
+.tr-seat--aisle { visibility: hidden; }
+@container tr (max-width: 1360px) {
+  .tr-split,
+  .tr-split--wide { grid-template-columns: minmax(0, 1fr) 330px; }
+  .tr-split--three { grid-template-columns: 336px minmax(0, 1fr) 340px; }
+}
+@container tr (max-width: 1040px) {
+  .tr-grid--2,
+  .tr-grid--3,
+  .tr-grid--4,
+  .tr-grid--2a,
+  .tr-grid--2b,
+  .tr-grid--dash,
+  .tr-grid--chart3,
+  .tr-split,
+  .tr-split--wide,
+  .tr-split--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container tr (max-width: 680px) {
+  .tr-formgrid,
+  .tr-facts,
+  .tr-qa { grid-template-columns: minmax(0, 1fr); }
+  .tr-head h1 { font-size: 1.4rem; }
+}
+@media (max-width: 720px) {
+  .tr-page { padding: 12px 16px 24px; }
+  .tr-hero { flex-wrap: wrap; }
+  .tr-hero__quote { text-align: left; }
+}
+.tr-locfield {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border: 1px solid var(--tr-line);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: #fff;
+}
+.tr-locfield__ico { color: var(--tr-primary); display: inline-flex; flex: 0 0 auto; }
+.tr-locfield__text { flex: 1 1 auto; min-width: 0; font-size: .84rem; }
+.tr-locfield__text b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.tr-locfield__text i { color: var(--tr-faint); font-style: normal; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ASSIGN-CREW DIALOG
+   A long form reads as a wall. The rail on the left turns it into six named
+   places and says which one you are in; the cards on the right give each its
+   own edge and colour. Everything is scoped to .tr-wiz, so the other dialogs
+   and the seventeen screens are untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tr-modal--xl { max-width: 1180px; }
+/* The body is the two panes, so it gives up its own padding and scroll. The
+   error summary still belongs above them, at full width, not beside the rail. */
+.tr-modal--xl > .tr-modal__body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.tr-modal--xl > .tr-modal__body > .tr-errsum { flex: 0 0 auto; margin: 16px 18px 0; }
+
+.tr-wiz { display: flex; width: 100%; flex: 1 1 auto; min-height: 0; }
+
+/* ── The rail ─────────────────────────────────────────────────────────────── */
+.tr-wiz__rail {
+  flex: 0 0 216px; width: 216px; background: #f8f9fc;
+  border-right: 1px solid var(--border, var(--tr-line-2));
+  padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; overflow: auto;
+}
+/* The numbers are threaded on one line, so the steps read as a sequence rather
+   than as a menu. It is drawn behind them and stops short of the last. */
+.tr-wiz__steps { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.tr-wiz__steps::before {
+  content: ''; position: absolute; left: 24px; top: 26px; bottom: 26px; width: 2px;
+  background: #e6eaf2; border-radius: 1px;
+}
+.tr-wiz__step {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid transparent;
+  background: none; width: 100%; text-align: left; cursor: pointer; font: inherit;
+  transition: background .12s ease, border-color .12s ease;
+}
+.tr-wiz__step:hover { background: #f1f3f9; }
+.tr-wiz__step i {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; background: #e6eaf2;
+  color: #64748b; font-style: normal; font-size: .78rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 3px #f8f9fc;   /* punches the connector out behind the dot */
+  transition: background .12s ease, color .12s ease;
+}
+.tr-wiz__step span { min-width: 0; }
+.tr-wiz__step b {
+  display: block; font-size: .82rem; font-weight: 600; color: var(--tr-ink-2); line-height: 1.3;
+}
+.tr-wiz__step em {
+  display: block; font-style: normal; font-size: .71rem; color: var(--tr-muted);
+  margin-top: 1px; line-height: 1.3;
+}
+.tr-wiz__step--on {
+  background: #fff; border-color: #e0e7ff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+.tr-wiz__step--on i { background: var(--tr-primary); color: #fff; box-shadow: 0 0 0 3px #fff; }
+.tr-wiz__step--on b { color: var(--tr-primary); }
+/* Passed already, but not where you are. */
+.tr-wiz__step--done i { background: #16a34a; color: #fff; }
+
+/* The art sits at the foot of the rail and takes the slack above it, so the
+   steps stay at the top however few of them there are. */
+.tr-wiz__art { margin-top: auto; padding: 18px 4px 4px; text-align: center; }
+.tr-wiz__art svg { display: block; margin: 0 auto 12px; }
+.tr-wiz__art b { display: block; font-size: .85rem; font-weight: 700; color: var(--tr-ink); }
+.tr-wiz__art p { margin: 6px 0 0; font-size: .74rem; line-height: 1.5; color: var(--tr-muted); }
+
+/* ── The form pane ────────────────────────────────────────────────────────── */
+.tr-wiz__main {
+  flex: 1 1 auto; min-width: 0; overflow: auto; padding: 20px 22px;
+  background: #fcfcfe; display: flex; flex-direction: column; gap: 16px;
+  scroll-behavior: smooth;
+}
+.tr-sect {
+  display: flex; gap: 18px; padding: 18px; background: #fff;
+  border: 1px solid var(--border, var(--tr-line-2)); border-radius: 14px;
+  scroll-margin-top: 8px;
+}
+.tr-sect__mark { flex: 0 0 auto; }
+.tr-sect__body { flex: 1 1 auto; min-width: 0; }
+/* A card's own buttons — Add Stop, an overflow menu — sit on its heading row. */
+.tr-sect__head { display: flex; align-items: flex-start; gap: 12px; }
+.tr-sect__head h4 {
+  margin: 0; font-size: .95rem; font-weight: 700; letter-spacing: -.005em; color: var(--tr-ink);
+}
+.tr-sect__head p { margin: 3px 0 0; font-size: .78rem; color: var(--tr-muted); }
+.tr-sect__fields { margin-top: 15px; }
+
+/* ── An input that leads with an icon ─────────────────────────────────────── */
+.tr-ifield { position: relative; display: block; }
+.tr-ifield > svg {
+  position: absolute; left: 13px; top: 19px; transform: translateY(-50%);
+  color: var(--tr-faint); pointer-events: none;
+}
+.tr-ifield .tr-input, .tr-ifield .tr-select select, .tr-ifield .tr-textarea { padding-left: 38px; }
+/* A textarea's icon belongs at the first line, not halfway down the box. */
+.tr-ifield--area > svg { top: 20px; transform: none; }
+.tr-ifield .tr-select { display: block; }
+/* Native date inputs keep their own picker button on the right. */
+.tr-ifield input[type="date"] { padding-right: 10px; }
+
+/* ── The note beside the account picker ───────────────────────────────────── */
+.tr-callout {
+  display: flex; gap: 9px; align-items: flex-start; padding: 12px 13px; border-radius: 11px;
+  background: #eff6ff; border: 1px solid #dbeafe; color: #1d4ed8;
+  font-size: .76rem; line-height: 1.5;
+}
+.tr-callout > svg { flex: 0 0 auto; margin-top: 1px; }
+
+/* ── The Notes counter ────────────────────────────────────────────────────── */
+.tr-count {
+  position: absolute; right: 12px; bottom: 9px; font-size: .7rem; color: var(--tr-faint);
+  background: #fff; padding: 0 3px; pointer-events: none;
+}
+
+/* ── The account combobox ─────────────────────────────────────────────────── */
+.tr-combo { position: relative; }
+.tr-combo__caret {
+  position: absolute; right: 12px; top: 19px; transform: translateY(-50%);
+  color: var(--tr-faint); pointer-events: none;
+}
+.tr-combo .tr-input { padding-right: 34px; }
+.tr-combo__pop {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 5px);
+  background: #fff; border: 1px solid var(--border, var(--tr-line));
+  border-radius: 12px; box-shadow: 0 12px 30px rgba(15, 23, 42, .12);
+  max-height: 258px; overflow: auto;
+}
+/* The chosen account, once the list has closed. */
+.tr-combo__has .tr-input { font-weight: 600; color: var(--tr-ink); }
+
+/* ── Review ───────────────────────────────────────────────────────────────── */
+.tr-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.tr-review__k { display: block; font-size: .71rem; color: var(--tr-muted); }
+.tr-review__v { display: block; font-size: .85rem; font-weight: 600; margin-top: 2px; word-break: break-word; }
+.tr-review__v--none { font-weight: 500; color: var(--tr-faint); }
+
+@media (max-width: 860px) {
+  .tr-wiz { flex-direction: column; }
+  .tr-wiz__rail {
+    flex: 0 0 auto; width: 100%; border-right: 0;
+    border-bottom: 1px solid var(--border, var(--tr-line-2));
+    flex-direction: row; overflow-x: auto; padding: 12px;
+  }
+  .tr-wiz__step { width: auto; white-space: nowrap; }
+  .tr-wiz__art { display: none; }
+  .tr-sect { flex-direction: column; gap: 12px; }
+}
+
+/* ── Stops & timings ──────────────────────────────────────────────────────────
+   The order the rows are in IS the order the bus drives, so the row is built to
+   be read down the left edge: grip, number, pin, name. Everything editable sits
+   to the right of that spine and never moves. */
+.tr-stopwrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.tr-stopwrap--map { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+.tr-stoplist { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* It WRAPS. The row lives in a column about 500px wide, and a media query is no
+   help here: @media measures the viewport, which is the whole desktop, while
+   the thing that runs out of room is this column. Wrapping on the flex line is
+   the only rule that reacts to the space actually available. */
+.tr-stoprow {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 7px 9px;
+  border: 1px solid var(--border, var(--tr-line-2)); border-radius: 12px; background: #fff;
+}
+.tr-stoprow:hover { border-color: #dbe2ee; }
+/* Reorder, stacked into one narrow column. This was a drag-handle glyph, which
+   promised a drag the list does not implement. */
+.tr-stoprow__move { flex: 0 0 22px; display: flex; flex-direction: column; gap: 1px; }
+.tr-stoprow__move button {
+  width: 22px; height: 15px; padding: 0; border: 0; border-radius: 4px; background: none;
+  color: var(--tr-faint); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.tr-stoprow__move button:hover:not(:disabled) { background: #eef2f8; color: var(--tr-ink-2); }
+.tr-stoprow__move button:disabled { opacity: .3; cursor: default; }
+.tr-stoprow__n {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--tr-primary-soft); color: var(--tr-primary-2);
+  font-size: .73rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+}
+.tr-stoprow__pin { flex: 0 0 auto; color: var(--tr-faint); display: inline-flex; }
+/* A placed stop earns a coloured pin — the fastest read of what is still to do. */
+.tr-stoprow:has(.tr-iconbtn--good) .tr-stoprow__pin { color: #16a34a; }
+/* Never allowed to collapse: the names ARE the list. When the row runs out of
+   room the controls wrap under instead. */
+.tr-stoprow__text { flex: 1 1 150px; min-width: 150px; display: block; }
+/* The name and landmark read as text and edit in place: a row of boxed inputs
+   buries the one thing the list exists to show, which is the order of names. */
+.tr-stoprow__text input {
+  display: block; width: 100%; border: 0; background: none; padding: 1px 2px;
+  font: inherit; font-size: .85rem; font-weight: 600; color: var(--tr-ink); border-radius: 5px;
+}
+.tr-stoprow__text input.tr-stoprow__sub { font-size: .75rem; font-weight: 400; color: var(--tr-muted); }
+.tr-stoprow__text input:focus { outline: none; background: var(--tr-primary-soft); }
+.tr-stoprow__text input::placeholder { color: var(--tr-faint); font-weight: 400; }
+/* No leading icon: a time input draws its own clock on the right, and two of
+   them in one field reads as a mistake. */
+.tr-stoprow__time { flex: 0 0 104px; }
+.tr-stoprow__time .tr-input { padding: 7px 6px; font-size: .82rem; min-width: 0; }
+.tr-stoprow__km { flex: 0 0 82px; }
+.tr-stoprow__acts { flex: 0 0 auto; display: flex; gap: 2px; margin-left: auto; }
+.tr-stoprow__acts .tr-iconbtn { width: 28px; height: 28px; }
+
+/* The campus, pinned to the end of every route's list. It is not editable and
+   not removable, so it is drawn as a statement rather than as a row of fields —
+   dashed, to read as a terminus rather than as one more stop. */
+.tr-stoprow--end { background: #f8fafc; border-style: dashed; }
+.tr-stoprow--end .tr-stoprow__n--end {
+  background: #dcfce7; color: #15803d;
+}
+.tr-stoprow--end .tr-stoprow__text b {
+  display: block; font-size: .85rem; font-weight: 600; color: var(--tr-ink); line-height: 1.3;
+}
+.tr-stoprow--end .tr-stoprow__text em {
+  display: block; font-style: normal; font-size: .74rem; color: var(--tr-muted); margin-top: 1px;
+}
+
+/* The callout, in the colour of something that needs doing. */
+.tr-callout--warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+
+/* An input with a fixed unit after it — km, min, m. */
+.tr-suffixed { position: relative; display: block; }
+.tr-suffixed .tr-input { padding-right: 34px; }
+.tr-suffixed > em {
+  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+  font-style: normal; font-size: .75rem; color: var(--tr-muted); pointer-events: none;
+}
+.tr-stoprow__km .tr-input { padding: 7px 30px 7px 10px; font-size: .82rem; }
+.tr-stoprow__km > em { right: 8px; font-size: .7rem; }
+
+/* Two times that are one answer. */
+/* A time input carries an intrinsic minimum width, so two of them plus the word
+   between overflow a narrow grid cell unless they are told they may shrink. */
+.tr-range { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tr-range .tr-input { flex: 1 1 0; min-width: 0; padding-left: 8px; padding-right: 4px; }
+.tr-range > i { font-style: normal; font-size: .75rem; color: var(--tr-muted); flex: 0 0 auto; }
+
+/* ── The map beside the stops ─────────────────────────────────────────────── */
+.tr-stopmap {
+  border: 1px solid var(--border, var(--tr-line-2)); border-radius: 12px;
+  overflow: hidden; background: #fff;
+}
+.tr-stopmap__head {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border-bottom: 1px solid var(--tr-line-2); background: #fbfcfe;
+}
+.tr-stopmap__head b { font-size: .79rem; font-weight: 600; color: var(--tr-ink-2); }
+.tr-stopmap--off .tr-stopmap__head { border-bottom: 0; }
+.tr-stopmap__none {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  height: 180px; padding: 20px; text-align: center;
+  font-size: .76rem; line-height: 1.5; color: var(--tr-muted); background: #f8fafc;
+}
+.tr-stopmap__none > svg { color: var(--tr-faint); }
+
+/* The "no colour, pick one for me" swatch. */
+.tr-swatch--auto { background: #fff; border: 1px dashed #cbd5e1; }
+
+@media (max-width: 1040px) {
+  .tr-stopwrap--map { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .tr-stoprow__text { flex: 1 1 100%; order: -1; padding-left: 4px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PORTAL SCREENS
+   A rider's screen and the office's are the same product, so they are drawn
+   with the same kit. Only what the portals add lives here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* One crew member, with the number a parent would actually ring. */
+.tr-crewline { display: flex; align-items: center; gap: 11px; padding: 9px 0; }
+.tr-crewline + .tr-crewline { border-top: 1px solid var(--tr-line-2); }
+.tr-crewline__text { flex: 1 1 auto; min-width: 0; }
+.tr-crewline__text b { display: block; font-size: .88rem; font-weight: 600; }
+.tr-crewline__text span { display: block; font-size: .75rem; color: var(--tr-muted); margin-top: 1px; }
+
+/* ── The run, as a line of places ─────────────────────────────────────────────
+   What a waiting parent watches. A list of stops and times answers "has it been
+   past us yet" at a glance; a map makes them work it out. */
+.tr-stopline { list-style: none; margin: 0; padding: 0; position: relative; }
+.tr-stopline::before {
+  content: ''; position: absolute; left: 9px; top: 18px; bottom: 18px; width: 2px;
+  background: #dbe2ec; border-radius: 1px;
+}
+.tr-stopline__item { position: relative; display: flex; gap: 12px; padding: 7px 0; }
+.tr-stopline__dot {
+  position: relative; z-index: 1; flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px;
+  border-radius: 50%; background: #fff; border: 2px solid var(--tr-line); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tr-stopline__item.is-done .tr-stopline__dot { background: #16a34a; border-color: #16a34a; }
+.tr-stopline__item.is-skipped .tr-stopline__dot { background: #e2e8f0; border-color: #cbd5e1; }
+.tr-stopline__text { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.tr-stopline__text b { flex: 1 1 auto; font-size: .84rem; font-weight: 600; color: var(--tr-ink-2); }
+.tr-stopline__text span { flex: 0 0 auto; font-size: .74rem; color: var(--tr-muted); }
+.tr-stopline__item.is-done .tr-stopline__text b { color: var(--tr-ink); }
+.tr-stopline__item.is-skipped .tr-stopline__text b { color: var(--tr-faint); text-decoration: line-through; }
+/* The rider's own stop, which is the only one they are really watching. */
+.tr-stopline__item.is-mine .tr-stopline__text b { color: var(--tr-primary); }
+.tr-stopline__item.is-mine .tr-stopline__text b em {
+  font-style: normal; font-weight: 500; font-size: .72rem;
+}
+.tr-stopline__item.is-mine .tr-stopline__dot { border-color: var(--tr-primary); }
+.tr-stopline--compact .tr-stopline__item { padding: 4px 0; }
+/* A value nobody has filled in yet, said as such rather than as a dash. */
+.tr-unset { font-style: normal; font-weight: 500; color: var(--tr-faint); }
+
+/* ── The live banner ──────────────────────────────────────────────────────── */
+.tr-livestrip {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 16px;
+  border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: var(--tr-radius, 14px);
+}
+.tr-livestrip--late { border-color: #fde68a; background: #fffbeb; }
+.tr-livestrip__text { flex: 1 1 auto; min-width: 0; }
+.tr-livestrip__text b { display: block; font-size: .9rem; font-weight: 700; color: var(--tr-ink); }
+.tr-livestrip__text span { display: block; font-size: .78rem; color: var(--tr-muted); margin-top: 2px; }
+
+/* ── The crew's own duty screen ───────────────────────────────────────────── */
+.tr-duty { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.tr-dutytrip {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border: 1px solid var(--tr-line-2); border-radius: 12px; background: #fff;
+}
+.tr-dutytrip + .tr-dutytrip { margin-top: 10px; }
+.tr-dutytrip__text { flex: 1 1 auto; min-width: 0; }
+.tr-dutytrip__text b { display: block; font-size: .88rem; font-weight: 600; }
+.tr-dutytrip__text span { display: block; font-size: .75rem; color: var(--tr-muted); margin-top: 2px; }
+/* Boarded / still to board / absent, at the size a driver reads at a glance. */
+.tr-headcount { display: flex; gap: 14px; flex: 0 0 auto; }
+.tr-headcount div { text-align: center; }
+.tr-headcount b { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.1; }
+.tr-headcount span { display: block; font-size: .68rem; color: var(--tr-muted); text-transform: uppercase; letter-spacing: .04em; }
+.tr-headcount .is-on b { color: #16a34a; }
+.tr-headcount .is-off b { color: #dc2626; }
+
+@media (max-width: 1080px) {
+  .tr-duty { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── The parent's child picker ────────────────────────────────────────────────
+   Not a filter at the side: on a parent's screen every number belongs to one
+   child, so which child is the first thing the page says. */
+.tr-kids { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.tr-kid {
+  display: flex; align-items: center; gap: 9px; padding: 7px 14px 7px 8px;
+  border: 1px solid var(--tr-line); border-radius: 999px; background: #fff;
+  cursor: pointer; font: inherit; text-align: left;
+  transition: border-color .12s ease, background .12s ease;
+}
+.tr-kid:hover { border-color: #c7d2fe; }
+.tr-kid span { min-width: 0; }
+.tr-kid b { display: block; font-size: .84rem; font-weight: 600; color: var(--tr-ink-2); line-height: 1.25; }
+.tr-kid em { display: block; font-style: normal; font-size: .71rem; color: var(--tr-muted); }
+.tr-kid.is-on { background: var(--tr-primary-soft); border-color: #c7d2fe; }
+.tr-kid.is-on b { color: var(--tr-primary-2); }
+
+/* ── Driving the run from the bus ─────────────────────────────────────────────
+   Tap targets, not a table: this is read one-handed, at a stop, in daylight. */
+.tr-dutytrip__acts { display: flex; gap: 6px; flex: 0 0 auto; }
+.tr-stoptick {
+  display: flex; align-items: center; gap: 11px; padding: 11px 16px;
+  border-bottom: 1px solid var(--tr-line-2);
+}
+.tr-stoptick:last-child { border-bottom: 0; }
+.tr-stoptick__n {
+  flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%;
+  background: #eef2f8; color: var(--tr-muted); font-size: .75rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tr-stoptick.is-done .tr-stoptick__n { background: #16a34a; color: #fff; }
+.tr-stoptick.is-skipped .tr-stoptick__n { background: #e2e8f0; color: var(--tr-faint); }
+.tr-stoptick__text { flex: 1 1 auto; min-width: 0; }
+.tr-stoptick__text b { display: block; font-size: .88rem; font-weight: 600; }
+.tr-stoptick__text span { display: block; font-size: .74rem; color: var(--tr-muted); margin-top: 1px; }
+.tr-stoptick.is-done { background: #f6fdf9; }
+.tr-stoptick.is-skipped .tr-stoptick__text b { color: var(--tr-faint); text-decoration: line-through; }
+
+/* On / Off / Absent, as three buttons rather than a dropdown — a conductor is
+   marking thirty children while the bus moves. */
+.tr-mark3 { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--tr-line); border-radius: 9px; overflow: hidden; }
+.tr-mark3__b {
+  border: 0; background: #fff; font: inherit; font-size: .74rem; font-weight: 600;
+  padding: 6px 11px; cursor: pointer; color: var(--tr-muted);
+}
+.tr-mark3__b + .tr-mark3__b { border-left: 1px solid var(--tr-line); }
+.tr-mark3__b:hover:not(:disabled) { background: #f4f7fb; }
+.tr-mark3__b:disabled { opacity: .5; cursor: default; }
+.tr-mark3__b.is-on.is-boarded { background: #16a34a; color: #fff; }
+.tr-mark3__b.is-on.is-dropped { background: #2563eb; color: #fff; }
+.tr-mark3__b.is-on.is-absent  { background: #dc2626; color: #fff; }

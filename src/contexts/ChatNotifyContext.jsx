@@ -26,10 +26,23 @@ export function ChatNotifyProvider({ children }) {
   const { user } = useAuth();
   // A school without chat has no unread badge to keep and no messages to
   // notify about — and now that /api/chat is gated, seeding the badge would
-  // just be a 403 on every login. `ready` matters: isEnabled fails open while
-  // the module map loads, so this only settles once it has landed.
-  const { isEnabled, ready } = useModules();
-  const chatOn = !ready || isEnabled('chat');
+  // just be a 403 on every login.
+  //
+  // This read `!ready || isEnabled('chat')`, which is the fail-open the comment
+  // was written to prevent: before the module map lands `ready` is false, so
+  // chat counted as ON and the badge was seeded anyway. At a school with chat
+  // off that is a 403 on every page load — and the axios interceptor toasts
+  // MODULE_DISABLED itself, BEFORE this file's own catch can swallow it, so the
+  // message appeared however quietly the fetch failed. Several triggers (mount,
+  // socket connect, chat:ready) each fired their own, which is why they came in
+  // twos and threes. Wait for the map: not knowing is not a reason to ask.
+  //
+  // `modules` is checked as well as `ready`, because isEnabled() answers true
+  // for a NULL map too — that fail-open is deliberate for SHOWING things (a nav
+  // that vanishes mid-load is worse than one that flickers) and wrong for
+  // ASKING for them. Not knowing is a reason to wait, not to fetch.
+  const { modules, isEnabled, ready } = useModules();
+  const chatOn = ready && !!modules && isEnabled('chat');
   const location = useLocation();
   const [unreadTotal, setUnreadTotal] = useState(0);
 

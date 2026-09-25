@@ -1,141 +1,268 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import useFetch from '../../../hooks/useFetch';
-import { getDashboard } from '../../../api/transport.api';
-import { PageHeader, StatCard, Spinner, Badge } from '../../../components/ui/index';
+/**
+ * Transport → Dashboard.
+ *
+ * One read (`/transport/admin/overview`) answers the whole screen. The route
+ * and period pickers are part of that query, so changing either re-asks the
+ * server rather than filtering a copy in the browser.
+ */
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Icon from '../../../components/ui/icons';
+import * as api from '../../../api/transport.api';
+import {
+  TrHead, TopBar, DayChip, Tiles, Tile, Card, CardHead, CardBody, Panel, Btn, SplitBtn, Select,
+  LinkBtn, Rows, Row, Badge, Mark, Loading, Empty, Note, money, count, fmtDay, fmtTime, ago, pct,
+  useBoard, Glyph,
+} from './trUI';
+import { Donut, DonutLegend, DonutRow, Bars, ProgressLine, STATUS_INK } from './trCharts';
+import TrMap from './trMap';
+import NewRequestModal from './trForms';
 
-const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+const PERIODS = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+];
 
 export default function TransportDashboard() {
-  const { data, loading } = useFetch(getDashboard);
-  if (loading) return <div className="loading-page"><Spinner /></div>;
+  const nav = useNavigate();
+  const [route, setRoute] = useState('all');
+  const [period, setPeriod] = useState('today');
+  const [newReq, setNewReq] = useState(false);
+
+  const { data, loading, error, reload } = useBoard(
+    () => api.getOverview({ route, period }), [route, period], { poll: 60 },
+  );
+
+  if (loading) return <div className="tr-page"><Loading /></div>;
+  if (error) return <div className="tr-page"><Note tone="bad" title="Could not load the dashboard">{error}</Note></div>;
+
   const d = data || {};
-  const maxFuel = Math.max(1, ...(d.fuelTrend || []).map(t => t.value));
-  const maxFee  = Math.max(1, ...(d.feeTrend || []).map(t => t.value));
-  const maxRoute = Math.max(1, ...(d.routeUtilization || []).map(r => r.students));
+  const t = d.tiles || {};
+  const trips = d.trips || {};
+  const m = d.money || {};
+  const up = d.upcoming || {};
+
+  const tripSlices = [
+    { label: 'Completed', value: trips.completed, color: STATUS_INK.good },
+    { label: 'In Progress', value: trips.inProgress, color: STATUS_INK.info },
+    { label: 'Delayed', value: trips.delayed, color: STATUS_INK.warn },
+    { label: 'Cancelled', value: trips.cancelled, color: STATUS_INK.bad },
+  ];
+  const fleetSlices = [
+    { label: 'Active', value: t.fleet?.active, color: STATUS_INK.good },
+    { label: 'In Maintenance', value: t.fleet?.maintenance, color: STATUS_INK.warn },
+    { label: 'Inactive', value: t.fleet?.inactive, color: STATUS_INK.bad },
+  ];
 
   return (
-    <div className="page">
-      <PageHeader title="Transport Dashboard" subtitle="Fleet, routes, trips, safety & collection at a glance" />
+    <div className="tr-page">
+      <TopBar>
+        <DayChip label={fmtDay(d.date).replace(/^\w+, /, (mo) => mo)} icon="calendar"
+                 sub={new Date(d.date).toDateString() === new Date().toDateString() ? 'Today' : ''} />
+      </TopBar>
 
-      {/* Primary KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16, marginBottom: 16 }}>
-        <StatCard label="Total Vehicles" value={d.totalVehicles || 0} icon="🚌" color="blue" />
-        <StatCard label="Active Drivers" value={`${d.activeDrivers || 0}/${d.totalDrivers || 0}`} icon="🧑‍✈️" color="purple" />
-        <StatCard label="Students Transported" value={d.studentsTransported || 0} icon="🎒" color="green" />
-        <StatCard label="Fleet Occupancy" value={`${d.occupancy || 0}%`} icon="📊" color="orange" />
-      </div>
+      <TrHead title="Transport Dashboard" subtitle="Fleet, routes, trips, safety and collection at a glance">
+        <Select value={route} onChange={setRoute} width={150}
+                options={[{ value: 'all', label: 'All Routes' }, ...(d.routes || []).map((r) => ({ value: r._id, label: `${r.tag} — ${r.name}` }))]} />
+        <Select value={period} onChange={setPeriod} options={PERIODS} width={130} />
+        <SplitBtn label="New Request" icon="plus" onClick={() => setNewReq(true)} items={[
+          { label: 'Schedule a trip', icon: 'calendar', onClick: () => nav('/admin/transport/trips') },
+          { label: 'Add a vehicle', icon: 'bus', onClick: () => nav('/admin/transport/vehicles') },
+          { label: 'Report an incident', icon: 'alert', onClick: () => nav('/admin/transport/incidents') },
+        ]} />
+      </TrHead>
 
-      {/* Operational mini-stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(170px,1fr))', gap: 12, marginBottom: 20 }}>
-        <MiniStat to="/admin/transport/trips" icon="📅" label="Today's Trips" value={d.todaysTrips || 0} />
-        <MiniStat to="/admin/transport/live" icon="🛰️" label="Running Now" value={d.runningTrips || 0} tone={d.runningTrips ? 'good' : ''} />
-        <MiniStat to="/admin/transport/trips" icon="⏱" label="Delayed Trips" value={d.delayedTrips || 0} tone={d.delayedTrips ? 'danger' : ''} />
-        <MiniStat to="/admin/transport/live" icon="📡" label="GPS Online" value={d.gpsOnline || 0} />
-        <MiniStat to="/admin/transport/vehicles" icon="🔧" label="In Maintenance" value={d.maintenanceVehicles || 0} tone={d.maintenanceVehicles ? 'warn' : ''} />
-        <MiniStat to="/admin/transport/complaints" icon="📣" label="Open Complaints" value={d.openComplaints || 0} tone={d.openComplaints ? 'warn' : ''} />
-        <MiniStat to="/admin/transport/incidents" icon="⚠️" label="Open Incidents" value={d.openIncidents || 0} tone={d.openIncidents ? 'danger' : ''} />
-        <MiniStat to="/admin/transport/requests" icon="📨" label="Pending Requests" value={d.pendingRequests || 0} tone={d.pendingRequests ? 'warn' : ''} />
-      </div>
+      <Tiles>
+        <Tile icon="bus" tone="blue" value={count(t.fleet?.total)} label="Total Vehicles" to="/admin/transport/vehicles"
+              legend={[
+                { tone: 'green', value: t.fleet?.active, label: 'Active' },
+                { tone: 'amber', value: t.fleet?.maintenance, label: 'In Maintenance' },
+                { tone: 'red', value: t.fleet?.inactive, label: 'Inactive' },
+              ]} />
+        <Tile icon="driver" tone="orange" value={count(t.crew?.total)} label="Drivers & Crew" to="/admin/transport/staff"
+              legend={[
+                { tone: 'green', value: t.crew?.onDuty, label: 'On Duty' },
+                { tone: 'slate', value: t.crew?.offDuty, label: 'Off Duty' },
+              ]} />
+        <Tile icon="students" tone="teal" value={count(t.students?.value)} label="Students Transported"
+              to="/admin/transport/assignments" delta={t.students?.delta} deltaNote="vs. previous day"
+              sub={t.students?.delta == null ? "Boarding starts with today's first trip" : undefined} />
+        <Tile icon="route" tone="pink" value={count(t.routesTile?.total)} label="Active Routes" to="/admin/transport/routes"
+              legend={[
+                { tone: 'blue', value: t.routesTile?.morning, label: 'Morning' },
+                { tone: 'purple', value: t.routesTile?.afternoon, label: 'Afternoon' },
+                { tone: 'slate', value: t.routesTile?.both, label: 'Both' },
+              ]} />
+        <Tile icon="rupee" tone="green" value={money(t.collectedToday?.value, { space: true })}
+              label="Fees Collected (Today)" to="/admin/transport/invoices"
+              delta={t.collectedToday?.delta} deltaNote="vs. previous day" />
+      </Tiles>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16 }}>
-        {/* Fee collection this month */}
-        <div className="card"><div className="card-header"><h3 className="card-title">💰 Fee Collection (this month)</h3></div>
-          <div className="card-body">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '.85rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Collected {fmt(d.feeCollectedMonth)}</span>
-              <span style={{ color: 'var(--text-muted)' }}>Billed {fmt(d.feeBilledMonth)}</span>
-            </div>
-            <div style={{ height: 10, background: 'var(--border)', borderRadius: 5, overflow: 'hidden' }}>
-              <div style={{ width: `${d.feeBilledMonth ? Math.min(100, (d.feeCollectedMonth / d.feeBilledMonth) * 100) : 0}%`, height: '100%', background: 'var(--success,#22c55e)' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 16, marginTop: 14, fontSize: '.85rem' }}>
-              <div><div style={{ color: 'var(--text-muted)', fontSize: '.72rem' }}>Fuel cost</div><strong>{fmt(d.fuelCostMonth)}</strong></div>
-              <div><div style={{ color: 'var(--text-muted)', fontSize: '.72rem' }}>Maintenance</div><strong>{fmt(d.maintenanceCostMonth)}</strong></div>
-              <div><div style={{ color: 'var(--text-muted)', fontSize: '.72rem' }}>Fuel used</div><strong>{d.fuelLitresMonth || 0} L</strong></div>
-            </div>
-          </div>
-        </div>
+      <div className="tr-grid tr-grid--dash">
+        <Card>
+          <CardHead title="Live Vehicles" right={<LinkBtn to="/admin/transport/live">View Live Map</LinkBtn>}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.77rem', color: 'var(--tr-muted)' }}>
+              <i className="tr-dot tr-dot--green" />{count(d.live?.onRoute)} vehicles on route
+            </span>
+          </CardHead>
+          <CardBody fill>
+            <TrMap height={236} vehicles={d.live?.markers || []} school={d.live?.school} routes={[]}
+                   map={d.map} />
+          </CardBody>
+        </Card>
 
-        {/* Fuel trend */}
-        <ChartCard title="⛽ Fuel Cost — last 6 months" data={d.fuelTrend} max={maxFuel} fmt={fmt} />
-        {/* Fee trend */}
-        <ChartCard title="📈 Collection — last 6 months" data={d.feeTrend} max={maxFee} fmt={fmt} color="var(--success,#22c55e)" />
-
-        {/* Route utilization */}
-        <div className="card"><div className="card-header"><h3 className="card-title">🛣️ Route Utilization</h3></div>
-          <div className="card-body">
-            {(d.routeUtilization || []).length === 0 ? <Muted>No active assignments yet.</Muted> :
-              d.routeUtilization.map(r => (
-                <div key={r._id} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', marginBottom: 3 }}><span>{r.name}</span><span style={{ color: 'var(--text-muted)' }}>{r.students}</span></div>
-                  <div style={{ height: 7, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${(r.students / maxRoute) * 100}%`, height: '100%', background: 'var(--primary)' }} />
-                  </div>
+        <Card>
+          <CardHead title="Today's Trips" right={<LinkBtn to="/admin/transport/trips">View All</LinkBtn>} />
+          <CardBody fill>
+            {trips.total ? (
+              <DonutRow>
+                <div className="tr-donutwrap__chart">
+                  <Donut data={tripSlices} total={trips.total} sub="Total Trips" size={158} thickness={24} />
                 </div>
-              ))}
-          </div>
-        </div>
+                <DonutLegend data={tripSlices} />
+              </DonutRow>
+            ) : (
+              <Empty icon="trips" sm title="No trips today"
+                     action={<Btn kind="soft" size="sm" as="a" href="/admin/transport/trips">Generate today's trips</Btn>}>
+                Trips are created from your active routes — generate them on the Trips screen.
+              </Empty>
+            )}
+          </CardBody>
+        </Card>
 
-        {/* Upcoming renewals */}
-        <div className="card"><div className="card-header"><h3 className="card-title">🔔 Upcoming Renewals {d.renewalCount ? <Badge variant="warning">{d.renewalCount}</Badge> : null}</h3></div>
-          <div className="card-body">
-            {(d.upcomingRenewals || []).length === 0 ? <Muted>All documents are up to date. 🎉</Muted> :
-              d.upcomingRenewals.map((r, i) => {
-                const days = Math.ceil((new Date(r.date) - Date.now()) / 864e5);
-                return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-                    <span>{r.kind === 'vehicle' ? '🚌' : '🧑‍✈️'} {r.name} — {r.doc}</span>
-                    <Badge variant={days < 0 ? 'danger' : days <= 7 ? 'warning' : 'muted'}>{days < 0 ? 'Expired' : `${days}d`}</Badge>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-
-        {/* Recent activity */}
-        <div className="card"><div className="card-header"><h3 className="card-title">🧾 Recent Activity</h3></div>
-          <div className="card-body">
-            {(d.recentActivities || []).length === 0 ? <Muted>No activity yet.</Muted> :
-              d.recentActivities.map(a => (
-                <div key={a._id} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-                  <div>{a.description}</div>
-                  <div style={{ fontSize: '.7rem', color: 'var(--text-muted)' }}>{a.user?.name || 'System'} · {new Date(a.createdAt).toLocaleString()}</div>
-                </div>
-              ))}
-          </div>
-        </div>
+        <Card>
+          <CardHead title="Notifications & Alerts" right={<LinkBtn to="/admin/transport/activity">View All</LinkBtn>} />
+          <CardBody flush>
+            {(d.alerts || []).length ? (
+              <Rows>
+                {d.alerts.map((a, i) => (
+                  <Row key={i} icon={{ delay: 'clock', wrench: 'wrench', request: 'request', megaphone: 'megaphone' }[a.icon] || 'bell'}
+                       iconTone={{ warn: 'amber', bad: 'red', blue: 'blue', info: 'indigo', good: 'green' }[a.tone] || 'indigo'}
+                       title={a.title} sub={a.detail} endSub={ago(a.at)}
+                       onClick={a.link ? () => nav(a.link) : undefined} />
+                ))}
+              </Rows>
+            ) : <Empty icon="bell" sm title="Nothing needs attention">No delays, overdue services or unanswered requests.</Empty>}
+          </CardBody>
+        </Card>
       </div>
-    </div>
-  );
-}
 
-const Muted = ({ children }) => <div style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>{children}</div>;
-function MiniStat({ to, icon, label, value, tone }) {
-  const color = tone === 'danger' && value > 0 ? 'var(--danger,#ef4444)' : tone === 'warn' && value > 0 ? 'var(--warning,#f59e0b)' : tone === 'good' && value > 0 ? 'var(--success,#22c55e)' : 'inherit';
-  return (
-    <Link to={to} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', textDecoration: 'none', color: 'var(--text)', background: 'var(--bg-primary)' }}>
-      <span style={{ fontSize: '1.3rem' }}>{icon}</span>
-      <div><div style={{ fontSize: '1.25rem', fontWeight: 700, color }}>{value}</div><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label}</div></div>
-    </Link>
-  );
-}
-function ChartCard({ title, data = [], max, fmt, color = 'var(--primary)' }) {
-  return (
-    <div className="card"><div className="card-header"><h3 className="card-title">{title}</h3></div>
-      <div className="card-body">
-        {data.length === 0 ? <Muted>No data yet.</Muted> : (
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 130 }}>
-            {data.map((t, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: '.62rem', color: 'var(--text-muted)' }}>{t.value ? fmt(t.value) : ''}</div>
-                <div title={fmt(t.value)} style={{ width: '65%', height: `${(t.value / max) * 100}%`, minHeight: 3, background: color, borderRadius: '4px 4px 0 0' }} />
-                <div style={{ fontSize: '.68rem', color: 'var(--text-muted)' }}>{t.label}</div>
+      <div className="tr-grid tr-grid--dash">
+        <Card>
+          <CardHead title="Fee Collection (This Month)" right={<LinkBtn to="/admin/transport/invoices">View Details</LinkBtn>} />
+          <CardBody>
+            <div style={{ fontSize: '1.68rem', fontWeight: 700, letterSpacing: '-.02em' }}>{money(m.collected, { space: true })}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.79rem', color: 'var(--tr-muted)', margin: '4px 0 10px' }}>
+              <span>Collected of {money(m.billed, { space: true })}</span>
+              <b style={{ color: 'var(--tr-ink)' }}>{m.pct || 0}%</b>
+            </div>
+            <span className="tr-bar tr-bar--lg"><i style={{ width: `${Math.min(100, m.pct || 0)}%`, background: STATUS_INK.good }} /></span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
+              <MoneyChip tone="green" value={m.collected} label="Collected" />
+              <MoneyChip tone="amber" value={m.pending} label="Pending" />
+              <MoneyChip tone="red" value={m.overdue} label="Overdue" />
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Fuel Consumption (Last 6 Months)" right={<LinkBtn to="/admin/transport/fuel">View Details</LinkBtn>} />
+          <CardBody>
+            {(d.fuelTrend || []).some((f) => f.litres) ? (
+              <Bars data={(d.fuelTrend || []).map((f) => ({ label: f.label, value: f.litres }))}
+                    series={[{ key: 'value', label: 'Litres', color: '#a5b4fc' }]}
+                    height={196} fmt={(v) => `${count(v)} L`} />
+            ) : <Empty icon="fuel" sm title="No fuel entries yet">Log a fill-up on the Fuel screen and this fills in.</Empty>}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Vehicle Status" right={<LinkBtn to="/admin/transport/vehicles">View All</LinkBtn>} />
+          <CardBody fill>
+            {t.fleet?.total ? (
+              <DonutRow>
+                <div className="tr-donutwrap__chart">
+                  <Donut data={fleetSlices} total={t.fleet.total} sub="Total Vehicles" size={150} thickness={23} />
+                </div>
+                <DonutLegend data={fleetSlices} />
+              </DonutRow>
+            ) : <Empty icon="bus" sm title="No vehicles yet" />}
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="tr-grid tr-grid--2a">
+        <Card>
+          <CardHead title="Upcoming Items" right={<LinkBtn to="/admin/transport/maintenance">View All</LinkBtn>} />
+          <CardBody>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10 }}>
+              <UpTile to="/admin/transport/maintenance" icon="wrench" tone="red" value={up.maintenanceDue}
+                      label="Maintenance Due" sub="In next 7 days" />
+              <UpTile to="/admin/transport/vehicles" icon="doc" tone="blue" value={up.renewals}
+                      label="Renewals" sub="Insurance / Fitness" />
+              <UpTile to="/admin/transport/requests" icon="request" tone="amber" value={up.requests}
+                      label="Transport Requests" sub="Pending approval" />
+              <UpTile to="/admin/transport/incidents" icon="alert" tone="green" value={up.incidents}
+                      label="Open Incidents" sub={up.incidents ? 'Needs attention' : 'Good safety record'} />
+            </div>
+            {(d.renewals || []).length ? (
+              <div style={{ marginTop: 14 }}>
+                <Rows>
+                  {d.renewals.slice(0, 3).map((r, i) => {
+                    const days = Math.ceil((new Date(r.date) - Date.now()) / 864e5);
+                    return (
+                      <Row key={i} icon={r.kind === 'vehicle' ? 'bus' : 'driver'} iconTone={days < 0 ? 'red' : 'amber'}
+                           title={`${r.name} — ${r.doc}`} sub={fmtDay(r.date)}
+                           badge={<Badge tone={days < 0 ? 'red' : 'amber'}>{days < 0 ? 'Expired' : `${days}d left`}</Badge>} />
+                    );
+                  })}
+                </Rows>
               </div>
-            ))}
-          </div>
-        )}
+            ) : null}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Recent Activity" right={<LinkBtn to="/admin/transport/activity">View All</LinkBtn>} />
+          <CardBody flush>
+            {(d.activity || []).length ? (
+              <div className="tr-tablewrap">
+                <table className="tr-table">
+                  <thead><tr><th style={{ width: 96 }}>Time</th><th>Activity</th><th>Details</th></tr></thead>
+                  <tbody>
+                    {d.activity.slice(0, 6).map((a, i) => (
+                      <tr key={i}>
+                        <td className="tr-num" style={{ color: 'var(--tr-muted)' }}>{fmtTime(a.at)}</td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                            <i className={`tr-dot tr-dot--${{ good: 'green', warn: 'amber', bad: 'red', info: 'blue' }[a.tone] || 'blue'}`} />
+                            {a.description || a.action}
+                          </span>
+                        </td>
+                        <td style={{ color: 'var(--tr-muted)' }}>{a.entity} · {a.by}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <Empty icon="clock" sm title="No activity yet">Everything anyone does in this module is listed here.</Empty>}
+          </CardBody>
+        </Card>
       </div>
+
+      <NewRequestModal open={newReq} onClose={() => setNewReq(false)} onSaved={() => { setNewReq(false); reload(); }} />
     </div>
   );
 }
+
+const MoneyChip = ({ tone, value, label }) => (
+  <div className={`tr-t-${tone}`} style={{ borderRadius: 11, padding: '9px 11px' }}>
+    <div style={{ fontWeight: 700, fontSize: '.92rem' }}>{money(value, { space: true })}</div>
+    <div style={{ fontSize: '.72rem', opacity: .85 }}>{label}</div>
+  </div>
+);
+
+const UpTile = ({ to, icon, tone, value, label, sub }) => (
+  <Tile icon={icon} tone={tone} value={count(value)} label={label} sub={sub} to={to} />
+);

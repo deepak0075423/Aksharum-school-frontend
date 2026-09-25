@@ -6,6 +6,7 @@ import AppLayout from './components/layout/AppLayout';
 import ModuleGuard from './components/ModuleGuard';
 import AdminAreaGuard from './components/AdminAreaGuard';
 import MySectionGuard from './components/MySectionGuard';
+import TransportEnrolledGuard from './components/TransportEnrolledGuard';
 import { roleHome } from './pages/auth/roleHome';
 import ModuleNav, {
   FEES_ADMIN_TABS, LIBRARY_ADMIN_TABS,
@@ -202,7 +203,7 @@ const InvTeacherRequests = lazy(() => import('./pages/inventory/teacher/Purchase
 const TrDashboard   = lazy(() => import('./pages/transport/admin/Dashboard'));
 const TrLive        = lazy(() => import('./pages/transport/admin/LiveTracking'));
 const TrVehicles    = lazy(() => import('./pages/transport/admin/Vehicles'));
-const TrStaff       = lazy(() => import('./pages/transport/admin/Staff'));
+const TrCrew        = lazy(() => import('./pages/transport/admin/Staff'));
 const TrRoutes      = lazy(() => import('./pages/transport/admin/Routes'));
 const TrAssignments = lazy(() => import('./pages/transport/admin/Assignments'));
 const TrTrips       = lazy(() => import('./pages/transport/admin/Trips'));
@@ -221,7 +222,8 @@ const TrParentDetails    = lazy(() => import('./pages/transport/parent/Details')
 const TrParentAttendance = lazy(() => import('./pages/transport/parent/Attendance'));
 const TrParentFees       = lazy(() => import('./pages/transport/parent/Fees'));
 const TrParentRequests   = lazy(() => import('./pages/transport/parent/Requests'));
-const TrStudent          = lazy(() => import('./pages/transport/student/Transport'));
+const TrRider            = lazy(() => import('./pages/transport/portal/RiderTransport'));
+const TransportShell     = lazy(() => import('./pages/transport/portal/TransportShell'));
 
 // ── Hostel ────────────────────────────────────────────────────────────────────
 const HsDashboard    = lazy(() => import('./pages/hostel/admin/Dashboard'));
@@ -458,7 +460,12 @@ export default function App() {
               <Route path="dashboard"   element={<TrDashboard />} />
               <Route path="live"        element={<TrLive />} />
               <Route path="vehicles"    element={<TrVehicles />} />
-              <Route path="staff"       element={<TrStaff />} />
+              {/* One role-aware screen, three roles. Each gets its own heading,
+                  tiles and columns — a licence is a driver's business. */}
+              <Route path="drivers"     element={<TrCrew role="driver" />} />
+              <Route path="conductors"  element={<TrCrew role="conductor" />} />
+              <Route path="crew"        element={<TrCrew role="helper" />} />
+              <Route path="staff"       element={<Navigate to="/admin/transport/drivers" replace />} />
               <Route path="routes"      element={<TrRoutes />} />
               <Route path="assignments" element={<TrAssignments />} />
               <Route path="trips"       element={<TrTrips />} />
@@ -471,7 +478,9 @@ export default function App() {
               <Route path="requests"    element={<TrRequests />} />
               <Route path="reports"     element={<TrReports />} />
               <Route path="settings"    element={<TrSettings />} />
-              <Route path="audit"       element={<TrAudit />} />
+              <Route path="activity"    element={<TrAudit />} />
+              {/* The tab was called Activity Log while the URL said /audit. */}
+              <Route path="audit"       element={<Navigate to="/admin/transport/activity" replace />} />
             </Route>
             {/* Hostel */}
             <Route path="hostel" element={<ModuleNav tabs={HOSTEL_ADMIN_TABS} />}>
@@ -551,6 +560,10 @@ export default function App() {
             <Route path="results/*"    element={<TResults />} />
             <Route path="leave"        element={<TLeave />} />
             <Route path="documents"    element={<TDocuments />} />
+            {/* A teacher account reaches Transport either because they RIDE the
+                bus or because they CREW it, and the two want opposite screens:
+                "where is my bus" vs "who is on mine". TransportShell picks. */}
+            <Route path="transport"    element={<TransportEnrolledGuard><TransportShell /></TransportEnrolledGuard>} />
             <Route path="documents/:id" element={<ADocDetail />} />
             {/* No <ModuleNav>: the payroll screens draw their own tab strip. */}
             <Route path="payroll">
@@ -627,7 +640,7 @@ export default function App() {
             <Route path="documents"        element={<SDocuments />} />
             <Route path="holidays"         element={<SHolidays />} />
             <Route path="fees/*"           element={<SFees />} />
-            <Route path="transport"        element={<TrStudent />} />
+            <Route path="transport"        element={<TransportEnrolledGuard><TrRider /></TransportEnrolledGuard>} />
             <Route path="hostel"           element={<HsStudent />} />
             <Route path="videos"           element={<VidStuDash />} />
             <Route path="videos/:id"       element={<VidStuPlayer />} />
@@ -658,7 +671,7 @@ export default function App() {
             <Route path="feedback"         element={<FbParChild />} />
             <Route path="child-fees"       element={<PFees />} />
             {/* Transport */}
-            <Route path="transport" element={<ModuleNav tabs={TRANSPORT_PARENT_TABS} />}>
+            <Route path="transport" element={<TransportEnrolledGuard><ModuleNav tabs={TRANSPORT_PARENT_TABS} /></TransportEnrolledGuard>}>
               <Route index element={<Navigate to="track" replace />} />
               <Route path="track"      element={<TrParentTrack />} />
               <Route path="details"    element={<TrParentDetails />} />

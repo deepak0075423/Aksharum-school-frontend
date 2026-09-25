@@ -1,121 +1,280 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Transport → Assignments.
+ *
+ * Five views of one set of rows: the students themselves, or those rows folded
+ * by route, stop, vehicle or driver. The fold happens on the server so a
+ * "Route-wise" count is the real count, not the count on the page you are on.
+ */
+import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import useFetch from '../../../hooks/useFetch';
+import Icon from '../../../components/ui/icons';
 import * as api from '../../../api/transport.api';
-import { PageHeader, Table, Button, Modal, Confirm, Badge, Pagination } from '../../../components/ui/index';
+import {
+  TrHead, TopBar, DayChip, Tiles, Tile, Card, CardHead, CardBody, Panel, Btn, IconBtn, Select, Search,
+  Filters, Pills, TableWrap, Cell2, Who, Avatar, Badge, StatusBadge, RouteBadge, Chip, Pager,
+  Rows, Row, QuickActions, Loading, Empty, Note, Confirm, Check, count, fmtTime, fmtDate, ago, words,
+  useBoard, useDebounced, Ico, plural } from './trUI';
+import { Donut, DonutLegend, DonutRow, seriesColor } from './trCharts';
+import { AssignmentForm, BulkAssignModal, ImportModal, NotifyModal } from './trForms';
 
-const empty = { student: '', route: '', pickupStop: '', dropStop: '', shift: 'both', seatNumber: '', feePlan: '', isTemporary: false, notes: '' };
-const ST = { active: 'success', suspended: 'warning', cancelled: 'muted' };
+const VIEWS = [
+  { value: 'students', label: 'Student Assignments' },
+  { value: 'routes', label: 'Route-wise' },
+  { value: 'stops', label: 'Stop-wise' },
+  { value: 'vehicles', label: 'Vehicle-wise' },
+  { value: 'drivers', label: 'Driver-wise' },
+];
 
 export default function TransportAssignments() {
-  const { data: meta } = useFetch(api.getMeta);
-  const [rows, setRows] = useState([]);
-  const [pg, setPg]     = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoad] = useState(true);
-  const [search, setSearch] = useState('');
+  const [view, setView] = useState('students');
+  const [q, setQ] = useState('');
   const [route, setRoute] = useState('');
   const [status, setStatus] = useState('active');
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [act, setAct] = useState(null);      // { row, status }
-  const routes = meta?.routes || [], students = meta?.students || [], feePlans = meta?.feePlans || [];
-  const selRoute = routes.find(r => r._id === form.route);
-  const stops = selRoute?.stops || [];
+  const [classId, setClassId] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(8);
+  const [form, setForm] = useState(null);
+  const [bulk, setBulk] = useState(false);
+  const [imp, setImp] = useState(false);
+  const [notify, setNotify] = useState(false);
+  const [cancel, setCancel] = useState(null);
+  const search = useDebounced(q);
 
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
-    try { const res = await api.getAssignments({ page, limit: 20, search, route, status }); const d = res.data ?? res;
-      setRows(d.data || []); setPg({ page: d.page, pages: d.pages, total: d.total }); }
-    catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [search, route, status]);
-  useEffect(() => { load(1); }, [route, status]); // eslint-disable-line
+  const { data, loading, error, reload } = useBoard(
+    () => api.getAssignmentBoard({ view, search, route, status, classId, page, limit }),
+    [view, search, route, status, classId, page, limit],
+  );
+  const d = data || {};
+  const t = d.tiles || {};
+  const rows = d.data || [];
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const open = (row) => {
-    if (row) setEditId(row._id), setForm({ ...empty, ...row, student: row.student?._id || row.student,
-      route: row.route?._id || row.route, feePlan: row.feePlan?._id || row.feePlan || '' });
-    else setEditId(null), setForm(empty);
-    setModal(true);
-  };
-  const save = async (e) => {
-    e.preventDefault(); setSaving(true);
-    try { const p = { ...form, pickupStop: form.pickupStop || null, dropStop: form.dropStop || null, feePlan: form.feePlan || null };
-      if (editId) await api.updateAssignment(editId, p); else await api.createAssignment(p);
-      toast.success('Assignment saved'); setModal(false); load(pg.page);
-    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
-  };
-  const doAct = async () => {
-    try { await api.setAssignmentStatus(act.row._id, { status: act.status }); toast.success(`Marked ${act.status}`); setAct(null); load(pg.page); }
-    catch (err) { toast.error(err.message); setAct(null); }
+  const slices = useMemo(() => {
+    const s = (d.summary || []).map((r) => ({ label: `${r.tag} - ${r.name}`, value: r.students, color: r.color }));
+    if (d.unassignedTotal) s.push({ label: 'Unassigned', value: d.unassignedTotal, color: '#cbd5e1' });
+    return s;
+  }, [d.summary, d.unassignedTotal]);
+
+  const setStatusOf = async (row, next) => {
+    try {
+      await api.setAssignmentStatus(row._id, { status: next, reason: next === 'cancelled' ? 'Removed by the transport office' : '' });
+      toast.success(`Assignment ${next}`);
+      setCancel(null); reload();
+    } catch (e) { toast.error(e?.message || 'Could not update'); setCancel(null); }
   };
 
-  const columns = [
-    { key: 'student', label: 'Student', render: r => <div><strong>{r.student?.name}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{[r.className, r.sectionName].filter(Boolean).join(' · ') || '—'}</div></div> },
-    { key: 'route', label: 'Route', render: r => <div>{r.route?.name}<div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.vehicle?.vehicleNumber || '—'}</div></div> },
-    { key: 'stops', label: 'Pickup → Drop', render: r => <span style={{ fontSize: '.8rem' }}>{r.pickupStopName || '—'} → {r.dropStopName || '—'}</span> },
-    { key: 'seat', label: 'Seat', render: r => r.seatNumber || '—' },
-    { key: 'fee', label: 'Fee Plan', render: r => r.feePlan?.name || '—' },
-    { key: 'status', label: 'Status', render: r => <Badge variant={ST[r.status]}>{r.status}{r.isTemporary ? ' (temp)' : ''}</Badge> },
-    { key: 'a', label: '', render: r => <div style={{ display: 'flex', gap: 6 }}>
-      <Button size="sm" variant="secondary" onClick={() => open(r)}>Edit</Button>
-      {r.status === 'active'
-        ? <Button size="sm" variant="secondary" onClick={() => setAct({ row: r, status: 'suspended' })}>Suspend</Button>
-        : <Button size="sm" variant="secondary" onClick={() => setAct({ row: r, status: 'active' })}>Resume</Button>}
-      {r.status !== 'cancelled' && <Button size="sm" variant="danger" onClick={() => setAct({ row: r, status: 'cancelled' })}>Cancel</Button>}
-    </div> },
-  ];
+  if (loading && !data) return <div className="tr-page"><Loading tiles={4} /></div>;
+  if (error) return <div className="tr-page"><Note tone="bad" title="Could not load assignments">{error}</Note></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="Student Transport Assignments" subtitle="Assign students to routes, stops & seats"
-        action={<Button onClick={() => open()}>+ Assign Student</Button>} />
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input className="form-control" style={{ maxWidth: 260 }} placeholder="🔍 Search student…" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && load(1)} />
-        <select className="form-control" style={{ maxWidth: 220 }} value={route} onChange={e => setRoute(e.target.value)}>
-          <option value="">All routes</option>{routes.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}</select>
-        <select className="form-control" style={{ maxWidth: 160 }} value={status} onChange={e => setStatus(e.target.value)}>
-          {['active','suspended','cancelled',''].map(s => <option key={s} value={s}>{s || 'All'}</option>)}</select>
-      </div>
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="🎒" emptyTitle="No assignments yet" />
-      </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
+    <div className="tr-page">
+      <TopBar>
+        <DayChip label={new Date().getFullYear()} sub="Academic Year" icon="calendar" />
+        <Btn kind="primary" icon="plus" onClick={() => setForm({})}>New Assignment</Btn>
+      </TopBar>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? 'Edit Assignment' : 'Assign Student'} maxWidth={620}
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="as-form" type="submit" loading={saving}>Save</Button></>}>
-        <form id="as-form" onSubmit={save}>
-          <div className="form-group"><label className="form-label required">Student</label>
-            <select className="form-control" required value={form.student} onChange={e => set('student', e.target.value)} disabled={!!editId}>
-              <option value="">— Select student —</option>{students.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></div>
-          <div className="form-group"><label className="form-label required">Route</label>
-            <select className="form-control" required value={form.route} onChange={e => { set('route', e.target.value); setForm(f => ({ ...f, pickupStop: '', dropStop: '' })); }}>
-              <option value="">— Select route —</option>{routes.map(r => <option key={r._id} value={r._id}>{r.name} ({r.routeCode})</option>)}</select></div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Pickup Stop</label>
-              <select className="form-control" value={form.pickupStop} onChange={e => set('pickupStop', e.target.value)}>
-                <option value="">— Select —</option>{stops.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">Drop Stop</label>
-              <select className="form-control" value={form.dropStop} onChange={e => set('dropStop', e.target.value)}>
-                <option value="">— Select —</option>{stops.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></div>
+      <TrHead title="Route Assignments" subtitle="Assign students to routes, stops and vehicles. Manage pick-up/drop schedules." />
+
+      <Tiles cols="4">
+        <Tile icon="students" tone="teal" value={count(t.assigned)} label="Students Assigned"
+              delta={t.assignedDelta} deltaNote="vs. last term" />
+        <Tile icon="route" tone="pink" value={count(t.routes)} label="Active Routes"
+              sub={`${t.routesUsedPct || 0}% carrying students`} />
+        <Tile icon="bus" tone="blue" value={count(t.vehiclesInUse)} label="Vehicles in Use"
+              sub={`${count(t.vehiclesSpare)} spare vehicle${t.vehiclesSpare === 1 ? '' : 's'}`} />
+        <Tile icon="driver" tone="orange" value={count(t.driversAssigned)} label="Drivers Assigned"
+              sub={t.driversOnLeave ? `${t.driversOnLeave} on leave` : 'All on duty'} />
+      </Tiles>
+
+      <div className="tr-split tr-split--wide">
+        {/* Same column as the table — a full-width band under the split left a
+            hole beside a three-row list. */}
+        <div className="tr-stack">
+          <Card>
+            <CardHead line>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
+                <Pills value={view} onChange={(v) => { setView(v); setPage(1); }} items={VIEWS} />
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <Search value={q} onChange={(v) => { setQ(v); setPage(1); }} grow={false}
+                          placeholder="Search by student name, class, route…" style={{ width: 230 }} />
+                  <Select value={route} onChange={(v) => { setRoute(v); setPage(1); }} placeholder="All routes" options={d.filters?.routes || []} width={140} />
+                  <Select value={status} onChange={(v) => { setStatus(v); setPage(1); }} width={125}
+                          options={[{ value: 'active', label: 'Active' }, { value: 'suspended', label: 'On Hold' }, { value: 'cancelled', label: 'Cancelled' }]} />
+                </div>
+              </div>
+            </CardHead>
+
+            <CardBody flush>
+              {view === 'students' ? (
+                <>
+                  <TableWrap>
+                    <table className="tr-table">
+                      <thead>
+                        <tr>
+                          <th className="tr-table__idx">#</th>
+                          <th>Student</th><th>Class</th><th>Route</th><th>Stop (Pick-up / Drop)</th>
+                          <th>Vehicle</th><th>Pickup</th><th>Drop</th><th>Status</th><th className="tr-table__acts">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={r._id}>
+                            <td className="tr-table__idx">{(d.page - 1) * limit + i + 1}</td>
+                            <td><Who name={r.student.name} src={r.student.photo} id={r.student._id}
+                                     sub={r.student.admissionNumber || ''} /></td>
+                            <td>{r.student.classLabel || '—'}</td>
+                            <td>{r.route ? <Chip color={r.route.color}>{r.route.tag} - {r.route.zone || r.route.name}</Chip> : '—'}</td>
+                            <td><Cell2 top={r.pickupStop?.name || '—'}
+                                       sub={r.dropStop && r.dropStop._id !== r.pickupStop?._id ? `Drop: ${r.dropStop.name}` : (r.pickupStop ? `Stop ${r.pickupStop.sequence}` : '')} /></td>
+                            <td><Cell2 top={r.vehicle?.vehicleNumber || '—'} sub={r.vehicle?.manufacturer} /></td>
+                            <td className="tr-num">{r.pickupTime ? fmtTime(r.pickupTime) : '—'}</td>
+                            <td className="tr-num">{r.dropTime ? fmtTime(r.dropTime) : '—'}</td>
+                            <td><StatusBadge value={r.status} /></td>
+                            <td className="tr-table__acts">
+                              <div>
+                                <IconBtn icon="pencil" label="Edit" onClick={() => setForm(r)} />
+                                <IconBtn icon={r.status === 'active' ? 'pause' : 'play'}
+                                         label={r.status === 'active' ? 'Put on hold' : 'Reactivate'}
+                                         onClick={() => setStatusOf(r, r.status === 'active' ? 'suspended' : 'active')} />
+                                <IconBtn icon="trash" kind="danger" label="Remove" onClick={() => setCancel(r)} />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableWrap>
+                  {!rows.length ? (
+                    <Empty icon="seat" title="No assignments match"
+                           action={<Btn kind="soft" icon="people" onClick={() => setBulk(true)}>Bulk assign students</Btn>} />
+                  ) : null}
+                  <Pager page={d.page} pages={d.pages} total={d.total} limit={limit} noun="students"
+                         onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} />
+                </>
+              ) : (
+                <div style={{ padding: 4 }}>
+                  {(d.groups || []).length ? (d.groups || []).map((g) => (
+                    <details key={g.id || g.label} open style={{ borderBottom: '1px solid var(--tr-line-2)' }}>
+                      <summary style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', cursor: 'pointer', listStyle: 'none' }}>
+                        <span className="tr-rbadge" style={{ background: g.color || '#64748b' }}>{String(g.label).slice(0, 2).toUpperCase()}</span>
+                        <Cell2 top={g.label} sub={g.sub} />
+                        <span style={{ marginLeft: 'auto' }}><Badge tone="indigo">{plural(g.count, 'student')}</Badge></span>
+                        <Ico name="chevronDown" size={15} />
+                      </summary>
+                      <div style={{ padding: '0 14px 12px 50px' }}>
+                        <TableWrap>
+                          <table className="tr-table">
+                            <thead><tr><th>Student</th><th>Class</th><th>Stop</th><th>Pickup</th><th>Drop</th><th>Status</th></tr></thead>
+                            <tbody>
+                              {g.students.map((r) => (
+                                <tr key={r._id}>
+                                  <td><Who name={r.student.name} src={r.student.photo} id={r.student._id} sub={r.student.admissionNumber} size="sm" /></td>
+                                  <td>{r.student.classLabel || '—'}</td>
+                                  <td>{r.pickupStop?.name || '—'}</td>
+                                  <td className="tr-num">{r.pickupTime ? fmtTime(r.pickupTime) : '—'}</td>
+                                  <td className="tr-num">{r.dropTime ? fmtTime(r.dropTime) : '—'}</td>
+                                  <td><StatusBadge value={r.status} /></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </TableWrap>
+                        {g.count > g.students.length ? (
+                          <div style={{ fontSize: '.78rem', color: 'var(--tr-muted)', padding: '8px 2px' }}>
+                            Showing {g.students.length} of {g.count} — open the Student Assignments view and filter to see them all.
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
+                  )) : <Empty icon="seat" title="Nothing to group yet" />}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+          <div className="tr-grid tr-grid--3">
+          <Card>
+            <CardHead title="Recent Assignments" />
+            <CardBody flush>
+              {d.recent?.length ? (
+                <Rows>
+                  {d.recent.map((r, i) => (
+                    <Row key={i} icon={r.tone === 'bad' ? 'x' : 'check'} iconTone={r.tone === 'bad' ? 'red' : r.tone === 'warn' ? 'amber' : 'green'}
+                         title={r.text} sub={r.route ? `${r.route.tag} — ${r.route.name}` : ''} endSub={ago(r.at)} />
+                  ))}
+                </Rows>
+              ) : <Empty icon="clock" sm title="Nothing assigned yet" />}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHead title="Upcoming Changes" />
+            <CardBody flush>
+              {d.upcomingChanges?.length ? (
+                <Rows>
+                  {d.upcomingChanges.map((c, i) => (
+                    <Row key={i} icon={c.type === 'route_maintenance' ? 'wrench' : 'swap'}
+                         iconTone={c.tone === 'warn' ? 'amber' : 'blue'}
+                         title={c.text} sub={c.detail || words(c.status)} endSub={fmtDate(c.at)} />
+                  ))}
+                </Rows>
+              ) : <Empty icon="calendar" sm title="No changes are queued" />}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHead title="Unassigned Students"
+                      right={<Badge tone="amber">{count(d.unassignedTotal)}</Badge>} />
+            <CardBody flush>
+              {d.unassignedStudents?.length ? (
+                <Rows>
+                  {d.unassignedStudents.slice(0, 6).map((s) => (
+                    <Row key={s._id} avatar={<Avatar name={s.name} src={s.photo} id={s._id} size="sm" />}
+                         title={s.name} sub={s.classLabel || s.admissionNumber || ''} endSub="No route assigned" />
+                  ))}
+                </Rows>
+              ) : <Empty icon="check" sm title="Everyone has transport" />}
+              {d.unassignedStudents?.length ? (
+                <div style={{ padding: 12 }}>
+                  <Btn kind="soft" block icon="plus" onClick={() => setBulk(true)}>Assign them</Btn>
+                </div>
+              ) : null}
+            </CardBody>
+          </Card>
           </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Shift</label>
-              <select className="form-control" value={form.shift} onChange={e => set('shift', e.target.value)}>{['both','morning','evening'].map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">Seat No.</label><input className="form-control" value={form.seatNumber} onChange={e => set('seatNumber', e.target.value)} /></div>
-          </div>
-          <div className="form-group"><label className="form-label">Fee Plan</label>
-            <select className="form-control" value={form.feePlan} onChange={e => set('feePlan', e.target.value)}>
-              <option value="">— None —</option>{feePlans.map(p => <option key={p._id} value={p._id}>{p.name} · {p.basis} · ₹{p.amount}/{p.frequency}</option>)}</select></div>
-          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '.85rem', marginTop: 6 }}>
-            <input type="checkbox" checked={form.isTemporary} onChange={e => set('isTemporary', e.target.checked)} /> Temporary assignment</label>
-        </form>
-      </Modal>
-      <Confirm open={!!act} onClose={() => setAct(null)} onConfirm={doAct}
-        title={`${act?.status === 'cancelled' ? 'Cancel' : act?.status === 'active' ? 'Resume' : 'Suspend'} assignment`}
-        message={`Mark ${act?.row?.student?.name}'s transport as ${act?.status}?`} />
+        </div>
+
+        <div className="tr-rail">
+          <Panel title="Quick Actions">
+            <QuickActions items={[
+              { icon: 'people', label: 'Bulk Assign Students', onClick: () => setBulk(true) },
+              { icon: 'fileSheet', label: 'Import from Excel', onClick: () => setImp(true) },
+              { icon: 'repeat', label: 'Reassign Route', onClick: () => setForm({}) },
+              { icon: 'send', label: 'Send Notification', onClick: () => setNotify(true) },
+            ]} />
+          </Panel>
+
+          <Panel title="Assignment Summary">
+            {slices.length ? (
+              <DonutRow>
+                <div className="tr-donutwrap__chart">
+                  <Donut data={slices} total={t.assigned} sub="Students" size={150} thickness={23} />
+                </div>
+                <DonutLegend data={slices} />
+              </DonutRow>
+            ) : <Empty icon="chart" sm title="Nobody is assigned yet" />}
+          </Panel>
+        </div>
+      </div>
+
+
+      {form ? <AssignmentForm open onClose={() => setForm(null)} row={form._id ? form : null}
+                              onSaved={() => { setForm(null); reload(); }} /> : null}
+      <BulkAssignModal open={bulk} onClose={() => setBulk(false)} unassigned={d.unassignedStudents || []}
+                       onSaved={() => { setBulk(false); reload(); }} />
+      <ImportModal open={imp} kind="assignments" onClose={() => setImp(false)} onSaved={() => { setImp(false); reload(); }} />
+      <NotifyModal open={notify} onClose={() => setNotify(false)} routes={d.filters?.routes || []} onSaved={() => setNotify(false)} />
+      <Confirm open={!!cancel} onClose={() => setCancel(null)} onConfirm={() => setStatusOf(cancel, 'cancelled')} tone="danger"
+               title="Remove this assignment?" confirmLabel="Remove"
+               message={`${cancel?.student?.name || 'This student'} will lose their seat and the family is told. Their history is kept.`} />
     </div>
   );
 }

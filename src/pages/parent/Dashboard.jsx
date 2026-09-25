@@ -24,7 +24,7 @@ const ALL_QUICK_LINKS = [
   { key: 'fees',       to: '/parent/child-fees',       icon: 'wallet',      tone: 'amber',  label: 'Fees',         sub: 'Payment history', module: 'fees' },
   { key: 'documents',  to: '/parent/documents',        icon: 'folder',      tone: 'pink',   label: 'Documents',    sub: 'View documents',  module: 'document' },
   { key: 'holidays',   to: '/parent/holidays',         icon: 'party',       tone: 'teal',   label: 'Holidays',     sub: 'Holiday calendar', module: 'holiday' },
-  { key: 'transport',  to: '/parent/transport/track',  icon: 'bus',         tone: 'amber',  label: 'Transport',    sub: 'Transport details', module: 'transport' },
+  { key: 'transport',  to: '/parent/transport/track',  icon: 'bus',         tone: 'amber',  label: 'Transport',    sub: 'Transport details', module: 'transport', requires: 'transportEnrolled' },
   { key: 'hostel',     to: '/parent/hostel',           icon: 'hotel',       tone: 'orange', label: 'Hostel',       sub: 'Hostel info',     module: 'hostel' },
   { key: 'notices',    to: '/parent/notifications',    icon: 'megaphone',   tone: 'blue',   label: 'Notice Board', sub: 'School notices',  module: 'notification' },
   { key: 'chat',       to: '/chat',                    icon: 'chat',        tone: 'indigo', label: 'Chat',         sub: 'Message teachers', module: 'chat' },
@@ -113,7 +113,10 @@ export default function ParentDashboard() {
   }, [childHolidays]);
 
   const available = useMemo(
-    () => ALL_QUICK_LINKS.filter(l => !l.module || modules?.[l.module]),
+    // `requires` names a non-module flag in the same payload — transport is
+    // only for people enrolled in the service.
+    () => ALL_QUICK_LINKS.filter(l => (!l.module || modules?.[l.module])
+      && (!l.requires || modules?.[l.requires] === true)),
     [modules],
   );
   const quick = useQuickAccess({

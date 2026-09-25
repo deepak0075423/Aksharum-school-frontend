@@ -60,9 +60,17 @@ api.interceptors.response.use(
     // normal access. See school-backend/middleware/moduleAccess.js.
     if (status === 403) {
       const code = err.response?.data?.code;
-      if (code === 'MODULE_DISABLED') toast.error('This module is not enabled for your school');
-      else if (code === 'MODULE_ACCESS_DENIED') toast.error('Your designation does not have access to this module');
-      else if (code === 'MODULE_ADMIN_REQUIRED') toast.error('Administrative access to this module is required');
+      // One id per reason, so a burst of blocked requests collapses into ONE
+      // message instead of stacking. A page can easily fire three calls into
+      // the same disabled module, and three identical toasts read as a fault
+      // in the app rather than as a module being off.
+      const say = { MODULE_DISABLED: 'This module is not enabled for your school',
+        MODULE_ACCESS_DENIED: 'Your designation does not have access to this module',
+        MODULE_ADMIN_REQUIRED: 'Administrative access to this module is required' }[code];
+      // A background poll that has already decided to ignore the failure should
+      // not shout about it either: `meta: { quiet: true }` on the request opts
+      // out, for badges and pollers the person never asked for.
+      if (say && !err.config?.meta?.quiet) toast.error(say, { id: `module:${code}` });
     }
 
     return Promise.reject({ message, status, data: err.response?.data });

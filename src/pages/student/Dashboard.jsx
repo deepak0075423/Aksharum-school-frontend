@@ -29,7 +29,7 @@ const ALL_QUICK_LINKS = [
   { key: 'chat',        to: '/chat',                  icon: 'chat',        tone: 'teal',   label: 'Chat',             module: 'chat' },
   { key: 'notices',     to: '/student/notifications', icon: 'megaphone',   tone: 'blue',   label: 'Notice Board',     module: 'notification' },
   { key: 'holidays',    to: '/student/holidays',      icon: 'party',       tone: 'teal',   label: 'Holidays',         module: 'holiday' },
-  { key: 'transport',   to: '/student/transport',     icon: 'bus',         tone: 'amber',  label: 'Transport',        module: 'transport' },
+  { key: 'transport',   to: '/student/transport',     icon: 'bus',         tone: 'amber',  label: 'Transport',        module: 'transport', requires: 'transportEnrolled' },
   { key: 'hostel',      to: '/student/hostel',        icon: 'hotel',       tone: 'orange', label: 'Hostel',           module: 'hostel' },
   { key: 'videos',      to: '/student/videos',        icon: 'video',       tone: 'pink',   label: 'Video Learning',   module: 'videoLibrary' },
   { key: 'feedback',    to: '/student/feedback',      icon: 'star',        tone: 'purple', label: 'Teacher Feedback', module: 'feedback' },
@@ -107,7 +107,10 @@ export default function StudentDashboard() {
   }, [holidays]);
 
   const available = useMemo(
-    () => ALL_QUICK_LINKS.filter(l => !l.module || modules?.[l.module]),
+    // `requires` names a non-module flag in the same payload — transport is
+    // only for people enrolled in the service.
+    () => ALL_QUICK_LINKS.filter(l => (!l.module || modules?.[l.module])
+      && (!l.requires || modules?.[l.requires] === true)),
     [modules],
   );
   const quick = useQuickAccess({ scope: 'student', userId, available });

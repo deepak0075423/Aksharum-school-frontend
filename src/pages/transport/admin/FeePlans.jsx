@@ -1,90 +1,269 @@
+/**
+ * Transport → Fee Plans.
+ *
+ * "Total Revenue (Annual)" is the plans' own arithmetic — amount × how often it
+ * bills × how many children are on it — while the year-on-year comparison is
+ * made on invoices actually billed, because last year's plans may since have
+ * been edited out of existence.
+ */
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/transport.api';
-import { PageHeader, Table, Button, Modal, Confirm, Badge } from '../../../components/ui/index';
+import {
+  TrHead, TopBar, DayChip, Tiles, Tile, Card, CardHead, CardBody, Panel, Btn, IconBtn, Select, Search,
+  Filters, FilterEnd, TableWrap, Cell2, Badge, StatusBadge, Chip, Pager, Rows, Row, QuickActions,
+  Loading, Empty, Note, Confirm, DateChip, Mark, count, money, compactMoney, fmtDate, words,
+  FREQUENCY, useBoard, useDebounced, toCsv, saveFile, plural } from './trUI';
+import { Bars, Donut, DonutLegend, DonutRow, STATUS_INK } from './trCharts';
+import { FeePlanForm } from './trForms';
 
-const empty = { name: '', description: '', basis: 'flat', frequency: 'monthly', amount: '', lateFeePerDay: '', siblingDiscountPct: '', zones: [] };
-const newZone = () => ({ name: '', maxDistanceKm: '', amount: '' });
+/* Reserved state colours, escalating. Overdue was drawn in slate and pending in
+   red, which said the harmless state was the serious one — and the Invoices
+   screen paints overdue red, so the two disagreed about the same money. */
+const COLLECTION_META = {
+  paid: ['green', 'check', 'Paid'], partial: ['blue', 'clock', 'Partial'],
+  pending: ['amber', 'bang', 'Pending'], overdue: ['red', 'x', 'Overdue'],
+};
 
 export default function TransportFeePlans() {
-  const { data: plans, loading, refetch } = useFetch(api.getFeePlans);
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState('');
+  const [route, setRoute] = useState('');
+  const [vehicleType, setVehicleType] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(8);
+  const [form, setForm] = useState(null);
   const [del, setDel] = useState(null);
+  const search = useDebounced(q);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const setZone = (i, k, v) => setForm(f => ({ ...f, zones: f.zones.map((z, j) => j === i ? { ...z, [k]: v } : z) }));
-  const zoned = ['distance', 'zone'].includes(form.basis);
+  const { data, loading, error, reload } = useBoard(
+    () => api.getFeePlanBoard({ search, status, route, vehicleType, page, limit }),
+    [search, status, route, vehicleType, page, limit],
+  );
+  const d = data || {};
+  const t = d.tiles || {};
+  const rows = d.data || [];
 
-  const open = (row) => {
-    if (row) setEditId(row._id), setForm({ ...empty, ...row, zones: (row.zones || []).map(z => ({ ...newZone(), ...z })) });
-    else setEditId(null), setForm(empty);
-    setModal(true);
+  const reset = () => { setQ(''); setStatus(''); setRoute(''); setVehicleType(''); setPage(1); };
+  const exportCsv = () => {
+    saveFile(`fee-plans-${new Date().toISOString().slice(0, 10)}.csv`, toCsv([
+      ['name', 'Plan Name'], ['scope', 'Route / Zone'], ['vehicleTypeLabel', 'Vehicle Type'],
+      ['amount', 'Fee Amount (₹)'], ['frequencyLabel', 'Billing Frequency'], ['students', 'Students'],
+      ['annual', 'Annual Revenue (₹)'], ['status', 'Status'], ['approvalStatus', 'Approval'],
+    ], rows));
+    toast.success('Exported the plans on this page');
   };
-  const save = async (e) => {
-    e.preventDefault(); setSaving(true);
-    try { const p = { ...form, amount: +form.amount || 0, lateFeePerDay: +form.lateFeePerDay || 0, siblingDiscountPct: +form.siblingDiscountPct || 0,
-      zones: form.zones.filter(z => z.name).map(z => ({ ...z, maxDistanceKm: +z.maxDistanceKm || 0, amount: +z.amount || 0 })) };
-      if (editId) await api.updateFeePlan(editId, p); else await api.createFeePlan(p);
-      toast.success('Saved'); setModal(false); refetch();
-    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
+  const approve = async (plan, action) => {
+    try { await api.approveFeePlan(plan._id, { action }); toast.success(`Plan ${action}d`); reload(); }
+    catch (e) { toast.error(e?.message || 'Could not do that'); }
   };
-  const remove = async () => { try { await api.deleteFeePlan(del._id); toast.success('Deleted'); setDel(null); refetch(); } catch (err) { toast.error(err.message); setDel(null); } };
+  const remove = async () => {
+    try { await api.deleteFeePlan(del._id); toast.success('Plan retired'); setDel(null); reload(); }
+    catch (e) { toast.error(e?.message || 'Could not retire it'); setDel(null); }
+  };
 
-  const columns = [
-    { key: 'name', label: 'Plan', render: r => <div><strong>{r.name}</strong>{r.description && <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.description}</div>}</div> },
-    { key: 'basis', label: 'Basis', render: r => <Badge variant="info">{r.basis}</Badge> },
-    { key: 'freq', label: 'Frequency', render: r => r.frequency },
-    { key: 'amount', label: 'Amount', render: r => ['distance','zone'].includes(r.basis) ? <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{r.zones?.length || 0} bands</span> : `₹${(r.amount||0).toLocaleString()}` },
-    { key: 'a', label: '', render: r => <div style={{ display: 'flex', gap: 6 }}>
-      <Button size="sm" variant="secondary" onClick={() => open(r)}>Edit</Button>
-      <Button size="sm" variant="danger" onClick={() => setDel(r)}>Delete</Button></div> },
-  ];
+  if (loading && !data) return <div className="tr-page"><Loading tiles={4} /></div>;
+  if (error) return <div className="tr-page"><Note tone="bad" title="Could not load fee plans">{error}</Note></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="Transport Fee Plans" subtitle="Flat, route, stop, distance & zone-based fee structures"
-        action={<Button onClick={() => open()}>+ Add Plan</Button>} />
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={plans} loading={loading} emptyIcon="🏷️" emptyTitle="No fee plans yet" />
-      </div></div>
+    <div className="tr-page">
+      <TopBar>
+        <DayChip label={t.yearName || `${new Date().getFullYear()}`} sub="Academic Year" icon="calendar" />
+        <Btn kind="primary" icon="plus" onClick={() => setForm({})}>Create Fee Plan</Btn>
+      </TopBar>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? 'Edit Fee Plan' : 'Add Fee Plan'} maxWidth={640}
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button><Button form="fp-form" type="submit" loading={saving}>Save</Button></>}>
-        <form id="fp-form" onSubmit={save}>
-          <div className="form-group"><label className="form-label required">Plan Name</label><input className="form-control" required value={form.name} onChange={e => set('name', e.target.value)} /></div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Basis</label>
-              <select className="form-control" value={form.basis} onChange={e => set('basis', e.target.value)}>{['flat','route','stop','distance','zone'].map(b => <option key={b} value={b}>{b}</option>)}</select></div>
-            <div className="form-group"><label className="form-label">Frequency</label>
-              <select className="form-control" value={form.frequency} onChange={e => set('frequency', e.target.value)}>{['monthly','quarterly','yearly','one_time'].map(b => <option key={b} value={b}>{b}</option>)}</select></div>
-          </div>
-          {!zoned && <div className="form-group"><label className="form-label">Amount (₹)</label><input type="number" className="form-control" value={form.amount} onChange={e => set('amount', e.target.value)} /></div>}
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Late Fee / day (₹)</label><input type="number" className="form-control" value={form.lateFeePerDay} onChange={e => set('lateFeePerDay', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Sibling Discount (%)</label><input type="number" className="form-control" value={form.siblingDiscountPct} onChange={e => set('siblingDiscountPct', e.target.value)} /></div>
-          </div>
-          {zoned && <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0 6px' }}>
-              <div style={{ fontSize: '.85rem', fontWeight: 700 }}>Distance / Zone Bands</div>
-              <Button size="sm" variant="secondary" type="button" onClick={() => setForm(f => ({ ...f, zones: [...f.zones, newZone()] }))}>+ Band</Button>
-            </div>
-            {form.zones.map((z, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 24px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-                <input className="form-control" placeholder="Zone name" value={z.name} onChange={e => setZone(i, 'name', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <input className="form-control" placeholder="≤ km" value={z.maxDistanceKm} onChange={e => setZone(i, 'maxDistanceKm', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <input className="form-control" placeholder="₹ amount" value={z.amount} onChange={e => setZone(i, 'amount', e.target.value)} style={{ padding: '6px 8px', fontSize: '.8rem' }} />
-                <button type="button" onClick={() => setForm(f => ({ ...f, zones: f.zones.filter((_, j) => j !== i) }))} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--danger,#ef4444)' }}>✕</button>
+      <TrHead icon="rupee" iconTone="green" title="Transport Fee Plans"
+              subtitle="Create and manage transport fee plans for different routes, zones and vehicle types." />
+
+      <Tiles cols="4">
+        <Tile icon="people" tone="indigo" value={count(t.plans)} label="Active Fee Plans"
+              delta={t.plansDelta} deltaNote="vs. last term" />
+        <Tile icon="students" tone="green" value={count(t.enrolled)} label="Students Enrolled"
+              sub={`${t.enrolledPct || 0}% of total students`} />
+        <Tile icon="rupee" tone="amber" value={money(t.annual, { space: true })} label="Total Revenue (Annual)"
+              delta={t.annualDelta} deltaNote="vs. last year billed" />
+        <Tile icon="doc" tone="red" value={count(t.pendingApprovals)} label="Pending Approvals"
+              sub={t.pendingApprovals ? 'Requires action' : 'Nothing waiting'} />
+      </Tiles>
+
+      <div className="tr-grid tr-grid--chart3">
+        <Card>
+          <CardHead title="Revenue Trend" right={<Badge tone="slate">Last 6 Months</Badge>} />
+          <CardBody>
+            {d.revenueTrend?.length ? (
+              <>
+                <Bars data={d.revenueTrend} height={196} fmt={compactMoney} series={[
+                  { key: 'expected', label: 'Expected Revenue', color: '#c7d2fe' },
+                  { key: 'collected', label: 'Collected Revenue', color: '#4f46e5' },
+                ]} />
+                <div className="tr-legend" style={{ marginTop: 10 }}>
+                  <span><i style={{ background: '#c7d2fe' }} />Expected Revenue</span>
+                  <span><i style={{ background: '#4f46e5' }} />Collected Revenue</span>
+                </div>
+              </>
+            ) : <Empty icon="chart" sm title="Nothing billed yet" />}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Student Distribution by Fee Plan" />
+          <CardBody fill>
+            {d.distribution?.length ? (
+              <DonutRow>
+                <div className="tr-donutwrap__chart">
+                  <Donut size={150} thickness={23} total={t.enrolled} sub="Students"
+                         data={d.distribution.map((x) => ({ label: x.label, value: x.students, color: x.color }))} />
+                </div>
+                <DonutLegend data={d.distribution.map((x) => ({ label: x.label, value: x.students, color: x.color }))}
+                             right={(x) => `${d.distribution.find((r) => r.label === x.label)?.pct || 0}%`} />
+              </DonutRow>
+            ) : <Empty icon="chart" sm title="Nobody is on a plan yet" />}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHead title="Fee Collection Status" right={<Badge tone="slate">This month</Badge>} />
+          <CardBody>
+            {(d.collectionStatus || []).some((x) => x.students) ? (
+              <div className="tr-statuslist">
+                {(d.collectionStatus || []).map((x) => {
+                  const [tone, icon, label] = COLLECTION_META[x.key] || ['slate', 'info', words(x.key)];
+                  return (
+                    <div className="tr-statusrow" key={x.key}>
+                      <Mark name={icon} tone={tone} className="tr-statusrow__mark" size={34} glyph={17} />
+                      <div className="tr-statusrow__text">
+                        <b>{label}</b>
+                        <span>{plural(x.students, 'student')}</span>
+                      </div>
+                      <div style={{ flex: '0 0 110px' }}>
+                        <span className="tr-bar"><i style={{ width: `${x.pct}%`, background: STATUS_INK[tone] }} /></span>
+                      </div>
+                      <b style={{ fontSize: '.82rem', minWidth: 34, textAlign: 'right' }}>{x.pct}%</b>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-            {form.zones.length === 0 && <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>Add bands, e.g. “≤5km ₹800”, “≤10km ₹1200”. A student’s pickup-stop distance selects the band.</div>}
-          </>}
-        </form>
-      </Modal>
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} title="Delete plan" message={`Delete "${del?.name}"?`} />
+            ) : <Empty icon="rupee" sm title="No invoices this month">Generate them on the Invoices screen.</Empty>}
+          </CardBody>
+        </Card>
+      </div>
+
+      <Filters>
+        <Search value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search fee plans by name, route, or vehicle type…" />
+        <Select value={status} onChange={(v) => { setStatus(v); setPage(1); }} placeholder="All Status"
+                options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
+        <Select value={route} onChange={(v) => { setRoute(v); setPage(1); }} placeholder="All Routes" options={d.filters?.routes || []} />
+        <Select value={vehicleType} onChange={(v) => { setVehicleType(v); setPage(1); }} placeholder="All Vehicle Types" options={d.filters?.vehicleTypes || []} />
+        <Btn onClick={reset}>Reset</Btn>
+        <FilterEnd><Btn icon="upload" onClick={exportCsv}>Export</Btn></FilterEnd>
+      </Filters>
+
+      <div className="tr-split">
+        <Card>
+          <CardHead title={`Fee Plans (${count(d.total)})`} />
+          <CardBody flush>
+            <TableWrap>
+              <table className="tr-table">
+                <thead>
+                  <tr>
+                    <th className="tr-table__idx">#</th>
+                    <th>Plan Name</th><th>Route / Zone</th><th>Vehicle Type</th>
+                    <th className="tr-r">Fee Amount</th><th>Billing Frequency</th>
+                    <th className="tr-r">Students</th><th>Status</th><th className="tr-table__acts">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={r._id}>
+                      <td className="tr-table__idx">{(d.page - 1) * limit + i + 1}</td>
+                      <td>
+                        <div className="tr-who">
+                          <span className="tr-rbadge" style={{ background: r.route?.color || '#64748b' }}>{r.letter}</span>
+                          <Cell2 top={r.name} sub={r.approvalStatus === 'pending' ? 'Awaiting approval' : r.description} />
+                        </div>
+                      </td>
+                      <td>{r.scope}</td>
+                      <td>{r.vehicleTypeLabel}</td>
+                      <td className="tr-r tr-num">
+                        {money(r.amount)}
+                        {r.amountRange && r.amountRange.min !== r.amountRange.max
+                          ? <div style={{ fontSize: '.7rem', color: 'var(--tr-muted)' }}>to {money(r.amountRange.max)}</div> : null}
+                      </td>
+                      <td>{r.frequencyLabel}</td>
+                      <td className="tr-r tr-num">{count(r.students)}</td>
+                      <td>
+                        {r.approvalStatus === 'pending'
+                          ? <Badge tone="amber">Pending Approval</Badge>
+                          : <StatusBadge value={r.status} />}
+                      </td>
+                      <td className="tr-table__acts">
+                        <div>
+                          {r.approvalStatus === 'pending' ? (
+                            <>
+                              <IconBtn icon="checkCircle" kind="primary" label="Approve" onClick={() => approve(r, 'approve')} />
+                              <IconBtn icon="closeCircle" kind="danger" label="Reject" onClick={() => approve(r, 'reject')} />
+                            </>
+                          ) : (
+                            <>
+                              <IconBtn icon="pencil" label="Edit" onClick={() => setForm(r)} />
+                              <IconBtn icon="copy" label="Duplicate"
+                                       onClick={() => setForm({ ...r, _id: undefined, name: `${r.name} (copy)` })} />
+                              <IconBtn icon="trash" kind="danger" label="Retire" onClick={() => setDel(r)} />
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
+            {!rows.length ? (
+              <Empty icon="rupee" title="No fee plans yet"
+                     action={<Btn kind="soft" icon="plus" onClick={() => setForm({})}>Create the first plan</Btn>}>
+                A student with no plan is never billed for transport.
+              </Empty>
+            ) : null}
+            <Pager page={d.page} pages={d.pages} total={d.total} limit={limit} noun="fee plans"
+                   onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} />
+          </CardBody>
+        </Card>
+
+        <div className="tr-rail">
+          <Panel title="Upcoming Fee Renewals" right={<Badge tone="amber">{d.renewals?.length || 0}</Badge>} flush>
+            {d.renewals?.length ? (
+              <Rows>
+                {d.renewals.map((r) => (
+                  <Row key={r._id} avatar={<DateChip day={r.day} month={r.month} tone="indigo" />}
+                       title={r.name} sub={plural(r.students, 'student')}
+                       badge={<Badge tone={r.inDays <= 7 ? 'red' : 'green'}>In {r.inDays} days</Badge>} />
+                ))}
+              </Rows>
+            ) : (
+              <div style={{ padding: 16 }}>
+                <Note tone="info" title="No renewal dates set">
+                  Give a plan a renewal date when you edit it and it is listed here as the date approaches.
+                </Note>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Quick Actions">
+            <QuickActions items={[
+              { icon: 'plus', label: 'Create New Plan', onClick: () => setForm({}) },
+              { icon: 'sliders', label: 'Bulk Update', to: '/admin/transport/assignments' },
+              { icon: 'chart', label: 'Fee Report', to: '/admin/transport/reports' },
+              { icon: 'history', label: 'Collection History', to: '/admin/transport/invoices' },
+            ]} />
+          </Panel>
+        </div>
+      </div>
+
+      {form ? <FeePlanForm open onClose={() => setForm(null)} row={form._id ? form : null}
+                           onSaved={() => { setForm(null); reload(); }} /> : null}
+      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} tone="danger"
+               title="Retire this fee plan?" confirmLabel="Retire"
+               message={`${del?.name} stops being offered. Students already on it keep their invoices — move them to another plan first.`} />
     </div>
   );
 }
