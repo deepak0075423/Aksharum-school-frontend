@@ -1,10 +1,7 @@
-import React, { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import React from 'react';
 import { useModules } from '../contexts/ModulesContext';
+import { Forbidden } from '../pages/errors/ErrorPage';
 import { Spinner } from './ui/index';
-
-export const MY_SECTION_DENIED = 'My Section is available to class teachers and vice class teachers only';
 
 /**
  * /teacher/my-section, for the teachers it belongs to.
@@ -23,11 +20,7 @@ export default function MySectionGuard({ children }) {
   const { modules, ready } = useModules();
   const allowed = ready && modules?.hasMySection === true;
 
-  useEffect(() => {
-    if (ready && !allowed) toast.error(MY_SECTION_DENIED, { id: 'my-section-denied' });
-  }, [ready, allowed]);
-
   if (!ready) return <div className="loading-page"><Spinner /></div>;
-  if (!allowed) return <Navigate to="/teacher/dashboard" replace />;
+  if (!allowed) return <Forbidden reason="class_teacher" what="My Section" />;
   return children;
 }

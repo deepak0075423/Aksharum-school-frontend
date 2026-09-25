@@ -1,18 +1,7 @@
-import React, { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { useAuth } from '../contexts/AuthContext';
+import React from 'react';
 import { useModules } from '../contexts/ModulesContext';
+import { Forbidden } from '../pages/errors/ErrorPage';
 import { Spinner } from './ui/index';
-
-export const TRANSPORT_NOT_ENROLLED =
-  'Transport is available to people enrolled in the school transport service';
-
-const HOME = {
-  student: '/student/dashboard',
-  parent: '/parent/dashboard',
-  teacher: '/teacher/dashboard',
-};
 
 /**
  * The rider-facing Transport screens, for the people who actually use the bus.
@@ -30,14 +19,9 @@ const HOME = {
  */
 export default function TransportEnrolledGuard({ children }) {
   const { modules, ready } = useModules();
-  const { user } = useAuth();
   const allowed = ready && modules?.transportEnrolled === true;
 
-  useEffect(() => {
-    if (ready && !allowed) toast.error(TRANSPORT_NOT_ENROLLED, { id: 'transport-not-enrolled' });
-  }, [ready, allowed]);
-
   if (!ready) return <div className="loading-page"><Spinner /></div>;
-  if (!allowed) return <Navigate to={HOME[user?.role] || '/'} replace />;
+  if (!allowed) return <Forbidden reason="not_enrolled" what="Transport" />;
   return children;
 }

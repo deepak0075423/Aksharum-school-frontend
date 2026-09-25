@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
-import { MY_SECTION_DENIED } from '../../components/MySectionGuard';
+import { Forbidden } from '../errors/ErrorPage';
 import { getMySection, createAnnouncement, deleteAnnouncement } from '../../api/teacher.api';
 import { Button, Modal, Spinner, Confirm } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -35,10 +35,12 @@ export default function MySection() {
     throw err;
   }));
 
+  // The server can refuse AFTER the page has loaded: the module map said this
+  // teacher runs a section and the section endpoint disagrees, which happens
+  // while the map is stale. Reload it so the guard takes over on the next
+  // navigation, and show the same page the guard would have shown.
   useEffect(() => {
-    if (!denied) return;
-    toast.error(MY_SECTION_DENIED, { id: 'my-section-denied' });
-    reloadModules();
+    if (denied) reloadModules();
   }, [denied]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [drawer,   setDrawer]   = useState(null);
@@ -102,6 +104,7 @@ export default function MySection() {
   // teacher taken off their class since still has the old answer. The server's
   // refusal is the current one, so it wins — refresh the map and leave.
   if (denied) return <Navigate to="/teacher/dashboard" replace />;
+  if (denied) return <Forbidden reason="class_teacher" what="My Section" />;
   if (loading) return <div className="loading-page"><Spinner /></div>;
 
   const viceRows = allVice ? viceOf : viceOf.slice(0, SHOWN);

@@ -7,6 +7,7 @@ import { ChatNotifyProvider } from '../../contexts/ChatNotifyContext';
 import { BreadcrumbProvider } from '../../contexts/BreadcrumbContext';
 import Breadcrumb from './Breadcrumb';
 import useFocusHighlight from '../../hooks/useFocusHighlight';
+import ModuleRouteGuard from '../ModuleRouteGuard';
 
 export default function AppLayout() {
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -67,7 +68,9 @@ export default function AppLayout() {
           {/* Drawn here, not by the pages: a crumb each page writes for itself
               is a crumb most pages forget. */}
           <Breadcrumb />
-          <Outlet />
+          {/* Inside the layout on purpose: a page refused because its module is
+              off should still leave you your sidebar to get somewhere else. */}
+          <ModuleRouteGuard><Outlet /></ModuleRouteGuard>
         </div>
       </main>
     </div>

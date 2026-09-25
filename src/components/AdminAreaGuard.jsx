@@ -1,5 +1,6 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { Forbidden } from '../pages/errors/ErrorPage';
 import { useAuth } from '../contexts/AuthContext';
 import { useModules } from '../contexts/ModulesContext';
 import { moduleForAdminPath } from '../utils/modules';
@@ -22,7 +23,7 @@ export default function AdminAreaGuard({ children }) {
   const { pathname } = useLocation();
 
   if (user?.role === 'school_admin') return children;
-  if (user?.role !== 'teacher') return <Navigate to="/" replace />;
+  if (user?.role !== 'teacher') return <Forbidden reason="role" what="the admin area" />;
 
   // Permissions decide the answer — wait rather than guess.
   if (!ready) return <div className="loading-page"><Spinner /></div>;
@@ -30,5 +31,9 @@ export default function AdminAreaGuard({ children }) {
   const moduleKey = moduleForAdminPath(pathname);
   if (moduleKey && isAdmin(moduleKey)) return children;
 
-  return <Navigate to="/teacher/dashboard" replace />;
+  // A teacher who reaches an admin URL either has no administrative access to
+  // that module, or the URL is not part of any module's admin area at all.
+  return moduleKey
+    ? <Forbidden reason="admin_only" what={`the ${moduleKey} admin area`} />
+    : <Forbidden reason="role" what="the admin area" detail="this address is not part of a module you administer" />;
 }

@@ -223,6 +223,8 @@ const TrParentAttendance = lazy(() => import('./pages/transport/parent/Attendanc
 const TrParentFees       = lazy(() => import('./pages/transport/parent/Fees'));
 const TrParentRequests   = lazy(() => import('./pages/transport/parent/Requests'));
 const TrRider            = lazy(() => import('./pages/transport/portal/RiderTransport'));
+const NotFoundRoute      = lazy(() => import('./pages/errors/NotFoundRoute'));
+import { Forbidden } from './pages/errors/ErrorPage';
 const TransportShell     = lazy(() => import('./pages/transport/portal/TransportShell'));
 
 // ── Hostel ────────────────────────────────────────────────────────────────────
@@ -301,7 +303,11 @@ const Protected = ({ children, roles }) => {
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.isFirstLogin) return <Navigate to="/reset-password" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
+  // A student who follows a teacher's link used to land on their own dashboard
+  // with no explanation, which reads as the link being broken.
+  if (roles && !roles.includes(user.role)) {
+    return <Forbidden reason="role" detail={`this page is for ${roles.join(' or ')} accounts`} />;
+  }
   return children;
 };
 
@@ -345,6 +351,13 @@ export default function App() {
           <Route path="/super-admin" element={
             <Protected roles={['super_admin']}><AppLayout /></Protected>
           }>
+            {/* Landing on the section root with no page named. React Router
+                ranks routes rather than reading them in order, so these two sit
+                at the top without shadowing anything below. */}
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* An address under /super-admin that matches nothing. Without this the
+                layout drew with an empty Outlet — a blank page, not a 404. */}
+            <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"    element={<SADashboard />} />
             <Route path="schools"      element={<SASchools />} />
             <Route path="schools/create" element={<SASchoolForm />} />
@@ -363,6 +376,10 @@ export default function App() {
               <AdminAreaGuard><AppLayout /></AdminAreaGuard>
             </Protected>
           }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* An address under /admin that matches nothing. Without this the
+                layout drew with an empty Outlet — a blank page, not a 404. */}
+            <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"       element={<ADashboard />} />
             <Route path="teachers"        element={<ATeachers />} />
             <Route path="designations"    element={<ADesignations />} />
@@ -546,6 +563,10 @@ export default function App() {
           <Route path="/teacher" element={
             <Protected roles={['teacher']}><AppLayout /></Protected>
           }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* An address under /teacher that matches nothing. Without this the
+                layout drew with an empty Outlet — a blank page, not a 404. */}
+            <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"    element={<TDashboard />} />
             {/* Class teachers and vice class teachers only — a subject teacher
                 typing the URL is sent back to the dashboard. */}
@@ -631,6 +652,10 @@ export default function App() {
           <Route path="/student" element={
             <Protected roles={['student']}><AppLayout /></Protected>
           }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* An address under /student that matches nothing. Without this the
+                layout drew with an empty Outlet — a blank page, not a 404. */}
+            <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"        element={<SDashboard />} />
             <Route path="my-class"         element={<SMyClass />} />
             <Route path="attendance"       element={<SAttendance />} />
@@ -660,6 +685,10 @@ export default function App() {
           <Route path="/parent" element={
             <Protected roles={['parent']}><AppLayout /></Protected>
           }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* An address under /parent that matches nothing. Without this the
+                layout drew with an empty Outlet — a blank page, not a 404. */}
+            <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"        element={<PDashboard />} />
             <Route path="child-class"      element={<PChildClass />} />
             <Route path="timetable"        element={<PTimetable />} />
@@ -692,11 +721,12 @@ export default function App() {
               the module. Hiding the sidebar link was never a guard: the URL
               still worked. */}
           <Route path="/chat" element={
-            <Protected><ModuleGuard module="chat"><AppLayout /></ModuleGuard></Protected>
+            <Protected><ModuleGuard module="chat" label="Chat"><AppLayout /></ModuleGuard></Protected>
           }>
             <Route index element={<Chat />} />
             {/* School admin: every conversation, read-only (the page redirects anyone else) */}
             <Route path="all-chats" element={<ChatOversight />} />
+            <Route path="*" element={<NotFoundRoute />} />
           </Route>
 
           {/* Profile (all roles) */}
@@ -704,10 +734,14 @@ export default function App() {
             <Protected><AppLayout /></Protected>
           }>
             <Route index element={<Profile />} />
+            <Route path="*" element={<NotFoundRoute />} />
           </Route>
 
-          {/* 404 */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Anything that matches nothing. This was <Navigate to="/" />, which
+              swallowed the address: a typo, a stale bookmark and a page that
+              had been renamed all silently went home, and none of them looked
+              like a mistake the person could act on. */}
+          <Route path="*" element={<NotFoundRoute />} />
         </Routes>
       </Suspense>
       </ModulesProvider>
