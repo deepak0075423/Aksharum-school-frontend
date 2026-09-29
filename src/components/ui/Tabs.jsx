@@ -68,6 +68,7 @@ export default function Tabs({
   align,                             // 'end' to push the strip right
   className = '',
   label = 'Sections',                // what a screen reader calls the strip
+  wrap = true,                       // false keeps the strip on ONE scrolling row
   children,                          // anything that rides on the same row
 }) {
   const list    = items || tabs || [];
@@ -80,7 +81,7 @@ export default function Tabs({
   const strip = (
     <div
       ref={ref}
-      className={`uitabs uitabs--${variant}${size ? ` uitabs--${size}` : ''} ${className}`}
+      className={`uitabs uitabs--${variant}${size ? ` uitabs--${size}` : ''}${wrap ? '' : ' uitabs--nowrap'} ${className}`}
       role={linked ? undefined : 'tablist'}
       aria-label={label}
     >

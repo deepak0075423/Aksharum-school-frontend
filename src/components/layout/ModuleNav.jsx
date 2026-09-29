@@ -16,13 +16,19 @@ import Tabs from '../ui/Tabs';
  *
  * tabs: [{ to: '/admin/fees/dashboard', label: 'Dashboard', end?: true }]
  */
-export default function ModuleNav({ tabs }) {
+export default function ModuleNav({ tabs, nowrap = false }) {
+  // A rail with one pill in it is not navigation — there is nowhere else to
+  // go. The module with a single section (the teacher's Inventory) gets its
+  // page's own heading straight under the breadcrumb instead.
+  if ((tabs || []).length < 2) return <Outlet />;
   return (
     <>
       <div className="modnav__wrap">
         {/* The arrays carry a leading emoji for the rail's own use; the tab
-            strip is icon-and-label everywhere else, so it is dropped here. */}
-        <Tabs variant="pill" label="Module sections"
+            strip is icon-and-label everywhere else, so it is dropped here.
+            `nowrap` keeps a module's sections on one scrolling row, which is
+            how the Inventory redesign's mockups draw them. */}
+        <Tabs variant="pill" label="Module sections" wrap={!nowrap}
           items={tabs.map(t => ({ ...t, label: t.label.replace(/^[^A-Za-z]+/, '') }))} />
       </div>
       <Outlet />
@@ -93,19 +99,23 @@ export const PAYROLL_TEACHER_TABS = [
   { to: '/teacher/payroll/payslips', label: '📄 Salary Slips' },
 ];
 
+// The twelve inventory sections. Each carries an `icon` the tab strip draws —
+// the redesign's mockups put one beside every tab label — while the emoji is
+// what the sidebar's own sub-items use, which is why both are here.
 export const INVENTORY_ADMIN_TABS = [
-  { to: '/admin/inventory/dashboard',   label: '🏠 Dashboard' },
-  { to: '/admin/inventory/items',       label: '📦 Items' },
-  { to: '/admin/inventory/stock',       label: '📊 Stock' },
-  { to: '/admin/inventory/requests',    label: '📝 Requests' },
-  { to: '/admin/inventory/orders',      label: '🧾 Purchase Orders' },
-  { to: '/admin/inventory/issues',      label: '📤 Issue / Return' },
-  { to: '/admin/inventory/assets',      label: '💻 Assets' },
-  { to: '/admin/inventory/vendors',     label: '🏭 Vendors' },
-  { to: '/admin/inventory/categories',  label: '🗂 Categories' },
-  { to: '/admin/inventory/warehouses',  label: '🏬 Warehouses' },
-  { to: '/admin/inventory/departments', label: '💼 Budgets' },
-  { to: '/admin/inventory/audit',       label: '🧾 Activity Log' },
+  { to: '/admin/inventory/dashboard',  label: '🏠 Dashboard',       icon: 'home' },
+  { to: '/admin/inventory/items',      label: '📦 Items',           icon: 'package' },
+  { to: '/admin/inventory/stock',      label: '📊 Stock',           icon: 'chart' },
+  { to: '/admin/inventory/requests',   label: '📝 Requests',        icon: 'clipboard' },
+  { to: '/admin/inventory/orders',     label: '🧾 Purchase Orders', icon: 'fileDoc' },
+  { to: '/admin/inventory/issues',     label: '📤 Issue / Return',  icon: 'repeat' },
+  { to: '/admin/inventory/assets',     label: '💻 Assets',          icon: 'grid' },
+  { to: '/admin/inventory/vendors',    label: '🏭 Vendors',         icon: 'building' },
+  { to: '/admin/inventory/categories', label: '🗂 Categories',      icon: 'folder' },
+  { to: '/admin/inventory/warehouses', label: '🏬 Warehouses',      icon: 'hotel' },
+  { to: '/admin/inventory/budgets',    label: '💼 Budgets',         icon: 'briefcase' },
+  { to: '/admin/inventory/reports',    label: '📈 Reports',         icon: 'chart' },
+  { to: '/admin/inventory/audit',      label: '🧾 Activity Log',    icon: 'history' },
 ];
 
 export const INVENTORY_TEACHER_TABS = [

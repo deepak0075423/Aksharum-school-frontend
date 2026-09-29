@@ -195,7 +195,10 @@ const InvAssets      = lazy(() => import('./pages/inventory/admin/Assets'));
 const InvVendors     = lazy(() => import('./pages/inventory/admin/Vendors'));
 const InvCategories  = lazy(() => import('./pages/inventory/admin/Categories'));
 const InvWarehouses  = lazy(() => import('./pages/inventory/admin/Warehouses'));
-const InvDepartments = lazy(() => import('./pages/inventory/admin/Departments'));
+// The Budgets screen. Its file is still Departments.jsx because the departments
+// master it replaced still lives inside it, behind "Manage departments".
+const InvBudgets     = lazy(() => import('./pages/inventory/admin/Departments'));
+const InvReports     = lazy(() => import('./pages/inventory/admin/Reports'));
 const InvAudit       = lazy(() => import('./pages/inventory/admin/Audit'));
 const InvTeacherRequests = lazy(() => import('./pages/inventory/teacher/PurchaseRequests'));
 
@@ -456,7 +459,7 @@ export default function App() {
               <Route path="policy/edit" element={<LibPolicyEdit />} />
             </Route>
             {/* Inventory */}
-            <Route path="inventory" element={<ModuleNav tabs={INVENTORY_ADMIN_TABS} />}>
+            <Route path="inventory" element={<ModuleNav tabs={INVENTORY_ADMIN_TABS} nowrap />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<InvDashboard />} />
               <Route path="items"       element={<InvItems />} />
@@ -468,7 +471,10 @@ export default function App() {
               <Route path="vendors"     element={<InvVendors />} />
               <Route path="categories"  element={<InvCategories />} />
               <Route path="warehouses"  element={<InvWarehouses />} />
-              <Route path="departments" element={<InvDepartments />} />
+              <Route path="budgets"     element={<InvBudgets />} />
+              {/* The tab read "Budgets" while the URL said /departments. */}
+              <Route path="departments" element={<Navigate to="/admin/inventory/budgets" replace />} />
+              <Route path="reports"     element={<InvReports />} />
               <Route path="audit"       element={<InvAudit />} />
             </Route>
             {/* Transport */}

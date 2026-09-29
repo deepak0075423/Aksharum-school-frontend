@@ -1,183 +1,295 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Inventory → My Requests (teacher).
+ *
+ * What this teacher has asked the office for, and where each ask has got to.
+ * Built to its own design rather than the admin frame: a teacher opening this
+ * has one question — "what happened to the thing I asked for?" — so the page
+ * leads with the four states a request can be in and a table that answers it
+ * per row, with no hero and nothing to scroll past.
+ */
+import React, { useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/inventory.api';
-import { PageHeader, Table, Button, Modal, Confirm, Badge, Spinner } from '../../../components/ui/index';
+import {
+  PageHead, Tiles, Tile, Card, TabStrip, Filters, FilterEnd, Field, Search, DateRange,
+  Btn, IconBtn, KebabMenu, DataTable, Pager, Badge, StatusBadge, Rail, Facts, Fact,
+  Block, Note, Rows, Row, Empty, Loading, LoadError, Confirm, Thumb, Cell2, Ico,
+  useBoard, useDebounced, useInvMeta, useMarks,
+  count, money, fmtDate, fmtDateTime, ago, words, toCsv, saveFile,
+} from '../admin/invUI';
+import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
+import { TeacherRequestForm } from './RequestForm';
 
-const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
-const STATUS = {
-  pending: 'warning', approved: 'success', rejected: 'danger',
-  converted: 'primary', fulfilled_from_stock: 'info', cancelled: 'muted',
+const PRIORITY_TONE = { urgent: 'red', high: 'orange', normal: 'slate', low: 'slate' };
+
+/** What each outcome actually means for the person who asked. */
+const OUTCOME = {
+  pending: 'Somebody still has to look at this. You can cancel it until they do.',
+  approved: 'Approved. It will either come out of stock or be ordered in.',
+  converted: 'A purchase order has gone to a vendor for this.',
+  fulfilled_from_stock: 'Issued to you from what the school already had — nothing needed to be ordered.',
+  rejected: 'Turned down. The approver’s comment is in the Approvals tab.',
+  cancelled: 'You cancelled this before anybody acted on it.',
 };
-const STATUS_LABEL = {
-  pending: 'Pending', approved: 'Approved', rejected: 'Rejected',
-  converted: 'Ordered', fulfilled_from_stock: 'Issued from Stock', cancelled: 'Cancelled',
-};
-const blankLine = () => ({ item: '', itemName: '', quantity: 1, unit: 'Nos', estimatedPrice: 0 });
 
 export default function TeacherPurchaseRequests() {
-  const { data: meta } = useFetch(api.getTeacherMeta);
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [create, setCreate] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [detail, setDetail] = useState(null);
+  // The URL segment is "requests"; the screen is "My Requests", and the
+  // difference matters on a page whose whole point is that these are yours.
+  usePageCrumbs([{ label: 'My Requests' }]);
+
+  const { meta } = useInvMeta(api.getTeacherMeta);
+
+  const [tab, setTab] = useState('all');
+  const [q, setQ] = useState('');
+  const [range, setRange] = useState({ from: '', to: '' });
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(8);
+  const search = useDebounced(q);
+
+  const [form, setForm] = useState(false);
+  const [view, setView] = useState(null);
+  const [viewTab, setViewTab] = useState('overview');
   const [cancelRow, setCancelRow] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try { const res = await api.getMyRequests(); setRows(res.data ?? res); }
-    catch (err) { toast.error(err.message); }
-    finally { setLoading(false); }
-  }, []);
+  const load = useCallback(
+    () => api.getMyRequestBoard({ tab, search, from: range.from, to: range.to, page, limit }),
+    [tab, search, range.from, range.to, page, limit],
+  );
+  const { data, loading, error, reload } = useBoard(load, [tab, search, range.from, range.to, page, limit]);
 
-  useEffect(() => { load(); }, [load]);
+  const d = data || {};
+  const rows = d.rows || [];
+  const t = d.tiles || {};
+  const tabs = d.tabs || {};
+  const marks = useMarks(rows);
 
-  const items = meta?.items || [];
-  const depts = meta?.departments || [];
+  const setFilter = (fn) => (v) => { fn(v); setPage(1); };
+  const reset = () => { setQ(''); setRange({ from: '', to: '' }); setPage(1); };
+  const filtered = !!(search || range.from || range.to);
 
-  const openCreate = () => setCreate({ department: '', reason: '', priority: 'normal', lines: [blankLine()] });
-  const setLine = (i, k, v) => setCreate(c => ({ ...c, lines: c.lines.map((l, idx) => idx === i ? { ...l, [k]: v } : l) }));
-  const pickItem = (i, id) => {
-    const it = items.find(x => x._id === id);
-    setCreate(c => ({ ...c, lines: c.lines.map((l, idx) => idx === i ? { ...l, item: id, itemName: it?.name || l.itemName, unit: it?.unit || l.unit, estimatedPrice: it?.purchasePrice ?? l.estimatedPrice } : l) }));
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const valid = create.lines.filter(l => l.itemName && Number(l.quantity) > 0);
-    if (!valid.length) return toast.error('Add at least one item');
-    setSaving(true);
-    try {
-      await api.createMyRequest({
-        department: create.department || null, reason: create.reason, priority: create.priority,
-        items: valid.map(l => ({ item: l.item || null, itemName: l.itemName, quantity: Number(l.quantity), unit: l.unit, estimatedPrice: Number(l.estimatedPrice) || 0 })),
-      });
-      toast.success('Request submitted'); setCreate(null); load();
-    } catch (err) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
-  const openDetail = async (row) => {
-    setDetail({ loading: true });
-    try { const res = await api.getMyRequest(row._id); setDetail(res.data ?? res); }
-    catch (err) { toast.error(err.message); setDetail(null); }
+  const exportCsv = () => {
+    saveFile(`my-inventory-requests-${new Date().toISOString().slice(0, 10)}.csv`, toCsv([
+      ['requestNumber', 'Request No.'],
+      ['createdAt', 'Date', (r) => fmtDate(r.createdAt)],
+      ['items', 'Items', (r) => r.items.map(l => `${l.itemName} ×${l.quantity}`).join('; ')],
+      ['reason', 'Purpose'],
+      ['status', 'Status', (r) => words(r.status)],
+      ['estimatedTotal', 'Estimated Total'],
+      ['updatedAt', 'Last Updated', (r) => fmtDate(r.updatedAt)],
+    ], rows));
+    toast.success('Exported the requests on this page');
   };
 
   const doCancel = async () => {
-    try { await api.cancelMyRequest(cancelRow._id); toast.success('Request cancelled'); setCancelRow(null); load(); }
-    catch (err) { toast.error(err.message); setCancelRow(null); }
+    setBusy(true);
+    try {
+      await api.cancelMyRequest(cancelRow._id);
+      toast.success(`${cancelRow.requestNumber} cancelled`);
+      setCancelRow(null);
+      reload();
+    } catch (e) { toast.error(e?.message || 'That request could not be cancelled'); }
+    finally { setBusy(false); }
   };
 
-  const columns = [
-    { key: 'requestNumber', label: 'Request #', render: r => <strong style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>{r.requestNumber}</strong> },
-    { key: 'items', label: 'Items', render: r => `${r.items?.length || 0} line(s)` },
-    { key: 'department', label: 'Department', render: r => r.department?.name || '—' },
-    { key: 'estimatedTotal', label: 'Est. Total', render: r => fmt(r.estimatedTotal) },
-    { key: 'status', label: 'Status', render: r => <Badge variant={STATUS[r.status]}>{STATUS_LABEL[r.status]}</Badge> },
-    { key: 'createdAt', label: 'Date', render: r => new Date(r.createdAt).toLocaleDateString() },
-    { key: 'actions', label: '', render: r => (
-      <div style={{ display: 'flex', gap: 6 }}>
-        <Button size="sm" variant="secondary" onClick={() => openDetail(r)}>View</Button>
-        {r.status === 'pending' && <Button size="sm" variant="danger" onClick={() => setCancelRow(r)}>Cancel</Button>}
-      </div>
-    )},
-  ];
+  const open = (r) => { setView(r); setViewTab('overview'); };
 
-  const d = detail && !detail.loading ? detail : null;
+  const columns = useMemo(() => [
+    {
+      key: 'requestNumber', label: 'Request No.', nowrap: true, primary: true,
+      cell: (r) => (
+        <button type="button" className="itq__no" onClick={() => open(r)}>
+          {r.requestNumber}
+          <Ico name="chevronRight" size={14} aria-hidden />
+        </button>
+      ),
+    },
+    { key: 'createdAt', label: 'Date', nowrap: true, cell: (r) => fmtDate(r.createdAt) },
+    {
+      key: 'items', label: 'Items',
+      cell: (r) => (
+        <span className="inv-cellrow">
+          <Thumb src={r.lead?.image} icon={r.lead?.icon || 'box'} />
+          <Cell2
+            top={r.lead?.name || <span className="inv-dim">No items</span>}
+            sub={`${count(r.lines)} item${r.lines === 1 ? '' : 's'}`}
+          />
+        </span>
+      ),
+    },
+    {
+      key: 'reason', label: 'Purpose',
+      cell: (r) => <span className="inv-clamp2">{r.reason || <span className="inv-dim">—</span>}</span>,
+    },
+    { key: 'status', label: 'Status', nowrap: true, cell: (r) => <StatusBadge value={r.status} /> },
+    {
+      key: 'updatedAt', label: 'Last Updated', nowrap: true,
+      cell: (r) => <span className="inv-dim">{ago(r.updatedAt || r.createdAt)}</span>,
+    },
+  ], []);
+
+  if (error && !data) return <div className="inv-page"><LoadError error={error} onRetry={reload} /></div>;
+  if (loading && !data) return <div className="inv-page"><Loading tiles={4} /></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="My Purchase Requests" subtitle="Request items from the inventory department"
-        action={<Button onClick={openCreate}>+ New Request</Button>} />
+    <div className="inv-page">
+      <PageHead
+        plain
+        title="My Purchase Requests"
+        subtitle="Request items from the inventory department and track their status."
+      >
+        <Btn kind="primary" icon="plus" onClick={() => setForm(true)}>New Request</Btn>
+      </PageHead>
 
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="📝" emptyTitle="No requests yet" />
-      </div></div>
+      <Tiles>
+        <Tile soft icon="request" tone="indigo" value={count(t.total)} label="Total Requests" />
+        <Tile soft icon="clock" tone="amber" value={count(t.pending)} label="Pending Approval" />
+        <Tile soft icon="checkCircle" tone="green" value={count(t.approved)} label="Approved" />
+        <Tile soft icon="closeCircle" tone="red" value={count(t.rejected)} label="Rejected" />
+      </Tiles>
 
-      {/* Create */}
-      <Modal open={!!create} onClose={() => setCreate(null)} title="New Purchase Request" maxWidth={680}
-        footer={<>
-          <Button variant="secondary" onClick={() => setCreate(null)}>Cancel</Button>
-          <Button form="pr-form" type="submit" loading={saving}>Submit</Button>
-        </>}>
-        {create && (
-          <form id="pr-form" onSubmit={submit}>
-            <div className="form-row form-row-2">
-              <div className="form-group"><label className="form-label">Department</label>
-                <select className="form-control" value={create.department} onChange={e => setCreate(c => ({ ...c, department: e.target.value }))}>
-                  <option value="">— None —</option>{depts.map(x => <option key={x._id} value={x._id}>{x.name}</option>)}
-                </select></div>
-              <div className="form-group"><label className="form-label">Priority</label>
-                <select className="form-control" value={create.priority} onChange={e => setCreate(c => ({ ...c, priority: e.target.value }))}>
-                  <option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option>
-                </select></div>
-            </div>
+      <Card>
+        <Filters inner>
+          <TabStrip
+            pill
+            value={tab} onChange={(v) => { setTab(v); setPage(1); }}
+            items={[
+              { value: 'all', label: 'All', count: tabs.all },
+              { value: 'pending', label: 'Pending', count: tabs.pending },
+              { value: 'approved', label: 'Approved', count: tabs.approved },
+              { value: 'rejected', label: 'Rejected', count: tabs.rejected },
+              { value: 'draft', label: 'Draft', count: tabs.draft },
+            ]}
+          />
+          <Field grow>
+            <Search value={q} onChange={setFilter(setQ)} placeholder="Search by request no., item or purpose..." />
+          </Field>
+          <Field pick>
+            <DateRange from={range.from} to={range.to} onChange={(r) => { setRange(r); setPage(1); }} />
+          </Field>
+          <FilterEnd>
+            <Btn kind={filtered ? 'soft' : 'ghost'} icon="filter" onClick={reset}>
+              {filtered ? 'Clear filters' : 'Filters'}
+            </Btn>
+            <KebabMenu items={[
+              { label: 'New request', icon: 'plus', onClick: () => setForm(true) },
+              { label: 'Export this page', icon: 'download', onClick: exportCsv },
+            ]} />
+          </FilterEnd>
+        </Filters>
 
-            <div style={{ fontSize: '.8rem', fontWeight: 600, margin: '8px 0 4px' }}>Requested Items</div>
-            <div className="table-wrap">
-              <table className="table" style={{ width: '100%' }}>
-                <thead><tr><th style={{ minWidth: 160 }}>Item</th><th>Qty</th><th>Est. Price</th><th></th></tr></thead>
-                <tbody>{create.lines.map((l, i) => (
-                  <tr key={i}>
-                    <td>
-                      <select className="form-control" value={l.item} onChange={e => pickItem(i, e.target.value)} style={{ marginBottom: 4 }}>
-                        <option value="">— Or type below —</option>{items.map(it => <option key={it._id} value={it._id}>{it.name}</option>)}
-                      </select>
-                      <input className="form-control" placeholder="Item name" value={l.itemName} onChange={e => setLine(i, 'itemName', e.target.value)} />
-                    </td>
-                    <td><input type="number" min="1" className="form-control" style={{ width: 70 }} value={l.quantity} onChange={e => setLine(i, 'quantity', e.target.value)} /></td>
-                    <td><input type="number" className="form-control" style={{ width: 90 }} value={l.estimatedPrice} onChange={e => setLine(i, 'estimatedPrice', e.target.value)} /></td>
-                    <td>{create.lines.length > 1 && <button type="button" className="btn-icon" onClick={() => setCreate(c => ({ ...c, lines: c.lines.filter((_, idx) => idx !== i) }))}>✕</button>}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setCreate(c => ({ ...c, lines: [...c.lines, blankLine()] }))}>+ Add line</Button>
+        <DataTable
+          columns={columns} rows={rows} loading={loading && !rows.length}
+          marked={marks.marked} onMark={marks.toggle} onMarkAll={marks.toggleAll}
+          actions={(r) => (
+            <KebabMenu items={[
+              { label: 'View request', icon: 'eye', onClick: () => open(r) },
+              { label: 'Export this page', icon: 'download', onClick: exportCsv },
+              { sep: true },
+              { label: 'Cancel request', icon: 'closeCircle', danger: true,
+                disabled: r.status !== 'pending', onClick: () => setCancelRow(r) },
+            ]} />
+          )}
+          empty={
+            <Empty icon="request" title={filtered || tab !== 'all' ? 'No requests match' : 'You have not asked for anything yet'}
+              action={filtered || tab !== 'all'
+                ? <Btn icon="refresh" onClick={() => { reset(); setTab('all'); }}>Clear the filters</Btn>
+                : <Btn kind="primary" icon="plus" onClick={() => setForm(true)}>Raise your first request</Btn>}>
+              {filtered || tab !== 'all'
+                ? 'Try another tab or date range.'
+                : 'Ask for what you need — chalk, lab supplies, a replacement projector. If the school already has it, it is issued to you rather than bought.'}
+            </Empty>
+          }
+        />
 
-            <div className="form-group" style={{ marginTop: 12 }}>
-              <label className="form-label">Reason / Justification</label>
-              <textarea className="form-control" rows={2} value={create.reason} onChange={e => setCreate(c => ({ ...c, reason: e.target.value }))} />
-            </div>
-          </form>
-        )}
-      </Modal>
+        <Pager page={d.page} pages={d.pages} total={d.total} limit={limit} noun="requests"
+          onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} limits={[8, 25, 50]} />
+      </Card>
 
-      {/* Detail */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={d ? `Request ${d.requestNumber}` : 'Request'} maxWidth={560}>
-        {detail?.loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div> : d && (
-          <div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-              <Badge variant={STATUS[d.status]}>{STATUS_LABEL[d.status]}</Badge>
-              {d.department?.name && <Badge variant="info">{d.department.name}</Badge>}
-              <Badge variant="muted">Priority: {d.priority}</Badge>
-              {d.purchaseOrder?.poNumber && <Badge variant="primary">PO {d.purchaseOrder.poNumber}</Badge>}
-            </div>
-            {d.reason && <p style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>{d.reason}</p>}
-            <table className="table" style={{ width: '100%' }}>
-              <thead><tr><th>Item</th><th>Qty</th><th>Est. Price</th></tr></thead>
-              <tbody>{d.items.map(it => (
-                <tr key={it._id} data-focus-id={it._id}><td>{it.itemName}</td><td>{it.quantity} {it.unit}</td><td>{fmt(it.estimatedPrice)}</td></tr>
-              ))}</tbody>
-            </table>
-            <div style={{ textAlign: 'right', fontWeight: 600, marginTop: 6 }}>Total: {fmt(d.estimatedTotal)}</div>
+      {view ? (
+        <Rail
+          icon="request" iconTone="violet"
+          title={view.requestNumber}
+          sub={`Raised ${fmtDate(view.createdAt)}`}
+          badge={<StatusBadge value={view.status} />}
+          onClose={() => setView(null)}
+          tabs={[
+            { value: 'overview', label: 'Overview' },
+            { value: 'items', label: 'Items', count: view.lines },
+            { value: 'trail', label: 'Approvals', count: view.approvals?.length },
+          ]}
+          tab={viewTab} onTab={setViewTab}
+          foot={view.status === 'pending'
+            ? <Btn kind="danger" icon="closeCircle" onClick={() => { setCancelRow(view); setView(null); }}>Cancel request</Btn>
+            : null}
+        >
+          {viewTab === 'overview' ? (
+            <>
+              <Note tone={['rejected', 'cancelled'].includes(view.status) ? 'warn'
+                : view.status === 'pending' ? 'info' : 'ok'}>
+                {OUTCOME[view.status] || words(view.status)}
+              </Note>
+              <Block title="Request">
+                <Facts>
+                  <Fact k="Department" v={view.department?.name} />
+                  <Fact k="Priority" v={<Badge tone={PRIORITY_TONE[view.priority] || 'slate'}>{words(view.priority)}</Badge>} />
+                  <Fact k="Raised" v={fmtDateTime(view.createdAt)} />
+                  <Fact k="Last updated" v={ago(view.updatedAt || view.createdAt)} />
+                  <Fact k="Items" v={count(view.lines)} />
+                  <Fact k="Estimated total" v={money(view.estimatedTotal)} />
+                  {view.purchaseOrder ? <Fact k="Order" v={`${view.purchaseOrder.poNumber} · ${words(view.purchaseOrder.status)}`} /> : null}
+                  <Fact k="Purpose" v={view.reason} />
+                </Facts>
+              </Block>
+            </>
+          ) : null}
 
-            {(d.approvals || []).length > 0 && (
-              <>
-                <div style={{ fontSize: '.8rem', fontWeight: 600, margin: '12px 0 4px' }}>Approval Trail</div>
-                {d.approvals.map(a => (
-                  <div key={a._id} style={{ fontSize: '.8rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                    <strong>{a.stage}</strong> — {a.action} {a.comment && <em style={{ color: 'var(--text-muted)' }}>“{a.comment}”</em>}
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
+          {viewTab === 'items' ? (
+            <Block title={`Items (${count(view.lines)})`}>
+              {view.items.length ? (
+                <Rows>
+                  {view.items.map((l, i) => (
+                    <Row key={i} icon="box" title={l.itemName}
+                      end={`${count(l.quantity)} ${l.unit}`}
+                      endSub={l.estimatedPrice ? money(l.quantity * l.estimatedPrice) : null} />
+                  ))}
+                </Rows>
+              ) : <Empty sm icon="box" title="No lines on this request" />}
+            </Block>
+          ) : null}
 
-      <Confirm open={!!cancelRow} onClose={() => setCancelRow(null)} onConfirm={doCancel}
-        title="Cancel request" message={`Cancel request ${cancelRow?.requestNumber}?`} />
+          {viewTab === 'trail' ? (
+            <Block title="Who has looked at it">
+              {(view.approvals || []).length ? (
+                <Rows>
+                  {view.approvals.map((a, i) => (
+                    <Row key={i}
+                      icon={a.action === 'approved' ? 'check' : a.action === 'rejected' ? 'x' : 'clock'}
+                      iconTone={a.action === 'approved' ? 'green' : a.action === 'rejected' ? 'red' : 'amber'}
+                      title={a.stage}
+                      sub={[words(a.action), a.comment && `“${a.comment}”`].filter(Boolean).join(' — ')}
+                      end={a.actedAt ? fmtDate(a.actedAt) : null} />
+                  ))}
+                </Rows>
+              ) : (
+                <Empty sm icon="clock" title="Nobody has acted on it yet">
+                  It is sitting with whoever approves requests for your department.
+                </Empty>
+              )}
+            </Block>
+          ) : null}
+        </Rail>
+      ) : null}
+
+      <TeacherRequestForm open={form} meta={meta} onClose={() => setForm(false)} onDone={reload} />
+
+      <Confirm
+        open={!!cancelRow} onClose={() => setCancelRow(null)} tone="danger" busy={busy}
+        confirmLabel="Cancel request"
+        title={cancelRow ? `Cancel ${cancelRow.requestNumber}?` : ''}
+        message="It will be withdrawn and nobody will be asked to act on it. You can always raise a new one."
+        onConfirm={doCancel}
+      />
     </div>
   );
 }

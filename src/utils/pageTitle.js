@@ -64,6 +64,10 @@ const MODULE_HEADERS = {
   // "Payroll Runs".
   'admin/payroll': 'Payroll',
   'teacher/payroll': 'Payroll',
+  // Inventory is twelve tabs of one module; its mockups read "Inventory" above
+  // every one of them, not "Audit" over the Activity Log.
+  'admin/inventory': 'Inventory',
+  'teacher/inventory': 'Inventory',
 };
 
 /** The header title for a pathname. Falls back to the app name at the root. */

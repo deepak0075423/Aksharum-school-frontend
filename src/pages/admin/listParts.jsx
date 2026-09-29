@@ -19,6 +19,7 @@ import Icon from '../../components/ui/icons';
 import { Button, Empty, Spinner, Pagination, PageSize } from '../../components/ui/index';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
+import { DrawerHead as UiDrawerHead, DrawerSection as UiDrawerSection } from '../../components/ui/Drawer';
 
 // Uploads are served from the backend root while VITE_API_URL points at /api.
 const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
@@ -584,48 +585,19 @@ export const PageFoot = ({ schoolName }) => (
 );
 
 // ── Detail drawer ────────────────────────────────────────────────────────────
+//
+// Moved to components/ui/Drawer.jsx. Academic Years already borrowed it from
+// here and the Inventory module needs it too, so a drawer three unrelated
+// areas render is no longer part of one page's kit. Re-exported under the same
+// names so nothing that imports it from here has to change.
+export { Drawer, DrawerFoot } from '../../components/ui/Drawer';
 
-/**
- * The whole record, beside the list.
- *
- * A slide-over rather than a route: the admin filtered their way to this row,
- * and navigating away would throw that away to show them one person.
- */
-export function Drawer({ open, onClose, children }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const esc = (e) => { if (e.key === 'Escape') onClose(); };
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
-  return createPortal(
-    <>
-      <div className="ldrawer__scrim" onClick={onClose} />
-      <aside className="ldrawer" role="dialog" aria-modal="true">{children}</aside>
-    </>,
-    document.body,
-  );
-}
-
+/** The personnel-record head these three screens share: an avatar and tags. */
 export const DrawerHead = ({ name, sub, photo, tone, tags, onClose }) => (
-  <div className="ldrawer__head">
-    <Avatar name={name} src={photo} tone={tone} size={52} />
-    <div className="ldrawer__id">
-      <h3>{name}</h3>
-      {sub ? <p>{sub}</p> : null}
-      {tags?.length ? <div className="ldrawer__tags">{tags}</div> : null}
-    </div>
-    <button type="button" className="lact" onClick={onClose} aria-label="Close">
-      <Icon name="close" size={16} />
-    </button>
-  </div>
+  <UiDrawerHead
+    mark={<Avatar name={name} src={photo} tone={tone} size={52} />}
+    name={name} sub={sub} tags={tags} onClose={onClose}
+  />
 );
 
 /** A titled group of fields; renders nothing when every field is empty. */
@@ -633,15 +605,12 @@ export const DrawerSection = ({ title, fields }) => {
   const rows = fields.filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '');
   if (!rows.length) return null;
   return (
-    <section className="ldrawer__sec">
-      <h4>{title}</h4>
+    <UiDrawerSection title={title}>
       <dl>
         {rows.map(([k, v]) => (
           <div className="lfield" key={k}><dt>{k}</dt><dd>{v}</dd></div>
         ))}
       </dl>
-    </section>
+    </UiDrawerSection>
   );
 };
-
-export const DrawerFoot = ({ children }) => <div className="ldrawer__foot">{children}</div>;

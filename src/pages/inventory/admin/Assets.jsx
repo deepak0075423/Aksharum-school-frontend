@@ -1,226 +1,357 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+/**
+ * Inventory → Assets.
+ *
+ * The register of things tracked one by one rather than by quantity: a laptop,
+ * a projector, a bus. Where an item asks "how many are there", an asset asks
+ * "where is this one, who has it, and what is due on it".
+ *
+ * "Due for renewal" is the soonest of a warranty, an AMC, an insurance policy
+ * or a service date falling inside 60 days — one asset counted once, however
+ * many of the four are due.
+ */
+import React, { useCallback, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/inventory.api';
-import { PageHeader, Table, Button, Modal, Confirm, Badge, Spinner } from '../../../components/ui/index';
-
-const STATUS = { in_store: 'muted', assigned: 'info', under_repair: 'warning', disposed: 'danger', lost: 'danger' };
-const STATUS_LABEL = { in_store: 'In Store', assigned: 'Assigned', under_repair: 'Under Repair', disposed: 'Disposed', lost: 'Lost' };
-const REPAIR_STATUS = ['reported', 'assigned', 'in_progress', 'completed', 'returned'];
-const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
-
-const empty = {
-  name: '', assetCode: '', serialNumber: '', item: '', warehouse: '', assignedName: '', location: '',
-  purchaseDate: '', purchaseCost: '', warrantyExpiry: '', amcExpiry: '', insuranceExpiry: '', depreciationRate: '', status: 'in_store',
-};
+import {
+  Hero, YearBar, Tiles, Tile, Strip, Card, CardHead, CardBody, Filters, FilterEnd, Field,
+  Search, Select, Btn, IconBtn, SplitBtn, KebabMenu, DataTable, Pager, Badge, StatusBadge,
+  Thumb, Rows, Row, Rail, Facts, Fact, Block, Empty, Loading, LoadError, Confirm, ViewAll, Note,
+  useBoard, useDebounced, useInvMeta, useSort, count, money, fmtDate, words, toCsv, saveFile,
+  Cell2, plural,
+} from './invUI';
+import { Donut, VBars, STATE_COLOR } from './invCharts';
+import { AssetForm, AssetStateForm, RepairForm, RepairUpdateForm } from './invForms';
+import { Art } from './invArt';
 
 export default function InventoryAssets() {
-  const [params, setParams] = useSearchParams();
-  const { data: meta } = useFetch(api.getMeta);
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const statusFilter = params.get('status') || '';
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const { meta, activeYear } = useInvMeta(api.getFormMeta);
+
+  const [q, setQ] = useState('');
+  const [category, setCategory] = useState('');
+  const [location, setLocation] = useState('');
+  const [status, setStatus] = useState('');
+  const [condition, setCondition] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(8);
+  const { sort, dir, onSort } = useSort('assetCode', 'asc');
+  const search = useDebounced(q);
+
+  const [form, setForm] = useState(null);
+  const [stateForm, setStateForm] = useState(null);
+  const [repair, setRepair] = useState(null);        // asset to log a fault against
+  const [repairEdit, setRepairEdit] = useState(null); // { asset, repair }
+  const [view, setView] = useState(null);
+  const [viewTab, setViewTab] = useState('overview');
   const [del, setDel] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [repair, setRepair] = useState(null);   // new repair form
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try { const res = await api.getAssets({ status: statusFilter || undefined }); setRows(res.data ?? res); }
-    catch (err) { toast.error(err.message); }
-    finally { setLoading(false); }
-  }, [statusFilter]);
+  const load = useCallback(
+    () => api.getAssetBoard({ search, category, location, status, condition, sort, dir, page, limit }),
+    [search, category, location, status, condition, sort, dir, page, limit],
+  );
+  const { data, loading, error, reload } = useBoard(load, [search, category, location, status, condition, sort, dir, page, limit]);
 
-  useEffect(() => { load(); }, [load]);
+  const d = data || {};
+  const rows = d.rows || [];
+  const t = d.tiles || {};
 
-  const items = meta?.items || [];
-  const whs   = meta?.warehouses || [];
-  const set   = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setFilter = (fn) => (v) => { fn(v); setPage(1); };
+  const reset = () => { setQ(''); setCategory(''); setLocation(''); setStatus(''); setCondition(''); setPage(1); };
+  const filtered = !!(search || category || location || status || condition);
 
-  const open = (row) => {
-    if (row) setForm({ ...empty, ...row,
-      item: row.item?._id || row.item || '', warehouse: row.warehouse?._id || row.warehouse || '',
-      purchaseDate: row.purchaseDate?.slice(0, 10) || '', warrantyExpiry: row.warrantyExpiry?.slice(0, 10) || '',
-      amcExpiry: row.amcExpiry?.slice(0, 10) || '', insuranceExpiry: row.insuranceExpiry?.slice(0, 10) || '' });
-    else setForm(empty);
-    setEditId(row?._id || null); setModal(true);
-  };
-
-  const save = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const payload = { ...form, item: form.item || null, warehouse: form.warehouse || null,
-        purchaseCost: Number(form.purchaseCost) || 0, depreciationRate: Number(form.depreciationRate) || 0,
-        purchaseDate: form.purchaseDate || null, warrantyExpiry: form.warrantyExpiry || null,
-        amcExpiry: form.amcExpiry || null, insuranceExpiry: form.insuranceExpiry || null };
-      if (editId) await api.updateAsset(editId, payload);
-      else await api.createAsset(payload);
-      toast.success(editId ? 'Asset updated' : 'Asset created');
-      setModal(false); load();
-    } catch (err) { toast.error(err.message); }
-    finally { setSaving(false); }
+  const exportCsv = () => {
+    saveFile(`assets-${new Date().toISOString().slice(0, 10)}.csv`, toCsv([
+      ['assetCode', 'Asset Code'], ['name', 'Asset Name'],
+      ['category', 'Category', (r) => r.category?.name || ''],
+      ['location', 'Location'],
+      ['assignedTo', 'Assigned To', (r) => r.assignedTo?.name || ''],
+      ['purchaseDate', 'Purchase Date', (r) => fmtDate(r.purchaseDate, '')],
+      ['currentValue', 'Value'],
+      ['state', 'Status', (r) => words(r.state)],
+      ['condition', 'Condition', (r) => words(r.condition)],
+      ['nextMaintenance', 'Next Maintenance', (r) => fmtDate(r.nextMaintenance, '')],
+    ], rows));
+    toast.success('Exported the assets on this page');
   };
 
   const remove = async () => {
-    try { await api.deleteAsset(del._id); toast.success('Deleted'); setDel(null); load(); }
-    catch (err) { toast.error(err.message); setDel(null); }
-  };
-
-  const openDetail = async (row) => {
-    setDetail({ loading: true });
-    try { const res = await api.getAsset(row._id); setDetail(res.data ?? res); }
-    catch (err) { toast.error(err.message); setDetail(null); }
-  };
-
-  const addRepair = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+    setBusy(true);
     try {
-      const res = await api.addRepair(detail._id, repair);
-      setDetail(res.data ?? res); setRepair(null); toast.success('Repair logged'); load();
-    } catch (err) { toast.error(err.message); }
-    finally { setSaving(false); }
+      await api.deleteAsset(del._id);
+      toast.success(`${del.name} removed from the register`);
+      setDel(null); reload();
+    } catch (e) { toast.error(e?.message || 'That asset could not be removed'); }
+    finally { setBusy(false); }
   };
 
-  const setRepairStatus = async (rid, status) => {
-    try {
-      const cost = status === 'completed' ? Number(prompt('Repair cost (₹)?', '0') || 0) : undefined;
-      const res = await api.updateRepair(detail._id, rid, { status, ...(cost !== undefined && { cost }) });
-      setDetail(res.data ?? res); toast.success('Repair updated'); load();
-    } catch (err) { toast.error(err.message); }
-  };
+  const columns = useMemo(() => [
+    { key: 'assetCode', label: 'Asset Code', sortable: true, nowrap: true, cell: (r) => <span className="inv-strong inv-num">{r.assetCode}</span> },
+    {
+      key: 'name', label: 'Asset Name', sortable: true, primary: true,
+      cell: (r) => (
+        <span className="inv-cellrow">
+          <Thumb src={r.image} icon={r.category?.icon || 'monitor'} tone="pink" />
+          <Cell2 top={r.name} sub={r.serialNumber ? `SN ${r.serialNumber}` : null} />
+        </span>
+      ),
+    },
+    { key: 'category', label: 'Category', sortable: true, cell: (r) => r.category?.name || <span className="inv-dim">—</span> },
+    { key: 'location', label: 'Location', sortable: true, cell: (r) => r.location || <span className="inv-dim">—</span> },
+    {
+      key: 'assignedTo', label: 'Assigned To', sortable: true,
+      cell: (r) => (r.assignedTo?.name ? <span className="inv-trunc">{r.assignedTo.name}</span> : <span className="inv-dim">Not Assigned</span>),
+    },
+    { key: 'purchaseDate', label: 'Purchase Date', sortable: true, nowrap: true, cell: (r) => fmtDate(r.purchaseDate) },
+    { key: 'value', label: 'Value (₹)', sortable: true, align: 'num', cell: (r) => money(r.currentValue) },
+    { key: 'state', label: 'Status', sortable: true, cell: (r) => <StatusBadge value={r.state} noIcon /> },
+    { key: 'condition', label: 'Condition', sortable: true, cell: (r) => <StatusBadge value={r.condition} square noIcon /> },
+    {
+      key: 'nextMaintenance', label: 'Next Maintenance', sortable: true, nowrap: true,
+      cell: (r) => (r.nextMaintenance ? fmtDate(r.nextMaintenance) : <span className="inv-dim">–</span>),
+    },
+  ], []);
 
-  const columns = [
-    { key: 'name', label: 'Asset', render: r => <div><strong style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>{r.name}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.assetCode}{r.serialNumber ? ` · SN ${r.serialNumber}` : ''}</div></div> },
-    { key: 'assignedTo', label: 'Assigned', render: r => r.assignedTo?.name || r.assignedName || '—' },
-    { key: 'warrantyExpiry', label: 'Warranty', render: r => r.warrantyExpiry ? new Date(r.warrantyExpiry).toLocaleDateString() : '—' },
-    { key: 'status', label: 'Status', render: r => <Badge variant={STATUS[r.status]}>{STATUS_LABEL[r.status]}</Badge> },
-    { key: 'actions', label: '', render: r => (
-      <div style={{ display: 'flex', gap: 6 }}>
-        <Button size="sm" variant="secondary" onClick={() => openDetail(r)}>View</Button>
-        <Button size="sm" variant="secondary" onClick={() => open(r)}>Edit</Button>
-        <Button size="sm" variant="danger" onClick={() => setDel(r)}>Delete</Button>
-      </div>
-    )},
-  ];
-
-  const d = detail && !detail.loading ? detail : null;
+  if (error && !data) return <div className="inv-page"><LoadError error={error} onRetry={reload} /></div>;
+  if (loading && !data) return <div className="inv-page"><Loading tiles={5} cards={3} /></div>;
 
   return (
-    <div className="page">
-      <PageHeader title="Assets & Maintenance" subtitle="Track expensive items, warranty, AMC & repairs"
-        action={<Button onClick={() => open()}>+ Add Asset</Button>} />
+    <div className="inv-page">
+      <YearBar year={activeYear} />
 
-      <div style={{ marginBottom: 12 }}>
-        <select className="form-control" style={{ maxWidth: 200 }} value={statusFilter}
-          onChange={e => { const p = new URLSearchParams(params); if (e.target.value) p.set('status', e.target.value); else p.delete('status'); setParams(p); }}>
-          <option value="">All statuses</option>
-          {Object.keys(STATUS_LABEL).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-        </select>
-      </div>
+      <Hero
+        icon="monitor" tone="pink" title="Asset Management"
+        subtitle="Track and manage all school assets like computers, furniture, lab equipment, vehicles, etc."
+        art={<Art name="assets" />}
+        promises={['Maintain asset details and location', 'Track status and assignments', 'Schedule maintenance and expiry', 'View complete asset history']}
+      >
+        <SplitBtn label="Add Asset" icon="plus" onClick={() => setForm({})} items={[
+          { label: 'Add one asset', icon: 'plus', onClick: () => setForm({}) },
+          { label: 'Export the register', icon: 'download', onClick: exportCsv },
+        ]} />
+      </Hero>
 
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="💻" emptyTitle="No assets yet" />
-      </div></div>
+      <Tiles cols={5}>
+        <Tile icon="boxes" tone="indigo" value={count(t.total?.value)} label="Total Assets"
+          delta={t.total?.delta} deltaNote="from last month" spark={t.total?.series} sparkKind="bar" sparkTone="indigo" />
+        <Tile icon="check" tone="green" value={count(t.inUse?.value)} label="In Use"
+          note={`${t.inUse?.pct ?? 0}% of total`} spark={t.total?.series} sparkKind="bar" sparkTone="green"
+          onClick={() => setFilter(setStatus)('in_use')} />
+        <Tile icon="wrench" tone="amber" value={count(t.maintenance?.value)} label="Under Maintenance"
+          note={`${t.maintenance?.pct ?? 0}% of total`} onClick={() => setFilter(setStatus)('under_maintenance')} />
+        <Tile icon="alert" tone="red" value={count(t.outOfService?.value)} label="Out of Service"
+          note={`${t.outOfService?.pct ?? 0}% of total`} onClick={() => setFilter(setStatus)('out_of_service')} />
+        <Tile icon="clock" tone="violet" value={count(t.renewals?.value)} label="Due for Renewal"
+          note={`${t.renewals?.pct ?? 0}% of total`} />
+      </Tiles>
 
-      {/* Create / Edit */}
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? 'Edit Asset' : 'Add Asset'} maxWidth={680}
-        footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="asset-form" type="submit" loading={saving}>Save</Button>
-        </>}>
-        <form id="asset-form" onSubmit={save}>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label required">Asset Name</label><input className="form-control" required value={form.name} onChange={e => set('name', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Asset Code</label><input className="form-control" value={form.assetCode} onChange={e => set('assetCode', e.target.value)} placeholder="auto if blank" /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Serial Number</label><input className="form-control" value={form.serialNumber} onChange={e => set('serialNumber', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Linked Item</label>
-              <select className="form-control" value={form.item} onChange={e => set('item', e.target.value)}>
-                <option value="">— None —</option>{items.map(i => <option key={i._id} value={i._id}>{i.name}</option>)}
-              </select></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Warehouse</label>
-              <select className="form-control" value={form.warehouse} onChange={e => set('warehouse', e.target.value)}>
-                <option value="">— None —</option>{whs.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
-              </select></div>
-            <div className="form-group"><label className="form-label">Assigned To (name)</label><input className="form-control" value={form.assignedName} onChange={e => set('assignedName', e.target.value)} /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Purchase Date</label><input type="date" className="form-control" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Purchase Cost (₹)</label><input type="number" className="form-control" value={form.purchaseCost} onChange={e => set('purchaseCost', e.target.value)} /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Warranty Expiry</label><input type="date" className="form-control" value={form.warrantyExpiry} onChange={e => set('warrantyExpiry', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">AMC Expiry</label><input type="date" className="form-control" value={form.amcExpiry} onChange={e => set('amcExpiry', e.target.value)} /></div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group"><label className="form-label">Insurance Expiry</label><input type="date" className="form-control" value={form.insuranceExpiry} onChange={e => set('insuranceExpiry', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Depreciation Rate (%/yr)</label><input type="number" className="form-control" value={form.depreciationRate} onChange={e => set('depreciationRate', e.target.value)} /></div>
-          </div>
-        </form>
-      </Modal>
+      <Strip cols={3}>
+        <Card>
+          <CardHead title="Asset Distribution by Category" />
+          <CardBody>
+            {d.distribution?.total ? (
+              <Donut slices={d.distribution.slices} total={d.distribution.total} unit="Assets"
+                onPick={(s) => (s.key !== 'others' && s.key !== 'none' ? setFilter(setCategory)(s.key) : null)} />
+            ) : <Empty icon="monitor" title="No assets yet" sm>Add an asset and the split by category appears here.</Empty>}
+          </CardBody>
+        </Card>
 
-      {/* Detail + repairs */}
-      <Modal open={!!detail} onClose={() => { setDetail(null); setRepair(null); }} title={d?.name || 'Asset'} maxWidth={640}
-        footer={d && !repair ? <Button onClick={() => setRepair({ complaint: '', technician: '', note: '' })}>+ Log Repair</Button> : null}>
-        {detail?.loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div> : d && (
-          <div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-              <Badge variant="primary">{d.assetCode}</Badge>
-              <Badge variant={STATUS[d.status]}>{STATUS_LABEL[d.status]}</Badge>
-              {d.assignedTo?.name || d.assignedName ? <Badge variant="info">Assigned: {d.assignedTo?.name || d.assignedName}</Badge> : null}
-            </div>
-            <div style={{ fontSize: '.82rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
-              {d.serialNumber && <div>Serial: {d.serialNumber}</div>}
-              {d.purchaseCost ? <div>Cost: {fmt(d.purchaseCost)}</div> : null}
-              {d.warrantyExpiry && <div>Warranty until {new Date(d.warrantyExpiry).toLocaleDateString()}</div>}
-              {d.amcExpiry && <div>AMC until {new Date(d.amcExpiry).toLocaleDateString()}</div>}
-            </div>
+        <Card>
+          <CardHead title="Asset Status Overview" />
+          <CardBody>
+            <VBars bars={d.statusBars || []} height={196} />
+          </CardBody>
+        </Card>
 
-            {repair ? (
-              <form onSubmit={addRepair} style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                <div className="form-group"><label className="form-label required">Complaint</label><input className="form-control" required value={repair.complaint} onChange={e => setRepair(r => ({ ...r, complaint: e.target.value }))} /></div>
-                <div className="form-group"><label className="form-label">Technician</label><input className="form-control" value={repair.technician} onChange={e => setRepair(r => ({ ...r, technician: e.target.value }))} /></div>
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                  <Button type="button" variant="secondary" onClick={() => setRepair(null)}>Cancel</Button>
-                  <Button type="submit" loading={saving}>Save Repair</Button>
-                </div>
-              </form>
-            ) : (
-              <>
-                <div style={{ fontSize: '.8rem', fontWeight: 600, margin: '14px 0 4px' }}>Repair History</div>
-                {(d.repairs || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: '.82rem' }}>No repairs logged.</div> : d.repairs.map(rp => (
-                  <div key={rp._id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <strong>{rp.complaint}</strong>
-                      <Badge variant={rp.status === 'completed' || rp.status === 'returned' ? 'success' : 'warning'}>{rp.status}</Badge>
-                    </div>
-                    <div style={{ color: 'var(--text-muted)' }}>{rp.technician && `Tech: ${rp.technician} · `}{rp.cost ? `Cost: ${fmt(rp.cost)} · ` : ''}{new Date(rp.reportedAt).toLocaleDateString()}</div>
-                    {!['completed', 'returned'].includes(rp.status) && (
-                      <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {REPAIR_STATUS.filter(s => s !== rp.status).map(s => (
-                          <button key={s} className="btn btn-secondary btn-sm" onClick={() => setRepairStatus(rp._id, s)}>{s.replace('_', ' ')}</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+        <Card>
+          <CardHead title="Upcoming Renewals / Maintenance" right={<ViewAll onClick={() => { onSort('nextMaintenance'); setPage(1); }} />} />
+          <CardBody tight>
+            {d.renewals?.length ? (
+              <Rows>
+                {d.renewals.map(a => (
+                  <Row
+                    key={a._id} image={a.image} icon={a.category?.icon || 'monitor'} iconTone="pink"
+                    title={`${a.name} (${a.assetCode})`}
+                    sub={<span className="inv-danger">{a.renewal.label} in {plural(a.renewal.days, 'day')}</span>}
+                    endSub={<Badge tone={a.renewal.days <= 7 ? 'red' : 'sky'} square>{fmtDate(a.renewal.date)}</Badge>}
+                    onClick={() => { setView(a); setViewTab('overview'); }}
+                  />
                 ))}
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
+              </Rows>
+            ) : <Empty icon="check" title="Nothing falls due soon" sm>No warranty, AMC, insurance or service date lands inside the next 60 days.</Empty>}
+          </CardBody>
+        </Card>
+      </Strip>
 
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} title="Delete asset" message={`Delete "${del?.name}"?`} />
+      <Card>
+        <Filters inner>
+          <Field grow>
+            <Search value={q} onChange={setFilter(setQ)} placeholder="Search assets by name, code, category, location…" />
+          </Field>
+          <Field label="Category" pick>
+            <Select value={category} onChange={setFilter(setCategory)} options={d.filters?.categories || []} placeholder="All categories" />
+          </Field>
+          <Field label="Location" pick>
+            <Select value={location} onChange={setFilter(setLocation)} options={d.filters?.locations || []} placeholder="All locations" />
+          </Field>
+          <Field label="Status" pick>
+            <Select value={status} onChange={setFilter(setStatus)} placeholder="All status" options={[
+              { value: 'in_use', label: 'In Use' }, { value: 'in_store', label: 'In Store' },
+              { value: 'under_maintenance', label: 'Under Maintenance' },
+              { value: 'out_of_service', label: 'Out of Service' }, { value: 'retired', label: 'Retired' },
+            ]} />
+          </Field>
+          <Field label="Condition" pick>
+            <Select value={condition} onChange={setFilter(setCondition)} placeholder="All conditions" options={[
+              { value: 'good', label: 'Good' }, { value: 'fair', label: 'Fair' },
+              { value: 'poor', label: 'Poor' }, { value: 'damaged', label: 'Damaged' },
+            ]} />
+          </Field>
+          <FilterEnd>
+            <Btn kind={filtered ? 'soft' : 'ghost'} icon="filter" onClick={reset}>{filtered ? 'Clear filters' : 'Filters'}</Btn>
+            <Btn icon="download" onClick={exportCsv}>Export</Btn>
+            <KebabMenu items={[
+              { label: 'Add asset', icon: 'plus', onClick: () => setForm({}) },
+              { label: 'Export this page', icon: 'download', onClick: exportCsv },
+            ]} />
+          </FilterEnd>
+        </Filters>
+
+        <DataTable
+          className="inv-table--dense"
+          columns={columns} rows={rows} loading={loading && !rows.length}
+          sort={sort} dir={dir} onSort={(k) => { onSort(k); setPage(1); }}
+          actions={(r) => (
+            <>
+              <IconBtn icon="eye" label="View asset" onClick={() => setView(r)} />
+              <KebabMenu items={[
+                { label: 'Edit asset', icon: 'pencil', onClick: () => setForm({ asset: r }) },
+                { label: 'Change status or holder', icon: 'sliders', onClick: () => setStateForm(r) },
+                r.openRepair
+                  ? { label: 'Update the open repair', icon: 'wrench', onClick: () => setRepairEdit({ asset: r, repair: r.openRepair }) }
+                  : { label: 'Log a repair', icon: 'wrench', onClick: () => setRepair(r) },
+                { sep: true },
+                { label: 'Remove from register', icon: 'trash', danger: true, onClick: () => setDel(r) },
+              ]} />
+            </>
+          )}
+          empty={
+            <Empty icon="monitor" title={filtered ? 'No assets match those filters' : 'The asset register is empty'}
+              action={filtered
+                ? <Btn icon="refresh" onClick={reset}>Clear the filters</Btn>
+                : <Btn kind="primary" icon="plus" onClick={() => setForm({})}>Add the first asset</Btn>}>
+              {filtered ? 'Try another category, location or status.' : 'Anything expensive enough to be tracked one by one belongs here — a laptop, a projector, a bus.'}
+            </Empty>
+          }
+        />
+
+        <Pager page={d.page} pages={d.pages} total={d.total} limit={limit} noun="assets"
+          onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} />
+      </Card>
+
+      <AssetForm open={!!form} asset={form?.asset} meta={meta} onClose={() => setForm(null)} onDone={reload} />
+      <AssetStateForm open={!!stateForm} asset={stateForm} meta={meta} onClose={() => setStateForm(null)} onDone={reload} />
+      <RepairForm open={!!repair} asset={repair} onClose={() => setRepair(null)} onDone={reload} />
+      <RepairUpdateForm open={!!repairEdit} asset={repairEdit?.asset} repair={repairEdit?.repair}
+        onClose={() => setRepairEdit(null)} onDone={reload} />
+      <Confirm
+        open={!!del} onClose={() => setDel(null)} onConfirm={remove} busy={busy} tone="danger"
+        confirmLabel="Remove asset" title={del ? `Remove ${del.name}?` : ''}
+        message={del ? `${del.assetCode} will be deleted from the register along with its repair history. If it is simply no longer in use, marking it Retired keeps the record.` : ''}
+      />
+
+      {view ? (
+        <Rail
+          image={view.image} icon={view.category?.icon || 'monitor'} iconTone="pink"
+          title={view.name}
+          sub={`${view.assetCode}${view.serialNumber ? ` · SN ${view.serialNumber}` : ''}`}
+          badge={<StatusBadge value={view.state} noIcon />}
+          onClose={() => setView(null)}
+          tabs={[
+            { value: 'overview', label: 'Overview' },
+            { value: 'money', label: 'Money' },
+            { value: 'cover', label: 'Cover & service' },
+            { value: 'repairs', label: 'Repairs', count: view.repairs },
+          ]}
+          tab={viewTab} onTab={setViewTab}
+          foot={
+            <>
+              <Btn icon="wrench" onClick={() => { setStateForm(view); setView(null); }}>Change status</Btn>
+              <Btn kind="primary" icon="pencil" onClick={() => { setForm({ asset: view }); setView(null); }}>Edit asset</Btn>
+            </>
+          }
+        >
+          {viewTab === 'overview' ? (
+            <Block title="Where it is">
+              <Facts>
+                <Fact k="Condition" v={<StatusBadge value={view.condition} square noIcon />} />
+                <Fact k="Category" v={view.category?.name} />
+                <Fact k="Location" v={view.location} />
+                <Fact k="Store" v={view.warehouse?.name} />
+                <Fact k="Assigned to" v={view.assignedTo?.name || 'Not assigned'} />
+              </Facts>
+            </Block>
+          ) : null}
+
+          {viewTab === 'money' ? (
+            <Block title="Money">
+              <Facts>
+                <Fact k="Purchased" v={fmtDate(view.purchaseDate)} />
+                <Fact k="Purchase cost" v={money(view.purchaseCost)} />
+                <Fact k="Current value" v={money(view.currentValue)} />
+              </Facts>
+            </Block>
+          ) : null}
+
+          {viewTab === 'cover' ? (
+            <>
+              <Block title="Cover and service">
+                <Facts>
+                  <Fact k="Warranty expires" v={fmtDate(view.warrantyExpiry)} />
+                  <Fact k="AMC expires" v={fmtDate(view.amcExpiry)} />
+                  <Fact k="Insurance expires" v={fmtDate(view.insuranceExpiry)} />
+                  <Fact k="Next maintenance" v={fmtDate(view.nextMaintenance)} />
+                  <Fact k="Repairs logged" v={count(view.repairs)} />
+                </Facts>
+              </Block>
+            </>
+          ) : null}
+
+          {viewTab === 'repairs' ? (
+            <Block
+              title={`Repairs (${count(view.repairs)})`}
+              right={<Btn size="sm" icon="plus" onClick={() => { setRepair(view); setView(null); }}>Log a repair</Btn>}
+            >
+              {view.repairLog?.length ? (
+                <>
+                  <Rows>
+                    {view.repairLog.map(rp => (
+                      <Row
+                        key={rp._id}
+                        icon={rp.open ? 'wrench' : 'check'} iconTone={rp.open ? 'amber' : 'green'}
+                        title={rp.complaint}
+                        sub={[words(rp.status), rp.technician, fmtDate(rp.reportedAt)].filter(Boolean).join(' · ')}
+                        end={rp.cost ? money(rp.cost) : null}
+                        endSub={rp.open ? 'Open' : `Closed ${fmtDate(rp.completedAt)}`}
+                        onClick={() => { setRepairEdit({ asset: view, repair: rp }); setView(null); }}
+                      />
+                    ))}
+                  </Rows>
+                  {view.repairSpend ? (
+                    <div style={{ marginTop: 14 }}>
+                      <Facts><Fact k="Spent on repairs" v={money(view.repairSpend)} /></Facts>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <Empty icon="wrench" title="Never repaired" sm
+                  action={<Btn kind="primary" icon="plus" onClick={() => { setRepair(view); setView(null); }}>Log a repair</Btn>}>
+                  Logging a fault marks the asset under maintenance until the repair is closed.
+                </Empty>
+              )}
+            </Block>
+          ) : null}
+        </Rail>
+      ) : null}
     </div>
   );
 }

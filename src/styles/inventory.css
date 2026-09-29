@@ -1,0 +1,1610 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   INVENTORY — admin (Sep 2026 redesign, to the user's twelve mockups)
+
+   Every class is prefixed `inv-`. Imported by pages/inventory/admin/invUI.jsx,
+   so it only loads with the inventory screens.
+
+   BREAKPOINTS ARE CONTAINER QUERIES on `.inv-page`, not media queries on the
+   viewport. The sidebar collapses and expands under the user's control, so a
+   1440px window is a 1200px page with the rail open and a 1400px page with it
+   shut — the viewport cannot answer "does a six-across tile row fit here".
+   A handful of true media queries remain at the bottom, for the things that
+   really are about the device: pointer size, reduced motion, printing.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --inv-ink:      #0f172a;
+  --inv-ink-2:    #334155;
+  --inv-muted:    #64748b;
+  --inv-faint:    #94a3b8;
+  --inv-line:     #e6eaf1;
+  --inv-line-2:   #f1f4f9;
+  --inv-bg:       #f7f8fc;
+  --inv-head:     #f8fafc;
+  --inv-primary:  #4f46e5;
+  --inv-primary-2:#4338ca;
+  --inv-soft:     #eef2ff;
+  --inv-shadow:   0 1px 2px rgba(15, 23, 42, .04);
+  --inv-shadow-2: 0 4px 18px rgba(15, 23, 42, .08);
+  --inv-shadow-3: 0 18px 48px rgba(15, 23, 42, .16);
+  --inv-r:        14px;
+  --inv-r-sm:     10px;
+  --inv-gap:      16px;
+}
+
+.inv-page {
+  container: inv / inline-size;
+  /* The same 24px gutter and 1400px ceiling the breadcrumb and the module rail
+     above it use, so the page does not sit 24px to the left of its own tabs and
+     run flush into the right edge of the window. */
+  padding: 4px 24px 32px;
+  max-width: 1400px;
+  color: var(--inv-ink);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+.inv-page *, .inv-portal * { box-sizing: border-box; }
+.inv-page :focus-visible, .inv-portal :focus-visible {
+  outline: 2px solid var(--inv-primary); outline-offset: 2px; border-radius: 6px;
+}
+
+/* Vertical rhythm: one rule instead of a margin on every block. */
+.inv-page > * + * { margin-top: var(--inv-gap); }
+
+/* ── Tones ───────────────────────────────────────────────────────────────── */
+/* One table, shared by tile marks, badges, dots, chips and row icons, so a
+   status is the same colour wherever it appears. */
+.inv-t-indigo { background: #e0e7ff; color: #4f46e5; }
+.inv-t-violet { background: #ede9fe; color: #7c3aed; }
+.inv-t-blue   { background: #dbeafe; color: #2563eb; }
+.inv-t-sky    { background: #e0f2fe; color: #0284c7; }
+.inv-t-green  { background: #dcfce7; color: #16a34a; }
+.inv-t-emerald{ background: #d1fae5; color: #059669; }
+.inv-t-amber  { background: #fef3c7; color: #d97706; }
+.inv-t-orange { background: #ffedd5; color: #ea580c; }
+.inv-t-red    { background: #fee2e2; color: #dc2626; }
+.inv-t-rose   { background: #ffe4e6; color: #e11d48; }
+.inv-t-pink   { background: #fce7f3; color: #db2777; }
+.inv-t-teal   { background: #ccfbf1; color: #0d9488; }
+.inv-t-slate  { background: #e9eef5; color: #475569; }
+.inv-t-brown  { background: #f5ede2; color: #a16207; }
+
+.inv-b-indigo { background: #e0e7ff; color: #4338ca; }
+.inv-b-violet { background: #ede9fe; color: #6d28d9; }
+.inv-b-blue   { background: #dbeafe; color: #1d4ed8; }
+.inv-b-sky    { background: #e0f2fe; color: #0369a1; }
+.inv-b-green  { background: #dcfce7; color: #15803d; }
+.inv-b-emerald{ background: #d1fae5; color: #047857; }
+.inv-b-amber  { background: #fef3c7; color: #b45309; }
+.inv-b-orange { background: #ffedd5; color: #c2410c; }
+.inv-b-red    { background: #fee2e2; color: #b91c1c; }
+.inv-b-rose   { background: #ffe4e6; color: #be123c; }
+.inv-b-pink   { background: #fce7f3; color: #be185d; }
+.inv-b-teal   { background: #ccfbf1; color: #0f766e; }
+.inv-b-slate  { background: #eef2f7; color: #475569; }
+.inv-b-brown  { background: #f5ede2; color: #92400e; }
+
+.inv-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }
+.inv-dot--indigo { background: #6366f1; } .inv-dot--violet { background: #8b5cf6; }
+.inv-dot--blue   { background: #3b82f6; } .inv-dot--sky    { background: #0ea5e9; }
+.inv-dot--green  { background: #22c55e; } .inv-dot--emerald{ background: #10b981; }
+.inv-dot--amber  { background: #f59e0b; } .inv-dot--orange { background: #f97316; }
+.inv-dot--red    { background: #ef4444; } .inv-dot--rose   { background: #f43f5e; }
+.inv-dot--pink   { background: #ec4899; } .inv-dot--teal   { background: #14b8a6; }
+.inv-dot--slate  { background: #94a3b8; } .inv-dot--brown  { background: #b45309; }
+
+/* ── Marks: the rounded tinted square behind an icon ─────────────────────── */
+.inv-mark {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: var(--mark, 46px); height: var(--mark, 46px);
+  border-radius: 12px;
+}
+.inv-mark--round { border-radius: 50%; }
+.inv-mark--sm { border-radius: 9px; }
+
+/* ── Hero banner ─────────────────────────────────────────────────────────── */
+/* The tinted introduction at the top of every screen: a mark, a heading, and
+   either a checklist or a pill of reassurance on the right. */
+.inv-hero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 24px;
+  padding: 22px 26px;
+  border: 1px solid #e4e6fb;
+  border-radius: var(--inv-r);
+  background:
+    radial-gradient(120% 160% at 88% 15%, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(104deg, #eef1ff 0%, #f2effe 42%, #faf2fe 100%);
+}
+.inv-hero__mark { flex: 0 0 auto; box-shadow: 0 2px 8px rgba(79, 70, 229, .14); }
+.inv-hero__text { flex: 1 1 320px; min-width: 0; }
+.inv-hero__kicker {
+  display: block; font-size: .7rem; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; color: #7c74e8; margin-bottom: 4px;
+}
+.inv-hero h1 {
+  margin: 0; font-size: 1.68rem; line-height: 1.16; font-weight: 800;
+  letter-spacing: -.02em; color: #1e1b4b;
+}
+.inv-hero p { margin: 8px 0 0; color: #5b5f7a; font-size: .9rem; max-width: 58ch; }
+.inv-hero__art {
+  flex: 0 0 auto; width: 260px; align-self: stretch; min-height: 108px;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+}
+.inv-hero__art svg { width: 100%; height: 100%; max-height: 132px; }
+.inv-hero__side { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+/* The dashboard's variant: one white pill instead of a checklist. */
+.inv-hero__pill {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-radius: 12px;
+  background: rgba(255, 255, 255, .72); border: 1px solid #e7e4fb;
+  color: #4338ca; font-size: .86rem; font-weight: 600; max-width: 280px;
+}
+/* The checklist variant: three or four ticked promises. */
+.inv-hero__list {
+  display: grid; gap: 8px; padding-left: 24px; border-left: 1px solid #e0defa;
+}
+.inv-hero__list li { display: flex; align-items: center; gap: 9px; font-size: .84rem; color: #474b68; }
+.inv-hero__list svg { color: #4f46e5; flex: 0 0 auto; }
+.inv-hero__acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+/* ── Page head: the plain heading + actions row, where there is no banner ── */
+.inv-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.inv-head__text { flex: 1 1 320px; min-width: 0; display: flex; align-items: center; gap: 16px; }
+.inv-head h1 { margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+.inv-head p { margin: 5px 0 0; color: var(--inv-muted); font-size: .88rem; }
+.inv-head__acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+
+/* The academic-year chip. The mockups put it at the far right of the
+   BREADCRUMB row, which the layout draws — so the page portals it into
+   `.crumbs` (see YearBar in invUI.jsx) and this turns that row into a flex
+   line with the chip pushed right. `:has` scopes it to a crumb that actually
+   received one, so every other page's crumb is untouched. */
+.crumbs:has(> .inv-crumbside) {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding-bottom: 4px;
+}
+.crumbs > .inv-crumbside { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.inv-topbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: -8px; }
+.inv-yearchip {
+  display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 12px 0 13px;
+  border: 1px solid var(--inv-line); border-radius: var(--inv-r-sm); background: #fff;
+  font-size: .85rem; font-weight: 600; color: var(--inv-ink);
+}
+.inv-yearchip__ico { color: var(--inv-primary); display: inline-flex; }
+.inv-yearchip__lab { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; min-width: 0; }
+.inv-yearchip__lab small { font-size: .66rem; font-weight: 700; color: var(--inv-faint); letter-spacing: .01em; }
+.inv-yearchip select {
+  border: 0; background: transparent; font: inherit; font-weight: 700; color: inherit;
+  padding: 0; cursor: pointer; max-width: 140px;
+}
+.inv-yearchip select:focus { outline: none; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.inv-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 16px; border-radius: var(--inv-r-sm);
+  font: inherit; font-size: .865rem; font-weight: 600; line-height: 1;
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .08s;
+}
+.inv-btn:active:not(:disabled) { transform: translateY(1px); }
+.inv-btn:disabled { opacity: .55; cursor: not-allowed; }
+.inv-btn--primary { background: var(--inv-primary); color: #fff; box-shadow: 0 1px 2px rgba(79, 70, 229, .3); }
+.inv-btn--primary:hover:not(:disabled) { background: var(--inv-primary-2); }
+.inv-btn--ghost { background: #fff; color: var(--inv-ink-2); border-color: var(--inv-line); }
+.inv-btn--ghost:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+.inv-btn--soft { background: var(--inv-soft); color: var(--inv-primary); }
+.inv-btn--soft:hover:not(:disabled) { background: #e0e7ff; }
+.inv-btn--danger { background: #fee2e2; color: #b91c1c; }
+.inv-btn--danger:hover:not(:disabled) { background: #fecaca; }
+.inv-btn--sm { height: 32px; padding: 0 11px; font-size: .78rem; border-radius: 8px; gap: 6px; }
+.inv-btn--xs { height: 28px; padding: 0 10px; font-size: .74rem; border-radius: 7px; gap: 5px; }
+.inv-btn--block { width: 100%; }
+
+/* Icon-only button: the eye / pencil / kebab in an Actions cell. */
+.inv-ibtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--inv-line); background: #fff; color: var(--inv-muted);
+  cursor: pointer; flex: 0 0 auto; transition: background .14s, color .14s, border-color .14s;
+}
+.inv-ibtn:hover:not(:disabled) { background: #f1f5f9; color: var(--inv-ink); border-color: #cbd5e1; }
+.inv-ibtn:disabled { opacity: .45; cursor: not-allowed; }
+.inv-ibtn--bare { border-color: transparent; background: transparent; }
+.inv-ibtn--bare:hover:not(:disabled) { background: #f1f5f9; border-color: transparent; }
+.inv-ibtn--primary { background: var(--inv-soft); color: var(--inv-primary); border-color: transparent; }
+.inv-ibtn--primary:hover:not(:disabled) { background: #e0e7ff; color: var(--inv-primary-2); }
+.inv-ibtn--danger:hover:not(:disabled) { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.inv-ibtn--lg { width: 38px; height: 38px; border-radius: 9px; }
+
+/* A primary button with a chevron that opens a menu of related actions. */
+.inv-split { position: relative; display: inline-flex; }
+.inv-split > .inv-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.inv-split__toggle {
+  border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 9px;
+  border-left: 1px solid rgba(255, 255, 255, .28);
+}
+/*
+   The menu is portalled to the body and positioned from JS.
+
+   It must NOT also carry `.inv-portal`: that class is `position: fixed;
+   inset: 0`, and an inline `top`/`left` leaves the `right: 0; bottom: 0` from
+   `inset` in place — so the menu stretched from wherever it opened to the
+   bottom-right corner of the window, as a giant white sheet. `right`/`bottom`
+   are pinned to `auto` here so nothing can do that again.
+*/
+.inv-menu {
+  position: absolute; right: auto; bottom: auto;
+  z-index: 1250; min-width: 208px; max-width: min(300px, calc(100vw - 16px));
+  width: max-content; padding: 6px;
+  background: #fff; border: 1px solid var(--inv-line); border-radius: 12px;
+  box-shadow: var(--inv-shadow-3);
+  font-size: .9rem; color: var(--inv-ink); line-height: 1.45;
+  max-height: min(420px, calc(100vh - 24px)); overflow-y: auto;
+}
+.inv-menu, .inv-menu * { box-sizing: border-box; }
+.inv-menu--right { right: 0; }
+.inv-menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: 0; border-radius: 8px; background: transparent;
+  font: inherit; font-size: .84rem; color: var(--inv-ink-2); text-align: left; cursor: pointer;
+}
+.inv-menu__item:hover { background: #f4f6fb; color: var(--inv-ink); }
+.inv-menu__item--danger { color: #b91c1c; }
+.inv-menu__item--danger:hover { background: #fef2f2; color: #991b1b; }
+.inv-menu__item:disabled { opacity: .5; cursor: not-allowed; }
+.inv-menu__sep { height: 1px; margin: 5px 4px; background: var(--inv-line-2); }
+.inv-menu__head { padding: 8px 10px 4px; font-size: .68rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--inv-faint); }
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.inv-card {
+  background: #fff; border: 1px solid var(--inv-line); border-radius: var(--inv-r);
+  box-shadow: var(--inv-shadow); min-width: 0;
+}
+.inv-card__head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-bottom: 1px solid var(--inv-line-2); flex-wrap: wrap;
+}
+.inv-card__head--plain { border-bottom: 0; padding-bottom: 6px; }
+.inv-card__title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
+.inv-card__title h3 { margin: 0; font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em; }
+.inv-card__title p { margin: 2px 0 0; font-size: .8rem; color: var(--inv-muted); font-weight: 400; }
+.inv-card__right { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.inv-card__body { padding: 16px; }
+.inv-card__body--flush { padding: 0; }
+.inv-card__body--tight { padding: 12px 18px 16px; }
+.inv-card__foot { padding: 12px 18px; border-top: 1px solid var(--inv-line-2); display: flex; gap: 10px; flex-wrap: wrap; }
+
+.inv-viewall {
+  display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; font-weight: 600;
+  color: var(--inv-primary); background: transparent; border: 0; cursor: pointer; padding: 4px 2px;
+  text-decoration: none;
+}
+.inv-viewall:hover { color: var(--inv-primary-2); text-decoration: underline; }
+
+/* ── Tiles ───────────────────────────────────────────────────────────────── */
+.inv-tiles { display: grid; gap: 14px; grid-template-columns: repeat(var(--inv-cols, 4), minmax(0, 1fr)); }
+.inv-tile {
+  position: relative;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  padding: 16px 17px; background: #fff; border: 1px solid var(--inv-line);
+  border-radius: var(--inv-r); box-shadow: var(--inv-shadow);
+  transition: box-shadow .16s, border-color .16s, transform .12s;
+}
+.inv-tile--link { cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.inv-tile--link:hover { box-shadow: var(--inv-shadow-2); border-color: #d8dcea; transform: translateY(-1px); }
+.inv-tile__top { display: flex; align-items: flex-start; gap: 13px; min-width: 0; }
+.inv-tile__body { min-width: 0; flex: 1 1 auto; }
+.inv-tile__value {
+  font-size: 1.68rem; font-weight: 800; letter-spacing: -.028em; line-height: 1.1;
+  color: var(--inv-ink);
+  /* Never mid-number: "₹1,35,780" broken after the 8 is not a figure. */
+  white-space: nowrap;
+}
+/* Six across leaves about 115px for the label, so the type steps down and the
+   mark shrinks to 40px — that is what keeps "Items Expiring Soon" on one line.
+   Only while six really are across: below 1200px the row becomes two rows of
+   three and the normal sizes apply again. */
+@container inv (min-width: 1201px) {
+  .inv-tiles[style*="--inv-cols: 6"] .inv-tile { padding: 14px 13px; }
+  .inv-tiles[style*="--inv-cols: 6"] .inv-tile__top { gap: 11px; }
+  .inv-tiles[style*="--inv-cols: 6"] .inv-tile__value { font-size: 1.46rem; }
+  .inv-tiles[style*="--inv-cols: 6"] .inv-tile__label { font-size: .745rem; }
+  .inv-tiles[style*="--inv-cols: 6"] .inv-tile__foot { font-size: .72rem; }
+  .inv-tiles[style*="--inv-cols: 6"] .inv-mark { --mark: 40px; }
+}
+.inv-tile__value--sm { font-size: 1.42rem; }
+.inv-tile__label { font-size: .82rem; color: var(--inv-muted); font-weight: 500; margin-top: 3px; }
+.inv-tile__spark {
+  position: absolute; top: 15px; right: 15px; width: 62px; height: 34px;
+  opacity: .95; pointer-events: none;
+}
+/* Only the value has to keep clear of it; the label runs underneath. */
+.inv-tile--spark .inv-tile__value { padding-right: 68px; }
+.inv-tile__foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .76rem; color: var(--inv-muted); }
+.inv-tile__foot--push { margin-top: auto; }
+
+.inv-delta {
+  display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; line-height: 1;
+}
+.inv-delta--up   { background: #dcfce7; color: #15803d; }
+.inv-delta--down { background: #fee2e2; color: #b91c1c; }
+.inv-delta--flat { background: #eef2f7; color: #475569; }
+.inv-tile__note { font-size: .75rem; color: var(--inv-muted); }
+.inv-tile__strong { font-weight: 700; color: var(--inv-ink-2); }
+
+/* ── Badges, chips, pills ────────────────────────────────────────────────── */
+.inv-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border-radius: 999px; font-size: .745rem; font-weight: 700; line-height: 1.25;
+  white-space: nowrap; max-width: 100%;
+}
+.inv-badge--square { border-radius: 7px; }
+.inv-badge--lg { padding: 5px 12px; font-size: .78rem; }
+.inv-badge svg { flex: 0 0 auto; }
+.inv-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px;
+  border-radius: 7px; font-size: .745rem; font-weight: 600; line-height: 1.3;
+  background: #eef2f7; color: #475569; white-space: nowrap;
+}
+
+/* ── Avatars, thumbs ─────────────────────────────────────────────────────── */
+.inv-av {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  border-radius: 50%; color: #fff; font-weight: 700; overflow: hidden;
+  width: 34px; height: 34px; font-size: .76rem; letter-spacing: .01em;
+}
+.inv-av--sm { width: 28px; height: 28px; font-size: .68rem; }
+.inv-av--lg { width: 46px; height: 46px; font-size: .95rem; }
+.inv-av--xl { width: 54px; height: 54px; font-size: 1.05rem; }
+.inv-av img { width: 100%; height: 100%; object-fit: cover; }
+.inv-av--square { border-radius: 10px; }
+
+.inv-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.inv-who__text { min-width: 0; }
+.inv-who__name { font-weight: 600; font-size: .85rem; color: var(--inv-ink); }
+.inv-who__sub { font-size: .74rem; color: var(--inv-muted); }
+
+.inv-thumb {
+  width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9;
+}
+.inv-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.inv-thumb--lg { width: 52px; height: 52px; border-radius: 11px; }
+.inv-thumb--xl { width: 62px; height: 62px; border-radius: 12px; }
+/* The overlapping item thumbs in a purchase order's Items cell. */
+.inv-stack { display: inline-flex; align-items: center; }
+.inv-stack > * { margin-left: -7px; border: 2px solid #fff; border-radius: 8px; width: 28px; height: 28px; }
+.inv-stack > *:first-child { margin-left: 0; }
+.inv-stack__more {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #e2e8f0; color: #475569; font-size: .65rem; font-weight: 800;
+}
+
+/* ── Two-line cell ───────────────────────────────────────────────────────── */
+.inv-cell2 { min-width: 0; }
+.inv-cell2__top { font-weight: 600; color: var(--inv-ink); font-size: .855rem; }
+.inv-cell2__sub { font-size: .745rem; color: var(--inv-muted); margin-top: 1px; }
+.inv-cellrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.inv-trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.inv-clamp2 {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; line-clamp: 2;
+}
+.inv-num { font-variant-numeric: tabular-nums; }
+.inv-strong { font-weight: 700; color: var(--inv-ink); }
+.inv-danger { color: #dc2626; font-weight: 700; }
+.inv-dim { color: var(--inv-faint); }
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.inv-filters {
+  display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; background: #fff; border: 1px solid var(--inv-line);
+  border-radius: var(--inv-r); box-shadow: var(--inv-shadow);
+}
+.inv-filters--plain { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.inv-filters--inner { border-radius: 0; border: 0; border-bottom: 1px solid var(--inv-line-2); box-shadow: none; }
+.inv-filters__end { display: flex; align-items: flex-end; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+
+.inv-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.inv-field__label { font-size: .755rem; font-weight: 600; color: var(--inv-muted); }
+.inv-field--grow { flex: 1 1 240px; }
+.inv-field--pick { flex: 0 1 190px; min-width: 150px; }
+.inv-field__hint { font-size: .72rem; color: var(--inv-faint); }
+.inv-field__err { font-size: .72rem; color: #dc2626; font-weight: 600; }
+
+.inv-input, .inv-select, .inv-textarea {
+  width: 100%; height: 42px; padding: 0 12px; border-radius: var(--inv-r-sm);
+  border: 1px solid var(--inv-line); background: #fff; font: inherit; font-size: .865rem;
+  color: var(--inv-ink); transition: border-color .14s, box-shadow .14s;
+}
+.inv-textarea { height: auto; min-height: 88px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.inv-input:hover, .inv-select:hover { border-color: #cbd5e1; }
+.inv-input:focus, .inv-select:focus, .inv-textarea:focus {
+  outline: none; border-color: var(--inv-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, .12);
+}
+.inv-input::placeholder, .inv-textarea::placeholder { color: var(--inv-faint); }
+.inv-input:disabled, .inv-select:disabled, .inv-textarea:disabled { background: #f8fafc; color: var(--inv-faint); cursor: not-allowed; }
+.inv-select {
+  appearance: none; padding-right: 34px; cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+.inv-search { position: relative; width: 100%; }
+.inv-search__ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--inv-faint); pointer-events: none; }
+.inv-search .inv-input { padding-left: 38px; }
+.inv-search__clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+
+/* The date-range control: one chip that opens two date inputs. */
+.inv-range { position: relative; }
+.inv-range__btn {
+  display: inline-flex; align-items: center; gap: 9px; height: 42px; padding: 0 12px; width: 100%;
+  border: 1px solid var(--inv-line); border-radius: var(--inv-r-sm); background: #fff;
+  font: inherit; font-size: .84rem; font-weight: 600; color: var(--inv-ink); cursor: pointer;
+  justify-content: space-between;
+}
+.inv-range__btn:hover { border-color: #cbd5e1; }
+.inv-range__btn svg:first-child { color: var(--inv-primary); flex: 0 0 auto; }
+.inv-range__pop {
+  position: absolute; z-index: 60; top: calc(100% + 6px); right: 0; width: 300px; padding: 14px;
+  background: #fff; border: 1px solid var(--inv-line); border-radius: 12px; box-shadow: var(--inv-shadow-3);
+}
+.inv-range__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.inv-range__quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.inv-range__quick button {
+  padding: 5px 10px; border-radius: 999px; border: 1px solid var(--inv-line); background: #fff;
+  font: inherit; font-size: .74rem; font-weight: 600; color: var(--inv-ink-2); cursor: pointer;
+}
+.inv-range__quick button:hover { background: var(--inv-soft); border-color: #c7d2fe; color: var(--inv-primary); }
+
+/* ── Toggles, checkboxes, radios ─────────────────────────────────────────── */
+.inv-check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: .84rem; }
+.inv-check input {
+  width: 17px; height: 17px; accent-color: var(--inv-primary); cursor: pointer; flex: 0 0 auto; margin: 0;
+}
+.inv-check input:disabled { cursor: not-allowed; }
+.inv-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.inv-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.inv-switch__track {
+  width: 40px; height: 22px; border-radius: 999px; background: #cbd5e1; position: relative;
+  transition: background .18s; flex: 0 0 auto;
+}
+.inv-switch__track::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+  border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+}
+.inv-switch input:checked + .inv-switch__track { background: var(--inv-primary); }
+.inv-switch input:checked + .inv-switch__track::after { transform: translateX(18px); }
+.inv-switch input:disabled + .inv-switch__track { opacity: .5; }
+
+/* ── Segmented control ───────────────────────────────────────────────────── */
+.inv-seg { display: inline-flex; padding: 3px; gap: 3px; background: #f1f5f9; border-radius: var(--inv-r-sm); }
+.inv-seg button {
+  padding: 7px 13px; border: 0; border-radius: 8px; background: transparent;
+  font: inherit; font-size: .8rem; font-weight: 600; color: var(--inv-muted); cursor: pointer; white-space: nowrap;
+}
+.inv-seg button.is-on { background: #fff; color: var(--inv-ink); box-shadow: var(--inv-shadow); }
+
+/* In-page tabs: the underlined strip above a table (Requests, POs, Budgets). */
+.inv-tabs {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  border-bottom: 1px solid var(--inv-line); padding: 0 4px;
+}
+.inv-tabs::-webkit-scrollbar { display: none; }
+.inv-tabs button {
+  position: relative; display: inline-flex; align-items: center; gap: 7px;
+  padding: 13px 14px 12px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: .865rem; font-weight: 600; color: var(--inv-muted); white-space: nowrap;
+}
+.inv-tabs button::after {
+  content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2.5px;
+  border-radius: 3px 3px 0 0; background: transparent;
+}
+.inv-tabs button:hover { color: var(--inv-ink-2); }
+.inv-tabs button.is-on { color: var(--inv-primary); }
+.inv-tabs button.is-on::after { background: var(--inv-primary); }
+
+/* The rail's own tabs, tighter and without the full-width rule. */
+.inv-rtabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--inv-line-2); }
+.inv-rtabs::-webkit-scrollbar { display: none; }
+.inv-rtabs button {
+  position: relative; padding: 10px 9px 9px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: .78rem; font-weight: 600; color: var(--inv-muted); white-space: nowrap;
+}
+.inv-rtabs button::after {
+  content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2.5px; background: transparent; border-radius: 3px 3px 0 0;
+}
+.inv-rtabs button.is-on { color: var(--inv-primary); }
+.inv-rtabs button.is-on::after { background: var(--inv-primary); }
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.inv-tablebar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--inv-line-2);
+}
+.inv-tablebar__count { font-size: .82rem; color: var(--inv-muted); font-weight: 500; }
+.inv-tablebar__end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+.inv-tablewrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.inv-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .845rem; }
+.inv-table th, .inv-table td { text-align: left; vertical-align: middle; }
+.inv-table thead th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 11px 12px; background: var(--inv-head);
+  font-size: .75rem; font-weight: 700; color: var(--inv-muted);
+  /* NOT nowrap. A header kept on one line sets the table's minimum width, and
+     eleven of them are what pushed the last columns under the pinned Actions
+     cell on a 1440px screen. Let them wrap and the table fits. */
+  white-space: normal; line-height: 1.3;
+  border-bottom: 1px solid var(--inv-line); border-top: 1px solid var(--inv-line-2);
+}
+.inv-table tbody td { padding: 12px; border-bottom: 1px solid var(--inv-line-2); color: var(--inv-ink-2); }
+/* A table inside one half of a two-up strip has about 600px for six columns,
+   so it gets its own tighter rhythm rather than a horizontal scrollbar. */
+/*
+   `--dense` marks a table with a lot of columns. It does not squeeze anything
+   until the page is actually short of room: a ten-column table at 1500px has
+   space for the normal rhythm, and tightening it there just made every screen
+   in the module look cramped next to the rest of the app.
+*/
+.inv-table--dense thead .inv-sort { align-items: flex-start; text-align: left; }
+@container inv (max-width: 1260px) {
+  .inv-table--dense thead th { padding: 9px 9px; font-size: .72rem; }
+  .inv-table--dense tbody td { padding: 9px; font-size: .8rem; }
+  .inv-table--dense .inv-cell2__top { font-size: .81rem; }
+  .inv-table--dense .inv-cell2__sub { font-size: .72rem; }
+  .inv-table--dense .inv-thumb { width: 28px; height: 28px; border-radius: 8px; }
+  .inv-table--dense .inv-badge { padding: 3px 8px; font-size: .71rem; }
+  .inv-table--dense .inv-actrow { gap: 4px; }
+}
+.inv-table tbody tr:last-child td { border-bottom: 0; }
+.inv-table tbody tr { transition: background .12s; }
+.inv-table tbody tr:hover { background: #fafbfe; }
+.inv-table tbody tr.is-picked { background: var(--inv-soft); }
+.inv-table tbody tr.is-picked td:first-child { box-shadow: inset 3px 0 0 var(--inv-primary); }
+.inv-table tbody tr.is-marked { background: #f6f7ff; }
+.inv-table .inv-th--num, .inv-table .inv-td--num { text-align: right; font-variant-numeric: tabular-nums; }
+.inv-table .inv-th--mid, .inv-table .inv-td--mid { text-align: center; }
+.inv-table .inv-td--tight, .inv-table .inv-td--tight * { white-space: nowrap; }
+.inv-table__sel { width: 42px; padding-right: 0 !important; }
+/*
+   The Actions column is pinned to the right edge.
+
+   A table with eleven columns scrolls sideways on a 900px page — and the one
+   column you always need is the one that was scrolling out of reach. Pinning
+   it keeps every row actionable at any width, and the shadow says there is
+   more table underneath. Switched off in the card layout, where there is no
+   sideways scroll to pin against.
+*/
+.inv-table__acts { width: 1%; white-space: nowrap; }
+.inv-table th.inv-table__acts, .inv-table td.inv-table__acts {
+  position: sticky; right: 0; background: #fff;
+}
+.inv-table thead th.inv-table__acts { background: var(--inv-head); z-index: 3; }
+.inv-table tbody tr:hover td.inv-table__acts { background: #fafbfe; }
+.inv-table tbody tr.is-picked td.inv-table__acts { background: var(--inv-soft); }
+.inv-table tbody tr.is-marked td.inv-table__acts { background: #f6f7ff; }
+.inv-table__acts .inv-actrow { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+
+.inv-sort {
+  display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent;
+  font: inherit; font-size: inherit; font-weight: inherit; color: inherit; cursor: pointer; padding: 0;
+}
+.inv-sort__ico { display: inline-flex; line-height: 0; color: var(--inv-faint); flex: 0 0 auto; }
+.inv-sort.is-on { color: var(--inv-primary); }
+.inv-sort.is-on .inv-sort__ico { color: var(--inv-primary); }
+
+/* A bar inside a cell: usage, utilisation, consumption. */
+/* The track is the line colour, not the page's: a bar at 3% is almost all
+   track, and on #eef2f7 it read as blank space rather than as an empty bar. */
+.inv-bar { height: 7px; border-radius: 999px; background: #e3e8f0; overflow: hidden; min-width: 54px; flex: 1 1 auto; }
+.inv-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--inv-primary); transition: width .3s; }
+.inv-bar--lg { height: 10px; }
+.inv-barrow { display: flex; align-items: center; gap: 9px; min-width: 100px; }
+.inv-barrow__pct { font-size: .76rem; font-weight: 700; color: var(--inv-ink-2); min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Pager ───────────────────────────────────────────────────────────────── */
+.inv-pager {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 13px 16px; border-top: 1px solid var(--inv-line-2);
+}
+.inv-pager__count { font-size: .82rem; color: var(--inv-muted); }
+.inv-pager__end { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.inv-pages { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.inv-pages button {
+  min-width: 34px; height: 34px; padding: 0 9px; border-radius: 8px;
+  border: 1px solid var(--inv-line); background: #fff; font: inherit; font-size: .82rem; font-weight: 600;
+  color: var(--inv-ink-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.inv-pages button:hover:not(:disabled):not(.is-on) { background: #f1f5f9; border-color: #cbd5e1; }
+.inv-pages button.is-on { background: var(--inv-primary); border-color: var(--inv-primary); color: #fff; }
+.inv-pages button:disabled { opacity: .4; cursor: not-allowed; }
+.inv-pages__gap { padding: 0 4px; color: var(--inv-faint); font-weight: 700; }
+.inv-pager .inv-select { height: 34px; width: auto; min-width: 104px; font-size: .8rem; }
+
+/* ── Lists (activity, consumed, renewals, expenses) ──────────────────────── */
+.inv-rows { display: flex; flex-direction: column; }
+.inv-rows > * + * { border-top: 1px solid var(--inv-line-2); }
+.inv-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 4px; min-width: 0;
+  background: transparent; border: 0; width: 100%; text-align: left; font: inherit; color: inherit;
+}
+.inv-row--link { cursor: pointer; border-radius: 9px; padding-inline: 8px; margin-inline: -4px; }
+.inv-row--link:hover { background: #f8fafc; }
+.inv-row__text { min-width: 0; flex: 1 1 auto; }
+.inv-row__title { font-size: .865rem; font-weight: 600; color: var(--inv-ink); }
+.inv-row__sub { font-size: .78rem; color: var(--inv-muted); margin-top: 2px; }
+.inv-row__end { margin-left: auto; text-align: right; flex: 0 0 auto; font-size: .78rem; color: var(--inv-muted); }
+.inv-row__end strong { display: block; font-size: .875rem; color: var(--inv-ink); font-weight: 700; }
+
+/* A row whose middle is a progress bar — Top Consumed Items. */
+.inv-meter { display: flex; align-items: center; gap: 12px; padding: 10px 4px; min-width: 0; }
+.inv-meter__name { flex: 0 0 auto; width: 40%; min-width: 0; font-size: .855rem; font-weight: 600; color: var(--inv-ink); }
+.inv-meter__value { flex: 0 0 auto; min-width: 38px; text-align: right; font-weight: 700; font-size: .855rem; font-variant-numeric: tabular-nums; }
+
+/* ── Facts (a label / value grid in the rail) ────────────────────────────── */
+.inv-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; }
+.inv-facts > * { padding: 9px 0; border-bottom: 1px solid var(--inv-line-2); min-height: 38px; display: flex; align-items: center; }
+.inv-facts > .inv-fact__k { padding-right: 14px; }
+.inv-facts > .inv-fact__v { justify-content: flex-end; padding-left: 14px; }
+.inv-facts > *:nth-last-child(-n+2) { border-bottom: 0; }
+.inv-facts--1 > * { border-bottom: 0; padding: 2px 0; min-height: 0; }
+.inv-facts--1 { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.inv-fact__k { font-size: .8rem; color: var(--inv-muted); }
+.inv-fact__v { font-size: .845rem; font-weight: 600; color: var(--inv-ink); text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.inv-facts--1 .inv-fact__v { text-align: left; justify-content: flex-start; }
+.inv-lines { display: grid; gap: 11px; }
+.inv-line { display: flex; align-items: flex-start; gap: 10px; font-size: .845rem; color: var(--inv-ink-2); min-width: 0; }
+.inv-line > svg { color: var(--inv-faint); flex: 0 0 auto; margin-top: 2px; }
+
+/* The little stat boxes at the foot of a rail. */
+.inv-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; }
+.inv-rail .inv-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.inv-rail .inv-mini { padding: 10px; gap: 8px; }
+.inv-rail .inv-mini .inv-mark { --mark: 28px; }
+.inv-rail .inv-mini__k { font-size: .69rem; }
+.inv-mini {
+  display: flex; align-items: center; gap: 10px; padding: 11px 12px;
+  border: 1px solid var(--inv-line); border-radius: var(--inv-r-sm); background: #fcfdff; min-width: 0;
+}
+.inv-mini__text { min-width: 0; }
+.inv-mini__v { font-size: .95rem; font-weight: 800; letter-spacing: -.02em; color: var(--inv-ink); }
+.inv-mini__k { font-size: .715rem; color: var(--inv-muted); margin-top: 1px; }
+
+/* ── Section block inside a rail / modal ─────────────────────────────────── */
+.inv-block { padding: 16px 18px; }
+.inv-block + .inv-block { border-top: 1px solid var(--inv-line-2); }
+/* In a modal the body already provides the gutter, so a block that adds its
+   own left padding sets its heading 18px further in than the rows above it. */
+.inv-modal__body > .inv-block,
+.inv-modal__body .inv-block { padding-inline: 0; }
+.inv-modal__body .inv-block { border-top: 1px solid var(--inv-line-2); margin-top: 4px; }
+.inv-modal__body > .inv-facts + .inv-block { margin-top: 8px; }
+.inv-block__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.inv-block__head h4 { margin: 0; font-size: .92rem; font-weight: 700; }
+.inv-block__head .inv-ibtn, .inv-block__head .inv-btn { margin-left: auto; }
+
+/* ── The detail drawer ───────────────────────────────────────────────────── */
+/*
+   The rail is the app's own slide-over now (`.ldrawer` in global.css, shared
+   with Students, Teachers, Admins and Academic Years). What is left here is
+   only the module's own furniture INSIDE it, taught to wear the drawer's
+   clothes: sections with a small upper-case heading, fields divided by a
+   dashed rule, and lists that sit flush with the drawer's own gutter.
+*/
+.inv-split-view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+
+.ldrawer .inv-rail__acts { display: flex; align-items: flex-start; gap: 6px; flex: 0 0 auto; }
+.ldrawer .inv-rail__tabs { padding: 0 22px; border-bottom: 1px solid var(--inv-line-2); }
+.ldrawer .inv-rtabs { border-bottom: 0; }
+
+/* A module Block becomes a drawer section. */
+.ldrawer .inv-block { padding: 0; border-top: 0; }
+.ldrawer .inv-block + .inv-block { margin-top: 24px; }
+.ldrawer .inv-block__head { margin-bottom: 12px; min-height: 22px; }
+.ldrawer .inv-block__head h4 {
+  font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--inv-muted);
+}
+
+/* Facts become the drawer's dashed label / value rows. */
+.ldrawer .inv-facts { grid-template-columns: 40% minmax(0, 1fr); }
+.ldrawer .inv-facts > * {
+  padding: 9px 0; min-height: 0; border-bottom: 0;
+  border-top: 1px dashed var(--inv-line); font-size: .85rem;
+}
+.ldrawer .inv-facts > *:nth-child(-n+2) { border-top: 0; }
+.ldrawer .inv-facts > .inv-fact__k { padding-right: 14px; color: var(--inv-muted); }
+.ldrawer .inv-facts > .inv-fact__v { justify-content: flex-end; font-weight: 600; color: var(--inv-ink); }
+.ldrawer .inv-facts--1 { grid-template-columns: minmax(0, 1fr); }
+.ldrawer .inv-facts--1 > * { border-top: 0; padding: 2px 0; }
+
+.ldrawer .inv-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ldrawer .inv-mini { padding: 11px 12px; }
+.ldrawer .inv-rows .inv-row { padding-inline: 0; }
+.ldrawer .inv-empty { padding: 26px 0; }
+
+/* The drawer's own footer holds the module's buttons. */
+.ldrawer__foot .inv-btn { flex: 1 1 auto; min-width: 0; }
+
+/* ── Charts ──────────────────────────────────────────────────────────────── */
+.inv-donut { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.inv-donut__svg { flex: 0 0 auto; position: relative; }
+.inv-donut__mid {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; pointer-events: none;
+}
+.inv-donut__mid strong { font-size: 1.44rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; }
+.inv-donut__mid span { font-size: .75rem; color: var(--inv-muted); }
+.inv-donut__legend { flex: 1 1 150px; min-width: 0; display: grid; gap: 10px; align-content: center; }
+.inv-legend {
+  display: flex; align-items: center; gap: 9px; font-size: .84rem; min-width: 0;
+  background: transparent; border: 0; padding: 0; font-family: inherit; color: inherit; width: 100%; text-align: left;
+}
+.inv-legend__name { color: var(--inv-ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-legend__end { margin-left: auto; display: flex; align-items: baseline; gap: 6px; flex: 0 0 auto; }
+.inv-legend__v { font-weight: 700; color: var(--inv-ink); font-variant-numeric: tabular-nums; }
+.inv-legend__p { font-size: .78rem; color: var(--inv-muted); font-variant-numeric: tabular-nums; }
+.inv-legend.is-off { opacity: .42; }
+
+/* A plot with real DOM gutters — the axis labels are HTML, so the SVG can use
+   its whole 0–100 range without a percentage gutter squeezing the drawing. */
+.inv-plot { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; }
+.inv-plot__y {
+  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
+  font-size: .7rem; color: var(--inv-faint); font-variant-numeric: tabular-nums; padding-bottom: 2px;
+}
+.inv-plot__area { position: relative; min-width: 0; }
+.inv-plot__area svg { display: block; width: 100%; }
+.inv-plot__x {
+  grid-column: 2; display: flex; justify-content: space-between;
+  font-size: .72rem; color: var(--inv-muted); padding-top: 7px;
+}
+.inv-plot__x span { flex: 1 1 0; text-align: center; min-width: 0; }
+.inv-plot__x span:first-child { text-align: left; }
+.inv-plot__x span:last-child { text-align: right; }
+.inv-chartlegend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: .78rem; color: var(--inv-muted); }
+.inv-chartlegend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Vertical bars with a value above and a label below (Asset Status Overview). */
+.inv-vbars { display: flex; align-items: flex-end; gap: 14px; height: 190px; }
+.inv-vbar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; min-width: 0; }
+.inv-vbar__v { font-size: .84rem; font-weight: 700; color: var(--inv-ink); font-variant-numeric: tabular-nums; }
+.inv-vbar__track { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.inv-vbar__fill {
+  width: 100%; max-width: 66px; margin: 0 auto;
+  border-radius: 7px 7px 3px 3px; min-height: 4px; transition: height .35s;
+}
+.inv-vbar__k { font-size: .73rem; color: var(--inv-muted); text-align: center; overflow-wrap: anywhere; }
+
+/* ── Notes, empties, loaders ─────────────────────────────────────────────── */
+.inv-note {
+  display: flex; gap: 11px; padding: 13px 15px; border-radius: var(--inv-r-sm);
+  font-size: .845rem; line-height: 1.5; align-items: flex-start;
+}
+.inv-note svg { flex: 0 0 auto; margin-top: 1px; }
+.inv-note strong { display: block; margin-bottom: 2px; }
+.inv-note--info { background: #eff6ff; color: #1e40af; }
+/* The lavender variant, for a note that explains the module's own action
+   rather than giving general advice. */
+.inv-note--tip  { background: #f1f2ff; color: #4338ca; }
+.inv-note--warn { background: #fffbeb; color: #92400e; }
+.inv-note--danger { background: #fef2f2; color: #991b1b; }
+.inv-note--ok { background: #f0fdf4; color: #166534; }
+
+.inv-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 46px 22px; text-align: center; }
+.inv-empty--sm { padding: 26px 16px; }
+.inv-empty h4 { margin: 0; font-size: 1rem; font-weight: 700; }
+.inv-empty p { margin: 0; color: var(--inv-muted); font-size: .855rem; max-width: 46ch; }
+
+.inv-skel { border-radius: 8px; background: linear-gradient(90deg, #eef1f6 25%, #f6f8fb 50%, #eef1f6 75%); background-size: 200% 100%; animation: inv-sheen 1.3s linear infinite; }
+@keyframes inv-sheen { to { background-position: -200% 0; } }
+.inv-skel--tile { height: 108px; border-radius: var(--inv-r); }
+.inv-skel--row { height: 46px; }
+.inv-skel--card { height: 300px; border-radius: var(--inv-r); }
+.inv-skelrows { display: grid; gap: 8px; padding: 16px; }
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.inv-portal { position: fixed; inset: 0; z-index: 1200; }
+.inv-scrim {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .48); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; padding: 24px; overflow-y: auto;
+  animation: inv-fade .16s ease-out;
+}
+@keyframes inv-fade { from { opacity: 0; } }
+.inv-modal {
+  width: 100%; max-width: 560px; background: #fff; border-radius: 16px;
+  box-shadow: var(--inv-shadow-3); display: flex; flex-direction: column;
+  max-height: calc(100vh - 48px); animation: inv-rise .18s cubic-bezier(.2, .9, .3, 1);
+}
+@keyframes inv-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } }
+.inv-modal--wide { max-width: 760px; }
+.inv-modal--xl   { max-width: 1020px; }
+.inv-modal--slim { max-width: 440px; }
+.inv-modal__head { display: flex; align-items: flex-start; gap: 13px; padding: 18px 20px 14px; border-bottom: 1px solid var(--inv-line-2); }
+.inv-modal__head h3 { margin: 0; font-size: 1.08rem; font-weight: 700; }
+.inv-modal__head p { margin: 3px 0 0; font-size: .83rem; color: var(--inv-muted); }
+.inv-modal__body { padding: 20px; overflow-y: auto; flex: 1 1 auto; }
+.inv-modal__foot { padding: 14px 20px; border-top: 1px solid var(--inv-line-2); display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* ── Forms inside a modal ────────────────────────────────────────────────── */
+.inv-formgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.inv-formgrid--1 { grid-template-columns: minmax(0, 1fr); }
+.inv-formgrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.inv-span2 { grid-column: span 2; }
+.inv-span3 { grid-column: 1 / -1; }
+.inv-formsec + .inv-formsec { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--inv-line-2); }
+.inv-formsec__head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.inv-formsec__head h4 { margin: 0; font-size: .93rem; font-weight: 700; }
+.inv-formsec__head p { margin: 2px 0 0; font-size: .79rem; color: var(--inv-muted); font-weight: 400; }
+.inv-formsec__n {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--inv-soft); color: var(--inv-primary);
+  display: inline-flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 800; flex: 0 0 auto;
+}
+.inv-req { color: #dc2626; }
+
+/* A row of line items inside a form (a request's items, a PO's items). */
+.inv-lineitems { display: grid; gap: 10px; }
+.inv-lineitem {
+  display: grid; grid-template-columns: minmax(0, 2.2fr) 92px 96px 110px 34px; gap: 9px; align-items: end;
+}
+.inv-lineitem__total { font-weight: 700; font-size: .875rem; text-align: right; padding-bottom: 11px; font-variant-numeric: tabular-nums; }
+
+/* The icon picker in a category / budget form. */
+.inv-iconpick { display: flex; flex-wrap: wrap; gap: 7px; }
+.inv-iconpick button {
+  width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--inv-line);
+  background: #fff; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--inv-muted);
+}
+.inv-iconpick button:hover { border-color: #c7d2fe; background: #fafbff; }
+.inv-iconpick button.is-on { border-color: var(--inv-primary); background: var(--inv-soft); color: var(--inv-primary); box-shadow: 0 0 0 2px rgba(79, 70, 229, .12); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Container queries — the page adapting to the room it actually has
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@container inv (max-width: 1160px) {
+  .inv-hero__art { width: 190px; }
+}
+@container inv (max-width: 1000px) {
+  /* The illustration is decoration; the words and the actions are not. */
+  .inv-hero__art { display: none; }
+  .inv-hero { gap: 18px; }
+}
+@container inv (max-width: 860px) {
+  .inv-hero { flex-wrap: wrap; }
+  .inv-hero__side { width: 100%; }
+  .inv-hero__list { padding-left: 0; border-left: 0; border-top: 1px solid #e0defa; padding-top: 14px; width: 100%; }
+  .inv-hero__pill { max-width: none; width: 100%; }
+  .inv-hero__acts { width: 100%; }
+  .inv-hero__acts .inv-btn { flex: 1 1 auto; }
+}
+@container inv (max-width: 720px) {
+  .inv-page { font-size: .875rem; padding-inline: 16px; padding-bottom: 28px; }
+  .inv-hero { padding: 18px; gap: 14px; }
+  .inv-hero h1 { font-size: 1.4rem; }
+  .inv-hero__mark { width: 44px !important; height: 44px !important; }
+  .inv-head h1 { font-size: 1.34rem; }
+  .inv-head__acts { width: 100%; margin-left: 0; }
+  .inv-head__acts > * { flex: 1 1 auto; }
+  .inv-card__body { padding: 15px; }
+  .inv-block { padding: 14px 15px; }
+}
+@container inv (max-width: 560px) {
+  .inv-hero__list { grid-template-columns: minmax(0, 1fr); }
+  .inv-donut { gap: 16px; justify-content: center; }
+  .inv-donut__legend { flex-basis: 100%; }
+  .inv-tablebar, .inv-pager { padding: 11px 13px; }
+  .inv-pager__end { width: 100%; margin-left: 0; justify-content: space-between; }
+  .inv-modal__foot { flex-direction: column-reverse; }
+  .inv-modal__foot > * { width: 100%; }
+  .inv-scrim { padding: 0; align-items: flex-end; }
+  .inv-modal { max-width: none; border-radius: 16px 16px 0 0; max-height: 92vh; }
+}
+
+/* Tile columns. Set as a custom property by the component so one row can ask
+   for six and another for four, then stepped down as the page narrows. */
+@container inv (max-width: 1200px) {
+  .inv-tiles { grid-template-columns: repeat(min(var(--inv-cols, 4), 5), minmax(0, 1fr)); }
+  /* Six tiles become two rows of three, not five and an orphan. */
+  .inv-tiles[style*="--inv-cols: 6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container inv (max-width: 1060px) {
+  .inv-tiles { grid-template-columns: repeat(min(var(--inv-cols, 4), 4), minmax(0, 1fr)); }
+  .inv-tiles[style*="--inv-cols: 6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* Five become three and two — the two sit under the first three, which reads
+     better than four and a widow. */
+  .inv-tiles[style*="--inv-cols: 5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container inv (max-width: 880px) {
+  .inv-tiles { grid-template-columns: repeat(min(var(--inv-cols, 4), 3), minmax(0, 1fr)); }
+  /* Four tiles read better as two rows of two than as three and a widow. */
+  .inv-tiles[style*="--inv-cols: 4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container inv (max-width: 700px)  { .inv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; } }
+@container inv (max-width: 340px)  { .inv-tiles { grid-template-columns: minmax(0, 1fr); } }
+@container inv (max-width: 700px) {
+  .inv-tile { padding: 13px 14px; }
+  .inv-tile__value { font-size: 1.42rem; }
+  .inv-tile__spark { display: none; }
+}
+
+/* Chart strips. */
+.inv-strip { display: grid; gap: var(--inv-gap); grid-template-columns: repeat(var(--inv-strip, 3), minmax(0, 1fr)); align-items: stretch; }
+.inv-strip > .inv-card { display: flex; flex-direction: column; }
+.inv-strip > .inv-card > .inv-card__body { flex: 1 1 auto; }
+.inv-strip--21 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.inv-strip--12 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.inv-strip--11 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container inv (max-width: 1000px) {
+  .inv-strip { grid-template-columns: repeat(min(var(--inv-strip, 3), 2), minmax(0, 1fr)); }
+  .inv-strip--21, .inv-strip--12 { grid-template-columns: minmax(0, 1fr); }
+}
+@container inv (max-width: 700px) {
+  .inv-strip { grid-template-columns: minmax(0, 1fr); }
+}
+/* Two tables side by side need about 640px each. Below that they stack, rather
+   than each running a horizontal scrollbar under a pinned Actions column. */
+@container inv (max-width: 1300px) {
+  .inv-strip--11 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Forms. */
+@container inv (max-width: 620px) {
+  .inv-formgrid, .inv-formgrid--3 { grid-template-columns: minmax(0, 1fr); }
+  .inv-span2, .inv-span3 { grid-column: auto; }
+  .inv-lineitem { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inv-lineitem > *:first-child { grid-column: 1 / -1; }
+  .inv-lineitem__total { text-align: left; padding-bottom: 0; }
+}
+
+/* Filter bars stack their controls before they start squeezing them. */
+@container inv (max-width: 820px) {
+  .inv-filters { padding: 13px; gap: 10px; }
+  .inv-field--grow { flex-basis: 100%; }
+  .inv-field--pick { flex: 1 1 calc(50% - 6px); min-width: 0; }
+  .inv-filters__end { width: 100%; margin-left: 0; }
+  .inv-filters__end > * { flex: 1 1 auto; }
+  /* An icon button stretched across a third of the row is not a button. */
+  .inv-filters__end > .inv-ibtn { flex: 0 0 auto; }
+}
+@container inv (max-width: 440px) {
+  .inv-field--pick { flex-basis: 100%; }
+}
+
+/*
+   Between the card layout and a comfortable table there is a band where a
+   nine-column table does not fit but a stack of cards would be overkill. The
+   columns marked `secondary` stand down through it — they come back below
+   820px, where each row is a card with room for every field.
+*/
+@container inv (min-width: 821px) and (max-width: 1090px) {
+  .inv-table .inv-col--secondary { display: none; }
+}
+
+/* ── The table, on a narrow page ─────────────────────────────────────────── */
+/*
+   Under 760px a twelve-column table is a horizontal scrollbar with a row of
+   truncated words in it. Each row becomes its own card instead: the primary
+   cell across the top, then every other cell as a label / value pair from the
+   column's own header, and the actions along the bottom. The markup does not
+   change — `data-label` on each cell is what makes this possible — so there is
+   one table definition per screen, not two.
+*/
+@container inv (max-width: 820px) {
+  .inv-table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .inv-table--stack, .inv-table--stack tbody, .inv-table--stack tr, .inv-table--stack td { display: block; width: 100%; }
+  .inv-table--stack tbody tr {
+    border: 1px solid var(--inv-line); border-radius: 12px; margin: 10px 12px; padding: 12px 13px;
+    background: #fff; box-shadow: var(--inv-shadow);
+  }
+  .inv-table--stack tbody tr:hover { background: #fff; }
+  .inv-table--stack tbody tr.is-picked { border-color: var(--inv-primary); background: #fafaff; }
+  .inv-table--stack tbody tr.is-picked td:first-child { box-shadow: none; }
+  .inv-table--stack tbody td {
+    display: flex; align-items: center; gap: 12px; justify-content: space-between;
+    padding: 7px 0; border-bottom: 1px dashed var(--inv-line-2); text-align: right;
+  }
+  .inv-table--stack tbody td:last-child { border-bottom: 0; padding-bottom: 0; }
+  .inv-table--stack tbody td::before {
+    content: attr(data-label); flex: 0 0 auto; text-align: left;
+    font-size: .755rem; font-weight: 700; color: var(--inv-muted); white-space: nowrap;
+  }
+  /* The row's headline cell spans the card and keeps its own layout. */
+  .inv-table--stack tbody td.inv-td--primary {
+    justify-content: flex-start; text-align: left; padding-top: 0;
+    border-bottom: 1px solid var(--inv-line-2); padding-bottom: 10px; margin-bottom: 4px;
+  }
+  .inv-table--stack tbody td.inv-td--primary::before { display: none; }
+  .inv-table--stack tbody td.inv-table__sel {
+    width: auto; justify-content: flex-start; border-bottom: 0; padding: 0 0 8px;
+  }
+  .inv-table--stack tbody td.inv-table__sel::before { content: attr(data-label); }
+  .inv-table--stack tbody td.inv-table__acts,
+  .inv-table--stack thead th.inv-table__acts {
+    position: static; width: auto; padding-top: 11px; border-top: 1px solid var(--inv-line-2); background: transparent;
+  }
+  .inv-table--stack tbody td.inv-table__acts::before { content: attr(data-label); }
+  .inv-table--stack .inv-td--num, .inv-table--stack .inv-td--mid { text-align: right; }
+  .inv-table--stack .inv-barrow { min-width: 0; max-width: 60%; }
+  .inv-tablewrap { overflow-x: visible; }
+  /* A cell the card has no room for — a duplicate of something already shown. */
+  .inv-table--stack tbody td.inv-td--hide-stack { display: none; }
+}
+
+/* ── True media queries: the device, not the layout ──────────────────────── */
+
+/* Coarse pointers need a bigger target than a 32px icon button. */
+@media (pointer: coarse) {
+  .inv-ibtn { width: 38px; height: 38px; }
+  .inv-pages button { min-width: 38px; height: 38px; }
+  .inv-check input { width: 20px; height: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-page *, .inv-portal * {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+@media print {
+  .inv-hero__art, .inv-filters, .inv-pager, .inv-tablebar__end,
+  .inv-table__sel, .inv-table__acts, .ldrawer, .ldrawer__scrim { display: none !important; }
+  .inv-page { padding: 0; }
+  .inv-card, .inv-tile { box-shadow: none; break-inside: avoid; }
+  .inv-tablewrap { overflow: visible; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE WIZARD — every form in the module (Sep 29 2026, to the eleven mockups)
+
+   One shell: an icon header, a numbered step rail down the left, a form of
+   numbered sections in the middle, an optional preview panel on the right, and
+   a footer whose left slot holds Reset or a checkbox.
+
+   The rail is a JUMP LIST with scroll-spy, not a pager — the mockups show every
+   section stacked in one scroll while the rail marks where you are. Two of them
+   (Vendor, Budget) also drive the primary button through those sections, which
+   is the `nextFlow` prop, not a different layout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ivw {
+  width: 100%; max-width: min(1120px, calc(100vw - 40px));
+  background: #fff; border-radius: 18px; box-shadow: var(--inv-shadow-3);
+  display: flex; flex-direction: column;
+  max-height: min(92vh, 940px);
+  animation: inv-rise .18s cubic-bezier(.2, .9, .3, 1);
+  overflow: hidden;
+}
+.ivw--md { max-width: min(980px, calc(100vw - 40px)); }
+.ivw--sm { max-width: min(660px, calc(100vw - 40px)); }
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.ivw__head {
+  display: flex; align-items: flex-start; gap: 15px;
+  padding: 20px 24px; border-bottom: 1px solid var(--inv-line-2); flex: 0 0 auto;
+}
+.ivw__head h2 { margin: 0; font-size: 1.28rem; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; }
+.ivw__head p { margin: 5px 0 0; font-size: .875rem; color: var(--inv-muted); line-height: 1.5; }
+.ivw__headtext { flex: 1 1 auto; min-width: 0; }
+
+/* ── The three columns ───────────────────────────────────────────────────── */
+.ivw__body { display: flex; min-height: 0; flex: 1 1 auto; }
+
+.ivw__rail {
+  flex: 0 0 248px; padding: 18px 14px; border-right: 1px solid var(--inv-line-2);
+  overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+}
+.ivw__step {
+  position: relative; display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 12px; border-radius: 11px; border: 0; background: transparent;
+  font: inherit; text-align: left; cursor: pointer; width: 100%;
+  transition: background .15s;
+}
+.ivw__step:hover { background: #f7f8fc; }
+.ivw__step.is-on { background: var(--inv-soft); }
+.ivw__step__n {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .78rem; font-weight: 700; background: #eef1f6; color: var(--inv-muted);
+  transition: background .15s, color .15s;
+}
+.ivw__step.is-on .ivw__step__n { background: var(--inv-primary); color: #fff; }
+.ivw__step.is-done .ivw__step__n { background: #dcfce7; color: #15803d; }
+.ivw__step__t { min-width: 0; }
+.ivw__step__t b { display: block; font-size: .855rem; font-weight: 600; color: var(--inv-ink-2); line-height: 1.3; }
+.ivw__step.is-on .ivw__step__t b { color: var(--inv-primary); }
+.ivw__step__t span { display: block; font-size: .765rem; color: var(--inv-faint); margin-top: 2px; line-height: 1.35; }
+/* The thread running between the numbers. */
+.ivw__step + .ivw__step::before {
+  content: ''; position: absolute; left: 24.5px; top: -8px; height: 8px;
+  width: 1.5px; background: var(--inv-line);
+}
+/* What the rail says under the steps: an illustration and a line of advice. */
+.ivw__railfoot {
+  margin-top: auto; padding: 22px 8px 6px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.ivw__railfoot svg { width: 108px; height: auto; opacity: .95; }
+.ivw__railfoot p { margin: 0; font-size: .78rem; color: var(--inv-faint); line-height: 1.5; max-width: 22ch; }
+
+.ivw__main { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 22px 26px 26px; }
+
+.ivw__aside {
+  flex: 0 0 312px; min-width: 0; overflow-y: auto;
+  padding: 22px 22px 26px; border-left: 1px solid var(--inv-line-2); background: #fcfdff;
+  display: flex; flex-direction: column; gap: 14px;
+}
+/* A panel that is the SUBJECT of the form, not a preview of it, reads first.
+   Wider than a preview column: it carries a name and its status badge on one
+   line, which is what the preview columns never have to do. */
+.ivw__aside--left {
+  flex-basis: 372px; padding-inline: 18px;
+  border-left: 0; border-right: 1px solid var(--inv-line-2);
+}
+/* The name and its status badge stay on one line whatever the name is: the
+   badge is the point of the row, and a long item name pushing it onto its own
+   line is how this read as two unrelated things. */
+.ivw-subject { display: flex; gap: 11px; align-items: center; margin-bottom: 12px; min-width: 0; }
+.ivw-subject__t { min-width: 0; flex: 1 1 auto; }
+.ivw-subject__name { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; min-width: 0; }
+.ivw-subject__name strong { font-size: .92rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ivw-subject__name .inv-badge { flex: 0 0 auto; }
+.ivw-subject__sub { font-size: .78rem; color: var(--inv-muted); margin-top: 2px; }
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.ivw__foot {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 24px; border-top: 1px solid var(--inv-line-2); background: #fcfdff; flex: 0 0 auto;
+}
+.ivw__foot__end { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+
+/* ── A numbered section of the form ──────────────────────────────────────── */
+.ivw-sec + .ivw-sec { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--inv-line-2); }
+.ivw-sec__head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.ivw-sec__n {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--inv-soft); color: var(--inv-primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .85rem; font-weight: 800;
+}
+.ivw-sec__head h3 { margin: 0; font-size: 1.04rem; font-weight: 700; letter-spacing: -.01em; }
+.ivw-sec__head p { margin: 3px 0 0; font-size: .845rem; color: var(--inv-muted); }
+.ivw-sec__end { margin-left: auto; }
+
+/* ── Inputs with an affix ────────────────────────────────────────────────── */
+/* A field whose control carries an icon on the left, or a unit on the right. */
+.ivw-affix { position: relative; display: flex; align-items: center; }
+.ivw-affix__ico {
+  position: absolute; left: 13px; display: inline-flex; color: var(--inv-faint);
+  pointer-events: none; z-index: 1;
+}
+.ivw-affix--ico .inv-input,
+.ivw-affix--ico .inv-select,
+.ivw-affix--ico .inv-textarea { padding-left: 40px; }
+.ivw-affix__suf {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 42px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .82rem; font-weight: 600; color: var(--inv-muted);
+  border-left: 1px solid var(--inv-line); background: #f8fafc;
+  border-radius: 0 var(--inv-r-sm) var(--inv-r-sm) 0; pointer-events: none;
+}
+.ivw-affix--suf .inv-input { padding-right: 54px; }
+.ivw-affix--ico .inv-textarea { padding-top: 11px; }
+.ivw-affix__ico--top { top: 13px; align-items: flex-start; }
+
+/* An input with a button welded to its right (regenerate a code). */
+.ivw-withbtn { display: flex; gap: 8px; align-items: stretch; }
+.ivw-withbtn > :first-child { flex: 1 1 auto; min-width: 0; }
+.ivw-withbtn .inv-ibtn { width: 42px; height: 42px; border-radius: var(--inv-r-sm); }
+
+/* ── Quantity stepper ────────────────────────────────────────────────────── */
+.ivw-step-num {
+  display: flex; align-items: stretch; height: 42px;
+  border: 1px solid var(--inv-line); border-radius: var(--inv-r-sm); overflow: hidden; background: #fff;
+}
+.ivw-step-num input {
+  flex: 1 1 auto; min-width: 0; border: 0; text-align: center; font: inherit;
+  font-size: .95rem; font-weight: 700; color: var(--inv-ink); background: transparent;
+  -moz-appearance: textfield;
+}
+.ivw-step-num input::-webkit-outer-spin-button,
+.ivw-step-num input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ivw-step-num input:focus { outline: none; }
+.ivw-step-num button {
+  flex: 0 0 44px; border: 0; background: #f8fafc; color: var(--inv-ink-2);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.ivw-step-num button:hover:not(:disabled) { background: var(--inv-soft); color: var(--inv-primary); }
+.ivw-step-num button:disabled { opacity: .4; cursor: not-allowed; }
+.ivw-step-num button:first-child { border-right: 1px solid var(--inv-line); }
+.ivw-step-num button:last-child { border-left: 1px solid var(--inv-line); background: var(--inv-soft); color: var(--inv-primary); }
+
+/* A read-only figure that sits where an input would. */
+.ivw-readout {
+  display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 13px;
+  border: 1px solid var(--inv-line); border-radius: var(--inv-r-sm);
+  background: #f8fafc; font-size: .95rem; font-weight: 700; color: var(--inv-ink);
+}
+.ivw-readout small { font-size: .78rem; font-weight: 500; color: var(--inv-muted); }
+
+/* A strip of read-only facts under a control (available / reorder / unit). */
+.ivw-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  border: 1px solid var(--inv-line); border-radius: var(--inv-r-sm); overflow: hidden; background: #f8fafc;
+}
+.ivw-strip > div { padding: 10px 14px; min-width: 0; }
+.ivw-strip > div + div { border-left: 1px solid var(--inv-line); }
+.ivw-strip dt { font-size: .755rem; color: var(--inv-muted); margin-bottom: 3px; }
+.ivw-strip dd { margin: 0; font-size: .875rem; font-weight: 700; color: var(--inv-ink); }
+
+/* ── Tile picker: a row of icon tiles, one chosen ────────────────────────── */
+.ivw-tiles { display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); gap: 10px; }
+.ivw-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  padding: 13px 8px; border: 1.5px solid var(--inv-line); border-radius: 12px;
+  background: #fff; cursor: pointer; font: inherit; min-width: 0;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.ivw-tile:hover { border-color: #c7d2fe; background: #fbfcff; }
+.ivw-tile.is-on {
+  border-color: var(--inv-primary); background: var(--inv-soft);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, .1);
+}
+.ivw-tile span { font-size: .8rem; font-weight: 600; color: var(--inv-ink-2); text-align: center; overflow-wrap: anywhere; }
+.ivw-tile.is-on span { color: var(--inv-primary); }
+
+/* ── Colour swatches ─────────────────────────────────────────────────────── */
+.ivw-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.ivw-swatch {
+  width: 28px; height: 28px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .08) inset;
+}
+.ivw-swatch.is-on { box-shadow: 0 0 0 2px #fff inset, 0 0 0 2px currentColor; }
+
+/* ── Preview / summary panel ─────────────────────────────────────────────── */
+.ivw-card { border: 1px solid var(--inv-line); border-radius: 14px; background: #fff; overflow: hidden; }
+.ivw-card__head {
+  display: flex; align-items: center; gap: 10px; padding: 13px 15px;
+  border-bottom: 1px solid var(--inv-line-2);
+}
+.ivw-card__head h4 { margin: 0; font-size: .92rem; font-weight: 700; }
+.ivw-card__head .inv-btn { margin-left: auto; }
+.ivw-card__body { padding: 15px; }
+.ivw-card__hero { display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; padding-bottom: 4px; }
+.ivw-card__hero h5 { margin: 0; font-size: .98rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.ivw-card__hero p { margin: 0; font-size: .8rem; color: var(--inv-muted); }
+.ivw-card__chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.ivw-card__img {
+  width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden;
+  background: #f1f5f9; display: flex; align-items: center; justify-content: center;
+}
+.ivw-card__img img { width: 100%; height: 100%; object-fit: contain; }
+
+/* The label / value rows inside a preview card. */
+.ivw-rows { display: grid; gap: 0; }
+.ivw-rows > div {
+  display: flex; align-items: baseline; gap: 12px; padding: 9px 0; min-width: 0;
+  font-size: .83rem;
+}
+.ivw-rows > div + div { border-top: 1px solid var(--inv-line-2); }
+.ivw-rows dt { color: var(--inv-muted); flex: 0 0 auto; }
+.ivw-rows dd { margin: 0 0 0 auto; text-align: right; font-weight: 600; color: var(--inv-ink); min-width: 0; overflow-wrap: anywhere; }
+/* The icon-led variant the vendor and warehouse previews use. */
+.ivw-lines { display: grid; gap: 10px; }
+.ivw-lines > div { display: flex; align-items: flex-start; gap: 9px; font-size: .83rem; color: var(--inv-ink-2); min-width: 0; }
+.ivw-lines svg { color: var(--inv-faint); flex: 0 0 auto; margin-top: 2px; }
+
+/* A highlighted figure inside the summary (the adjustment preview). */
+.ivw-hl {
+  display: flex; align-items: center; gap: 10px; padding: 11px 13px;
+  border-radius: 10px; background: var(--inv-soft); color: var(--inv-primary);
+  font-weight: 700; font-size: .95rem;
+}
+.ivw-hl--amber { background: #fef3c7; color: #b45309; }
+.ivw-hl--green { background: #dcfce7; color: #15803d; }
+
+/* ── Line-item table inside a form ───────────────────────────────────────── */
+/*
+   Nine columns of inputs do not shrink gracefully: squeezed, a Qty box shows
+   one digit and a Unit select shows its chevron. The table keeps its columns
+   and the wrapper scrolls instead — `width: max-content` with `min-width: 100%`
+   so it still fills the form when there IS room.
+*/
+.ivw-items { border: 1px solid var(--inv-line); border-radius: 12px; overflow-x: auto; }
+.ivw-items table {
+  width: max-content; min-width: 100%;
+  border-collapse: separate; border-spacing: 0; font-size: .83rem;
+}
+.ivw-items th {
+  text-align: left; padding: 10px 12px; background: var(--inv-head);
+  font-size: .745rem; font-weight: 700; color: var(--inv-muted); white-space: nowrap;
+  border-bottom: 1px solid var(--inv-line);
+}
+.ivw-items td { padding: 10px 12px; border-bottom: 1px solid var(--inv-line-2); vertical-align: middle; }
+.ivw-items tr:last-child td { border-bottom: 0; }
+.ivw-items .inv-input, .ivw-items .inv-select { height: 38px; font-size: .84rem; }
+.ivw-items__num { width: 34px; color: var(--inv-faint); font-variant-numeric: tabular-nums; }
+/* The item column takes whatever the fixed ones leave, and never less than a
+   usable picker — a <select> with no room shrinks to its chevron. */
+.ivw-items__item { min-width: 168px; }
+.ivw-items__item .inv-select { min-width: 152px; }
+.ivw-items__act {
+  width: 54px; text-align: right;
+  /* Pinned, like the Actions column on the screens' tables: a row of inputs
+     can always be wider than the form, and the one control you always need is
+     the one that was scrolling out of reach. */
+  position: sticky; right: 0; background: #fff;
+}
+.ivw-items th.ivw-items__act { background: var(--inv-head); z-index: 2; }
+.ivw-additem {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-top: 12px; padding: 11px; border-radius: 11px;
+  border: 1.5px dashed var(--inv-line); background: #fbfcff; color: var(--inv-primary);
+  font: inherit; font-size: .865rem; font-weight: 600; cursor: pointer;
+}
+.ivw-additem:hover { border-color: var(--inv-primary); background: var(--inv-soft); }
+
+/* The totals block that sits beside the line items. */
+.ivw-totals {
+  margin-left: auto; min-width: 260px; border: 1px solid var(--inv-line);
+  border-radius: 11px; overflow: hidden; background: #fcfdff;
+}
+.ivw-totals > div { display: flex; align-items: baseline; gap: 12px; padding: 9px 14px; font-size: .855rem; }
+.ivw-totals > div + div { border-top: 1px solid var(--inv-line-2); }
+.ivw-totals b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ivw-totals__grand { background: var(--inv-soft); color: var(--inv-primary); font-weight: 700; }
+.ivw-totals__grand b { font-size: 1.02rem; }
+
+/* A single big figure chip, for "Total Estimated Amount". */
+.ivw-grand {
+  display: flex; align-items: center; gap: 14px; margin-top: 14px;
+  justify-content: flex-end; font-size: .9rem; font-weight: 600; color: var(--inv-ink-2);
+}
+.ivw-grand b {
+  padding: 9px 16px; border-radius: 10px; background: var(--inv-soft);
+  color: var(--inv-primary); font-size: 1.05rem; font-variant-numeric: tabular-nums;
+}
+
+/* ── Character counter under a textarea ──────────────────────────────────── */
+.ivw-count { display: block; text-align: right; font-size: .73rem; color: var(--inv-faint); margin-top: 4px; }
+
+/* ── A switch with its explanation, as a bordered row ────────────────────── */
+.ivw-switch {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+  border: 1px solid var(--inv-line); border-radius: 11px; background: #fcfdff;
+}
+.ivw-switch--plain { border: 0; background: transparent; padding: 0; }
+.ivw-switch__t b { display: block; font-size: .875rem; font-weight: 600; color: var(--inv-ink); }
+.ivw-switch__t span { display: block; font-size: .79rem; color: var(--inv-muted); margin-top: 2px; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .ivw__aside { flex-basis: 268px; }
+}
+@media (max-width: 1040px) {
+  /* The preview drops under the form before the rail does: it is a summary of
+     what you are typing, and the steps are how you move. */
+  .ivw__body { flex-wrap: wrap; }
+  .ivw__main { flex: 1 1 340px; }
+  .ivw__aside {
+    flex: 1 1 100%; border-left: 0; border-top: 1px solid var(--inv-line-2);
+    flex-direction: row; flex-wrap: wrap; align-items: flex-start;
+  }
+  /* Stacked, the subject panel goes back above the form it describes. */
+  .ivw__aside--left { order: -1; border-right: 0; border-top: 0; border-bottom: 1px solid var(--inv-line-2); }
+  .ivw__aside > * { flex: 1 1 260px; }
+}
+@media (max-width: 860px) {
+  .ivw { max-width: calc(100vw - 24px); max-height: 94vh; }
+  /* The rail becomes a strip across the top: a 236px column beside a form is
+     most of a 780px dialog. */
+  .ivw__body { display: block; overflow-y: auto; }
+  .ivw__rail {
+    flex: none; width: auto; flex-direction: row; gap: 8px; overflow-x: auto;
+    border-right: 0; border-bottom: 1px solid var(--inv-line-2); padding: 12px 14px;
+    scrollbar-width: none;
+    /* The BODY is the scroller at this width, so the strip would scroll away
+       with the form — and a step indicator you cannot see indicates nothing. */
+    position: sticky; top: 0; z-index: 3; background: #fff;
+  }
+  .ivw__rail::-webkit-scrollbar { display: none; }
+  /* The base rule makes a step fill the rail; across a strip it must not. */
+  .ivw__step { flex: 0 0 auto; width: auto; padding: 8px 12px; }
+  .ivw__step__t span, .ivw__railfoot { display: none; }
+  .ivw__step + .ivw__step::before { display: none; }
+  .ivw__main { overflow: visible; padding: 18px; }
+  .ivw__aside { overflow: visible; padding: 18px; }
+  .ivw-totals { min-width: 0; width: 100%; }
+}
+@media (max-width: 620px) {
+  .ivw { max-width: 100vw; max-height: 96vh; border-radius: 16px 16px 0 0; }
+  .ivw__head { padding: 16px; gap: 12px; }
+  .ivw__head h2 { font-size: 1.1rem; }
+  .ivw__foot { padding: 12px 16px; }
+  .ivw__foot > *, .ivw__foot__end { width: 100%; }
+  .ivw__foot__end { margin-left: 0; }
+  .ivw__foot__end > * { flex: 1 1 auto; }
+  .ivw-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* A line-item table on a phone becomes a stack of cards. */
+  .ivw-items { overflow-x: visible; }
+  .ivw-items table, .ivw-items thead, .ivw-items tbody, .ivw-items tr, .ivw-items td { display: block; width: 100%; min-width: 0; }
+  .ivw-items thead { display: none; }
+  .ivw-items tr { border-bottom: 1px solid var(--inv-line); padding: 12px; }
+  .ivw-items tr:last-child { border-bottom: 0; }
+  .ivw-items td { border: 0; padding: 6px 0; display: flex; align-items: center; gap: 12px; }
+  .ivw-items td::before {
+    content: attr(data-label); flex: 0 0 34%;
+    font-size: .755rem; font-weight: 700; color: var(--inv-muted);
+  }
+  .ivw-items td:first-child, .ivw-items .ivw-items__num { display: none; }
+  .ivw-items__act { text-align: left; position: static; }
+}
+
+/* ── Items → Import ───────────────────────────────────────────────────────── */
+/* The drop zone, and the row-by-row report of what the file will do. */
+.inv-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; text-align: center; padding: 38px 22px; cursor: pointer;
+  border: 2px dashed var(--inv-line); border-radius: 14px; background: var(--inv-soft);
+  transition: border-color .15s, background .15s;
+}
+.inv-drop:hover, .inv-drop:focus-visible, .inv-drop.is-over {
+  border-color: var(--inv-primary); background: var(--inv-soft); outline: none;
+}
+.inv-drop strong { font-size: .95rem; }
+.inv-drop span { font-size: .82rem; color: var(--inv-muted); max-width: 46ch; }
+.inv-drop__aside {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px;
+  font-size: .8rem;
+}
+.inv-imp__file { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.inv-imp__sum { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.inv-imp__stat {
+  flex: 1 1 130px; padding: 12px 14px; border: 1px solid var(--inv-line);
+  border-radius: 11px; background: #fff;
+}
+.inv-imp__stat b { display: block; font-size: 1.28rem; line-height: 1.15; }
+.inv-imp__stat span { font-size: .76rem; color: var(--inv-muted); }
+.inv-imp__stat.is-ok b { color: #16a34a; }
+.inv-imp__stat.is-bad b { color: #dc2626; }
+.inv-imp__list { margin-top: 16px; }
+.inv-imp__list h4 {
+  margin: 0 0 8px; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--inv-muted);
+}
+.inv-imp__row {
+  display: grid; grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 8px; font-size: .82rem;
+}
+.inv-imp__row:nth-child(odd) { background: var(--inv-line-2); }
+.inv-imp__ln { font-variant-numeric: tabular-nums; color: var(--inv-muted); font-size: .76rem; }
+.inv-imp__nm { font-weight: 600; overflow-wrap: anywhere; }
+.inv-imp__why { color: var(--inv-muted); overflow-wrap: anywhere; }
+.inv-imp__row.is-bad .inv-imp__why { color: #b91c1c; }
+
+@container (max-width: 560px) {
+  .inv-imp__row { grid-template-columns: 1fr; gap: 2px; }
+  .inv-imp__sum .inv-imp__stat { flex-basis: 100%; }
+}
+
+/* ── Reports → the report picker ──────────────────────────────────────────── */
+/* Six named things a person chooses between, visible at once rather than
+   hidden behind a dropdown. */
+.inv-reports__pick {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px; margin-bottom: var(--inv-gap);
+}
+.inv-reports__card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  padding: 14px; border: 1px solid var(--inv-line); border-radius: var(--inv-r);
+  background: #fff; box-shadow: var(--inv-shadow); cursor: pointer; text-align: left;
+  font: inherit; color: inherit; transition: border-color .15s, box-shadow .15s, transform .12s;
+}
+.inv-reports__card:hover { border-color: #c7cdd9; box-shadow: var(--inv-shadow-2); transform: translateY(-1px); }
+.inv-reports__card.is-on {
+  border-color: var(--inv-primary); box-shadow: 0 0 0 1px var(--inv-primary), var(--inv-shadow-2);
+}
+.inv-reports__label { font-weight: 650; font-size: .86rem; line-height: 1.25; }
+
+@container inv (max-width: 1100px) { .inv-reports__pick { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container inv (max-width: 640px)  { .inv-reports__pick { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Printing a report should give the table, not the chrome around it. */
+@media print {
+  .inv-reports__pick, .inv-filters, .inv-hero__art, .inv-card__right,
+  .inv-pager, .sidebar, .topbar, .crumbs, .modnav { display: none !important; }
+  .inv-page { padding: 0; }
+  .inv-card { border: none; box-shadow: none; }
+  .inv-table th { background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-table tr { page-break-inside: avoid; }
+}
+
+/* ── A page that leads with its title, not an icon ────────────────────────── */
+.inv-head--plain .inv-head__text { gap: 0; }
+.inv-head--plain h1 { font-size: 1.72rem; letter-spacing: -.02em; }
+
+/* ── Tinted tiles ─────────────────────────────────────────────────────────── */
+/* Four counts of the same thing in four conditions. The colour is the reading. */
+.inv-tile--soft { box-shadow: none; }
+.inv-tile--soft-indigo  { background: #f5f5ff; border-color: #e4e4fb; }
+.inv-tile--soft-violet  { background: #f8f5ff; border-color: #ebe3fd; }
+.inv-tile--soft-blue    { background: #f3f8ff; border-color: #dceafe; }
+.inv-tile--soft-amber   { background: #fffbf0; border-color: #fdedc8; }
+.inv-tile--soft-orange  { background: #fff8f2; border-color: #ffe4cc; }
+.inv-tile--soft-green   { background: #f3fdf6; border-color: #cdf1da; }
+.inv-tile--soft-emerald { background: #f0fdf7; border-color: #c6f0dd; }
+.inv-tile--soft-red     { background: #fff5f5; border-color: #fcdcdc; }
+.inv-tile--soft-rose    { background: #fff5f7; border-color: #fddbe1; }
+.inv-tile--soft .inv-tile__label { color: var(--inv-ink-2); }
+
+/* ── Teacher → New Purchase Request ───────────────────────────────────────── */
+/* The form on the left, what it adds up to on the right. */
+.itr { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 22px; align-items: start; }
+.itr__main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.itr__aside { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; }
+.itr__mark {
+  display: grid; place-items: center; width: 58px; height: 58px; margin-bottom: 12px;
+  border-radius: 14px; background: #ede9fe; color: #7c3aed;
+}
+.itr__reason { position: relative; }
+/* Inside the textarea's own box, clear of the resize grip. */
+.itr__reason .inv-textarea { padding-bottom: 24px; }
+.itr__count {
+  position: absolute; right: 12px; bottom: 9px;
+  font-size: .72rem; color: var(--inv-faint); font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.itr__rules { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 6px; }
+.itr__rules li { font-size: .79rem; line-height: 1.45; }
+.itr__rules li::marker { color: currentColor; }
+
+/* The modal's own body already scrolls; the aside rides along inside it. */
+.inv-modal--xl .inv-modal__body { padding: 20px 22px 26px; }
+
+@container inv (max-width: 900px) {
+  .itr { grid-template-columns: minmax(0, 1fr); }
+  .itr__aside { position: static; }
+}
+@media (max-width: 900px) {
+  .itr { grid-template-columns: minmax(0, 1fr); }
+  .itr__aside { position: static; }
+}
+
+/* The request number doubles as the link into the drawer. */
+.itq__no {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  font-weight: 700; color: var(--inv-ink); letter-spacing: -.01em;
+}
+.itq__no:hover { color: var(--inv-primary); }
+
+/* ── Tabs as pills ────────────────────────────────────────────────────────── */
+/* A strip that lives inside a filter row, where an underline would draw a rule
+   across controls that are not tabs. */
+.inv-tabs--pill { border-bottom: 0; padding: 0; gap: 6px; }
+.inv-tabs--pill button {
+  padding: 8px 15px; border-radius: 999px; font-size: .845rem;
+  color: var(--inv-ink-2); background: transparent;
+}
+.inv-tabs--pill button::after { content: none; }
+.inv-tabs--pill button:hover { background: var(--inv-line-2); color: var(--inv-ink); }
+.inv-tabs--pill button.is-on { background: var(--inv-primary); color: #fff; }
+.inv-tabs--pill button.is-on:hover { background: var(--inv-primary-2); color: #fff; }
+
+/* A note that sits on the label rather than taking a line under the control. */
+.inv-field__info { display: inline-flex; margin-left: 5px; color: var(--inv-faint); cursor: help; vertical-align: -2px; }
+.inv-field__info:hover { color: var(--inv-primary); }
+
+/* What the item line resolved to, under the picker. */
+.itr__hit, .itr__new {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 6px; font-size: .74rem; line-height: 1.3;
+}
+.itr__hit { color: #16a34a; }
+.itr__new { color: var(--inv-muted); }

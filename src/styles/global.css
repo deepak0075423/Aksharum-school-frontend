@@ -1853,6 +1853,15 @@ select.form-control {
 
 /* ── pill: sections, filters, a status to narrow by ────────────────────────── */
 .uitabs--pill        { gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+/* A strip that must stay on one row scrolls instead of wrapping — which is
+   what useScrollActiveIntoView in Tabs.jsx was always there for. Opt-in, via
+   `wrap={false}`, so a module with twenty-five sections still wraps. */
+.uitabs--nowrap      { flex-wrap: nowrap; }
+/* Twelve sections on one row only fit if each is a little tighter than a
+   wrapping strip needs to be. Scoped to --nowrap, so nothing else changes. */
+.uitabs--nowrap       { gap: 5px; }
+.uitabs--nowrap .uitab { padding: 8px 8px; font-size: .8rem; gap: 5px; }
+.uitabs--nowrap .uitab > svg { width: 14px; height: 14px; }
 .uitabs--pill .uitab { border-color: var(--border); background: var(--bg-card); }
 .uitabs--pill .uitab:hover { border-color: var(--primary-light); color: var(--text); }
 .uitabs--pill .uitab.is-on {
