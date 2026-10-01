@@ -68,6 +68,9 @@ const MODULE_HEADERS = {
   // every one of them, not "Audit" over the Activity Log.
   'admin/inventory': 'Inventory',
   'teacher/inventory': 'Inventory',
+  // Hostel is twenty-five tabs of one module; its mockups read "Hostel" above
+  // every one — not "Structure" over Buildings & Floors or "Audit" over the log.
+  'admin/hostel': 'Hostel',
 };
 
 /** The header title for a pathname. Falls back to the app name at the root. */

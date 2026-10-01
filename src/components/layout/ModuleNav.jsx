@@ -15,8 +15,9 @@ import Tabs from '../ui/Tabs';
  * leaves the page beneath it free to start with its own heading.
  *
  * tabs: [{ to: '/admin/fees/dashboard', label: 'Dashboard', end?: true }]
+ * size: 'compact' for the tighter 33px pills a module's mockups draw (Hostel).
  */
-export default function ModuleNav({ tabs, nowrap = false }) {
+export default function ModuleNav({ tabs, nowrap = false, size }) {
   // A rail with one pill in it is not navigation — there is nowhere else to
   // go. The module with a single section (the teacher's Inventory) gets its
   // page's own heading straight under the breadcrumb instead.
@@ -28,7 +29,7 @@ export default function ModuleNav({ tabs, nowrap = false }) {
             strip is icon-and-label everywhere else, so it is dropped here.
             `nowrap` keeps a module's sections on one scrolling row, which is
             how the Inventory redesign's mockups draw them. */}
-        <Tabs variant="pill" label="Module sections" wrap={!nowrap}
+        <Tabs variant="pill" label="Module sections" wrap={!nowrap} size={size}
           items={tabs.map(t => ({ ...t, label: t.label.replace(/^[^A-Za-z]+/, '') }))} />
       </div>
       <Outlet />

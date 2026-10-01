@@ -2,26 +2,67 @@ import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import * as hostelApi from '../../api/hostel.api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
+import { Spinner } from '../../components/ui/index';
+import { Drawer, DrawerHead, DrawerBody, DrawerSection, DrawerFields, DrawerFoot } from '../../components/ui/Drawer';
+import { PassQr, Attachments, dt, today, openHostelFile } from './shared';
+import { PageHead, Mark } from './admin/hsUI';
+import { Btn, LineTabs, fmtDate, fmtTime } from './admin/hsList';
 import {
-  PageHeader, Card, Button, Modal, Badge, Spinner, Empty, Alert, StatCard, Table,
-} from '../../components/ui/index';
-import { StatusBadge, Field, FieldGrid, PassQr, Attachments, label, dd, dt, money, today } from './shared';
-import Tabs from '../../components/ui/Tabs';
+  Status, ChildSwitch, ResidentHero, HeadlineKpis, OverviewTab, AttendanceTab, LeaveTab, OutpassTab, VisitorsTab, MessTab,
+  ComplaintsTab, RecordTab, ApplicationCard, NotResident, HistoryCard, awaitingParent,
+} from './residentParts';
+import { FormModal, FormSection, Grid, Fld, RadioCards, FileDrop, PersonCard, SummaryCard, InfoNote, ReviewList, ConfirmDialog, dmy, ampm } from './admin/hsForm';
+import { words } from './admin/hsUI';
+import MyHostelFees from './MyHostelFees';
 
 const LEAVE_TYPES = ['home', 'weekend', 'short', 'medical', 'emergency', 'holiday', 'other'];
-const OUTPASS_TYPES = ['day', 'night', 'medical', 'emergency', 'academic', 'market', 'other'];
+/** The outpass form's four cards; "Other" opens the rest of the types. */
+const KINDS = [['day', 'Day Out'], ['night', 'Overnight'], ['weekend', 'Weekend'], ['other', 'Other']];
+const KIND_LABEL = { day: 'Day Out', night: 'Overnight', weekend: 'Weekend' };
+const OTHER_TYPES = ['medical', 'emergency', 'academic', 'market', 'other'];
+const ROOM_TYPES = ['single', 'double', 'triple', 'four_bed', 'dormitory'];
+const ID_TYPES = ['aadhaar', 'pan', 'driving_license', 'voter_id', 'passport', 'other'];
+const VISITOR_TYPES = ['Parent', 'Guardian', 'Relative', 'Friend', 'Other'];
+
+const TABS = [
+  { key: 'overview', label: 'Overview' }, { key: 'attendance', label: 'Attendance' }, { key: 'leave', label: 'Leave' },
+  { key: 'outpass', label: 'Outpass' }, { key: 'visitors', label: 'Visitors' }, { key: 'mess', label: 'Mess' },
+  { key: 'fees', label: 'Fees' }, { key: 'complaints', label: 'Complaints' }, { key: 'record', label: 'Record' },
+];
+
+const blankLeave = { leaveType: 'home', span: 'multiple', fromDate: '', toDate: '', reason: '', destination: '', guardianName: '', guardianPhone: '', guardianRelation: '', attachments: [] };
+const blankOutpass = () => ({ kind: 'day', outpassType: 'day', purpose: '', destination: '', departureDate: today(), expectedDepartureTime: '', expectedReturnDate: today(), expectedReturnTime: '', guardianName: '', guardianPhone: '', guardianRelation: '', attachments: [] });
+const blankVisitor = { visitorName: '', mobile: '', relationship: '', visitorCount: 1, purpose: '', scheduledAt: '', idProofType: '', idProofNumber: '' };
+const blankComplaint = { category: 'room', priority: 'medium', subject: '', description: '', attachments: [] };
+const blankApply = { hostel: '', academicYear: '', preferredRoomType: '', joiningDate: '', expectedLeavingDate: '', reason: '', medicalInfo: '', specialRequirements: '',
+  guardianName: '', guardianPhone: '', guardianRelation: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '' };
+const joinWho = (name, relation, phone) => [name, relation && `(${relation})`, phone].filter(Boolean).join(' ');
+const when = (d, t) => [dmy(d), ampm(t)].filter(Boolean).join(', ');
+/** "Room 101", whether the school stored "101" or "Room 101". */
+const roomNo = (n) => (n ? (/^room\b/i.test(String(n)) ? String(n) : `Room ${n}`) : '');
 const COMPLAINT_CATS = ['room', 'mess', 'cleaning', 'security', 'maintenance', 'food', 'facilities', 'internet', 'other'];
 
 /**
- * The resident's own hostel screen, shared by the student and parent portals.
+ * The resident's own hostel screen, shared by the student and parent portals —
+ * and by a teacher who lives in the hostel, who is a resident like any other.
  * `role` decides which API surface is used; everything a parent sees is scoped
  * server-side to the children on their profile.
  */
 export default function MyHostel({ role = 'student' }) {
-  const api = role === 'parent' ? hostelApi.parent : hostelApi.student;
+  const api = role === 'parent' ? hostelApi.parent : role === 'teacher' ? hostelApi.teacher : hostelApi.student;
+  const staff = role === 'teacher';
   const { user } = useAuth();
 
-  const [tab, setTab] = useState('overview');
+  // The open tab lives in the address (?tab=fees), so a notification or the
+  // dashboard can link straight to it and Back returns to the previous one.
+  const [sp, setSp] = useSearchParams();
+  const tab = TABS.some((t) => t.key === sp.get('tab')) ? sp.get('tab') : 'overview';
+  const setTab = (t) => setSp((prev) => { const n = new URLSearchParams(prev); if (t === 'overview') n.delete('tab'); else n.set('tab', t); return n; });
+  const [ask, setAsk] = useState(null);             // { kind: 'leave' | 'outpass' | 'reopen', row } — waiting on a yes
+  const [detail, setDetail] = useState(null);       // { kind: 'leave' | 'outpass' | 'complaint', row }
+  const [busy, setBusy] = useState(false);
+  const [reply, setReply] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoad] = useState(true);
   const [children, setChildren] = useState([]);
@@ -33,11 +74,18 @@ export default function MyHostel({ role = 'student' }) {
   const [years, setYears] = useState([]);
   const [pass, setPass] = useState(null);
 
-  const [leaveForm, setLeaveForm] = useState({ leaveType: 'home', fromDate: '', toDate: '', reason: '', destination: '', guardianName: '', guardianPhone: '' });
-  const [outForm, setOutForm] = useState({ outpassType: 'day', purpose: '', destination: '', departureDate: today(), expectedDepartureTime: '', expectedReturnTime: '', guardianName: '', guardianPhone: '' });
-  const [visitorForm, setVisitorForm] = useState({ visitorName: '', mobile: '', relationship: '', purpose: '', scheduledAt: '' });
-  const [complaintForm, setComplaintForm] = useState({ category: 'room', priority: 'medium', subject: '', description: '', attachments: [] });
-  const [applyForm, setApplyForm] = useState({ hostel: '', academicYear: '', preferredRoomType: '', reason: '', medicalInfo: '' });
+  const [leaveForm, setLeaveForm] = useState(blankLeave);
+  const [outForm, setOutForm] = useState(blankOutpass);
+  const [visitorForm, setVisitorForm] = useState(blankVisitor);
+  const [complaintForm, setComplaintForm] = useState(blankComplaint);
+  const [applyForm, setApplyForm] = useState(blankApply);
+  const [roomForm, setRoomForm] = useState({ reason: '', preference: '' });
+  const [skipping, setSkipping] = useState('');     // "2026-10-03:lunch" while that cell is saving
+  const setL = (k, v) => setLeaveForm((f) => ({ ...f, [k]: v }));
+  const setO = (k, v) => setOutForm((f) => ({ ...f, [k]: v }));
+  const setV = (k, v) => setVisitorForm((f) => ({ ...f, [k]: v }));
+  const setC = (k, v) => setComplaintForm((f) => ({ ...f, [k]: v }));
+  const setA = (k, v) => setApplyForm((f) => ({ ...f, [k]: v }));
 
   // Parents pick which child they are looking at.
   useEffect(() => {
@@ -73,7 +121,6 @@ export default function MyHostel({ role = 'student' }) {
       leave: () => api.leaves(q),
       outpass: () => api.outpasses(q),
       visitors: () => api.visitors(q),
-      fees: () => api.fees(q),
       complaints: () => api.complaints(q),
       mess: () => api.mess(q),
       record: () => api.record(q),
@@ -86,7 +133,20 @@ export default function MyHostel({ role = 'student' }) {
   }, [api, child]); // eslint-disable-line
   useEffect(() => { loadTab(tab); }, [tab, loadTab]);
 
+  // Each form opens blank, with the guardian from the parent's profile filled in.
+  const withGuardian = (f) => ({ ...f, guardianName: data?.guardian?.name || '', guardianPhone: data?.guardian?.phone || '', guardianRelation: data?.guardian?.relation || '' });
+  const openForm = (kind) => {
+    if (kind === 'leave') setLeaveForm(withGuardian(blankLeave));
+    if (kind === 'outpass') setOutForm(withGuardian(blankOutpass()));
+    if (kind === 'visitor') setVisitorForm(blankVisitor);
+    if (kind === 'complaint') setComplaintForm(blankComplaint);
+    setModal(kind);
+  };
+  // A parent's upload is filed against the child they are looking at.
+  const upload = (fd) => { if (q?.student) fd.append('student', q.student); return api.uploadAttachment(fd); };
+
   const openApply = async () => {
+    setApplyForm(withGuardian(blankApply));
     setModal('apply');
     try {
       const r = await api.hostels(q);
@@ -104,12 +164,21 @@ export default function MyHostel({ role = 'student' }) {
   const submit = async (kind) => {
     setSaving(true);
     try {
-      if (kind === 'leave') { await api.applyLeave({ ...leaveForm, ...(q || {}) }); toast.success('Leave requested'); loadTab('leave'); }
-      if (kind === 'outpass') { await api.applyOutpass({ ...outForm, ...(q || {}) }); toast.success('Outpass requested'); loadTab('outpass'); }
+      if (kind === 'leave') {
+        const { span, ...body } = leaveForm;
+        await api.applyLeave({ ...body, toDate: span === 'single' ? body.fromDate : body.toDate, ...(q || {}) });
+        toast.success('Leave requested'); loadTab('leave');
+      }
+      if (kind === 'outpass') {
+        const { kind: k, ...body } = outForm;
+        await api.applyOutpass({ ...body, outpassType: k === 'other' ? body.outpassType : k, ...(q || {}) });
+        toast.success('Outpass requested'); loadTab('outpass');
+      }
       if (kind === 'visitor') { await api.requestVisitor({ ...visitorForm, ...(q || {}) }); toast.success('Visitor pre-registered'); loadTab('visitors'); }
       if (kind === 'complaint') { await api.raiseComplaint({ ...complaintForm, ...(q || {}) }); toast.success('Complaint raised'); loadTab('complaints'); }
       if (kind === 'apply') { await api.apply({ ...applyForm, ...(q || {}) }); toast.success('Application filed'); load(); }
       setModal(null);
+      if (kind !== 'apply') load();             // the headline figures move with every request
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
   };
 
@@ -124,565 +193,537 @@ export default function MyHostel({ role = 'student' }) {
       loadTab('leave');
     } catch (err) { toast.error(err.message); }
   };
+  /** A parent agrees to, or declines, a child's outpass (where the school asks for consent). */
+  const consentOutpass = async (id, approve) => {
+    try {
+      await hostelApi.parent.actOnOutpass(id, { action: approve ? 'parent_approve' : 'parent_reject', ...(q || {}) });
+      toast.success(approve ? 'Consent recorded — the warden can now approve it' : 'Outpass declined');
+      setDetail(null); loadTab('outpass'); load();
+    } catch (err) { toast.error(err.message); }
+  };
+  /** "I will not be at this meal", or taking that back. */
+  const skipMeal = async (date, meal, undo) => {
+    setSkipping(`${date}:${meal}`);
+    try {
+      await api.skipMeal({ date, meal, undo, ...(q || {}) });
+      toast.success(undo ? 'You are back on the list for that meal' : 'The mess has been told');
+      await loadTab('mess');
+    } catch (err) { toast.error(err.message); } finally { setSkipping(''); }
+  };
+  const requestRoomChange = async () => {
+    setSaving(true);
+    try {
+      await api.roomChange({ ...roomForm, ...(q || {}) });
+      toast.success('Room change requested — the hostel office will decide');
+      setModal(null); load();
+    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
+  };
   const cancelOutpass = async (id) => {
     try { await api.cancelOutpass(id); toast.success('Cancelled'); loadTab('outpass'); }
     catch (err) { toast.error(err.message); }
   };
+  /** The destructive ones wait for a yes (see the ConfirmDialog at the foot of the page). */
+  const doAsk = async () => {
+    const { kind, row } = ask;
+    setBusy(true);
+    try {
+      if (kind === 'leave') await cancelLeave(row._id);
+      if (kind === 'outpass') await cancelOutpass(row._id);
+      if (kind === 'reopen') {
+        await api.actOnComplaint(row._id, { action: 'reopen', comment: 'Reopened by resident' });
+        toast.success('Complaint reopened'); loadTab('complaints');
+      }
+      setAsk(null); setDetail(null); load();
+    } catch (err) { toast.error(err.message); } finally { setBusy(false); }
+  };
+  /** A reply or a rating on the resident's own complaint; the open panel shows the result. */
+  const complaintAct = async (row, body, done) => {
+    setBusy(true);
+    try {
+      const r = await api.actOnComplaint(row._id, body);
+      setDetail({ kind: 'complaint', row: { ...row, ...(r.data ?? r), assignedTo: row.assignedTo } });
+      setReply(''); toast.success(done); loadTab('complaints');
+    } catch (err) { toast.error(err.message); } finally { setBusy(false); }
+  };
   const showPass = async (id) => {
-    try { const r = await hostelApi.student.outpassPass(id); setPass(r.data ?? r); }
+    try { const r = await api.outpassPass(id); setPass(r.data ?? r); }
     catch (err) { toast.error(err.message); }
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div>;
+  if (loading && !data) return <div className="hs-page hsr"><div className="hsr-loading"><Spinner /></div></div>;
 
   const who = role === 'parent' ? (children.find((c) => c._id === child)?.name || 'your child') : 'you';
+  const st = data?.student;
+  const stClass = [st?.profile?.currentClass?.className, st?.profile?.currentSection?.sectionName].filter(Boolean).join(' - ');
+  const person = (badge, extra) => (st ? (
+    <PersonCard name={st.name} photo={st.profileImage} badge={badge}
+      meta={staff ? [st.staff?.employeeId, st.staff?.designation || 'Teacher', extra]
+        : [st.profile?.admissionNumber && `Adm. No. ${st.profile.admissionNumber}`, stClass, extra]} />
+  ) : null);
 
   // ── Not a resident ─────────────────────────────────────────────────────────
   if (!data?.resident) {
     const pending = (data?.admissions || []).find((a) => ['applied', 'pending_approval', 'waitlisted'].includes(a.status));
     return (
-      <div className="page">
-        <PageHeader title="Hostel" subtitle={role === 'parent' ? `Hostel accommodation for ${who}` : 'Your hostel accommodation'} />
-        {role === 'parent' && children.length > 1 && (
-          <select className="form-control" style={{ maxWidth: 260, marginBottom: 16 }} value={child} onChange={(e) => setChild(e.target.value)}>
-            {children.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-          </select>
-        )}
-        {pending ? (
-          <Card title="Application in progress">
-            <FieldGrid>
-              <Field label="Application">{pending.applicationNumber}</Field>
-              <Field label="Hostel">{pending.hostel?.name}</Field>
-              <Field label="Status"><StatusBadge value={pending.status} /></Field>
-              <Field label="Applied">{dd(pending.appliedAt)}</Field>
-              {pending.status === 'waitlisted' && <Field label="Waitlist position">{pending.waitlistPosition}</Field>}
-            </FieldGrid>
-          </Card>
-        ) : (
-          <Empty icon="🏨" title="Not a hostel resident"
-            message={data?.canApply ? 'Apply for hostel accommodation below.' : 'Contact the hostel office to apply for accommodation.'}
-            action={data?.canApply ? <Button onClick={openApply}>Apply for hostel</Button> : null} />
-        )}
-        {!!data?.admissions?.length && (
-          <Card title="Application history">
-            {data.admissions.map((a) => (
-              <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: '.85rem' }}>
-                <span>{a.applicationNumber} · {a.hostel?.name} · {a.academicYear?.yearName}</span>
-                <StatusBadge value={a.status} />
-              </div>
-            ))}
-          </Card>
-        )}
+      <div className="hs-page hsr">
+        <PageHead title="Hostel" subtitle={role === 'parent' ? `Hostel accommodation for ${who}.` : staff ? 'Staff accommodation in the school hostel.' : 'Your hostel accommodation.'}>
+          {role === 'parent' && children.length > 1 ? <ChildSwitch kids={children} value={child} onChange={setChild} /> : null}
+        </PageHead>
+        <div className="hsr-body">
+          {pending ? <ApplicationCard application={pending} /> : <NotResident staff={staff} canApply={!!data?.canApply} onApply={openApply} />}
+          {data?.admissions?.length ? <HistoryCard rows={data.admissions} /> : null}
+          {/* Someone who has moved out may still owe, or want a receipt. */}
+          <MyHostelFees student={q?.student} payerName={user?.name} who={who} hideWhenEmpty />
+        </div>
 
-        <Modal open={modal === 'apply'} onClose={() => setModal(null)} maxWidth={600} title="Apply for Hostel"
-          footer={<><Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-            <Button loading={saving} onClick={() => submit('apply')}>Apply</Button></>}>
-          <div className="form-group">
-            <label className="form-label required">Hostel</label>
-            <select className="form-control" value={applyForm.hostel} onChange={(e) => setApplyForm((f) => ({ ...f, hostel: e.target.value }))}>
-              <option value="">— select —</option>
-              {available.map((h) => (
-                <option key={h._id} value={h._id}>{h.name} — {h.availableBeds} bed(s) free</option>
-              ))}
-            </select>
-            <div className="form-hint">Only hostels you are eligible for are listed.</div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Academic Year</label>
-              <select className="form-control" value={applyForm.academicYear} onChange={(e) => setApplyForm((f) => ({ ...f, academicYear: e.target.value }))}>
-                <option value="">— select —</option>
-                {years.map((y) => <option key={y._id} value={y._id}>{y.yearName}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Preferred Room Type</label>
-              <select className="form-control" value={applyForm.preferredRoomType} onChange={(e) => setApplyForm((f) => ({ ...f, preferredRoomType: e.target.value }))}>
-                <option value="">No preference</option>
-                {['single', 'double', 'triple', 'four_bed', 'dormitory'].map((t) => <option key={t} value={t}>{label(t)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Reason</label>
-            <textarea className="form-control" rows={2} value={applyForm.reason} onChange={(e) => setApplyForm((f) => ({ ...f, reason: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Medical information the warden should know</label>
-            <textarea className="form-control" rows={2} value={applyForm.medicalInfo} onChange={(e) => setApplyForm((f) => ({ ...f, medicalInfo: e.target.value }))} />
-          </div>
-        </Modal>
+        <FormModal open={modal === 'apply'} onClose={() => setModal(null)} busy={saving} onSubmit={() => submit('apply')}
+          icon="fileDoc" title="New Hostel Application"
+          subtitle={role === 'parent' ? `Apply for hostel accommodation for ${who}.` : 'Apply for hostel accommodation with all required details.'}
+          submitLabel="Submit Application" submitIcon="check"
+          steps={[
+            { key: 'stay', title: 'Hostel & Stay', sub: 'Hostel, year and dates', icon: 'oBuilding' },
+            { key: 'contacts', title: 'Contacts', sub: 'Guardian and emergency details', icon: 'phone' },
+            { key: 'health', title: 'Health & Requirements', sub: 'Medical info and special needs', icon: 'oHeart' },
+            { key: 'review', title: 'Review', sub: 'Verify and submit application', icon: 'oCheckRound' },
+          ]}>
+          <FormSection step="stay" icon="oBuilding" title="Hostel & Stay" sub="Choose the hostel and academic year, and when the stay begins.">
+            {person('Applicant', null)}
+            <Grid cols={2}>
+              <Fld label="Hostel" required icon="oBuilding" hintTone={available.length ? undefined : 'bad'}
+                hint={available.length ? 'Only hostels you are eligible for are listed' : 'No hostel is open to applications right now'}>
+                <select value={applyForm.hostel} onChange={(e) => setA('hostel', e.target.value)}>
+                  <option value="">Select hostel</option>
+                  {available.map((h) => <option key={h._id} value={h._id}>{h.name} — {h.availableBeds} bed{h.availableBeds === 1 ? '' : 's'} free</option>)}
+                </select>
+              </Fld>
+              <Fld label="Academic Year" required icon="calendar">
+                <select value={applyForm.academicYear} onChange={(e) => setA('academicYear', e.target.value)}>
+                  <option value="">Select year</option>
+                  {years.map((y) => <option key={y._id} value={y._id}>{y.yearName}</option>)}
+                </select>
+              </Fld>
+              <Fld label="Joining Date" optional icon="calendar"><input type="date" value={applyForm.joiningDate} onChange={(e) => setA('joiningDate', e.target.value)} /></Fld>
+              <Fld label="Expected Leaving Date" icon="calendar" hint="Leave blank if not known">
+                <input type="date" min={applyForm.joiningDate || undefined} value={applyForm.expectedLeavingDate} onChange={(e) => setA('expectedLeavingDate', e.target.value)} />
+              </Fld>
+              <Fld label="Preferred Room Type" icon="oBed">
+                <select value={applyForm.preferredRoomType} onChange={(e) => setA('preferredRoomType', e.target.value)}>
+                  <option value="">No preference</option>
+                  {ROOM_TYPES.map((t) => <option key={t} value={t}>{words(t)}</option>)}
+                </select>
+              </Fld>
+              <Fld label="Reason for Applying" optional icon="fileDoc">
+                <input value={applyForm.reason} maxLength={200} placeholder="e.g. Lives far from school" onChange={(e) => setA('reason', e.target.value)} />
+              </Fld>
+            </Grid>
+          </FormSection>
+          <FormSection step="contacts" icon="phone" title="Contacts" sub="The guardian is filled in from the parent's record; change it if needed.">
+            <Grid cols={3}>
+              <Fld label="Guardian Name" icon="user"><input value={applyForm.guardianName} maxLength={80} placeholder="Enter guardian name" onChange={(e) => setA('guardianName', e.target.value)} /></Fld>
+              <Fld label="Guardian Phone" icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={applyForm.guardianPhone} placeholder="Enter phone number" onChange={(e) => setA('guardianPhone', e.target.value)} /></Fld>
+              <Fld label="Relation" icon="users"><input value={applyForm.guardianRelation} maxLength={30} placeholder="e.g. Father, Mother" onChange={(e) => setA('guardianRelation', e.target.value)} /></Fld>
+              <Fld label="Emergency Contact" icon="user"><input value={applyForm.emergencyContactName} maxLength={80} placeholder="Enter name" onChange={(e) => setA('emergencyContactName', e.target.value)} /></Fld>
+              <Fld label="Emergency Phone" icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={applyForm.emergencyContactPhone} placeholder="Enter phone number" onChange={(e) => setA('emergencyContactPhone', e.target.value)} /></Fld>
+              <Fld label="Relation" icon="users"><input value={applyForm.emergencyContactRelation} maxLength={30} placeholder="e.g. Uncle, Aunt" onChange={(e) => setA('emergencyContactRelation', e.target.value)} /></Fld>
+            </Grid>
+            {!data?.guardian ? <InfoNote tone="amber">No parent is linked to this student yet, so there was nothing to fill in. Enter the guardian here.</InfoNote> : null}
+          </FormSection>
+          <FormSection step="health" icon="oHeart" title="Health & Special Requirements" sub="Anything the warden should know.">
+            <Grid cols={2}>
+              <Fld label="Medical Information" icon="oHeart" count={[applyForm.medicalInfo.length, 500]}>
+                <textarea rows={2} maxLength={500} value={applyForm.medicalInfo} placeholder="Any medical conditions, allergies or regular medication" onChange={(e) => setA('medicalInfo', e.target.value)} />
+              </Fld>
+              <Fld label="Special Requirements" optional icon="fileDoc" count={[applyForm.specialRequirements.length, 500]}>
+                <textarea rows={2} maxLength={500} value={applyForm.specialRequirements} placeholder="Dietary needs, accessibility, etc." onChange={(e) => setA('specialRequirements', e.target.value)} />
+              </Fld>
+            </Grid>
+          </FormSection>
+          <FormSection step="review" icon="oCheckRound" title="Review" sub="Verify the application before it is submitted.">
+            <ReviewList groups={[
+              { title: 'Hostel & stay', step: 0, rows: [['Student', st?.name], ['Hostel', available.find((h) => h._id === applyForm.hostel)?.name],
+                ['Academic year', years.find((y) => y._id === applyForm.academicYear)?.yearName], ['Joining', dmy(applyForm.joiningDate)], ['Leaving', dmy(applyForm.expectedLeavingDate)],
+                ['Room type', applyForm.preferredRoomType ? words(applyForm.preferredRoomType) : 'No preference'], ['Reason', applyForm.reason]] },
+              { title: 'Contacts', step: 1, rows: [['Guardian', joinWho(applyForm.guardianName, applyForm.guardianRelation, applyForm.guardianPhone)],
+                ['Emergency', joinWho(applyForm.emergencyContactName, applyForm.emergencyContactRelation, applyForm.emergencyContactPhone)]] },
+              { title: 'Health', step: 2, rows: [['Medical', applyForm.medicalInfo], ['Special requirements', applyForm.specialRequirements]] },
+            ]} />
+            <InfoNote>The hostel office reviews every application. You will be told when it is approved and a bed is allotted.</InfoNote>
+          </FormSection>
+        </FormModal>
       </div>
     );
   }
 
   // ── Resident ───────────────────────────────────────────────────────────────
   const c = data.current;
-  const TABS = ['overview', 'attendance', 'leave', 'outpass', 'visitors', 'mess', 'fees', 'complaints', 'record'];
+  const rules = data.rules || {};
+  const leaveDays = (() => {
+    const f = leaveForm.fromDate; const t = leaveForm.span === 'single' ? f : leaveForm.toDate;
+    const n = f && t ? Math.round((new Date(t) - new Date(f)) / 864e5) + 1 : 0;
+    return n > 0 ? n : 0;
+  })();
+  const outType = outForm.kind === 'other' ? words(outForm.outpassType) : KIND_LABEL[outForm.kind];
+  const roomLine = [c.hostel?.name, roomNo(c.room?.roomNumber)].filter(Boolean).join(' · ');
+  // A student names a guardian; a member of staff, someone to reach in an emergency.
+  const contact = staff ? 'Emergency Contact' : 'Guardian';
+  const stats = data.stats || {};
+  const tabItems = TABS.map((t) => ({
+    ...t,
+    count: { leave: stats.pendingLeaves, outpass: stats.openOutpasses, fees: stats.dueInvoices, complaints: stats.openComplaints }[t.key] || undefined,
+    tone: t.key === 'fees' && stats.overdueInvoices ? 'bad' : t.key === 'complaints' ? 'warn' : 'info',
+  }));
+  const openFile = (doc) => openHostelFile(doc.storedName);
 
   return (
-    <div className="page">
-      <PageHeader
-        title={role === 'parent' ? `${who} — Hostel` : 'My Hostel'}
-        subtitle={`${c.hostel?.name} · ${c.building?.name} · ${c.floor?.name} · Room ${c.room?.roomNumber} · Bed ${c.bed?.bedNumber}`}
-        action={role === 'parent' && children.length > 1 ? (
-          <select className="form-control" style={{ maxWidth: 220 }} value={child} onChange={(e) => setChild(e.target.value)}>
-            {children.map((x) => <option key={x._id} value={x._id}>{x.name}</option>)}
-          </select>
-        ) : null} />
+    <div className="hs-page hsr">
+      <PageHead title={role === 'parent' ? `${who}'s Hostel` : 'My Hostel'}
+        subtitle={role === 'parent' ? 'Room, attendance, leave, fees and everything else about your child\'s stay.' : 'Your room, attendance, leave, fees and everything else about your stay.'}>
+        {role === 'parent' && children.length > 1 ? <ChildSwitch kids={children} value={child} onChange={setChild} /> : null}
+        <Btn icon="umbrella" onClick={() => openForm('leave')}>Request Leave</Btn>
+        <Btn kind="primary" icon="logOut" onClick={() => openForm('outpass')}>Request Outpass</Btn>
+      </PageHead>
 
-      <Tabs items={TABS.map((t) => ({ key: t, label: label(t) }))} value={tab} onChange={setTab} />
+      <ResidentHero st={st} c={c} staff={staff} />
+      <HeadlineKpis stats={stats} onTab={setTab} />
+      <LineTabs items={tabItems} value={tab} onChange={setTab} rule label="Hostel sections" />
 
-      {tab === 'overview' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="stats-grid">
-            <StatCard icon="🏨" color="purple" label="Hostel" value={c.hostel?.name} />
-            <StatCard icon="🚪" color="blue"   label="Room"   value={c.room?.roomNumber} />
-            <StatCard icon="🛏"  color="teal"   label="Bed"    value={c.bed?.bedNumber} />
-            <StatCard icon="✅" color="green"  label="Present days" value={data.attendanceSummary?.present || 0} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-            <Card title="Your warden">
-              {data.warden ? (
-                <FieldGrid cols={2}>
-                  <Field label="Name">{data.warden.name}</Field>
-                  <Field label="Phone">{data.warden.phone}</Field>
-                  <Field label="Email">{data.warden.email}</Field>
-                  <Field label="Hostel contact">{c.hostel?.contactNumber}</Field>
-                </FieldGrid>
-              ) : <span className="text-muted" style={{ fontSize: '.85rem' }}>No warden assigned yet.</span>}
-            </Card>
-
-            <Card title="Timings">
-              <FieldGrid cols={2}>
-                <Field label="Entry">{data.rules?.entryTime}</Field>
-                <Field label="Exit">{data.rules?.exitTime}</Field>
-                <Field label="Curfew">{data.rules?.curfewTime}</Field>
-                <Field label="Visitors">{data.rules?.visitorFrom} – {data.rules?.visitorTo}</Field>
-                <Field label="Visiting days" wide>{(data.rules?.visitorDays || []).join(', ') || 'Any day'}</Field>
-              </FieldGrid>
-            </Card>
-
-            <Card title={`Roommates (${data.roommates?.length || 0})`}>
-              {data.roommates?.length ? data.roommates.map((r) => (
-                <div key={r._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '.85rem' }}>
-                  <span>{r.student?.name}</span>
-                  <span className="text-muted">Bed {r.bed?.bedNumber}</span>
-                </div>
-              )) : <span className="text-muted" style={{ fontSize: '.85rem' }}>You have the room to yourself.</span>}
-            </Card>
-
-            {!!data.assets?.length && (
-              <Card title="Items issued to you">
-                {data.assets.map((a) => (
-                  <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '.85rem' }}>
-                    <span>{a.name} × {a.quantity}</span>
-                    <span className="text-muted">{dd(a.issuedAt)}</span>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </div>
-
-          {!!data.rules?.hostelRules?.length && (
-            <Card title="Hostel rules">
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: '.86rem', lineHeight: 1.7 }}>
-                {data.rules.hostelRules.map((r, i) => <li key={i}>{r}</li>)}
-              </ul>
-            </Card>
-          )}
-          {!!data.rules?.facilities?.length && (
-            <Card title="Facilities">
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {data.rules.facilities.map((f) => <Badge key={f} variant="muted">{f}</Badge>)}
-              </div>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {tab === 'attendance' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="stats-grid">
-            <StatCard icon="✅" color="green"  label="Present" value={lists.attendance?.summary?.present || 0} />
-            <StatCard icon="❌" color="red"    label="Absent"  value={lists.attendance?.summary?.absent || 0} />
-            <StatCard icon="⏰" color="orange" label="Late"    value={lists.attendance?.summary?.late || 0} />
-            <StatCard icon="📊" color="blue"   label="Present %" value={`${lists.attendance?.summary?.presentPercent || 0}%`} />
-          </div>
-          <div className="card"><div className="card-body" style={{ padding: 0 }}>
-            <Table
-              columns={[
-                { key: 'date', label: 'Date', render: (r) => dd(r.date) },
-                { key: 'session', label: 'Session', render: (r) => label(r.session) },
-                { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-                { key: 'remarks', label: 'Remarks', render: (r) => r.remarks || '—' },
-              ]}
-              data={lists.attendance?.rows || []} emptyIcon="✅" emptyTitle="No attendance yet" />
-          </div></div>
-        </div>
-      )}
-
-      {tab === 'leave' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div><Button onClick={() => setModal('leave')}>+ Request leave</Button></div>
-          <div className="card"><div className="card-body" style={{ padding: 0 }}>
-            <Table
-              columns={[
-                { key: 'no', label: 'Leave', render: (r) => <div><strong>{r.leaveNumber}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label(r.leaveType)}</div></div> },
-                { key: 'dates', label: 'Dates', render: (r) => `${dd(r.fromDate)} – ${dd(r.toDate)}` },
-                { key: 'days', label: 'Days', render: (r) => r.totalDays },
-                { key: 'reason', label: 'Reason', render: (r) => r.reason },
-                { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-                { key: 'a', label: '', render: (r) => (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {role === 'parent' && r.status === 'pending' && <>
-                      <Button size="sm" onClick={() => consent(r._id, true)}>Consent</Button>
-                      <Button size="sm" variant="danger" onClick={() => consent(r._id, false)}>Decline</Button>
-                    </>}
-                    {['pending', 'parent_approved', 'approved'].includes(r.status) && (
-                      <Button size="sm" variant="secondary" onClick={() => cancelLeave(r._id)}>Cancel</Button>
-                    )}
-                  </div>
-                ) },
-              ]}
-              data={lists.leave || []} emptyIcon="🏖" emptyTitle="No leave requests" />
-          </div></div>
-        </div>
-      )}
-
-      {tab === 'outpass' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div><Button onClick={() => setModal('outpass')}>+ Request outpass</Button></div>
-          <div className="card"><div className="card-body" style={{ padding: 0 }}>
-            <Table
-              columns={[
-                { key: 'no', label: 'Outpass', render: (r) => <div><strong>{r.outpassNumber}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label(r.outpassType)}</div></div> },
-                { key: 'purpose', label: 'Purpose', render: (r) => r.purpose },
-                { key: 'when', label: 'When', render: (r) => <div style={{ fontSize: '.8rem' }}>{dd(r.departureDate)}<div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.expectedDepartureTime} → {r.expectedReturnTime}</div></div> },
-                { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-                { key: 'a', label: '', render: (r) => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {role === 'student' && ['approved', 'active'].includes(r.status) && (
-                      <Button size="sm" onClick={() => showPass(r._id)}>Show pass</Button>
-                    )}
-                    {['pending', 'approved'].includes(r.status) && (
-                      <Button size="sm" variant="secondary" onClick={() => cancelOutpass(r._id)}>Cancel</Button>
-                    )}
-                  </div>
-                ) },
-              ]}
-              data={lists.outpass || []} emptyIcon="🎫" emptyTitle="No outpasses" />
-          </div></div>
-        </div>
-      )}
-
-      {tab === 'visitors' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div><Button onClick={() => setModal('visitor')}>+ Pre-register a visitor</Button></div>
-          {!!lists.visitors?.restricted?.length && (
-            <Alert variant="warning">
-              Restricted visitors: {lists.visitors.restricted.map((v) => v.visitorName).join(', ')}
-            </Alert>
-          )}
-          <div className="card"><div className="card-body" style={{ padding: 0 }}>
-            <Table
-              columns={[
-                { key: 'name', label: 'Visitor', render: (r) => <div><strong>{r.visitorName}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{[r.relationship, r.mobile].filter(Boolean).join(' · ')}</div></div> },
-                { key: 'purpose', label: 'Purpose', render: (r) => r.purpose || '—' },
-                { key: 'entry', label: 'Entry', render: (r) => dt(r.entryTime) },
-                { key: 'exit', label: 'Exit', render: (r) => dt(r.exitTime) },
-                { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-              ]}
-              data={lists.visitors?.visits || []} emptyIcon="👋" emptyTitle="No visitors yet" />
-          </div></div>
-        </div>
-      )}
-
-      {tab === 'mess' && (
-        lists.mess?.member ? (
-          <div style={{ display: 'grid', gap: 16 }}>
-            <Card title={lists.mess.member.mess?.name || 'Mess'}>
-              <FieldGrid>
-                <Field label="Food preference">{label(lists.mess.member.foodPreference)}</Field>
-                <Field label="Meal plan">{label(lists.mess.member.mealPlan)}</Field>
-                <Field label="Allergies">{(lists.mess.member.allergies || []).join(', ') || 'none'}</Field>
-                <Field label="Since">{dd(lists.mess.member.fromDate)}</Field>
-              </FieldGrid>
-            </Card>
-            <Card title="This week's menu">
-              {lists.mess.menu?.length ? (
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead><tr><th>Date</th><th>Meal</th><th>Items</th></tr></thead>
-                    <tbody>
-                      {lists.mess.menu.map((m) => (
-                        <tr key={m._id} data-focus-id={m._id}>
-                          <td style={{ fontSize: '.82rem' }}>{dd(m.date)}</td>
-                          <td style={{ fontSize: '.82rem', textTransform: 'capitalize' }}>{m.meal}</td>
-                          <td style={{ fontSize: '.82rem' }}>{(m.items || []).join(', ')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <span className="text-muted" style={{ fontSize: '.85rem' }}>No menu published for this week yet.</span>}
-            </Card>
-          </div>
-        ) : <Empty icon="🍽" title="Not enrolled in a mess" message="Speak to the hostel office to join the mess." />
-      )}
-
-      {tab === 'fees' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="stats-grid">
-            <StatCard icon="🧾" color="blue"   label="Billed"      value={money(lists.fees?.summary?.billed)} />
-            <StatCard icon="✅" color="green"  label="Paid"        value={money(lists.fees?.summary?.paid)} />
-            <StatCard icon="⏳" color="orange" label="Outstanding" value={money(lists.fees?.summary?.outstanding)} />
-            <StatCard icon="⚠️" color="red"    label="Overdue"     value={lists.fees?.summary?.overdue || 0} />
-          </div>
-          <div className="card"><div className="card-body" style={{ padding: 0 }}>
-            <Table
-              columns={[
-                { key: 'no', label: 'Invoice', render: (r) => <div><strong>{r.invoiceNumber}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label(r.feeType)}{r.period?.label ? ` · ${r.period.label}` : ''}</div></div> },
-                { key: 'net', label: 'Amount', render: (r) => money(r.netAmount) },
-                { key: 'paid', label: 'Paid', render: (r) => money(r.paidAmount) },
-                { key: 'due', label: 'Due', render: (r) => dd(r.dueDate) },
-                { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-              ]}
-              data={lists.fees?.invoices || []} emptyIcon="💳" emptyTitle="No hostel fees raised" />
-          </div></div>
-        </div>
-      )}
-
-      {tab === 'complaints' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div><Button onClick={() => setModal('complaint')}>+ Raise a complaint</Button></div>
-          <div className="card"><div className="card-body" style={{ padding: 0 }}>
-            <Table
-              columns={[
-                { key: 'no', label: 'Ticket', render: (r) => <div><strong>{r.ticketNumber}</strong><div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label(r.category)}</div></div> },
-                { key: 'desc', label: 'Complaint', render: (r) => <span style={{ fontSize: '.82rem' }}>{r.subject || r.description}</span> },
-                { key: 'raised', label: 'Raised', render: (r) => dd(r.createdAt) },
-                { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-                { key: 'a', label: '', render: (r) => ['resolved', 'closed'].includes(r.status) && (
-                  <Button size="sm" variant="secondary"
-                    onClick={() => api.actOnComplaint(r._id, { action: 'reopen', comment: 'Reopened by resident' })
-                      .then(() => { toast.success('Reopened'); loadTab('complaints'); })
-                      .catch((e) => toast.error(e.message))}>
-                    Reopen
-                  </Button>
-                ) },
-              ]}
-              data={lists.complaints || []} emptyIcon="📣" emptyTitle="No complaints raised" />
-          </div></div>
-        </div>
-      )}
-
-      {tab === 'record' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <Card title="Discipline">
-            {lists.record?.discipline?.length ? lists.record.discipline.map((d) => (
-              <div key={d._id} style={{ padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <strong style={{ fontSize: '.85rem' }}>{d.violation}</strong>
-                  <span style={{ fontSize: '.74rem', color: 'var(--text-muted)' }}>{dd(d.date)}</span>
-                </div>
-                <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
-                  <Badge variant="primary">{label(d.actionType)}</Badge>
-                  {d.fineAmount > 0 && <Badge variant="warning">{money(d.fineAmount)}</Badge>}
-                </div>
-              </div>
-            )) : <span className="text-muted" style={{ fontSize: '.85rem' }}>Clean record.</span>}
-          </Card>
-          <Card title="Recent gate movement">
-            {lists.record?.movements?.length ? lists.record.movements.slice(0, 15).map((m) => (
-              <div key={m._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: '.83rem' }}>
-                <span><Badge variant={m.direction === 'out' ? 'warning' : 'success'}>{m.direction === 'out' ? 'Out' : 'In'}</Badge> {label(m.movementType)}</span>
-                <span className="text-muted">{dt(m.at)}</span>
-              </div>
-            )) : <span className="text-muted" style={{ fontSize: '.85rem' }}>No movement recorded.</span>}
-          </Card>
-          {!!lists.record?.documents?.length && (
-            <Card title="Your hostel documents">
-              {lists.record.documents.map((d) => (
-                <div key={d._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '.84rem' }}>
-                  <span>{d.title}</span><StatusBadge value={d.verificationStatus} />
-                </div>
-              ))}
-            </Card>
-          )}
-        </div>
-      )}
+      <div className="hsr-body">
+        {tab === 'overview' && <OverviewTab data={data} who={who} onRoomChange={() => { setRoomForm({ reason: '', preference: '' }); setModal('roomChange'); }} />}
+        {tab === 'attendance' && <AttendanceTab att={lists.attendance} />}
+        {tab === 'leave' && <LeaveTab rows={lists.leave} role={role} onNew={() => openForm('leave')} onConsent={consent}
+          onCancel={(row) => setAsk({ kind: 'leave', row })} onOpen={(row) => setDetail({ kind: 'leave', row })} />}
+        {tab === 'outpass' && <OutpassTab rows={lists.outpass} role={role} onNew={() => openForm('outpass')} onPass={showPass} onConsent={consentOutpass}
+          onCancel={(row) => setAsk({ kind: 'outpass', row })} onOpen={(row) => setDetail({ kind: 'outpass', row })} />}
+        {tab === 'visitors' && <VisitorsTab data={lists.visitors} rules={rules} onNew={() => openForm('visitor')} />}
+        {tab === 'mess' && <MessTab data={lists.mess} onSkip={skipMeal} busy={skipping} />}
+        {tab === 'fees' && <MyHostelFees student={q?.student} payerName={user?.name} who={who} onChanged={load} />}
+        {tab === 'complaints' && <ComplaintsTab rows={lists.complaints} onNew={() => openForm('complaint')}
+          onReopen={(row) => setAsk({ kind: 'reopen', row })} onOpen={(row) => setDetail({ kind: 'complaint', row })} />}
+        {tab === 'record' && <RecordTab data={lists.record} who={who} onFile={openFile} />}
+      </div>
 
       {/* ── Request forms ─────────────────────────────────────────────────── */}
-      <Modal open={modal === 'leave'} onClose={() => setModal(null)} maxWidth={560} title="Request Leave"
-        footer={<><Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-          <Button loading={saving} onClick={() => submit('leave')}>Request</Button></>}>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label className="form-label">Type</label>
-            <select className="form-control" value={leaveForm.leaveType} onChange={(e) => setLeaveForm((f) => ({ ...f, leaveType: e.target.value }))}>
-              {LEAVE_TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Destination</label>
-            <input className="form-control" value={leaveForm.destination} onChange={(e) => setLeaveForm((f) => ({ ...f, destination: e.target.value }))} />
-          </div>
-        </div>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label className="form-label required">From</label>
-            <input className="form-control" type="date" value={leaveForm.fromDate} onChange={(e) => setLeaveForm((f) => ({ ...f, fromDate: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label required">To</label>
-            <input className="form-control" type="date" value={leaveForm.toDate} onChange={(e) => setLeaveForm((f) => ({ ...f, toDate: e.target.value }))} />
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label required">Reason</label>
-          <textarea className="form-control" rows={3} value={leaveForm.reason} onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))} />
-        </div>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label className="form-label">Guardian</label>
-            <input className="form-control" value={leaveForm.guardianName} onChange={(e) => setLeaveForm((f) => ({ ...f, guardianName: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Guardian Phone</label>
-            <input className="form-control" value={leaveForm.guardianPhone} onChange={(e) => setLeaveForm((f) => ({ ...f, guardianPhone: e.target.value }))} />
-          </div>
-        </div>
-      </Modal>
+      <FormModal open={modal === 'leave'} onClose={() => setModal(null)} busy={saving} onSubmit={() => submit('leave')}
+        icon="calendar" title="File Hostel Leave"
+        subtitle={role === 'parent' ? `Request hostel leave for ${who}.` : 'Request leave from the hostel with all required details.'}
+        submitLabel="Submit Leave" submitIcon="check"
+        steps={[
+          { key: 'details', title: 'Leave Details', sub: 'Basic leave information', icon: 'fileDoc' },
+          { key: 'more', title: 'Additional Information', sub: 'Destination and contact details', icon: 'mapPin' },
+          { key: 'docs', title: 'Documents', sub: 'Upload supporting documents', icon: 'paperclip' },
+          { key: 'review', title: 'Review', sub: 'Verify and submit', icon: 'oCheckRound' },
+        ]}>
+        <InfoNote>
+          Leave requests are approved by the warden{role === 'parent' ? '; a request filed by a parent needs no separate parent consent' : ''}.
+          Your allocation and the hostel&apos;s leave rules are checked when you submit.
+        </InfoNote>
+        <FormSection step="details" icon="calendar" title="Leave Details" sub="Choose the kind of leave and the dates.">
+          {person('Resident', roomLine)}
+          <Grid cols={2}>
+            <Fld label="Leave Type" required icon="home">
+              <select value={leaveForm.leaveType} onChange={(e) => setL('leaveType', e.target.value)}>
+                {LEAVE_TYPES.map((t) => <option key={t} value={t}>{t === 'home' ? 'Home Leave' : words(t)}</option>)}
+              </select>
+            </Fld>
+            <RadioCards half label="Leave Duration" value={leaveForm.span} onChange={(v) => setLeaveForm((f) => ({ ...f, span: v, toDate: v === 'single' ? '' : f.toDate }))}
+              options={[['single', 'Single Day'], ['multiple', 'Multiple Days']]} />
+            <Fld label="From Date" required icon="calendar"><input type="date" value={leaveForm.fromDate} onChange={(e) => setL('fromDate', e.target.value)} /></Fld>
+            <Fld label="To Date" required={leaveForm.span === 'multiple'} icon="calendar" hint={leaveDays ? `${leaveDays} day${leaveDays === 1 ? '' : 's'}` : ''}>
+              <input type="date" disabled={leaveForm.span === 'single'} min={leaveForm.fromDate || undefined}
+                value={leaveForm.span === 'single' ? leaveForm.fromDate : leaveForm.toDate} onChange={(e) => setL('toDate', e.target.value)} />
+            </Fld>
+          </Grid>
+          <Fld label="Reason for Leave" required count={[leaveForm.reason.length, 500]}>
+            <textarea rows={2} maxLength={500} value={leaveForm.reason} placeholder="Enter reason for leave (e.g., vacation, family function, medical, etc.)" onChange={(e) => setL('reason', e.target.value)} />
+          </Fld>
+        </FormSection>
+        <FormSection step="more" icon="mapPin" title={`Destination & ${contact} Details`} sub="Where you will be staying, and who to contact.">
+          <Fld label="Destination / Address" required count={[leaveForm.destination.length, 200]}>
+            <textarea rows={2} maxLength={200} value={leaveForm.destination} placeholder="Enter destination address" onChange={(e) => setL('destination', e.target.value)} />
+          </Fld>
+          <Grid cols={3}>
+            <Fld label={`${contact} Name`} required={!staff} icon="user"><input value={leaveForm.guardianName} maxLength={80} placeholder={`Enter ${contact.toLowerCase()} name`} onChange={(e) => setL('guardianName', e.target.value)} /></Fld>
+            <Fld label={`${contact} Phone`} required={!staff} icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={leaveForm.guardianPhone} placeholder="Enter phone number" onChange={(e) => setL('guardianPhone', e.target.value)} /></Fld>
+            <Fld label="Relation" required={!staff} icon="users"><input value={leaveForm.guardianRelation} maxLength={30} placeholder={staff ? 'e.g. Spouse, Brother' : 'e.g. Father, Mother, Uncle'} onChange={(e) => setL('guardianRelation', e.target.value)} /></Fld>
+          </Grid>
+        </FormSection>
+        <FormSection step="docs" icon="paperclip" title={<>Supporting Documents <small className="hsf-opt">(Optional)</small></>} sub="Upload any relevant documents (e.g., parent consent, medical note).">
+          <FileDrop value={leaveForm.attachments} onChange={(v) => setL('attachments', v)} entityType="HostelLeave" upload={upload} />
+        </FormSection>
+        <FormSection step="review" icon="oCheckRound" title="Review" sub="Verify the leave before it is submitted.">
+          <ReviewList groups={[
+            { title: 'Leave', step: 0, rows: [['Type', leaveForm.leaveType === 'home' ? 'Home Leave' : words(leaveForm.leaveType)],
+              ['Dates', leaveForm.fromDate ? `${dmy(leaveForm.fromDate)}${leaveForm.span === 'multiple' && leaveForm.toDate ? ` – ${dmy(leaveForm.toDate)}` : ''}` : ''],
+              ['Days', leaveDays || ''], ['Reason', leaveForm.reason]] },
+            { title: `Destination & ${contact.toLowerCase()}`, step: 1, rows: [['Destination', leaveForm.destination], [contact, joinWho(leaveForm.guardianName, leaveForm.guardianRelation, leaveForm.guardianPhone)]] },
+            { title: 'Documents', step: 2, rows: [['Files', leaveForm.attachments.length ? `${leaveForm.attachments.length} attached` : 'None']] },
+          ]} />
+        </FormSection>
+      </FormModal>
 
-      <Modal open={modal === 'outpass'} onClose={() => setModal(null)} maxWidth={560} title="Request Outpass"
-        footer={<><Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-          <Button loading={saving} onClick={() => submit('outpass')}>Request</Button></>}>
-        <Alert variant="info">
-          Allowed between {data.rules?.outpassFrom} and {data.rules?.outpassTo}, for at most {data.rules?.maxOutpassHours} hours.
-        </Alert>
-        <div className="form-row form-row-2" style={{ marginTop: 14 }}>
-          <div className="form-group">
-            <label className="form-label">Type</label>
-            <select className="form-control" value={outForm.outpassType} onChange={(e) => setOutForm((f) => ({ ...f, outpassType: e.target.value }))}>
-              {OUTPASS_TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Departure Date</label>
-            <input className="form-control" type="date" value={outForm.departureDate} onChange={(e) => setOutForm((f) => ({ ...f, departureDate: e.target.value }))} />
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label required">Purpose</label>
-          <input className="form-control" value={outForm.purpose} onChange={(e) => setOutForm((f) => ({ ...f, purpose: e.target.value }))} />
-        </div>
-        <div className="form-row form-row-3">
-          <div className="form-group">
-            <label className="form-label">Destination</label>
-            <input className="form-control" value={outForm.destination} onChange={(e) => setOutForm((f) => ({ ...f, destination: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Leaving at</label>
-            <input className="form-control" type="time" value={outForm.expectedDepartureTime} onChange={(e) => setOutForm((f) => ({ ...f, expectedDepartureTime: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Back by</label>
-            <input className="form-control" type="time" value={outForm.expectedReturnTime} onChange={(e) => setOutForm((f) => ({ ...f, expectedReturnTime: e.target.value }))} />
-          </div>
-        </div>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label className="form-label">Guardian</label>
-            <input className="form-control" value={outForm.guardianName} onChange={(e) => setOutForm((f) => ({ ...f, guardianName: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Guardian Phone</label>
-            <input className="form-control" value={outForm.guardianPhone} onChange={(e) => setOutForm((f) => ({ ...f, guardianPhone: e.target.value }))} />
-          </div>
-        </div>
-      </Modal>
+      <FormModal open={modal === 'outpass'} onClose={() => setModal(null)} busy={saving} onSubmit={() => submit('outpass')}
+        icon="oExit" title="New Outpass Request"
+        subtitle={role === 'parent' ? `Request an outpass for ${who}.` : 'Request permission to leave the hostel for a few hours or a night.'}
+        submitLabel="Submit Request" submitIcon="check"
+        steps={[
+          { key: 'details', title: 'Outpass Details', sub: 'Set purpose, type and timing', icon: 'calendar' },
+          { key: 'dest', title: 'Destination & Contact', sub: 'Where you are going', icon: 'mapPin' },
+          { key: 'docs', title: 'Documents', sub: 'Upload supporting documents', icon: 'paperclip' },
+          { key: 'review', title: 'Review', sub: 'Verify and submit', icon: 'oCheckRound' },
+        ]}
+        aside={<>
+          <SummaryCard icon="fileDoc" title="Outpass Summary" sub="Review the details before submitting" rows={[
+            ['Student', st?.name], ['Room', roomLine], ['Outpass Type', outType],
+            ['Departure', when(outForm.departureDate, outForm.expectedDepartureTime)], ['Expected Return', when(outForm.expectedReturnDate, outForm.expectedReturnTime)],
+            ['Destination', outForm.destination], [contact, outForm.guardianName], ['Purpose', outForm.purpose],
+          ]} />
+          <InfoNote title="Hostel Rules">
+            {rules.outpassFrom && rules.outpassTo ? `Outpasses may start between ${ampm(rules.outpassFrom)} and ${ampm(rules.outpassTo)}` : 'Outpasses follow the hostel timings'}
+            {rules.maxOutpassHours ? ` and last up to ${rules.maxOutpassHours} hour${rules.maxOutpassHours === 1 ? '' : 's'}` : ''}. The warden approves each request.
+          </InfoNote>
+        </>}>
+        <FormSection step="details" icon="calendar" title="Outpass Details" sub="Choose the type, the timing and the reason.">
+          {person('Resident', roomLine)}
+          <RadioCards label="Outpass Type" required cols={4} value={outForm.kind} options={KINDS}
+            onChange={(v) => setOutForm((f) => ({ ...f, kind: v, outpassType: v === 'other' ? 'other' : v, expectedReturnDate: v === 'day' ? f.departureDate : f.expectedReturnDate }))} />
+          {outForm.kind === 'other' ? (
+            <Grid cols={2}>
+              <Fld label="Kind of Outpass" required icon="oTag">
+                <select value={outForm.outpassType} onChange={(e) => setO('outpassType', e.target.value)}>
+                  {OTHER_TYPES.map((v) => <option key={v} value={v}>{v === 'other' ? 'Personal' : words(v)}</option>)}
+                </select>
+              </Fld>
+            </Grid>
+          ) : null}
+          <Grid cols={4} className="is-compact">
+            <Fld label="Departure Date" required>
+              <input type="date" min={today()} value={outForm.departureDate} onChange={(e) => { const v = e.target.value; setOutForm((f) => ({ ...f, departureDate: v, expectedReturnDate: f.kind === 'day' || !f.expectedReturnDate || f.expectedReturnDate < v ? v : f.expectedReturnDate })); }} />
+            </Fld>
+            <Fld label="Departure Time" required><input type="time" value={outForm.expectedDepartureTime} onChange={(e) => setO('expectedDepartureTime', e.target.value)} /></Fld>
+            <Fld label="Expected Return Date" required>
+              <input type="date" min={outForm.departureDate || undefined} disabled={outForm.kind === 'day'} value={outForm.expectedReturnDate} onChange={(e) => setO('expectedReturnDate', e.target.value)} />
+            </Fld>
+            <Fld label="Expected Return Time" required><input type="time" value={outForm.expectedReturnTime} onChange={(e) => setO('expectedReturnTime', e.target.value)} /></Fld>
+          </Grid>
+          <Fld label="Purpose / Reason" required count={[outForm.purpose.length, 500]}>
+            <textarea rows={2} maxLength={500} value={outForm.purpose} placeholder="Enter reason for outpass (e.g., family function, medical, personal work, etc.)" onChange={(e) => setO('purpose', e.target.value)} />
+          </Fld>
+        </FormSection>
+        <FormSection step="dest" icon="mapPin" title={`Destination & ${contact} Details`} sub="Where you are going, and who to contact.">
+          <Fld label="Destination / Address" required count={[outForm.destination.length, 200]}>
+            <textarea rows={2} maxLength={200} value={outForm.destination} placeholder="Enter full destination address" onChange={(e) => setO('destination', e.target.value)} />
+          </Fld>
+          <Grid cols={3}>
+            <Fld label={`${contact} Name`} required={!staff} icon="user"><input value={outForm.guardianName} maxLength={80} placeholder={`Enter ${contact.toLowerCase()} name`} onChange={(e) => setO('guardianName', e.target.value)} /></Fld>
+            <Fld label={`${contact} Phone`} required={!staff} icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={outForm.guardianPhone} placeholder="Enter phone number" onChange={(e) => setO('guardianPhone', e.target.value)} /></Fld>
+            <Fld label="Relation" required={!staff} icon="users"><input value={outForm.guardianRelation} maxLength={30} placeholder={staff ? 'e.g. Spouse, Brother' : 'e.g. Father, Mother, Uncle'} onChange={(e) => setO('guardianRelation', e.target.value)} /></Fld>
+          </Grid>
+        </FormSection>
+        <FormSection step="docs" icon="paperclip" title={<>Supporting Documents <small className="hsf-opt">(Optional)</small></>} sub="Upload any relevant documents (e.g., parent consent, medical note).">
+          <FileDrop value={outForm.attachments} onChange={(v) => setO('attachments', v)} entityType="HostelOutpass" upload={upload} />
+        </FormSection>
+        <FormSection step="review" icon="oCheckRound" title="Review" sub="Verify the outpass before it is submitted.">
+          <ReviewList groups={[
+            { title: 'Outpass', step: 0, rows: [['Type', outType], ['Departure', when(outForm.departureDate, outForm.expectedDepartureTime)],
+              ['Return', when(outForm.expectedReturnDate, outForm.expectedReturnTime)], ['Purpose', outForm.purpose]] },
+            { title: `Destination & ${contact.toLowerCase()}`, step: 1, rows: [['Destination', outForm.destination], [contact, joinWho(outForm.guardianName, outForm.guardianRelation, outForm.guardianPhone)]] },
+            { title: 'Documents', step: 2, rows: [['Files', outForm.attachments.length ? `${outForm.attachments.length} attached` : 'None']] },
+          ]} />
+        </FormSection>
+      </FormModal>
 
-      <Modal open={modal === 'visitor'} onClose={() => setModal(null)} maxWidth={520} title="Pre-register a Visitor"
-        footer={<><Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-          <Button loading={saving} onClick={() => submit('visitor')}>Register</Button></>}>
-        <Alert variant="info">
-          Visitors are received {(data.rules?.visitorDays || []).join(', ') || 'any day'} between{' '}
-          {data.rules?.visitorFrom} and {data.rules?.visitorTo}. The warden still approves each visit.
-        </Alert>
-        <div className="form-row form-row-2" style={{ marginTop: 14 }}>
-          <div className="form-group">
-            <label className="form-label required">Visitor Name</label>
-            <input className="form-control" value={visitorForm.visitorName} onChange={(e) => setVisitorForm((f) => ({ ...f, visitorName: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Mobile</label>
-            <input className="form-control" value={visitorForm.mobile} onChange={(e) => setVisitorForm((f) => ({ ...f, mobile: e.target.value }))} />
-          </div>
-        </div>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label className="form-label">Relationship</label>
-            <input className="form-control" value={visitorForm.relationship} onChange={(e) => setVisitorForm((f) => ({ ...f, relationship: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Expected at</label>
-            <input className="form-control" type="datetime-local" value={visitorForm.scheduledAt} onChange={(e) => setVisitorForm((f) => ({ ...f, scheduledAt: e.target.value }))} />
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Purpose</label>
-          <input className="form-control" value={visitorForm.purpose} onChange={(e) => setVisitorForm((f) => ({ ...f, purpose: e.target.value }))} />
-        </div>
-      </Modal>
+      <datalist id="hs-my-visitor-types">{VISITOR_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
+      <FormModal open={modal === 'visitor'} onClose={() => setModal(null)} busy={saving} onSubmit={() => submit('visitor')} width={680}
+        icon="walker" title="Pre-register a Visitor" subtitle="Tell the hostel who is coming; the warden still approves each visit."
+        submitLabel="Register Visitor" submitIcon="check">
+        <InfoNote>
+          Visitors are received {(rules.visitorDays || []).join(', ') || 'any day'}
+          {rules.visitorFrom && rules.visitorTo ? ` between ${ampm(rules.visitorFrom)} and ${ampm(rules.visitorTo)}` : ''}.
+        </InfoNote>
+        <FormSection icon="user" title="Visitor Details" sub="The person the gate should expect.">
+          <Grid cols={2}>
+            <Fld label="Visitor Name" required icon="user"><input value={visitorForm.visitorName} maxLength={80} placeholder="Full name" onChange={(e) => setV('visitorName', e.target.value)} /></Fld>
+            <Fld label="Mobile" icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={visitorForm.mobile} placeholder="Enter mobile number" onChange={(e) => setV('mobile', e.target.value)} /></Fld>
+            <Fld label="Relationship" icon="users"><input list="hs-my-visitor-types" value={visitorForm.relationship} maxLength={30} placeholder="e.g. Parent" onChange={(e) => setV('relationship', e.target.value)} /></Fld>
+            <Fld label="Expected At" icon="clock" hint="Checked against visiting hours">
+              <input type="datetime-local" value={visitorForm.scheduledAt} onChange={(e) => setV('scheduledAt', e.target.value)} />
+            </Fld>
+          </Grid>
+          <Grid cols={3}>
+            <Fld label="Number of Visitors" icon="users"><input type="number" min="1" max="20" value={visitorForm.visitorCount} onChange={(e) => setV('visitorCount', e.target.value)} /></Fld>
+            <Fld label="ID Type" optional icon="idCard">
+              <select value={visitorForm.idProofType} onChange={(e) => setV('idProofType', e.target.value)}>
+                <option value="">— none —</option>
+                {ID_TYPES.map((x) => <option key={x} value={x}>{words(x)}</option>)}
+              </select>
+            </Fld>
+            <Fld label="ID Number" icon="oHash"><input value={visitorForm.idProofNumber} maxLength={30} disabled={!visitorForm.idProofType} onChange={(e) => setV('idProofNumber', e.target.value)} /></Fld>
+          </Grid>
+          <Fld label="Purpose" optional count={[visitorForm.purpose.length, 200]}>
+            <textarea rows={2} maxLength={200} value={visitorForm.purpose} placeholder="e.g. Weekend visit, dropping off books" onChange={(e) => setV('purpose', e.target.value)} />
+          </Fld>
+        </FormSection>
+      </FormModal>
 
-      <Modal open={modal === 'complaint'} onClose={() => setModal(null)} maxWidth={520} title="Raise a Complaint"
-        footer={<><Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-          <Button loading={saving} onClick={() => submit('complaint')}>Raise</Button></>}>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label className="form-label">Category</label>
-            <select className="form-control" value={complaintForm.category} onChange={(e) => setComplaintForm((f) => ({ ...f, category: e.target.value }))}>
-              {COMPLAINT_CATS.map((c) => <option key={c} value={c}>{label(c)}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Priority</label>
-            <select className="form-control" value={complaintForm.priority} onChange={(e) => setComplaintForm((f) => ({ ...f, priority: e.target.value }))}>
-              {['low', 'medium', 'high', 'urgent'].map((p) => <option key={p} value={p}>{label(p)}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Subject</label>
-          <input className="form-control" value={complaintForm.subject} onChange={(e) => setComplaintForm((f) => ({ ...f, subject: e.target.value }))} />
-        </div>
-        <div className="form-group">
-          <label className="form-label required">Description</label>
-          <textarea className="form-control" rows={4} value={complaintForm.description} onChange={(e) => setComplaintForm((f) => ({ ...f, description: e.target.value }))} />
-        </div>
-        <Attachments value={complaintForm.attachments}
-          onChange={(v) => setComplaintForm((f) => ({ ...f, attachments: v }))}
-          upload={api.uploadAttachment} />
-      </Modal>
+      <FormModal open={modal === 'complaint'} onClose={() => setModal(null)} busy={saving} onSubmit={() => submit('complaint')} width={680}
+        icon="chatSolid" title="Raise a Complaint" subtitle="Report a problem with your room, the mess or the hostel; it is tracked until it is resolved."
+        submitLabel="Raise Complaint" submitIcon="check">
+        <FormSection icon="chat" title="Complaint" sub="What is wrong, and how urgent it is.">
+          <Grid cols={2}>
+            <Fld label="Category" required icon="oTag">
+              <select value={complaintForm.category} onChange={(e) => setC('category', e.target.value)}>
+                {COMPLAINT_CATS.map((x) => <option key={x} value={x}>{words(x)}</option>)}
+              </select>
+            </Fld>
+            <Fld label="Priority" required icon="alert">
+              <select value={complaintForm.priority} onChange={(e) => setC('priority', e.target.value)}>
+                {['low', 'medium', 'high', 'urgent'].map((x) => <option key={x} value={x}>{words(x)}</option>)}
+              </select>
+            </Fld>
+          </Grid>
+          <Fld label="Subject" optional icon="chat"><input value={complaintForm.subject} maxLength={100} placeholder="e.g. Water leaking in the bathroom" onChange={(e) => setC('subject', e.target.value)} /></Fld>
+          <Fld label="Description" required count={[complaintForm.description.length, 1000]}>
+            <textarea rows={4} maxLength={1000} value={complaintForm.description} placeholder="What is wrong, since when, and anything else that helps" onChange={(e) => setC('description', e.target.value)} />
+          </Fld>
+        </FormSection>
+        <FormSection icon="paperclip" title={<>Attachments <small className="hsf-opt">(Optional)</small></>} sub="A photo of the problem helps it get fixed faster.">
+          <FileDrop value={complaintForm.attachments} onChange={(v) => setC('attachments', v)} entityType="HostelComplaint" upload={upload} />
+        </FormSection>
+      </FormModal>
+
+      {/* ── Ask to change room ────────────────────────────────────────────── */}
+      <FormModal open={modal === 'roomChange'} onClose={() => setModal(null)} busy={saving} onSubmit={requestRoomChange} width={560}
+        icon="repeat" title="Request a Room Change" subtitle="Say why. The hostel office decides, and chooses the bed."
+        submitLabel="Send Request">
+        <FormSection>
+          <Fld label="Why would you like to move?" required count={[roomForm.reason.length, 500]}>
+            <textarea rows={4} maxLength={500} required value={roomForm.reason} placeholder="e.g. the room is next to the generator and too noisy to study"
+              onChange={(e) => setRoomForm((f) => ({ ...f, reason: e.target.value }))} />
+          </Fld>
+          <Fld label="Any preference" optional count={[roomForm.preference.length, 200]}>
+            <input maxLength={200} value={roomForm.preference} placeholder="e.g. a lower floor, or with a classmate"
+              onChange={(e) => setRoomForm((f) => ({ ...f, preference: e.target.value }))} />
+          </Fld>
+          <InfoNote>One request at a time. You are told as soon as it is decided{role === 'parent' ? '' : ', and so are your parents'}.</InfoNote>
+        </FormSection>
+      </FormModal>
 
       {/* ── The gate pass ─────────────────────────────────────────────────── */}
-      <Modal open={!!pass} onClose={() => setPass(null)} maxWidth={420} title="Outpass">
-        {pass && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{pass.outpassNumber}</div>
-            <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 14 }}>
-              {pass.student?.name} · Room {pass.room}
-            </div>
-            <PassQr image={pass.qrImage} token={pass.qrToken} size={240} />
-            <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 12 }}>
-              Show this code at the gate. Back by <strong>{dt(pass.expectedReturnAt)}</strong>.
-            </div>
-            <div style={{ marginTop: 10 }}><StatusBadge value={pass.status} /></div>
+      <FormModal open={!!pass} onClose={() => setPass(null)} width={460} icon="qr" title="Gate Pass"
+        subtitle={pass ? [pass.outpassNumber, pass.student?.name, roomNo(pass.room)].filter(Boolean).join(' · ') : ''}
+        cancelLabel="Close" hideSubmit={!pass?.qrImage} submitLabel="Download PNG" submitIcon="download"
+        onSubmit={() => { const x = document.createElement('a'); x.href = pass.qrImage; x.download = `${pass.outpassNumber || 'gate-pass'}.png`; x.click(); }}>
+        {pass ? (
+          <div className="hsf-center">
+            <PassQr image={pass.qrImage} token={pass.qrToken} size={240} caption={pass.expectedReturnAt ? `Show this code at the gate. Back by ${dt(pass.expectedReturnAt)}.` : 'Show this code at the gate.'} />
+            <div style={{ marginTop: 10 }}><Status value={pass.status} /></div>
           </div>
-        )}
-      </Modal>
+        ) : null}
+      </FormModal>
+
+      {/* ── One request, in full ──────────────────────────────────────────── */}
+      <Drawer open={!!detail} onClose={() => { setDetail(null); setReply(''); }} label="Details">
+        {detail?.kind === 'leave' ? (() => { const x = detail.row; return (
+          <>
+            <DrawerHead mark={<Mark name="beach" tone="blue" size={52} glyph={26} />} name={x.leaveNumber}
+              sub={`${x.leaveType === 'home' ? 'Home leave' : words(x.leaveType)} · ${x.totalDays} day${x.totalDays === 1 ? '' : 's'}`}
+              tags={<Status value={x.status} />} onClose={() => setDetail(null)} />
+            <DrawerBody>
+              <DrawerSection title="Leave">
+                <DrawerFields fields={[['From', fmtDate(x.fromDate)], ['To', fmtDate(x.toDate)], ['Reason', x.reason], ['Destination', x.destination],
+                  [contact, joinWho(x.guardianName, x.guardianRelation, x.guardianPhone)], ['Applied on', fmtDate(x.createdAt)]]} />
+              </DrawerSection>
+              <DrawerSection title="Approval">
+                <DrawerFields fields={[
+                  ['Parent consent', !x.parentApprovalRequired ? 'Not required' : x.parentApprovedAt ? `${fmtDate(x.parentApprovedAt)}, ${fmtTime(x.parentApprovedAt)}` : 'Waiting'],
+                  ['Warden', x.wardenApprovedAt ? `${x.wardenApprovedBy?.name ? `${x.wardenApprovedBy.name} · ` : ''}${fmtDate(x.wardenApprovedAt)}` : x.status === 'rejected' ? '' : 'Waiting'],
+                  ['Rejected', x.status === 'rejected' ? (x.rejectionReason || 'No reason was given') : ''],
+                  ['Left', x.departedAt ? `${fmtDate(x.departedAt)}, ${fmtTime(x.departedAt)}` : ''], ['Returned', x.returnedAt ? `${fmtDate(x.returnedAt)}, ${fmtTime(x.returnedAt)}` : ''],
+                ]} />
+              </DrawerSection>
+              {x.attachments?.length ? <DrawerSection title={`Documents (${x.attachments.length})`}><Attachments value={x.attachments} disabled /></DrawerSection> : null}
+            </DrawerBody>
+            {['pending', 'parent_approved', 'approved'].includes(x.status) ? <DrawerFoot><Btn kind="danger" onClick={() => setAsk({ kind: 'leave', row: x })}>Cancel Leave</Btn></DrawerFoot> : null}
+          </>
+        ); })() : null}
+        {detail?.kind === 'outpass' ? (() => { const x = detail.row; return (
+          <>
+            <DrawerHead mark={<Mark name="passes" tone="violet" size={52} glyph={26} />} name={x.outpassNumber}
+              sub={KIND_LABEL[x.outpassType] || words(x.outpassType)} tags={<Status value={x.status} />} onClose={() => setDetail(null)} />
+            <DrawerBody>
+              <DrawerSection title="Outpass">
+                <DrawerFields fields={[['Leaving', when(x.departureDate, x.expectedDepartureTime)], ['Back by', x.expectedReturnAt ? `${fmtDate(x.expectedReturnAt)}, ${fmtTime(x.expectedReturnAt)}` : ampm(x.expectedReturnTime)],
+                  ['Purpose', x.purpose], ['Destination', x.destination], [contact, joinWho(x.guardianName, x.guardianRelation, x.guardianPhone)]]} />
+              </DrawerSection>
+              <DrawerSection title="At the gate">
+                <DrawerFields fields={[
+                  ['Parent consent', !x.parentApprovalRequired ? '' : x.parentApprovedAt ? `Given ${fmtDate(x.parentApprovedAt)}, ${fmtTime(x.parentApprovedAt)}` : x.status === 'pending' ? 'Waiting for a parent' : 'Not given'],
+                  ['Approved', x.approvedAt ? `${x.approvedBy?.name ? `${x.approvedBy.name} · ` : ''}${fmtDate(x.approvedAt)}` : x.status === 'pending' ? (awaitingParent(x) ? 'After parent consent' : 'Waiting for the warden') : ''],
+                  ['Rejected', x.status === 'rejected' ? (x.rejectionReason || 'No reason was given') : ''],
+                  ['Went out', x.actualDepartureAt ? `${fmtDate(x.actualDepartureAt)}, ${fmtTime(x.actualDepartureAt)}` : ''],
+                  ['Came back', x.actualReturnAt ? `${fmtDate(x.actualReturnAt)}, ${fmtTime(x.actualReturnAt)}` : ''],
+                  ['Late by', x.lateReturnMinutes > 0 ? `${x.lateReturnMinutes} min` : ''],
+                ]} />
+              </DrawerSection>
+              {x.attachments?.length ? <DrawerSection title={`Documents (${x.attachments.length})`}><Attachments value={x.attachments} disabled /></DrawerSection> : null}
+            </DrawerBody>
+            <DrawerFoot>
+              {role === 'parent' && awaitingParent(x) ? <Btn kind="primary" icon="check" onClick={() => consentOutpass(x._id, true)}>Give Consent</Btn> : null}
+              {role === 'parent' && awaitingParent(x) ? <Btn onClick={() => consentOutpass(x._id, false)}>Decline</Btn> : null}
+              {role !== 'parent' && ['approved', 'active', 'overdue'].includes(x.status) ? <Btn kind="primary" icon="qr" onClick={() => showPass(x._id)}>Show Gate Pass</Btn> : null}
+              {['pending', 'approved'].includes(x.status) ? <Btn kind="danger" onClick={() => setAsk({ kind: 'outpass', row: x })}>Cancel Outpass</Btn> : null}
+            </DrawerFoot>
+          </>
+        ); })() : null}
+        {detail?.kind === 'complaint' ? (() => { const x = detail.row; return (
+          <>
+            <DrawerHead mark={<Mark name="chatSolid" tone="amber" size={52} glyph={26} />} name={x.ticketNumber}
+              sub={[words(x.category), `${words(x.priority)} priority`].join(' · ')} tags={<Status value={x.status} />} onClose={() => setDetail(null)} />
+            <DrawerBody>
+              <DrawerSection title="Complaint">
+                <DrawerFields fields={[['Subject', x.subject], ['Description', x.description], ['Raised on', fmtDate(x.createdAt)],
+                  ['Assigned to', x.assignedTo?.name], ['Due by', x.dueAt ? fmtDate(x.dueAt) : ''], ['Resolved on', x.resolvedAt ? fmtDate(x.resolvedAt) : ''],
+                  ['Resolution', x.resolution]]} />
+              </DrawerSection>
+              {x.comments?.length ? (
+                <DrawerSection title={`Updates (${x.comments.length})`}>
+                  <ol className="hsr-tl">
+                    {x.comments.map((cm, i) => <li key={cm._id || i} className="is-in"><span><b>{cm.byName || cm.authorName || 'Hostel office'}</b> — {cm.text || cm.comment}</span><small>{cm.at || cm.createdAt ? `${fmtDate(cm.at || cm.createdAt)}, ${fmtTime(cm.at || cm.createdAt)}` : ''}</small></li>)}
+                  </ol>
+                </DrawerSection>
+              ) : null}
+              {x.attachments?.length ? <DrawerSection title={`Attachments (${x.attachments.length})`}><Attachments value={x.attachments} disabled /></DrawerSection> : null}
+              {['resolved', 'closed'].includes(x.status) ? (
+                <DrawerSection title="How well was it resolved?">
+                  <div className="hsr-stars" role="radiogroup" aria-label="Rating">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button key={n} type="button" role="radio" aria-checked={x.rating === n} aria-label={`${n} star${n === 1 ? '' : 's'}`} disabled={busy}
+                        className={n <= (x.rating || 0) ? 'is-on' : ''} onClick={() => complaintAct(x, { action: 'rate', rating: n }, 'Thanks — rating saved')}>★</button>
+                    ))}
+                    <span>{x.rating ? `${x.rating} of 5` : 'Tap a star to rate'}</span>
+                  </div>
+                </DrawerSection>
+              ) : null}
+              {x.status !== 'rejected' ? (
+                <DrawerSection title="Reply to the hostel office">
+                  <textarea className="form-control" rows={2} maxLength={500} value={reply} placeholder="Add a detail, or answer a question from the office" onChange={(e) => setReply(e.target.value)} />
+                  <div className="hsr-reply"><Btn kind="primary" size="sm" icon="send" disabled={busy || !reply.trim()} onClick={() => complaintAct(x, { action: 'comment', comment: reply.trim() }, 'Reply sent')}>Send Reply</Btn></div>
+                </DrawerSection>
+              ) : null}
+            </DrawerBody>
+            {['resolved', 'closed'].includes(x.status) ? <DrawerFoot><Btn icon="refresh" onClick={() => setAsk({ kind: 'reopen', row: x })}>Reopen Complaint</Btn></DrawerFoot> : null}
+          </>
+        ); })() : null}
+      </Drawer>
+
+      <ConfirmDialog open={!!ask} onClose={() => setAsk(null)} onConfirm={doAsk} busy={busy}
+        tone={ask?.kind === 'reopen' ? 'primary' : 'danger'} icon={ask?.kind === 'reopen' ? 'refresh' : undefined}
+        title={ask?.kind === 'leave' ? 'Cancel Leave Request' : ask?.kind === 'outpass' ? 'Cancel Outpass' : 'Reopen Complaint'}
+        confirmLabel={ask?.kind === 'leave' ? 'Cancel Leave' : ask?.kind === 'outpass' ? 'Cancel Outpass' : 'Reopen'}
+        cancelLabel={ask?.kind === 'reopen' ? 'Cancel' : 'Keep It'}
+        message={ask?.kind === 'leave' ? `Cancel ${ask.row.leaveNumber}? The warden is told, and it cannot be undone — you would file a new request.`
+          : ask?.kind === 'outpass' ? `Cancel ${ask?.row.outpassNumber}? Its gate pass stops working straight away.`
+          : `Reopen ${ask?.row.ticketNumber}? It goes back to the hostel office as unresolved.`} />
     </div>
   );
 }

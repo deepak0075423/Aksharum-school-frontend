@@ -1,372 +1,233 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * Hostel → Rooms & Beds (Sep 2026 redesign, to the user's mockup).
+ *
+ * Five figures, a filter row and the rooms table; a room opens to its beds in
+ * place. GET /hostel/admin/board/rooms carries each page's beds with whoever
+ * sleeps in them, so opening a room costs nothing and the search can find a
+ * room by the name of a student who lives in it.
+ */
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/hostel.api';
 import useFetch from '../../../hooks/useFetch';
+import { ConfirmDialog, occupantOf, occupantLabel } from './hsForm';
+import { useNewFromLink } from '../shared';
+import { PageHead, Glyph } from './hsUI';
+import { DoorArt, BedArt } from './hsArt';
 import {
-  PageHeader, Button, Modal, Confirm, Badge, Pagination, Spinner, Empty, Card,
-} from '../../../components/ui/index';
-import { StatusBadge, Filters, Field, FieldGrid, BedTile, BedLegend, label, dd } from '../shared';
+  Kpis, Kpi, FilterBar, FSearch, FSelect, Btn, SplitBtn, Kebab, ListCard, DataTable, Pager, EmptyRows, BulkBar,
+  Badge, Person, TwoLine, useListState, useBoardData, exportCsv, fmtDate, classLine,
+} from './hsList';
+import {
+  RoomFormModal, RoomDrawer, BedFormModal, BedDrawer, RoomState, BedState, ROOM_TYPES, ROOM_STATES,
+  roomTypeLabel, bedTypeLabel, bedMenu,
+} from './hsRoom';
 
-const emptyRoom = {
-  roomNumber: '', code: '', floor: '', roomType: 'double', capacity: 2,
-  gender: '', facilities: '', description: '', status: 'available', generateBeds: true,
-};
-const ROOM_TYPES = ['single', 'double', 'triple', 'four_bed', 'dormitory', 'custom'];
-const ROOM_STATUS = ['available', 'partially_occupied', 'full', 'reserved', 'maintenance', 'inactive'];
-const BED_STATES = ['available', 'reserved', 'maintenance', 'inactive'];
-const TYPE_CAPACITY = { single: 1, double: 2, triple: 3, four_bed: 4, dormitory: 8 };
+const FILTERS = { hostel: '', building: '', floor: '', roomType: '', status: '' };
 
-/**
- * Rooms are shown as cards with their beds drawn in, rather than as a plain
- * table: the question a warden actually asks is "which bed is free in 204?",
- * and a grid answers it at a glance (spec §32).
- */
 export default function Rooms() {
-  const [rows, setRows]    = useState([]);
-  const [pg, setPg]        = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoad] = useState(true);
-  const [filters, setFilters] = useState({ hostel: '', building: '', floor: '', status: '', roomType: '', search: '' });
-  const [modal, setModal]  = useState(false);
-  const [form, setForm]    = useState(emptyRoom);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [del, setDel]      = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [bedModal, setBedModal] = useState(null);   // { bed, room }
-  const [bedBusy, setBedBusy] = useState(false);
+  const nav = useNavigate();
+  const { state, set, setPage, reset } = useListState({ limit: 10, ...FILTERS },
+    { fromUrl: ['hostel', 'building', 'floor', 'status', 'search'] });
+  const { data, loading, reload } = useBoardData((q) => api.getBoard('rooms', q), state);
+  const { data: meta, refetch: reloadMeta } = useFetch(api.getMeta, []);
 
-  const { data: meta } = useFetch(api.getMeta, []);
   const hostels = meta?.hostels || [];
-  const buildings = (meta?.buildings || []).filter((b) => !filters.hostel || String(b.hostel) === filters.hostel);
-  const floors = (meta?.floors || []).filter((f) => !filters.building || String(f.building) === filters.building);
+  const buildings = (meta?.buildings || []).filter((b) => !state.hostel || String(b.hostel) === state.hostel);
+  const floors = (meta?.floors || []).filter((f) => (state.building
+    ? String(f.building) === state.building
+    : !state.hostel || String(f.hostel) === state.hostel));
   const allFloors = meta?.floors || [];
 
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
-    try {
-      const res = await api.getRooms({ page, limit: 24, ...filters });
-      const d = res.data ?? res;
-      setRows(d.data || []);
-      setPg({ page: d.page, pages: d.pages, total: d.total });
-    } catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [filters]);
-  useEffect(() => { load(1); }, [filters.hostel, filters.building, filters.floor, filters.status, filters.roomType]); // eslint-disable-line
+  const [roomForm, setRoomForm] = useState(null);   // { room } | { floor }
+  const [roomView, setRoomView] = useState(null);
+  const [bedForm, setBedForm] = useState(null);     // { room, bed? }
+  const [bedView, setBedView] = useState(null);     // { room, bed }
+  const [del, setDel] = useState(null);             // { kind: 'room' | 'bed', row }
+  const [open, setOpen] = useState(null);
+  const [selected, setSelected] = useState(new Set());
+  const [bedsSelected, setBedsSelected] = useState(new Set());
+  const [tick, setTick] = useState(0);
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const setFilter = (k, v) => setFilters((f) => ({
-    ...f, [k]: v,
-    ...(k === 'hostel' ? { building: '', floor: '' } : {}),
-    ...(k === 'building' ? { floor: '' } : {}),
-  }));
+  const refresh = () => { reload(); reloadMeta?.(); setTick((t) => t + 1); };
 
-  const open = (row) => {
-    if (row) {
-      setEditId(row._id);
-      setForm({ ...emptyRoom, ...row, floor: row.floor?._id || row.floor, facilities: (row.facilities || []).join(', ') });
-    } else { setEditId(null); setForm({ ...emptyRoom, floor: filters.floor || '' }); }
-    setModal(true);
-  };
-
-  const save = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const p = {
-        ...form,
-        capacity: Number(form.capacity) || 1,
-        facilities: String(form.facilities).split(',').map((s) => s.trim()).filter(Boolean),
-      };
-      if (editId) await api.updateRoom(editId, p); else await api.createRoom(p);
-      toast.success(editId ? 'Room updated' : 'Room created');
-      setModal(false); load(pg.page);
-    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
-  };
+  // Opened straight from the Dashboard's New menu (?new=…).
+  useNewFromLink(!!meta, () => (allFloors.length ? setRoomForm({ floor: state.floor || '' }) : toast.error('Add a floor first, then its rooms')));
 
   const remove = async () => {
-    try { await api.deleteRoom(del._id); toast.success('Room deactivated'); setDel(null); load(pg.page); }
-    catch (err) { toast.error(err.message); setDel(null); }
-  };
-
-  const openDetail = async (row) => {
-    setDetail({ loading: true });
-    try { const r = await api.getRoom(row._id); setDetail(r.data ?? r); }
-    catch (err) { toast.error(err.message); setDetail(null); }
+    try {
+      if (del.kind === 'room') { await api.deleteRoom(del.row._id); toast.success('Room deactivated'); }
+      else { await api.deleteBed(del.row._id); toast.success('Bed removed'); }
+      setDel(null); refresh();
+    } catch (err) { toast.error(err.message); setDel(null); }
   };
 
   const addBeds = async (room) => {
     try {
       const r = await api.generateBeds(room._id, {});
       toast.success(`${(r.data ?? r).length} bed(s) added`);
-      load(pg.page);
-      if (detail?._id === room._id) openDetail(room);
+      refresh();
     } catch (err) { toast.error(err.message); }
   };
 
-  const changeBedState = async (status) => {
-    setBedBusy(true);
-    try {
-      await api.setBedState(bedModal.bed._id, { status, remarks: bedModal.remarks || '' });
-      toast.success(`Bed marked ${label(status)}`);
-      setBedModal(null); load(pg.page);
-      if (detail?._id) openDetail({ _id: detail._id });
-    } catch (err) { toast.error(err.message); } finally { setBedBusy(false); }
+  const t = data?.tiles || {};
+  const rows = data?.rows || [];
+  const filtered = !!(state.search || Object.keys(FILTERS).some((k) => state[k]));
+
+  const columns = [
+    { key: 'room', label: 'Room No.', render: (r) => <TwoLine top={r.roomNumber} sub={r.code} strong /> },
+    { key: 'hostel', label: 'Hostel', render: (r) => r.hostelName || '—' },
+    { key: 'building', label: 'Building', render: (r) => r.buildingName || '—' },
+    { key: 'floor', label: 'Floor', render: (r) => r.floorName || '—' },
+    { key: 'type', label: 'Type', render: (r) => <Badge tone="blue">{roomTypeLabel(r.roomType)}</Badge> },
+    { key: 'capacity', label: 'Capacity', render: (r) => r.capacity ?? 0 },
+    { key: 'occupied', label: 'Occupied', render: (r) => r.occupied || 0 },
+    { key: 'available', label: 'Available', render: (r) => r.available || 0 },
+    { key: 'status', label: 'Status', render: (r) => <RoomState state={r.state} /> },
+  ];
+
+  const bedColumns = [
+    { key: 'bed', label: 'Bed No.', render: (b) => b.code || b.bedNumber },
+    { key: 'student', label: 'Occupant', render: (b) => (b.studentName
+      ? <Person name={b.studentName} src={b.studentPhoto} strong={false}
+          sub={b.studentKind === 'teacher' ? ['Teacher', b.studentAdmissionNo].filter(Boolean).join(' • ') : classLine(b).replace(' | ', ' • ')} />
+      : <span className="hs-person hs-person--none"><span aria-hidden>—</span><span className="hs-muted">Not allocated</span></span>) },
+    { key: 'type', label: 'Type', render: (b) => <Badge tone="blue">{bedTypeLabel(b.bedType)}</Badge> },
+    { key: 'for', label: 'Bed Is For', render: (b) => <Badge tone={occupantOf(b) === 'student' ? 'slate' : 'violet'}>{occupantLabel(b)}</Badge> },
+    { key: 'status', label: 'Status', render: (b) => <BedState state={b.state} /> },
+    { key: 'on', label: 'Allocated On', render: (b) => (b.studentName && b.allocatedOn ? fmtDate(b.allocatedOn) : '—') },
+  ];
+
+  const bedsPanel = (room) => {
+    const beds = room.bedList || [];
+    return (
+      <ListCard className="hs-lcard--nest" head={(
+        <>
+          <span className="hs-sechead__ico"><Glyph name="bedSolid" size={24} /></span>
+          <h3>Beds in {room.roomNumber} ({beds.length})</h3>
+          <Btn icon="plus" size="sm" onClick={() => setBedForm({ room })}>Add Bed</Btn>
+        </>
+      )}>
+        <DataTable
+          columns={bedColumns} rows={beds} pad={7} headPad={10}
+          selected={bedsSelected} onSelect={setBedsSelected}
+          actions={(b) => (
+            <>
+              {b.state === 'available'
+                ? <Btn size="sm" icon="userPlus" onClick={() => nav(`/admin/hostel/allocations?new=1&bed=${b._id}`)}>Assign</Btn>
+                : <Btn size="sm" icon="eye" onClick={() => setBedView({ room, bed: b })}>View</Btn>}
+              <Btn size="sm" icon="pencil" onClick={() => setBedForm({ room, bed: b })}>Edit</Btn>
+              <Kebab label={`Actions for bed ${b.code || b.bedNumber}`} items={b.status === 'occupied'
+                ? [{ label: 'Open allocation', icon: 'arrowRight', onClick: () => nav(`/admin/hostel/allocations?search=${encodeURIComponent(b.studentName || '')}`) }]
+                : bedMenu(b, { onChanged: refresh, onRemove: (bed) => setDel({ kind: 'bed', row: bed }) })} />
+            </>
+          )}
+          empty={(
+            <EmptyRows icon="bed" title="No beds laid out yet"
+              action={<Btn kind="primary" icon="plus" onClick={() => addBeds(room)}>Lay out {room.capacity} bed{room.capacity === 1 ? '' : 's'}</Btn>}>
+              A room&rsquo;s beds are what students and teachers are allocated to.
+            </EmptyRows>
+          )}
+        />
+      </ListCard>
+    );
+  };
+
+  const exportRows = () => {
+    const pick = rows.filter((r) => selected.has(String(r._id)));
+    exportCsv('hostel-rooms.csv', [
+      { label: 'Room', value: (r) => r.roomNumber }, { label: 'Code', value: (r) => r.code },
+      { label: 'Hostel', value: (r) => r.hostelName }, { label: 'Building', value: (r) => r.buildingName },
+      { label: 'Floor', value: (r) => r.floorName }, { label: 'Type', value: (r) => roomTypeLabel(r.roomType) },
+      { label: 'Capacity', value: (r) => r.capacity }, { label: 'Occupied', value: (r) => r.occupied },
+      { label: 'Available', value: (r) => r.available }, { label: 'Status', value: (r) => r.state },
+    ], pick);
   };
 
   return (
-    <div className="page">
-      <PageHeader title="Rooms & Beds" subtitle={`${pg.total} room(s) — click a bed to reserve it or send it for maintenance`}
-        action={<Button onClick={() => open()} disabled={!allFloors.length}>+ Add Room</Button>} />
+    <div className="hs-page">
+      <PageHead title="Rooms & Beds" subtitle="Manage hostel rooms and beds. View availability, assign students or send for maintenance.">
+        <SplitBtn label="Add Room" menuLabel="More ways to add"
+          onClick={() => (allFloors.length ? setRoomForm({ floor: state.floor || '' }) : toast.error('Add a floor first, then its rooms'))}
+          items={[
+            { label: 'Add Building', icon: 'building', onClick: () => nav('/admin/hostel/structure?new=building') },
+            { label: 'Add Floor', icon: 'layers', onClick: () => nav('/admin/hostel/structure?new=floor') },
+          ]} />
+      </PageHead>
 
-      <Filters>
-        <input className="form-control" style={{ maxWidth: 220 }} placeholder="🔍 Room number…"
-          value={filters.search} onChange={(e) => setFilter('search', e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && load(1)} />
-        <select className="form-control" style={{ maxWidth: 200 }} value={filters.hostel} onChange={(e) => setFilter('hostel', e.target.value)}>
-          <option value="">All hostels</option>
-          {hostels.map((h) => <option key={h._id} value={h._id}>{h.name}</option>)}
-        </select>
-        <select className="form-control" style={{ maxWidth: 180 }} value={filters.building} onChange={(e) => setFilter('building', e.target.value)}>
-          <option value="">All buildings</option>
-          {buildings.map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}
-        </select>
-        <select className="form-control" style={{ maxWidth: 160 }} value={filters.floor} onChange={(e) => setFilter('floor', e.target.value)}>
-          <option value="">All floors</option>
-          {floors.map((f) => <option key={f._id} value={f._id}>{f.name}</option>)}
-        </select>
-        <select className="form-control" style={{ maxWidth: 160 }} value={filters.roomType} onChange={(e) => setFilter('roomType', e.target.value)}>
-          <option value="">All types</option>
-          {ROOM_TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
-        </select>
-        <select className="form-control" style={{ maxWidth: 180 }} value={filters.status} onChange={(e) => setFilter('status', e.target.value)}>
-          <option value="">All statuses</option>
-          {ROOM_STATUS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
-        </select>
-      </Filters>
+      <Kpis cols={5} size="sm">
+        <Kpi tone="violet" icon="bedSolid" value={t.rooms ?? 0} label="Total Rooms" art={<DoorArt />} />
+        <Kpi tone="rose" icon="bedSolid" value={t.beds ?? 0} label="Total Beds" art={<BedArt small />} />
+        <Kpi tone="green" icon="person" value={t.occupied ?? 0} label="Occupied Beds"
+          pct={t.occupiedPct ?? 0} pctLabel={`${t.occupiedPct ?? 0}% occupancy`} pctTone="violet" bar inline barColor="linear-gradient(90deg, #6d5dfc, #a78bfa)" />
+        <Kpi tone="sky" icon="bedSolid" value={t.available ?? 0} label="Available Beds"
+          pct={t.availablePct ?? 0} pctLabel={`${t.availablePct ?? 0}% available`} bar inline barColor="#2b8ef0" />
+        <Kpi tone="amber" icon="tools" value={t.maintenance ?? 0} label="Maintenance Beds"
+          pct={t.maintenancePct ?? 0} pctLabel={`${t.maintenancePct ?? 0}% under maintenance`} bar inline barColor="#f59e0b" />
+      </Kpis>
 
-      <div style={{ marginBottom: 14 }}><BedLegend /></div>
+      <FilterBar>
+        <FSearch value={state.search} onChange={(v) => set({ search: v })} placeholder="Search room number, student name..." grow={3} width="300px" />
+        <FSelect value={state.hostel} onChange={(v) => set({ hostel: v, building: '', floor: '' })} all="All hostels"
+          options={hostels.map((h) => ({ value: h._id, label: h.name }))} width="120px" />
+        <FSelect value={state.building} onChange={(v) => set({ building: v, floor: '' })} all="All buildings"
+          options={buildings.map((b) => ({ value: b._id, label: b.name }))} width="120px" />
+        <FSelect value={state.floor} onChange={(v) => set({ floor: v })} all="All floors"
+          options={floors.map((f) => ({ value: f._id, label: f.name }))} width="110px" />
+        <FSelect value={state.roomType} onChange={(v) => set({ roomType: v })} all="All room types"
+          options={ROOM_TYPES.map(([value, label]) => ({ value, label }))} width="130px" />
+        <FSelect value={state.status} onChange={(v) => set({ status: v })} all="All statuses" options={ROOM_STATES} width="120px" />
+        <Btn icon="refresh" onClick={() => { reset(); setSelected(new Set()); setOpen(null); }}>Reset</Btn>
+      </FilterBar>
 
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}><Spinner /></div>
-      ) : !rows.length ? (
-        <Empty icon="🚪" title="No rooms yet" message="Add a floor first, then create rooms on it." />
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-          {rows.map((r) => (
-            <div key={r._id} className="card" style={{ padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }} onClick={() => openDetail(r)}>
-                    Room {r.roomNumber}
-                  </div>
-                  <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
-                    {r.hostel?.name} · {r.building?.name} · {r.floor?.name}
-                  </div>
-                </div>
-                <StatusBadge value={r.status} />
-              </div>
-
-              <div style={{ display: 'flex', gap: 6, margin: '10px 0 8px', flexWrap: 'wrap' }}>
-                <Badge variant="muted">{label(r.roomType)}</Badge>
-                <Badge variant="info">{r.occupiedBeds || 0}/{r.capacity} filled</Badge>
-                {r.gender && <Badge variant="primary">{label(r.gender)}</Badge>}
-              </div>
-
-              {r.beds?.length ? (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {r.beds.map((b) => (
-                    <BedTile key={b._id} bed={b} compact
-                      onClick={(bed) => bed.status === 'occupied'
-                        ? toast(`${bed.student?.name || 'Occupied'} — release from Allocations`, { icon: '🛏' })
-                        : setBedModal({ bed, room: r })} />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', margin: '6px 0 10px' }}>
-                  No beds laid out yet.
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <Button size="sm" variant="secondary" onClick={() => openDetail(r)}>Details</Button>
-                <Button size="sm" variant="secondary" onClick={() => open(r)}>Edit</Button>
-                {(r.beds?.length || 0) < r.capacity && (
-                  <Button size="sm" onClick={() => addBeds(r)}>+ Beds</Button>
-                )}
-                <Button size="sm" variant="danger" onClick={() => setDel(r)}>Deactivate</Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
-
-      {/* ── Room form ─────────────────────────────────────────────────────── */}
-      <Modal open={modal} onClose={() => setModal(false)} maxWidth={640}
-        title={editId ? `Edit Room ${form.roomNumber}` : 'Add Room'}
-        footer={<>
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="room-form" type="submit" loading={saving}>Save</Button>
-        </>}>
-        <form id="room-form" onSubmit={save}>
-          {!editId && (
-            <div className="form-group">
-              <label className="form-label required">Floor</label>
-              <select className="form-control" required value={form.floor} onChange={(e) => set('floor', e.target.value)}>
-                <option value="">— select —</option>
-                {allFloors.map((f) => <option key={f._id} value={f._id}>{f.name} (level {f.floorNumber})</option>)}
-              </select>
-            </div>
+      <ListCard>
+        <BulkBar count={selected.size} noun="room" onClear={() => setSelected(new Set())}>
+          <Btn size="sm" icon="download" onClick={exportRows}>Export CSV</Btn>
+        </BulkBar>
+        <DataTable
+          columns={columns} rows={rows} loading={loading} pad={7} headPad={10}
+          selected={selected} onSelect={setSelected}
+          expand={bedsPanel} expanded={open} onExpand={(k) => { setOpen(k); setBedsSelected(new Set()); }}
+          actions={(r) => (
+            <>
+              <Btn size="sm" icon="eye" onClick={() => setRoomView(r._id)}>View</Btn>
+              <Btn size="sm" icon="pencil" onClick={() => setRoomForm({ room: r._id })}>Edit</Btn>
+              <Kebab label={`Actions for ${r.roomNumber}`} items={[
+                { label: 'Add bed', icon: 'plus', onClick: () => setBedForm({ room: r }) },
+                (r.bedList?.length || 0) < r.capacity && { label: 'Lay out missing beds', icon: 'bed', onClick: () => addBeds(r) },
+                { label: 'Show on occupancy map', icon: 'grid', onClick: () => nav(`/admin/hostel/occupancy?hostel=${r.hostelId}&building=${r.buildingId}&floor=${r.floorId}&room=${r._id}`) },
+                '-',
+                { label: 'Deactivate', icon: 'trash', danger: true, onClick: () => setDel({ kind: 'room', row: r }) },
+              ]} />
+            </>
           )}
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Room Number</label>
-              <input className="form-control" required value={form.roomNumber} onChange={(e) => set('roomNumber', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Code</label>
-              <input className="form-control" value={form.code} onChange={(e) => set('code', e.target.value)} placeholder="auto (RM-…)" />
-            </div>
-          </div>
-          <div className="form-row form-row-3">
-            <div className="form-group">
-              <label className="form-label">Room Type</label>
-              <select className="form-control" value={form.roomType}
-                onChange={(e) => {
-                  set('roomType', e.target.value);
-                  if (TYPE_CAPACITY[e.target.value]) set('capacity', TYPE_CAPACITY[e.target.value]);
-                }}>
-                {ROOM_TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label required">Capacity</label>
-              <input className="form-control" type="number" min="1" required value={form.capacity} onChange={(e) => set('capacity', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Gender</label>
-              <select className="form-control" value={form.gender} onChange={(e) => set('gender', e.target.value)}>
-                <option value="">Inherit from hostel</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="any">Any</option>
-              </select>
-            </div>
-          </div>
-          {editId && (
-            <div className="form-group">
-              <label className="form-label">Status</label>
-              <select className="form-control" value={form.status} onChange={(e) => set('status', e.target.value)}>
-                {ROOM_STATUS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
-              </select>
-              <div className="form-hint">Occupancy statuses are maintained automatically; set maintenance or inactive by hand.</div>
-            </div>
+          empty={(
+            <EmptyRows icon="door" title={filtered ? 'No room matches these filters' : 'No rooms yet'}
+              action={filtered ? <Btn icon="refresh" onClick={reset}>Reset filters</Btn>
+                : <Btn kind="primary" icon="plus" onClick={() => setRoomForm({ floor: '' })} disabled={!allFloors.length}>Add Room</Btn>}>
+              {filtered ? 'Try a different room number, student or filter.' : 'Add a floor first, then create rooms on it.'}
+            </EmptyRows>
           )}
-          <div className="form-group">
-            <label className="form-label">Facilities</label>
-            <input className="form-control" value={form.facilities} onChange={(e) => set('facilities', e.target.value)}
-              placeholder="attached bathroom, balcony, AC" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Description</label>
-            <input className="form-control" value={form.description} onChange={(e) => set('description', e.target.value)} />
-          </div>
-          {!editId && (
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '.85rem' }}>
-              <input type="checkbox" checked={form.generateBeds} onChange={(e) => set('generateBeds', e.target.checked)} />
-              Lay out {form.capacity || 0} bed(s) automatically
-            </label>
-          )}
-        </form>
-      </Modal>
+        />
+        <Pager page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={data?.limit || state.limit}
+          noun={data?.total === 1 ? 'room' : 'rooms'} onPage={setPage} size="sm" />
+      </ListCard>
 
-      {/* ── Room detail ───────────────────────────────────────────────────── */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} maxWidth={720} title={detail?.roomNumber ? `Room ${detail.roomNumber}` : 'Room'}>
-        {detail?.loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div> : detail && (
-          <div style={{ display: 'grid', gap: 18 }}>
-            <FieldGrid>
-              <Field label="Hostel">{detail.hostel?.name}</Field>
-              <Field label="Building">{detail.building?.name}</Field>
-              <Field label="Floor">{detail.floor?.name}</Field>
-              <Field label="Type">{label(detail.roomType)}</Field>
-              <Field label="Capacity">{detail.capacity}</Field>
-              <Field label="Status"><StatusBadge value={detail.status} /></Field>
-            </FieldGrid>
+      <RoomFormModal open={!!roomForm} room={roomForm?.room} floor={roomForm?.floor} hostels={meta?.hostels || []}
+        floors={allFloors} buildings={meta?.buildings || []} onClose={() => setRoomForm(null)} onSaved={refresh} />
+      <RoomDrawer roomId={roomView} refreshKey={tick} onClose={() => setRoomView(null)}
+        onEdit={(r) => { setRoomView(null); setRoomForm({ room: r._id }); }} />
+      <BedFormModal open={!!bedForm} room={bedForm?.room} bed={bedForm?.bed} onClose={() => setBedForm(null)} onSaved={refresh} />
+      <BedDrawer bed={bedView?.bed} room={bedView?.room} onClose={() => setBedView(null)}
+        onEdit={(b) => { const room = bedView.room; setBedView(null); setBedForm({ room, bed: b }); }} />
 
-            <div>
-              <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Beds</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {(detail.beds || []).map((b) => <BedTile key={b._id} bed={b} />)}
-                {!detail.beds?.length && <span className="text-muted" style={{ fontSize: '.83rem' }}>No beds laid out.</span>}
-              </div>
-            </div>
-
-            {!!detail.assets?.length && (
-              <Card title={`Assets in this room (${detail.assets.length})`}>
-                {detail.assets.map((a) => (
-                  <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '.84rem' }}>{a.name} × {a.quantity}</span>
-                    <StatusBadge value={a.status} />
-                  </div>
-                ))}
-              </Card>
-            )}
-            {!!detail.complaints?.length && (
-              <Card title={`Recent complaints (${detail.complaints.length})`}>
-                {detail.complaints.map((c) => (
-                  <div key={c._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '.83rem' }}>{c.ticketNumber} · {label(c.category)}</span>
-                    <StatusBadge value={c.status} />
-                  </div>
-                ))}
-              </Card>
-            )}
-            {!!detail.maintenance?.length && (
-              <Card title={`Maintenance (${detail.maintenance.length})`}>
-                {detail.maintenance.map((m) => (
-                  <div key={m._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '.83rem' }}>{m.requestNumber} · {label(m.category)}</span>
-                    <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{dd(m.createdAt)}</span>
-                      <StatusBadge value={m.status} />
-                    </span>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Bed state ─────────────────────────────────────────────────────── */}
-      <Modal open={!!bedModal} onClose={() => setBedModal(null)} maxWidth={440}
-        title={bedModal ? `Bed ${bedModal.bed.bedNumber} — Room ${bedModal.room.roomNumber}` : ''}>
-        {bedModal && (
-          <div>
-            <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginTop: 0 }}>
-              Currently <strong>{label(bedModal.bed.status)}</strong>. Pick the new state:
-            </p>
-            <div className="form-group">
-              <label className="form-label">Remark</label>
-              <input className="form-control" value={bedModal.remarks || ''}
-                onChange={(e) => setBedModal((m) => ({ ...m, remarks: e.target.value }))}
-                placeholder="Optional — kept on the bed and in the audit log" />
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {BED_STATES.filter((s) => s !== bedModal.bed.status).map((s) => (
-                <Button key={s} size="sm" loading={bedBusy}
-                  variant={s === 'available' ? 'primary' : s === 'inactive' ? 'danger' : 'secondary'}
-                  onClick={() => changeBedState(s)}>
-                  Mark {label(s)}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove}
-        title="Deactivate room"
-        message={`Deactivate room ${del?.roomNumber}? Occupied beds block this.`} />
+      <ConfirmDialog open={!!del} onClose={() => setDel(null)} onConfirm={remove}
+        confirmLabel={del?.kind === 'bed' ? 'Remove Bed' : 'Deactivate Room'}
+        title={del?.kind === 'bed' ? 'Remove Bed' : 'Deactivate Room'}
+        message={del?.kind === 'bed'
+          ? `Remove bed ${del?.row?.code || del?.row?.bedNumber}? It is taken out of the room's count.`
+          : `Deactivate ${del?.row?.roomNumber}? Occupied beds block this.`} />
     </div>
   );
 }

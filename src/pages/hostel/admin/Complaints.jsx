@@ -1,25 +1,76 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+/**
+ * Hostel → Complaints (Sep 2026 redesign, to the user's mockup).
+ *
+ * Five figures, a tab per stage, the filters and the tickets table, from
+ * GET /hostel/admin/board/complaints. A ticket past its SLA and still not
+ * dealt with is listed as Overdue whatever its stage; the stage itself is on
+ * its drawer, with the ladder of what may be done next.
+ */
+import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/hostel.api';
 import useFetch from '../../../hooks/useFetch';
+import { Alert } from '../../../components/ui/index';
+import { Drawer, DrawerHead, DrawerBody, DrawerSection, DrawerField, DrawerFields, DrawerFoot } from '../../../components/ui/Drawer';
+import { FileLink, useNewFromLink } from '../shared';
+import { PageHead, Mark, words } from './hsUI';
 import {
-  PageHeader, Table, Button, Modal, Badge, Pagination, Card, Spinner, Alert,
-} from '../../../components/ui/index';
-import { StatusBadge, Filters, Field, FieldGrid, Attachments, fileUrl, label, dd, dt } from '../shared';
+  Kpis, Kpi, FilterBar, FSearch, FSelect, FDateRange, LineTabs, Btn, Kebab, ListCard, DataTable, Pager, EmptyRows, BulkBar,
+  Badge, TwoLine, useListState, useBoardData, exportCsv, fmtDate, fmtTime,
+} from './hsList';
+import { roomTight } from './hsPeople';
+import { FormModal, FormSection, Grid, Fld, RadioCards, ToggleRow, StudentPicker, FileDrop, ReviewList } from './hsForm';
+import { PRIORITIES, Priority, Assignee, DueDate, stamp } from './hsTags';
 
-const CATEGORIES = ['room', 'mess', 'cleaning', 'security', 'maintenance', 'staff', 'food', 'facilities', 'internet', 'other'];
-const STATUSES = ['open', 'assigned', 'in_progress', 'resolved', 'reopened', 'closed', 'rejected'];
-const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+const CATEGORY = {
+  room: 'sky', mess: 'red', cleaning: 'green', security: 'violet', maintenance: 'lavender', staff: 'amber',
+  food: 'orange', facilities: 'blue', internet: 'indigo', other: 'slate',
+};
+const Category = ({ value }) => <Badge tone={CATEGORY[value] || 'slate'} size="lg">{words(value)}</Badge>;
+const STATUS = {
+  open: ['Open', 'blue'], assigned: ['Open', 'blue'], in_progress: ['In Progress', 'amber'], resolved: ['Resolved', 'green'],
+  reopened: ['Reopened', 'blue'], closed: ['Closed', 'green'], rejected: ['Rejected', 'slate'],
+};
+/** A live ticket past its SLA reads Overdue on the list; its real stage is on the drawer. */
+const StatusTag = ({ r, real }) => {
+  if (r.overdue && !real) return <Badge tone="red" size="lg">Overdue</Badge>;
+  const [text, tone] = real && r.status === 'assigned' ? ['Assigned', 'blue'] : (STATUS[r.status] || [words(r.status), 'slate']);
+  return <Badge tone={tone} size="lg">{text}</Badge>;
+};
+const STATUS_FILTER = [['open', 'Open'], ['progress', 'In progress'], ['overdue', 'Overdue'], ['escalated', 'Escalated'], ['resolved', 'Resolved'], ['reopened', 'Reopened'], ['closed', 'Closed'], ['rejected', 'Rejected']]
+  .map(([value, label]) => ({ value, label }));
 const empty = { hostel: '', room: '', student: '', category: 'other', priority: 'medium', subject: '', description: '', attachments: [] };
+const FILTERS = { hostel: '', category: '', priority: '', status: '', from: '', to: '' };
+const where = (r) => (r.roomNumber ? roomTight(r).replace('-', ' - ') : '');
+/** Each step's title, icon and tone. */
+const STEP_LOOK = {
+  assign: ['Assign Complaint', 'userPlus', 'indigo'], start: ['Start Work', 'activity', 'blue'], resolve: ['Resolve Complaint', 'checkCircle', 'green'],
+  reopen: ['Reopen Complaint', 'refresh', 'amber'], close: ['Close Complaint', 'check', 'green'], reject: ['Reject Complaint', 'closeCircle', 'red'],
+  escalate: ['Escalate Complaint', 'alert', 'orange'], comment: ['Add a Comment', 'chat', 'indigo'], prioritize: ['Change Priority', 'sliders', 'violet'],
+};
+const DONE = { assign: 'assigned', start: 'started', resolve: 'resolved', reopen: 'reopened', close: 'closed', reject: 'rejected', escalate: 'escalated', comment: 'updated', prioritize: 'updated' };
+
+/** What may be done with a ticket, from where it stands. */
+const LADDER = (status) => [
+  !['closed', 'rejected'].includes(status) && ['assign', 'Assign', 'userPlus'],
+  ['open', 'assigned', 'reopened'].includes(status) && ['start', 'Start work', 'activity'],
+  !['resolved', 'closed', 'rejected'].includes(status) && ['resolve', 'Resolve', 'checkCircle'],
+  ['resolved', 'closed'].includes(status) && ['reopen', 'Reopen', 'refresh'],
+  status === 'resolved' && ['close', 'Close', 'check'],
+  !['closed', 'rejected'].includes(status) && ['escalate', 'Escalate', 'alert'],
+  !['closed', 'rejected'].includes(status) && ['prioritize', 'Change priority', 'sliders'],
+  ['comment', 'Add a comment', 'chat'],
+  !['resolved', 'closed', 'rejected'].includes(status) && ['reject', 'Reject', 'closeCircle'],
+].filter(Boolean);
 
 export default function Complaints() {
-  const [params, setParams] = useSearchParams();
-  const [rows, setRows] = useState([]);
-  const [byStatus, setByStatus] = useState({});
-  const [pg, setPg] = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoad] = useState(true);
-  const [filters, setFilters] = useState({ status: params.get('status') || '', category: '', priority: '' });
+  const { state, set, setPage, reset } = useListState({ limit: 10, ...FILTERS });
+  const tab = ['open', 'progress', 'resolved', 'reopened', 'closed', 'rejected'].includes(state.tab) ? state.tab : 'all';
+  const { data, loading, reload } = useBoardData((q) => api.getBoard('complaints', q), state);
+  const { data: meta } = useFetch(api.getMeta, []);
+  const hostels = meta?.hostels || [];
+  const staff = meta?.staff || [];
+
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -27,43 +78,32 @@ export default function Complaints() {
   const [act, setAct] = useState(null);
   const [actForm, setActForm] = useState({ comment: '', assignedTo: '', resolution: '', priority: '', internal: true });
   const [busy, setBusy] = useState(false);
-
-  const { data: meta } = useFetch(api.getMeta, []);
-  const hostels = meta?.hostels || [];
+  const [selected, setSelected] = useState(new Set());
   const rooms = (meta?.rooms || []).filter((r) => !form.hostel || String(r.hostel) === form.hostel);
-  const staff = meta?.staff || [];
 
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
-    try {
-      const r = await api.getComplaints({ page, limit: 20, ...filters });
-      const d = r.data ?? r;
-      setRows(d.data || []); setByStatus(d.byStatus || {});
-      setPg({ page: d.page, pages: d.pages, total: d.total });
-    } catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [filters]);
-  useEffect(() => { load(1); }, [filters]); // eslint-disable-line
+  const open = () => { setForm(empty); setModal(true); };
+  // Opened straight from the Dashboard's New menu (?new=…).
+  useNewFromLink(true, () => open());
+  const setF = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'hostel' ? { room: '' } : {}) }));
 
-  const setFilter = (k, v) => {
-    setFilters((f) => ({ ...f, [k]: v }));
-    if (k === 'status') { if (v) setParams({ status: v }); else setParams({}); }
-  };
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'hostel' ? { room: '' } : {}) }));
-
-  const save = async (e) => {
-    e.preventDefault(); setSaving(true);
+  const save = async () => {
+    setSaving(true);
     try {
       await api.createComplaint({ ...form, room: form.room || null, student: form.student || null });
-      toast.success('Complaint raised'); setModal(false); load(1);
+      toast.success('Complaint raised'); setModal(false); reload();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
   };
 
   const openDetail = async (row) => {
-    setDetail({ loading: true });
-    try { const r = await api.getComplaint(row._id); setDetail(r.data ?? r); }
+    setDetail({ loading: true, subject: row.subject, ticketNumber: row.ticketNumber, _id: row._id });
+    try { const r = await api.getComplaint(row._id); setDetail({ ...(r.data ?? r), overdue: row.overdue }); }
     catch (err) { toast.error(err.message); setDetail(null); }
   };
 
+  const ask = (row, action) => {
+    setAct({ row, action });
+    setActForm({ comment: '', assignedTo: row.assignedId || row.assignedTo?._id || '', resolution: row.resolution || '', priority: row.priority, internal: true });
+  };
   const submitAct = async () => {
     setBusy(true);
     try {
@@ -75,9 +115,10 @@ export default function Complaints() {
         priority: actForm.priority || null,
         internal: actForm.internal,
       });
-      toast.success(`Complaint ${label(act.action)}`);
-      setAct(null); load(pg.page);
-      if (detail?._id === act.row._id) openDetail(act.row);
+      toast.success(`Complaint ${DONE[act.action] || 'updated'}`);
+      const row = act.row;
+      setAct(null); reload();
+      if (detail?._id === row._id) openDetail({ ...row, overdue: detail.overdue });
     } catch (err) { toast.error(err.message); } finally { setBusy(false); }
   };
 
@@ -86,254 +127,259 @@ export default function Complaints() {
       const r = await api.escalateComplaints();
       const d = r.data ?? r;
       toast.success(d.message || `${d.escalated} complaint(s) escalated`);
-      load(pg.page);
+      reload();
     } catch (err) { toast.error(err.message); }
   };
 
-  const overdue = (r) => r.dueAt && new Date(r.dueAt) < new Date() && !['resolved', 'closed', 'rejected'].includes(r.status);
+  const t = data?.tiles || {};
+  const tabs = data?.tabs || {};
+  const rows = data?.rows || [];
+  const from = ((data?.page || 1) - 1) * (data?.limit || state.limit);
+  const filtered = !!(state.search || Object.keys(FILTERS).some((k) => state[k]));
 
   const columns = [
-    { key: 'ticket', label: 'Ticket', render: (r) => (
-      <div>
-        <strong style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>{r.ticketNumber}</strong>
-        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{dd(r.createdAt)}</div>
-      </div>
+    { key: 'n', label: '#', render: (r, i) => from + i + 1, className: 'hs-table__num' },
+    { key: 'subject', label: 'Subject', render: (r) => <TwoLine top={r.subject || r.description} sub={r.ticketNumber ? `#${r.ticketNumber}` : ''} /> },
+    { key: 'cat', label: 'Category', render: (r) => <Category value={r.category} /> },
+    { key: 'room', label: 'Hostel / Room', render: (r) => <TwoLine top={r.hostelName || '—'} sub={where(r)} /> },
+    { key: 'by', label: 'Reported By', render: (r) => (r.studentName
+      ? <TwoLine top={r.studentName} sub={[r.studentClass, r.studentRoll ? `Roll ${r.studentRoll}` : ''].filter(Boolean).join(' | ')} />
+      : <TwoLine top={r.raisedByName || '—'} sub={words(r.raisedByRole)} />) },
+    { key: 'priority', label: 'Priority', render: (r) => <Priority value={r.priority} /> },
+    { key: 'status', label: 'Status', render: (r) => (
+      <span className="hs-stack"><StatusTag r={r} />{r.escalationLevel > 0 ? <small className="is-bad">escalated · L{r.escalationLevel}</small> : null}</span>
     ) },
-    { key: 'what', label: 'Complaint', render: (r) => (
-      <div style={{ maxWidth: 280 }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
-          <Badge variant="muted">{label(r.category)}</Badge>
-          <Badge variant={r.priority === 'urgent' ? 'danger' : r.priority === 'high' ? 'warning' : 'info'}>{r.priority}</Badge>
-          {r.escalationLevel > 0 && <Badge variant="danger">L{r.escalationLevel}</Badge>}
-        </div>
-        <div style={{ fontSize: '.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {r.subject || r.description}
-        </div>
-      </div>
-    ) },
-    { key: 'from', label: 'From', render: (r) => (
-      <div style={{ fontSize: '.82rem' }}>
-        {r.student?.name || '—'}
-        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
-          {r.hostel?.name}{r.room?.roomNumber ? ` · Room ${r.room.roomNumber}` : ''}
-        </div>
-      </div>
-    ) },
-    { key: 'assigned', label: 'Assigned', render: (r) => r.assignedTo?.name || <span className="text-muted">unassigned</span> },
-    { key: 'sla', label: 'SLA', render: (r) => overdue(r)
-      ? <Badge variant="danger">breached</Badge>
-      : r.dueAt ? <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{dd(r.dueAt)}</span> : '—' },
-    { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-    { key: 'a', label: '', render: (r) => (
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <Button size="sm" variant="secondary" onClick={() => openDetail(r)}>Open</Button>
-        {!['closed', 'rejected'].includes(r.status) && (
-          <Button size="sm" onClick={() => { setAct({ row: r, action: r.status === 'resolved' ? 'close' : 'resolve' }); setActForm({ comment: '', assignedTo: '', resolution: '', priority: '', internal: true }); }}>
-            {r.status === 'resolved' ? 'Close' : 'Resolve'}
-          </Button>
-        )}
-      </div>
-    ) },
+    { key: 'to', label: 'Assigned To', render: (r) => <Assignee name={r.assignedName} src={r.assignedPhoto} /> },
+    { key: 'on', label: 'Reported On', render: (r) => <TwoLine top={fmtDate(r.createdAt)} sub={fmtTime(r.createdAt)} />, nowrap: true },
+    { key: 'due', label: 'Due Date', render: (r) => <DueDate at={r.dueAt} late={r.overdue} />, nowrap: true },
   ];
 
-  const ACTIONS = (status) => [
-    ['assign', 'Assign'], ['start', 'Start work'], ['resolve', 'Resolve'],
-    ['escalate', 'Escalate'], ['prioritize', 'Change priority'], ['comment', 'Comment'],
-    ...(status === 'resolved' || status === 'closed' ? [['reopen', 'Reopen'], ['close', 'Close']] : []),
-    ['reject', 'Reject'],
-  ];
+  const csv = (list) => exportCsv('hostel-complaints.csv', [
+    { label: 'Ticket', value: (r) => r.ticketNumber }, { label: 'Subject', value: (r) => r.subject }, { label: 'Description', value: (r) => r.description },
+    { label: 'Category', value: (r) => words(r.category) }, { label: 'Priority', value: (r) => words(r.priority) },
+    { label: 'Hostel', value: (r) => r.hostelName }, { label: 'Room', value: (r) => r.roomNumber }, { label: 'Reported by', value: (r) => r.studentName || r.raisedByName },
+    { label: 'Status', value: (r) => (r.overdue ? 'Overdue' : words(r.status)) }, { label: 'Assigned to', value: (r) => r.assignedName },
+    { label: 'Reported on', value: (r) => stamp(r.createdAt) }, { label: 'Due', value: (r) => stamp(r.dueAt) }, { label: 'Resolved on', value: (r) => stamp(r.resolutionDate) },
+  ], list);
+  const exportAll = async () => {
+    try { const res = await api.getBoard('complaints', { ...state, page: 1, limit: 5000 }); csv((res.data ?? res).rows || []); }
+    catch (err) { toast.error(err.message); }
+  };
+
+  const ladder = (r) => LADDER(r.status).map(([action, text, icon]) => ({ label: text, icon, danger: action === 'reject', onClick: () => ask(r, action) }));
 
   return (
-    <div className="page">
-      <PageHeader title="Hostel Complaints" subtitle="Room, mess, cleaning, security and facilities tickets with SLA escalation"
-        action={<div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="secondary" onClick={escalateAll}>Escalate breached</Button>
-          <Button onClick={() => { setForm(empty); setModal(true); }}>+ Raise Complaint</Button>
-        </div>} />
+    <div className="hs-page">
+      <PageHead title="Hostel Complaints" subtitle="Manage room, mess, cleaning, security and facilities complaints with SLA and escalation.">
+        <Btn className="hs-btn--accent" icon="warn" onClick={escalateAll}>Escalate Breached</Btn>
+        <Btn className="hs-btn--accent" icon="download" onClick={exportAll}>Export</Btn>
+        <Btn kind="primary" icon="plus" onClick={open}>Raise Complaint</Btn>
+      </PageHead>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        {STATUSES.map((s) => (
-          <button key={s} type="button" onClick={() => setFilter('status', filters.status === s ? '' : s)}
-            className={`btn btn-sm ${filters.status === s ? 'btn-primary' : 'btn-secondary'}`}>
-            {label(s)} <strong>{byStatus[s] || 0}</strong>
-          </button>
-        ))}
-      </div>
+      <Kpis cols={5} size="lg">
+        <Kpi tone="indigo" icon="chatSolid" value={t.total ?? 0} label="Total Complaints" delta={t.delta} />
+        <Kpi tone="green" icon="checkCircle" value={t.resolved ?? 0} label="Resolved" pct={t.resolvedPct ?? 0} pctTone="green" bar barColor="#12b76a" />
+        <Kpi tone="amber" icon="clockSolid" value={t.progress ?? 0} label="In Progress" pct={t.progressPct ?? 0} pctTone="amber" bar inline barColor="#f79009" />
+        <Kpi tone="red" icon="alertTri" value={t.overdue ?? 0} label="Overdue" pct={t.overduePct ?? 0} pctTone="red" bar inline barColor="#f04438" />
+        <Kpi tone="sky" icon="cycle" value={t.reopened ?? 0} label="Reopened" pct={t.reopenedPct ?? 0} pctTone="blue" bar inline barColor="#2b8ef0" />
+      </Kpis>
 
-      <Filters>
-        <select className="form-control" style={{ maxWidth: 180 }} value={filters.category} onChange={(e) => setFilter('category', e.target.value)}>
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{label(c)}</option>)}
-        </select>
-        <select className="form-control" style={{ maxWidth: 160 }} value={filters.priority} onChange={(e) => setFilter('priority', e.target.value)}>
-          <option value="">All priorities</option>
-          {PRIORITIES.map((p) => <option key={p} value={p}>{label(p)}</option>)}
-        </select>
-      </Filters>
+      <LineTabs rule value={tab} onChange={(k) => { set({ tab: k }); setSelected(new Set()); }} label="Complaints by stage"
+        items={[
+          { key: 'all', label: 'All Complaints', count: tabs.all ?? 0 },
+          { key: 'open', label: 'Open', count: tabs.open ?? 0 },
+          { key: 'progress', label: 'In Progress', count: tabs.progress ?? 0 },
+          { key: 'resolved', label: 'Resolved', count: tabs.resolved ?? 0 },
+          { key: 'reopened', label: 'Reopened', count: tabs.reopened ?? 0, tone: 'bad' },
+          { key: 'closed', label: 'Closed', count: tabs.closed ?? 0 },
+          { key: 'rejected', label: 'Rejected', count: tabs.rejected ?? 0, tone: 'bad' },
+        ]} />
 
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="📣" emptyTitle="No complaints" />
-      </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
+      <FilterBar>
+        <FSelect value={state.hostel} onChange={(v) => set({ hostel: v })} all="All hostels" options={hostels.map((h) => ({ value: h._id, label: h.name }))} grow={0} width="150px" />
+        <FSelect value={state.category} onChange={(v) => set({ category: v })} all="All categories" options={Object.keys(CATEGORY).map((c) => ({ value: c, label: words(c) }))} grow={0} width="150px" />
+        <FSelect value={state.priority} onChange={(v) => set({ priority: v })} all="All priorities" options={PRIORITIES.map((p) => ({ value: p, label: words(p) }))} grow={0} width="152px" />
+        <FSelect value={state.status} onChange={(v) => set({ status: v })} all="All statuses" options={STATUS_FILTER} grow={0} width="152px" />
+        <FDateRange from={state.from} to={state.to} onChange={(v) => set(v)} grow={0} width="246px" icon={false} />
+        <FSearch compact value={state.search} onChange={(v) => set({ search: v })} placeholder="Search by complaint ID, subject, student..." grow={1} width="200px" />
+      </FilterBar>
 
-      <Modal open={modal} onClose={() => setModal(false)} maxWidth={600} title="Raise a Complaint"
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="cp-form" type="submit" loading={saving}>Raise</Button></>}>
-        <form id="cp-form" onSubmit={save}>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Hostel</label>
-              <select className="form-control" required value={form.hostel} onChange={(e) => set('hostel', e.target.value)}>
-                <option value="">— select —</option>
+      <ListCard>
+        <BulkBar count={selected.size} noun="complaint" onClear={() => setSelected(new Set())}>
+          <Btn size="sm" icon="download" onClick={() => csv(rows.filter((r) => selected.has(String(r._id))))}>Export CSV</Btn>
+        </BulkBar>
+        <DataTable
+          columns={columns} rows={rows} loading={loading} pad={6} headPad={11} dense
+          selected={selected} onSelect={setSelected}
+          actions={(r) => (
+            <>
+              <Btn size="sm" icon="eye" onClick={() => openDetail(r)}>View</Btn>
+              <Kebab label={`Actions for ${r.ticketNumber}`} items={[{ label: 'View complaint', icon: 'eye', onClick: () => openDetail(r) }, '-', ...ladder(r)]} />
+            </>
+          )}
+          empty={(
+            <EmptyRows icon="chatSolid" title={filtered || tab !== 'all' ? 'No complaint matches' : 'No complaints'}
+              action={filtered ? <Btn icon="refresh" onClick={reset}>Reset filters</Btn> : <Btn kind="primary" icon="plus" onClick={open}>Raise Complaint</Btn>}>
+              {filtered || tab !== 'all' ? 'Try another tab, or clear the filters.' : 'Room, mess, cleaning and security complaints are raised and followed here.'}
+            </EmptyRows>
+          )}
+        />
+        <Pager page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={data?.limit || state.limit}
+          noun={data?.total === 1 ? 'complaint' : 'complaints'} onPage={setPage} size="sm" sizes={[10, 25, 50]} onLimit={(n) => set({ limit: n })} />
+      </ListCard>
+
+      {/* ── Raise ─────────────────────────────────────────────────────────── */}
+      <FormModal open={modal} onClose={() => setModal(false)} busy={saving} onSubmit={save}
+        icon="chatSolid" title="Raise a Complaint" subtitle="Log a room, mess, cleaning, security or facilities problem; it is tracked against its SLA."
+        submitLabel="Raise Complaint" submitIcon="check"
+        steps={[
+          { key: 'what', title: 'Complaint', sub: 'What is wrong, and how urgent', icon: 'chat' },
+          { key: 'where', title: 'Location & Person', sub: 'Where, and on whose behalf', icon: 'mapPin' },
+          { key: 'files', title: 'Attachments', sub: 'Photos or documents', icon: 'paperclip', optional: true },
+          { key: 'review', title: 'Review', sub: 'Confirm and raise', icon: 'oCheckRound' },
+        ]}>
+        <FormSection step="what" icon="chat" title="Complaint" sub="Describe the problem.">
+          <Grid cols={2}>
+            <Fld label="Category" required icon="oTag">
+              <select value={form.category} onChange={(e) => setF('category', e.target.value)}>
+                {Object.keys(CATEGORY).map((c) => <option key={c} value={c}>{words(c)}</option>)}
+              </select>
+            </Fld>
+            <Fld label="Priority" required icon="alert">
+              <select value={form.priority} onChange={(e) => setF('priority', e.target.value)}>
+                {PRIORITIES.map((p) => <option key={p} value={p}>{words(p)}</option>)}
+              </select>
+            </Fld>
+          </Grid>
+          <Fld label="Subject" optional icon="chat"><input value={form.subject} maxLength={100} placeholder="e.g. Water leaking in the bathroom" onChange={(e) => setF('subject', e.target.value)} /></Fld>
+          <Fld label="Description" required count={[form.description.length, 1000]}>
+            <textarea rows={4} maxLength={1000} value={form.description} placeholder="What is wrong, since when, and anything else that helps" onChange={(e) => setF('description', e.target.value)} />
+          </Fld>
+        </FormSection>
+        <FormSection step="where" icon="mapPin" title="Location & Person" sub="Where the problem is, and who raised it.">
+          <Grid cols={2}>
+            <Fld label="Hostel" required icon="oBuilding">
+              <select value={form.hostel} onChange={(e) => setF('hostel', e.target.value)}>
+                <option value="">Select hostel</option>
                 {hostels.map((h) => <option key={h._id} value={h._id}>{h.name}</option>)}
               </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Room</label>
-              <select className="form-control" value={form.room} onChange={(e) => set('room', e.target.value)}>
+            </Fld>
+            <Fld label="Room" icon="oDoor">
+              <select value={form.room} disabled={!form.hostel} onChange={(e) => setF('room', e.target.value)}>
                 <option value="">— none —</option>
-                {rooms.map((r) => <option key={r._id} value={r._id}>Room {r.roomNumber}</option>)}
+                {rooms.map((r) => <option key={r._id} value={r._id}>{r.roomNumber}</option>)}
               </select>
-            </div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label">Category</label>
-              <select className="form-control" value={form.category} onChange={(e) => set('category', e.target.value)}>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{label(c)}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Priority</label>
-              <select className="form-control" value={form.priority} onChange={(e) => set('priority', e.target.value)}>
-                {PRIORITIES.map((p) => <option key={p} value={p}>{label(p)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Subject</label>
-            <input className="form-control" value={form.subject} onChange={(e) => set('subject', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Description</label>
-            <textarea className="form-control" rows={4} required value={form.description} onChange={(e) => set('description', e.target.value)} />
-          </div>
-          <Attachments value={form.attachments} onChange={(v) => set('attachments', v)}
-            upload={api.uploadAttachment} entityType="HostelComplaint" />
-        </form>
-      </Modal>
+            </Fld>
+          </Grid>
+          <Fld label="On Behalf Of" optional hint="Leave empty when a member of staff is raising it">
+            <StudentPicker value={form.student} onChange={(id) => setF('student', id)} params={{ allocated: 'true' }} required={false} placeholder="Nobody in particular — raised by staff" />
+          </Fld>
+        </FormSection>
+        <FormSection step="files" icon="paperclip" title="Attachments" sub="Photos or documents of the problem (optional).">
+          <FileDrop value={form.attachments} onChange={(v) => setF('attachments', v)} entityType="HostelComplaint" />
+        </FormSection>
+        <FormSection step="review" icon="oCheckRound" title="Review" sub="Confirm the complaint before it is raised.">
+          <ReviewList groups={[
+            { title: 'Complaint', step: 0, rows: [['Category', words(form.category)], ['Priority', words(form.priority)], ['Subject', form.subject], ['Description', form.description]] },
+            { title: 'Where', step: 1, rows: [['Hostel', hostels.find((h) => h._id === form.hostel)?.name], ['Room', rooms.find((r) => r._id === form.room)?.roomNumber], ['On behalf of', form.student ? 'A resident' : 'Staff']] },
+            { title: 'Attachments', step: 2, rows: [['Files', form.attachments.length ? `${form.attachments.length} attached` : 'None']] },
+          ]} />
+        </FormSection>
+      </FormModal>
 
-      {/* ── Detail with the action ladder ─────────────────────────────────── */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} maxWidth={760} title={detail?.ticketNumber || 'Complaint'}>
-        {detail?.loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div> : detail && (
-          <div style={{ display: 'grid', gap: 16 }}>
-            {detail.escalationLevel > 0 && (
-              <Alert variant="warning">Escalated to level {detail.escalationLevel} on {dd(detail.escalatedAt)}.</Alert>
-            )}
-            <FieldGrid>
-              <Field label="Category">{label(detail.category)}</Field>
-              <Field label="Priority">{label(detail.priority)}</Field>
-              <Field label="Status"><StatusBadge value={detail.status} /></Field>
-              <Field label="Raised by">{detail.student?.name || label(detail.raisedByRole)}</Field>
-              <Field label="Hostel">{detail.hostel?.name}</Field>
-              <Field label="Room">{detail.room?.roomNumber}</Field>
-              <Field label="Assigned to">{detail.assignedTo?.name}</Field>
-              <Field label="Raised">{dt(detail.createdAt)}</Field>
-              <Field label="SLA due">{dt(detail.dueAt)}</Field>
-              <Field label="Resolved">{dt(detail.resolutionDate)}</Field>
-              <Field label="Reopened">{detail.reopenCount || 0} time(s)</Field>
-              <Field label="Rating">{detail.rating ? '⭐'.repeat(detail.rating) : '—'}</Field>
-            </FieldGrid>
-            <Field label="Description" wide>{detail.description}</Field>
-            {detail.resolution && <Field label="Resolution" wide>{detail.resolution}</Field>}
-            {!!detail.attachmentUrls?.length && (
-              <div>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Attachments</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {(detail.attachments || []).map((f) => (
-                    <a key={f} href={fileUrl(f)} target="_blank" rel="noreferrer"
-                      style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none',
-                               border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px' }}>
-                      📎 {f.length > 24 ? `${f.slice(0, 24)}…` : f}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
+      {/* ── Detail, with the ladder of what may be done next ───────────────── */}
+      <Drawer open={!!detail} onClose={() => setDetail(null)} label="Complaint details">
+        {detail ? (
+          <>
+            <DrawerHead
+              mark={<Mark name="chatSolid" tone="indigo" size={52} glyph={26} />}
+              name={detail.subject || detail.ticketNumber || 'Complaint'} sub={detail.ticketNumber ? `#${detail.ticketNumber}` : ''}
+              tags={detail.loading ? null : <><StatusTag r={detail} real /><Priority value={detail.priority} /><Category value={detail.category} />{detail.overdue ? <Badge tone="red">SLA breached</Badge> : null}</>}
+              onClose={() => setDetail(null)}
+            />
+            <DrawerBody>
+              {detail.loading ? <p className="hs-muted">Loading…</p> : (
+                <>
+                  {detail.escalationLevel > 0 ? (
+                    <Alert variant="warning">Escalated to level {detail.escalationLevel}{detail.escalatedAt ? ` on ${fmtDate(detail.escalatedAt)}` : ''}{detail.escalatedTo?.name ? ` — to ${detail.escalatedTo.name}` : ''}.</Alert>
+                  ) : null}
+                  <DrawerSection title="Complaint">
+                    <p className="hs-dtext">{detail.description}</p>
+                    <DrawerFields fields={[
+                      ['Raised by', detail.student?.name || words(detail.raisedByRole)], ['Hostel', detail.hostel?.name], ['Room', detail.room?.roomNumber],
+                      ['Assigned to', detail.assignedTo?.name || 'Nobody yet'], ['Raised on', stamp(detail.createdAt)], ['SLA due', stamp(detail.dueAt)],
+                      ['Resolved on', stamp(detail.resolutionDate)], ['Resolved by', detail.resolvedBy?.name], ['Resolution', detail.resolution],
+                      ['Reopened', detail.reopenCount ? `${detail.reopenCount} time${detail.reopenCount === 1 ? '' : 's'}` : ''],
+                      ['Rating', detail.rating ? `${detail.rating} of 5` : ''],
+                    ]} />
+                  </DrawerSection>
+                  {detail.attachments?.length ? (
+                    <DrawerSection title={`Attachments (${detail.attachments.length})`}>
+                      <div className="hs-chips">
+                        {detail.attachments.map((f) => <FileLink key={f} name={f} />)}
+                      </div>
+                    </DrawerSection>
+                  ) : null}
+                  <DrawerSection title={`Conversation (${detail.comments?.length || 0})`}>
+                    {detail.comments?.length ? (
+                      <ul className="hs-thread">
+                        {detail.comments.map((c) => (
+                          <li key={c._id}>
+                            <div><strong>{c.byName || 'Staff'}</strong><span>{words(c.byRole)}{c.internal ? ' · internal' : ''} · {stamp(c.at)}</span></div>
+                            <p>{c.text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="hs-muted">Nothing has been said yet.</p>}
+                  </DrawerSection>
+                  {detail.maintenance?.length ? (
+                    <DrawerSection title="Linked maintenance">
+                      <dl>{detail.maintenance.map((m) => <DrawerField key={m._id} label={m.requestNumber}>{words(m.category)} · {words(m.status)}</DrawerField>)}</dl>
+                    </DrawerSection>
+                  ) : null}
+                </>
+              )}
+            </DrawerBody>
+            {!detail.loading ? (
+              <DrawerFoot>
+                <Kebab label="More steps" items={ladder(detail).slice(2)} />
+                {ladder(detail).slice(0, 2).map((x, i) => <Btn key={x.label} kind={i === 1 ? 'primary' : 'outline'} icon={x.icon} onClick={x.onClick}>{x.label}</Btn>)}
+              </DrawerFoot>
+            ) : null}
+          </>
+        ) : null}
+      </Drawer>
 
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {ACTIONS(detail.status).map(([action, text]) => (
-                <Button key={action} size="sm" variant={action === 'reject' ? 'danger' : 'secondary'}
-                  onClick={() => { setAct({ row: detail, action }); setActForm({ comment: '', assignedTo: detail.assignedTo?._id || '', resolution: detail.resolution || '', priority: detail.priority, internal: true }); }}>
-                  {text}
-                </Button>
-              ))}
-            </div>
-
-            {!!detail.comments?.length && (
-              <Card title="Conversation">
-                {detail.comments.map((c) => (
-                  <div key={c._id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.75rem', color: 'var(--text-muted)' }}>
-                      <span>{c.byName} · {label(c.byRole)}{c.internal ? ' · internal' : ''}</span>
-                      <span>{dt(c.at)}</span>
-                    </div>
-                    <div style={{ fontSize: '.85rem', marginTop: 2 }}>{c.text}</div>
-                  </div>
-                ))}
-              </Card>
-            )}
-            {!!detail.maintenance?.length && (
-              <Card title="Linked maintenance">
-                {detail.maintenance.map((m) => (
-                  <div key={m._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: '.83rem' }}>
-                    <span>{m.requestNumber} · {label(m.category)}</span><StatusBadge value={m.status} />
-                  </div>
-                ))}
-              </Card>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      <Modal open={!!act} onClose={() => setAct(null)} maxWidth={520}
-        title={act ? `${label(act.action)} — ${act.row.ticketNumber}` : ''}
-        footer={<><Button variant="secondary" onClick={() => setAct(null)}>Cancel</Button>
-          <Button loading={busy} variant={act?.action === 'reject' ? 'danger' : 'primary'} onClick={submitAct}>Confirm</Button></>}>
-        {act && <>
-          {['assign', 'escalate'].includes(act.action) && (
-            <div className="form-group">
-              <label className="form-label">{act.action === 'assign' ? 'Assign to' : 'Escalate to'}</label>
-              <select className="form-control" value={actForm.assignedTo} onChange={(e) => setActForm((f) => ({ ...f, assignedTo: e.target.value }))}>
-                <option value="">{act.action === 'escalate' ? 'Configured escalation owner' : '— select —'}</option>
-                {staff.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-              </select>
-            </div>
-          )}
-          {act.action === 'prioritize' && (
-            <div className="form-group">
-              <label className="form-label">Priority</label>
-              <select className="form-control" value={actForm.priority} onChange={(e) => setActForm((f) => ({ ...f, priority: e.target.value }))}>
-                {PRIORITIES.map((p) => <option key={p} value={p}>{label(p)}</option>)}
-              </select>
-            </div>
-          )}
-          {['resolve', 'reject'].includes(act.action) && (
-            <div className="form-group">
-              <label className="form-label">{act.action === 'reject' ? 'Reason' : 'Resolution'}</label>
-              <textarea className="form-control" rows={3} value={actForm.resolution} onChange={(e) => setActForm((f) => ({ ...f, resolution: e.target.value }))} />
-            </div>
-          )}
-          <div className="form-group">
-            <label className="form-label">Comment</label>
-            <textarea className="form-control" rows={2} value={actForm.comment} onChange={(e) => setActForm((f) => ({ ...f, comment: e.target.value }))} />
-          </div>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '.84rem' }}>
-            <input type="checkbox" checked={actForm.internal} onChange={(e) => setActForm((f) => ({ ...f, internal: e.target.checked }))} />
-            Internal note — hidden from the student
-          </label>
-        </>}
-      </Modal>
+      {/* ── One step of the ladder ─────────────────────────────────────────── */}
+      <FormModal open={!!act} onClose={() => setAct(null)} busy={busy} onSubmit={submitAct}
+        icon={STEP_LOOK[act?.action]?.[1] || 'chat'} iconTone={STEP_LOOK[act?.action]?.[2] || 'indigo'}
+        title={act ? STEP_LOOK[act.action]?.[0] || words(act.action) : ''} subtitle={act ? [act.row.ticketNumber && `#${act.row.ticketNumber}`, act.row.subject].filter(Boolean).join(' · ') : ''}
+        submitLabel={act ? STEP_LOOK[act.action]?.[0] || 'Confirm' : 'Confirm'} tone={act?.action === 'reject' ? 'danger' : undefined}>
+        {act ? (
+          <FormSection>
+            {['assign', 'escalate'].includes(act.action) ? (
+              <Fld label={act.action === 'assign' ? 'Assign To' : 'Escalate To'} required={act.action === 'assign'} icon="user">
+                <select value={actForm.assignedTo} onChange={(e) => setActForm((f) => ({ ...f, assignedTo: e.target.value }))}>
+                  <option value="">{act.action === 'escalate' ? 'Configured escalation owner' : 'Select a member of staff'}</option>
+                  {staff.map((x) => <option key={x._id} value={x._id}>{x.name}</option>)}
+                </select>
+              </Fld>
+            ) : null}
+            {act.action === 'prioritize' ? (
+              <RadioCards label="Priority" value={actForm.priority} onChange={(v) => setActForm((f) => ({ ...f, priority: v }))} cols={4} options={PRIORITIES.map((x) => [x, words(x)])} />
+            ) : null}
+            {['resolve', 'reject'].includes(act.action) ? (
+              <Fld label={act.action === 'reject' ? 'Reason' : 'Resolution'} required count={[actForm.resolution.length, 500]}>
+                <textarea rows={3} maxLength={500} value={actForm.resolution} onChange={(e) => setActForm((f) => ({ ...f, resolution: e.target.value }))} />
+              </Fld>
+            ) : null}
+            <Fld label="Comment" required={act.action === 'comment'} optional={act.action !== 'comment'} count={[actForm.comment.length, 500]}>
+              <textarea rows={2} maxLength={500} value={actForm.comment} onChange={(e) => setActForm((f) => ({ ...f, comment: e.target.value }))} />
+            </Fld>
+            <ToggleRow on={actForm.internal} onChange={(v) => setActForm((f) => ({ ...f, internal: v }))} label="Internal note" hint="Hidden from the student" />
+          </FormSection>
+        ) : null}
+      </FormModal>
     </div>
   );
 }

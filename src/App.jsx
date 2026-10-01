@@ -7,6 +7,8 @@ import ModuleGuard from './components/ModuleGuard';
 import AdminAreaGuard from './components/AdminAreaGuard';
 import MySectionGuard from './components/MySectionGuard';
 import TransportEnrolledGuard from './components/TransportEnrolledGuard';
+import HostelResidentGuard from './components/HostelResidentGuard';
+import HostelNav from './components/layout/HostelNav';
 import { roleHome } from './pages/auth/roleHome';
 import ModuleNav, {
   FEES_ADMIN_TABS, LIBRARY_ADMIN_TABS,
@@ -258,6 +260,7 @@ const HsSettings     = lazy(() => import('./pages/hostel/admin/Settings'));
 const HsAudit        = lazy(() => import('./pages/hostel/admin/Audit'));
 const HsStudent      = lazy(() => import('./pages/hostel/student/Hostel'));
 const HsParent       = lazy(() => import('./pages/hostel/parent/Hostel'));
+const HsTeacher      = lazy(() => import('./pages/hostel/teacher/Hostel'));
 
 // ── Video Learning ────────────────────────────────────────────────────────────
 const VidAdmBrowse    = lazy(() => import('./pages/admin/videos/Browse'));
@@ -506,7 +509,7 @@ export default function App() {
               <Route path="audit"       element={<Navigate to="/admin/transport/activity" replace />} />
             </Route>
             {/* Hostel */}
-            <Route path="hostel" element={<ModuleNav tabs={HOSTEL_ADMIN_TABS} />}>
+            <Route path="hostel" element={<HostelNav />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"     element={<HsDashboard />} />
               <Route path="hostels"       element={<HsHostels />} />
@@ -591,6 +594,8 @@ export default function App() {
                 bus or because they CREW it, and the two want opposite screens:
                 "where is my bus" vs "who is on mine". TransportShell picks. */}
             <Route path="transport"    element={<TransportEnrolledGuard><TransportShell /></TransportEnrolledGuard>} />
+            {/* A teacher who LIVES in the hostel — the resident's screen, not the warden's. */}
+            <Route path="hostel"       element={<HostelResidentGuard><HsTeacher /></HostelResidentGuard>} />
             <Route path="documents/:id" element={<ADocDetail />} />
             {/* No <ModuleNav>: the payroll screens draw their own tab strip. */}
             <Route path="payroll">

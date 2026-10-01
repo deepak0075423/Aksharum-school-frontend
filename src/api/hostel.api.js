@@ -2,6 +2,10 @@ import api from './axios';
 
 // ── Admin: dashboard / meta / settings / audit ────────────────────────────────
 export const getDashboard = () => api.get('/hostel/admin/dashboard');
+// The redesigned Dashboard's one call: ?year=&range=6m|12m|year&day=today|yesterday
+export const getOverview  = (params) => api.get('/hostel/admin/overview', { params });
+// Every other redesigned list screen: tiles, tab counts and one page of rows.
+export const getBoard     = (screen, params) => api.get(`/hostel/admin/board/${screen}`, { params });
 export const getMeta      = () => api.get('/hostel/admin/meta');
 export const searchStudents = (params) => api.get('/hostel/admin/students', { params });
 export const getSettings  = () => api.get('/hostel/admin/settings');
@@ -53,7 +57,16 @@ export const autoAllocate     = (d)      => api.post('/hostel/admin/allocations/
 export const bulkAllocate     = (d)      => api.post('/hostel/admin/allocations/bulk', d);
 export const transferAllocation = (id, d) => api.post(`/hostel/admin/allocations/${id}/transfer`, d);
 export const releaseAllocation  = (id, d) => api.post(`/hostel/admin/allocations/${id}/release`, d);
+// A held (pending) bed becomes an active allocation once the student arrives.
+export const confirmAllocation  = (id, d) => api.post(`/hostel/admin/allocations/${id}/confirm`, d);
 export const getAllocationHistory = (params) => api.get('/hostel/admin/allocation-history', { params });
+// What a checkout has to settle: dues, the deposit held, items on issue.
+export const getCheckout        = (id)    => api.get(`/hostel/admin/allocations/${id}/checkout`);
+// Year end: { toYear, carry: [allocationId], vacate: [allocationId], reason }.
+export const rolloverAllocations = (d)    => api.post('/hostel/admin/allocations/rollover', d);
+// Room changes waiting for a decision (a warden's, or a resident's own request).
+export const getTransferRequests   = (params) => api.get('/hostel/admin/transfer-requests', { params });
+export const decideTransferRequest = (id, d)  => api.post(`/hostel/admin/transfer-requests/${id}/decide`, d);
 export const getStudentProfile = (studentId) => api.get(`/hostel/admin/students/${studentId}/profile`);
 
 // ── Attendance ────────────────────────────────────────────────────────────────
@@ -81,6 +94,8 @@ export const getVisitors   = (params) => api.get('/hostel/admin/visitors', { par
 export const createVisitor = (d)      => api.post('/hostel/admin/visitors', d);
 export const actOnVisitor  = (id, d)  => api.post(`/hostel/admin/visitors/${id}/act`, d);
 export const deleteVisitor = (id)     => api.delete(`/hostel/admin/visitors/${id}`);
+// A visitor's gate pass as a QR image — asked for only when the pass is opened.
+export const getVisitorPass = (id)    => api.get(`/hostel/admin/visitors/${id}/pass`);
 
 // ── Staff ─────────────────────────────────────────────────────────────────────
 export const getStaff       = (params) => api.get('/hostel/admin/staff', { params });
@@ -120,6 +135,9 @@ export const payInvoice     = (id, d)  => api.post(`/hostel/admin/invoices/${id}
 export const discountInvoice = (id, d) => api.post(`/hostel/admin/invoices/${id}/discount`, d);
 export const refundInvoice  = (id, d)  => api.post(`/hostel/admin/invoices/${id}/refund`, d);
 export const cancelInvoice  = (id)     => api.post(`/hostel/admin/invoices/${id}/cancel`);
+// Online checkouts: ?tab=open|paid|expired. "Check" asks the gateway about one, now.
+export const getOnlinePayments  = (params)  => api.get('/hostel/admin/online-payments', { params });
+export const checkOnlinePayment = (orderId) => api.post(`/hostel/admin/online-payments/${encodeURIComponent(orderId)}/check`);
 
 // ── Complaints & maintenance ──────────────────────────────────────────────────
 export const getComplaints   = (params) => api.get('/hostel/admin/complaints', { params });
@@ -139,6 +157,8 @@ export const getInventoryAssets = () => api.get('/hostel/admin/assets/inventory'
 export const createAsset  = (d)      => api.post('/hostel/admin/assets', d);
 export const updateAsset  = (id, d)  => api.put(`/hostel/admin/assets/${id}`, d);
 export const actOnAsset   = (id, d)  => api.post(`/hostel/admin/assets/${id}/act`, d);
+// The asset's code as a QR label to print; scanning it on the Assets screen finds the asset.
+export const getAssetQr  = (id)     => api.get(`/hostel/admin/assets/${id}/qr`);
 
 // ── Movement / incidents / discipline ─────────────────────────────────────────
 export const getMovements   = (params) => api.get('/hostel/admin/movements', { params });
@@ -154,7 +174,15 @@ export const updateDiscipline = (id, d) => api.put(`/hostel/admin/discipline/${i
 export const getStudentDiscipline = (studentId) => api.get(`/hostel/admin/discipline/student/${studentId}`);
 
 // ── Communication, documents, reports ─────────────────────────────────────────
-export const sendAnnouncement = (d) => api.post('/hostel/admin/announcements', d);
+// Announcements are kept: { …, mode: 'send' | 'draft' | 'schedule', scheduledAt }.
+export const createAnnouncement  = (d)      => api.post('/hostel/admin/announcements', d);
+export const getAnnouncement     = (id)     => api.get(`/hostel/admin/announcements/${id}`);
+export const updateAnnouncement  = (id, d)  => api.put(`/hostel/admin/announcements/${id}`, d);
+export const sendAnnouncementNow = (id)     => api.post(`/hostel/admin/announcements/${id}/send`);
+export const archiveAnnouncement = (id)     => api.post(`/hostel/admin/announcements/${id}/archive`);
+export const restoreAnnouncement = (id)     => api.post(`/hostel/admin/announcements/${id}/restore`);
+export const deleteAnnouncement  = (id)     => api.delete(`/hostel/admin/announcements/${id}`);
+export const getAudienceSize     = (params) => api.get('/hostel/admin/announcements/audience', { params });
 /**
  * Attach a file to a complaint, incident, maintenance request, leave or
  * outpass. Returns the stored filename, which the form then submits in that
@@ -166,6 +194,8 @@ export const getDocuments   = (params) => api.get('/hostel/admin/documents', { p
 export const uploadDocument = (formData) => api.post('/hostel/admin/documents', formData,
   { headers: { 'Content-Type': 'multipart/form-data' } });
 export const verifyDocument = (id, d) => api.post(`/hostel/admin/documents/${id}/verify`, d);
+/** The stored file itself, through the scoped route (a Blob). */
+export const downloadDocument = (id) => api.get(`/hostel/admin/documents/${id}/download`, { responseType: 'blob' });
 export const deleteDocument = (id)    => api.delete(`/hostel/admin/documents/${id}`);
 export const getReportTypes = ()      => api.get('/hostel/admin/reports/types');
 export const getReport      = (params) => api.get('/hostel/admin/reports', { params });
@@ -192,6 +222,10 @@ const portal = (role) => ({
   raiseComplaint: (d)     => api.post(`/hostel/${role}/complaints`, d),
   actOnComplaint: (id, d) => api.post(`/hostel/${role}/complaints/${id}/act`, d),
   mess:         (params)  => api.get(`/hostel/${role}/mess`, { params }),
+  // "I will not be at this meal": { date, meal, undo }.
+  skipMeal:     (d)       => api.post(`/hostel/${role}/mess/skip`, d),
+  // Ask to change room: { reason, preference }. The office decides where.
+  roomChange:   (d)       => api.post(`/hostel/${role}/room-change`, d),
   record:       (params)  => api.get(`/hostel/${role}/record`, { params }),
   uploadAttachment: (formData) => api.post(`/hostel/${role}/attachments`, formData,
     { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -204,4 +238,23 @@ export const student = {
 export const parent = {
   ...portal('parent'),
   children: () => api.get('/hostel/parent/children'),
+  // Consent to, or decline, a child's outpass: { action: 'parent_approve' | 'parent_reject', remark, student }.
+  actOnOutpass: (id, d) => api.post(`/hostel/parent/outpasses/${id}/act`, d),
 };
+/** A member of staff who lives in the hostel — the student screen, for themselves. */
+export const teacher = {
+  ...portal('teacher'),
+  outpassPass: (id) => api.get(`/hostel/teacher/outpasses/${id}/pass`),
+};
+
+// ── Paying a hostel bill (student, parent for a child, resident teacher) ─────
+/** What is owed, what was paid and every receipt. `student` is for a parent only. */
+export const getMyFeeSummary   = (student) => api.get('/hostel/my-fees/summary', { params: { student } });
+export const createFeeOrder    = (d)       => api.post('/hostel/my-fees/order', d);
+export const confirmFeePayment = (d)       => api.post('/hostel/my-fees/confirm', d);
+/** The receipt document. `invoice` pins an old, repeated number to one resident. */
+export const feeReceiptPath = (receiptNumber, invoice) =>
+  `/hostel/receipts/${encodeURIComponent(receiptNumber)}${invoice ? `?invoice=${encodeURIComponent(invoice)}` : ''}`;
+
+/** A refund's voucher — the receipt's counterpart, for money going back. */
+export const refundVoucherPath = (voucherNumber) => `/hostel/refunds/${encodeURIComponent(voucherNumber)}`;

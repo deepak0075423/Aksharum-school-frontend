@@ -1,34 +1,68 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+/**
+ * Hostel → Leave (Sep 2026 redesign, to the user's mockup).
+ *
+ * Four figures, a tab per stage, the filters and the requests table, from
+ * GET /hostel/admin/board/leave. The workflow is the leave endpoint's and is
+ * unchanged: parent consent → approval → departure → return, each a step a row
+ * offers only when the leave is in the state that allows it.
+ */
+import React, { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/hostel.api';
 import useFetch from '../../../hooks/useFetch';
-import { PageHeader, Table, Button, Modal, Badge, Pagination, Alert } from '../../../components/ui/index';
-import { StatusBadge, Filters, Field, FieldGrid, label, dd, dt } from '../shared';
+import { Drawer, DrawerHead, DrawerBody, DrawerSection, DrawerFields, DrawerFoot } from '../../../components/ui/Drawer';
+import { Attachments, useNewFromLink } from '../shared';
+import { PageHead, words } from './hsUI';
+import { GhostArt } from './hsArt';
+import {
+  Kpis, Kpi, FilterBar, FSearch, FSelect, FDateRange, LineTabs, Btn, Kebab, Popover, ListCard, DataTable, Pager, EmptyRows, BulkBar,
+  Badge, Avatar, useListState, useBoardData, exportCsv, fmtDate, fmtTime, fmtPhone,
+} from './hsList';
+import { StudentCell, roomShort } from './hsPeople';
+import { FormModal, FormSection, Grid, Fld, RadioCards, StudentPicker, PersonCard, FileDrop, InfoNote, ReviewList, dmy } from './hsForm';
 
-const TYPES = ['short', 'weekend', 'holiday', 'medical', 'emergency', 'home', 'other'];
-const STATUSES = ['pending', 'parent_approved', 'approved', 'rejected', 'cancelled', 'active', 'returned', 'overdue'];
+/** A leave type as the mockup tags it: its words, its tint and its glyph. */
+export const LEAVE_TYPE = {
+  home: ['Home', 'blue', 'house'], weekend: ['Weekend', 'violet', 'calendar'], medical: ['Medical', 'red', 'cross'],
+  emergency: ['Emergency', 'orange', 'alertTri'], holiday: ['Holiday', 'teal', 'beach'], short: ['Short', 'sky', 'clockSolid'],
+  other: ['Other', 'slate', 'dot'],
+};
+export const LeaveType = ({ value }) => {
+  const [text, tone, glyph] = LEAVE_TYPE[value] || [words(value), 'slate', 'dot'];
+  return <Badge tone={tone} glyph={glyph} size="lg">{text}</Badge>;
+};
+const STATUS = {
+  pending: ['Pending', 'amber'], parent_approved: ['Pending', 'amber'], approved: ['Approved', 'green'], rejected: ['Rejected', 'red'],
+  cancelled: ['Cancelled', 'slate'], active: ['On leave', 'indigo'], returned: ['Returned', 'blue'], overdue: ['Overdue', 'red'],
+};
+const StatusTag = ({ value }) => { const [text, tone] = STATUS[value] || [words(value), 'slate']; return <Badge tone={tone} size="lg">{text}</Badge>; };
+const STATUS_FILTER = [
+  ['pending', 'Pending'], ['parent_approved', 'Parent consented'], ['approved', 'Approved'], ['active', 'On leave'],
+  ['overdue', 'Overdue'], ['returned', 'Returned'], ['rejected', 'Rejected'], ['cancelled', 'Cancelled'],
+].map(([value, label]) => ({ value, label }));
+
 const empty = {
-  student: '', leaveType: 'home', fromDate: '', toDate: '', reason: '',
-  destination: '', guardianName: '', guardianPhone: '', emergencyContact: '',
+  student: '', leaveType: 'home', span: 'single', fromDate: '', toDate: '', reason: '',
+  destination: '', guardianName: '', guardianPhone: '', guardianRelation: '', emergencyContact: '', attachments: [],
 };
-
-// Which actions make sense for a leave in each state — the buttons the warden
-// sees are derived from this, so the UI can never offer an illegal transition.
-const NEXT = {
-  pending: [['parent_approve', 'Record parent consent', 'secondary'], ['approve', 'Approve', 'primary'], ['reject', 'Reject', 'danger']],
-  parent_approved: [['approve', 'Approve', 'primary'], ['reject', 'Reject', 'danger']],
-  approved: [['depart', 'Mark departed', 'primary'], ['cancel', 'Cancel', 'secondary']],
-  active: [['return', 'Confirm return', 'primary'], ['cancel', 'Cancel', 'secondary']],
-  overdue: [['return', 'Confirm return', 'primary']],
+const ACT = {
+  parent_approve: 'Record parent consent', approve: 'Approve', reject: 'Reject', depart: 'Mark departed',
+  return: 'Confirm return', cancel: 'Cancel leave', revoke: 'Revoke leave',
 };
+const STEP_ICON = {
+  parent_approve: ['checkSquare', 'violet'], approve: ['checkCircle', 'green'], reject: ['closeCircle', 'red'],
+  depart: ['logOut', 'indigo'], return: ['logIn', 'green'], cancel: ['trash', 'red'], revoke: ['undo', 'red'],
+};
+const DONE = { parent_approve: 'Parent consent recorded', approve: 'Leave approved', reject: 'Leave rejected', depart: 'Departure recorded', return: 'Return confirmed', cancel: 'Leave cancelled' };
+const FILTERS = { hostel: '', class: '', leaveType: '', status: '', from: '', to: '', consent: '' };
 
 export default function Leave() {
-  const [params, setParams] = useSearchParams();
-  const [rows, setRows] = useState([]);
-  const [pg, setPg] = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoad] = useState(true);
-  const [filters, setFilters] = useState({ status: params.get('status') || '', leaveType: '', from: '', to: '' });
+  const { state, set, setPage, reset } = useListState({ limit: 10, ...FILTERS });
+  // (The Dashboard links here with ?status=active — that lands in the status filter.)
+  const tab = ['pending', 'approved', 'rejected', 'active', 'past'].includes(state.tab) ? state.tab : 'all';
+  const { data, loading, reload } = useBoardData((q) => api.getBoard('leave', q), state);
+  const { data: meta } = useFetch(api.getMeta, []);
+
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -36,203 +70,309 @@ export default function Leave() {
   const [remark, setRemark] = useState('');
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(null);
-  const [residents, setResidents] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [more, setMore] = useState(false);
+  const moreBtn = useRef(null);
+  const [picked, setPicked] = useState(null);
 
-  const load = useCallback(async (page = 1) => {
-    setLoad(true);
-    try {
-      const r = await api.getLeaves({ page, limit: 20, ...filters });
-      const d = r.data ?? r;
-      setRows(d.data || []); setPg({ page: d.page, pages: d.pages, total: d.total });
-    } catch (err) { toast.error(err.message); } finally { setLoad(false); }
-  }, [filters]);
-  useEffect(() => { load(1); }, [filters]); // eslint-disable-line
-
-  const setFilter = (k, v) => {
-    setFilters((f) => ({ ...f, [k]: v }));
-    if (k === 'status') { if (v) setParams({ status: v }); else setParams({}); }
+  const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const open = () => { setForm(empty); setPicked(null); setModal(true); };
+  const years = meta?.academicYears || [];
+  const pickStudent = (id, st) => {
+    setPicked(st || null);
+    setForm((f) => ({ ...f, student: id, guardianName: st?.guardianName || '', guardianPhone: st?.guardianPhone || '', guardianRelation: st?.guardianRelation || '' }));
   };
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const days = form.fromDate && (form.span === 'single' || form.toDate)
+    ? Math.round((new Date(form.span === 'single' ? form.fromDate : form.toDate) - new Date(form.fromDate)) / 864e5) + 1 : 0;
+  // Opened straight from the Dashboard's New menu (?new=…).
+  useNewFromLink(true, () => open());
 
-  const open = async () => {
-    setForm(empty); setModal(true);
+  const save = async () => {
+    setSaving(true);
     try {
-      const r = await api.getAllocations({ status: 'active', limit: 200 });
-      setResidents((r.data ?? r).data || []);
-    } catch { setResidents([]); }
-  };
-
-  const save = async (e) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      await api.createLeave(form);
-      toast.success('Leave filed'); setModal(false); load(1);
+      const { span, ...body } = form;
+      await api.createLeave({ ...body, toDate: span === 'single' ? form.fromDate : form.toDate });
+      toast.success('Leave filed'); setModal(false); reload();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
   };
 
+  const ask = (row, action) => { setAct({ row, action }); setRemark(''); };
   const submitAct = async () => {
     setBusy(true);
     try {
-      await api.actOnLeave(act.row._id, { action: act.action, remark });
-      toast.success(`Leave ${label(act.action)}d`);
-      setAct(null); setRemark(''); load(pg.page);
+      const action = act.action === 'revoke' ? 'cancel' : act.action;
+      await api.actOnLeave(act.row._id, { action, remark });
+      toast.success(act.action === 'revoke' ? 'Leave revoked' : DONE[action] || 'Done');
+      setAct(null); setRemark(''); setDetail(null); reload();
     } catch (err) { toast.error(err.message); } finally { setBusy(false); }
   };
 
+  /** The steps a leave may take from where it stands. */
+  const steps = (r) => {
+    const s = r.status;
+    return [
+      s === 'pending' && r.parentApprovalRequired && { label: ACT.parent_approve, icon: 'checkSquare', onClick: () => ask(r, 'parent_approve') },
+      ['pending', 'parent_approved'].includes(s) && { label: ACT.approve, icon: 'checkCircle', onClick: () => ask(r, 'approve') },
+      ['pending', 'parent_approved'].includes(s) && { label: ACT.reject, icon: 'closeCircle', danger: true, onClick: () => ask(r, 'reject') },
+      s === 'approved' && { label: ACT.depart, icon: 'logOut', onClick: () => ask(r, 'depart') },
+      ['active', 'overdue'].includes(s) && { label: ACT.return, icon: 'logIn', onClick: () => ask(r, 'return') },
+      ['pending', 'parent_approved', 'approved', 'active'].includes(s) && '-',
+      ['pending', 'parent_approved', 'active'].includes(s) && { label: ACT.cancel, icon: 'trash', danger: true, onClick: () => ask(r, 'cancel') },
+      s === 'approved' && { label: ACT.revoke, icon: 'trash', danger: true, onClick: () => ask(r, 'revoke') },
+    ];
+  };
+
+  const t = data?.tiles || {};
+  const tabs = data?.tabs || {};
+  const rows = data?.rows || [];
+  const from = ((data?.page || 1) - 1) * (data?.limit || state.limit);
+  const filtered = !!(state.search || Object.keys(FILTERS).some((k) => state[k]));
+
   const columns = [
-    { key: 'no', label: 'Leave', render: (r) => (
-      <div>
-        <strong style={{ cursor: 'pointer' }} onClick={() => setDetail(r)}>{r.leaveNumber}</strong>
-        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{label(r.leaveType)}</div>
-      </div>
-    ) },
-    { key: 'student', label: 'Student', render: (r) => (
-      <div>{r.student?.name}<div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.hostel?.name}</div></div>
-    ) },
-    { key: 'dates', label: 'Dates', render: (r) => (
-      <div style={{ fontSize: '.82rem' }}>
-        {dd(r.fromDate)} – {dd(r.toDate)}
-        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{r.totalDays} day(s)</div>
-      </div>
-    ) },
-    { key: 'reason', label: 'Reason', render: (r) => (
-      <span style={{ fontSize: '.82rem', display: 'inline-block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {r.reason}
+    { key: 'n', label: '#', render: (r, i) => from + i + 1, className: 'hs-table__num' },
+    { key: 'student', label: 'Student', render: (r) => <StudentCell r={r} /> },
+    { key: 'class', label: 'Class', render: (r) => r.studentClass || '—', nowrap: true },
+    { key: 'hostel', label: 'Hostel', render: (r) => r.hostelName || '—', nowrap: true },
+    { key: 'room', label: 'Room / Bed', render: (r) => roomShort(r), nowrap: true },
+    { key: 'type', label: 'Leave Type', render: (r) => <LeaveType value={r.leaveType} /> },
+    { key: 'from', label: 'From', render: (r) => fmtDate(r.fromDate), nowrap: true },
+    { key: 'to', label: 'To', render: (r) => fmtDate(r.toDate), nowrap: true },
+    { key: 'days', label: 'Days', render: (r) => r.totalDays ?? '—' },
+    { key: 'status', label: 'Status', render: (r) => (
+      <span className="hs-stack">
+        <StatusTag value={r.status} />
+        {r.status === 'pending' && r.parentApprovalRequired ? <small>awaiting parent consent</small> : null}
+        {r.status === 'parent_approved' ? <small>parent consented</small> : null}
       </span>
     ) },
-    { key: 'consent', label: 'Parent', render: (r) => !r.parentApprovalRequired
-      ? <span className="text-muted" style={{ fontSize: '.78rem' }}>not required</span>
-      : r.parentApprovedAt ? <Badge variant="success">consented</Badge> : <Badge variant="warning">awaiting</Badge> },
-    { key: 'status', label: 'Status', render: (r) => <StatusBadge value={r.status} /> },
-    { key: 'a', label: '', render: (r) => (
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {(NEXT[r.status] || []).map(([action, text, variant]) => (
-          <Button key={action} size="sm" variant={variant} onClick={() => { setAct({ row: r, action }); setRemark(''); }}>
-            {text}
-          </Button>
-        ))}
-      </div>
-    ) },
+    { key: 'applied', label: 'Applied On', render: (r) => fmtDate(r.createdAt), nowrap: true },
   ];
 
+  const csv = (list) => exportCsv('hostel-leave.csv', [
+    { label: 'Leave no.', value: (r) => r.leaveNumber }, { label: 'Student', value: (r) => r.studentName },
+    { label: 'Roll', value: (r) => r.studentRoll }, { label: 'Class', value: (r) => r.studentClass },
+    { label: 'Hostel', value: (r) => r.hostelName }, { label: 'Room / Bed', value: (r) => roomShort(r) },
+    { label: 'Type', value: (r) => (LEAVE_TYPE[r.leaveType] || [r.leaveType])[0] },
+    { label: 'From', value: (r) => fmtDate(r.fromDate) }, { label: 'To', value: (r) => fmtDate(r.toDate) },
+    { label: 'Days', value: (r) => r.totalDays }, { label: 'Status', value: (r) => (STATUS[r.status] || [r.status])[0] },
+    { label: 'Reason', value: (r) => r.reason }, { label: 'Applied on', value: (r) => fmtDate(r.createdAt) },
+  ], list);
+  const exportAll = async () => {
+    try {
+      const res = await api.getBoard('leave', { ...state, page: 1, limit: 5000 });
+      csv((res.data ?? res).rows || []);
+    } catch (err) { toast.error(err.message); }
+  };
+
   return (
-    <div className="page">
-      <PageHeader title="Hostel Leave" subtitle="Home, weekend, medical and emergency leave with parent consent and return confirmation"
-        action={<Button onClick={open}>+ File Leave</Button>} />
+    <div className="hs-page">
+      <PageHead title="Hostel Leave Management" subtitle="Manage student leave requests with parent consent, approvals and return confirmation.">
+        <Btn className="hs-btn--accent" icon="download" onClick={exportAll}>Export</Btn>
+        <Btn kind="primary" icon="plus" onClick={open}>File Leave</Btn>
+      </PageHead>
 
-      <Filters>
-        <select className="form-control" style={{ maxWidth: 190 }} value={filters.status} onChange={(e) => setFilter('status', e.target.value)}>
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
-        </select>
-        <select className="form-control" style={{ maxWidth: 170 }} value={filters.leaveType} onChange={(e) => setFilter('leaveType', e.target.value)}>
-          <option value="">All types</option>
-          {TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
-        </select>
-        <input className="form-control" style={{ maxWidth: 160 }} type="date" value={filters.from} onChange={(e) => setFilter('from', e.target.value)} />
-        <input className="form-control" style={{ maxWidth: 160 }} type="date" value={filters.to} onChange={(e) => setFilter('to', e.target.value)} />
-      </Filters>
+      <Kpis cols={4} size="lg">
+        <Kpi tone="blue" icon="plane" value={t.total ?? 0} label="Total Requests" delta={t.delta} art={<GhostArt kind="doc" />} />
+        <Kpi tone="green" icon="checkCircle" value={t.approved ?? 0} label="Approved" pct={t.approvedPct ?? 0} pctTone="green" bar barColor="#12b76a" art={<GhostArt kind="check" />} />
+        <Kpi tone="amber" icon="clockSolid" value={t.pending ?? 0} label="Pending" pct={t.pendingPct ?? 0} pctTone="amber" bar inline barColor="#f79009" art={<GhostArt kind="clock" />} />
+        <Kpi tone="red" icon="xCircle" value={t.rejected ?? 0} label="Rejected" pct={t.rejectedPct ?? 0} pctTone="red" bar inline barColor="#f04438" art={<GhostArt kind="doc" />} />
+      </Kpis>
 
-      <div className="card"><div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={rows} loading={loading} emptyIcon="🏖" emptyTitle="No leave requests" />
-      </div></div>
-      <Pagination page={pg.page} pages={pg.pages} total={pg.total} onPage={load} />
+      <LineTabs rule value={tab} onChange={(k) => { set({ tab: k }); setSelected(new Set()); }} label="Leave requests by stage"
+        items={[
+          { key: 'all', label: 'All Requests', count: tabs.all ?? 0 },
+          { key: 'pending', label: 'Pending', count: tabs.pending ?? 0 },
+          { key: 'approved', label: 'Approved', count: tabs.approved ?? 0 },
+          { key: 'rejected', label: 'Rejected', count: tabs.rejected ?? 0, tone: 'bad' },
+          { key: 'active', label: 'Active Leave', count: tabs.active ?? 0 },
+          { key: 'past', label: 'Past Leave', count: tabs.past ?? 0 },
+        ]} />
 
-      <Modal open={modal} onClose={() => setModal(false)} maxWidth={640} title="File Hostel Leave"
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
-          <Button form="lv-form" type="submit" loading={saving}>File</Button></>}>
-        <form id="lv-form" onSubmit={save}>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">Student</label>
-              <select className="form-control" required value={form.student} onChange={(e) => set('student', e.target.value)}>
-                <option value="">— select a resident —</option>
-                {residents.map((a) => (
-                  <option key={a._id} value={a.student?._id || a.student}>
-                    {a.student?.name} · Room {a.room?.roomNumber}
-                  </option>
-                ))}
+      <FilterBar>
+        <FSelect value={state.hostel} onChange={(v) => set({ hostel: v })} all="All hostels" options={(meta?.hostels || []).map((h) => ({ value: h._id, label: h.name }))} width="128px" />
+        <FSelect value={state.class} onChange={(v) => set({ class: v })} all="All classes" options={(meta?.classes || []).map((c) => ({ value: c._id, label: c.className }))} width="118px" />
+        <FSelect value={state.leaveType} onChange={(v) => set({ leaveType: v })} all="All leave types" options={Object.entries(LEAVE_TYPE).map(([value, [label]]) => ({ value, label }))} width="146px" />
+        <FSelect value={state.status} onChange={(v) => set({ status: v })} all="All statuses" options={STATUS_FILTER} width="110px" />
+        <FDateRange from={state.from} to={state.to} onChange={(v) => set(v)} grow={0} width="272px" />
+        <FSearch compact value={state.search} onChange={(v) => set({ search: v })} placeholder="Search student name, roll no..." grow={1} width="244px" />
+        <Btn ref={moreBtn} icon="filter" aria-haspopup="menu" aria-expanded={more} onClick={() => setMore((o) => !o)}>Filter{state.consent ? ' · 1' : ''}</Btn>
+        <Popover anchor={moreBtn} open={more} onClose={() => setMore(false)} label="More filters">
+          <div className="hs-menu2" role="menu">
+            {[['', 'Any parent consent'], ['awaiting', 'Awaiting parent consent'], ['recorded', 'Parent consent recorded']].map(([k, text]) => (
+              <button key={k} type="button" role="menuitemradio" aria-checked={state.consent === k} className={`hs-menu2__item${state.consent === k ? ' is-on' : ''}`}
+                onClick={() => { set({ consent: k }); setMore(false); }}><span>{text}</span></button>
+            ))}
+            <div className="hs-menu2__rule" role="separator" />
+            <button type="button" role="menuitem" className="hs-menu2__item" onClick={() => { reset(); setMore(false); }}><span>Reset all filters</span></button>
+          </div>
+        </Popover>
+      </FilterBar>
+
+      <ListCard>
+        <BulkBar count={selected.size} noun="request" onClear={() => setSelected(new Set())}>
+          <Btn size="sm" icon="download" onClick={() => csv(rows.filter((r) => selected.has(String(r._id))))}>Export CSV</Btn>
+        </BulkBar>
+        <DataTable
+          columns={columns} rows={rows} loading={loading} pad={6} headPad={11} dense
+          selected={selected} onSelect={setSelected} actionsAlign="start"
+          actions={(r) => (
+            <>
+              <Btn size="sm" icon="eye" onClick={() => setDetail(r)}>View</Btn>
+              {['pending', 'parent_approved'].includes(r.status) ? (
+                <>
+                  <Btn size="sm" kind="success" icon="check" onClick={() => ask(r, 'approve')}>Approve</Btn>
+                  <Btn size="sm" kind="danger" icon="close" onClick={() => ask(r, 'reject')}>Reject</Btn>
+                </>
+              ) : null}
+              {r.status === 'approved' ? <Btn size="sm" icon="undo" onClick={() => ask(r, 'revoke')}>Revoke</Btn> : null}
+              {['active', 'overdue'].includes(r.status) ? <Btn size="sm" kind="success" icon="logIn" onClick={() => ask(r, 'return')}>Returned</Btn> : null}
+              <Kebab label={`Actions for ${r.studentName}`} items={[{ label: 'View details', icon: 'eye', onClick: () => setDetail(r) }, ...steps(r)]} />
+            </>
+          )}
+          empty={(
+            <EmptyRows icon="plane" title={filtered || tab !== 'all' ? 'No leave request matches' : 'No leave requests'}
+              action={filtered ? <Btn icon="refresh" onClick={reset}>Reset filters</Btn> : <Btn kind="primary" icon="plus" onClick={open}>File Leave</Btn>}>
+              {filtered || tab !== 'all' ? 'Try another tab, or clear the filters.' : 'Home, weekend, medical and emergency leave is filed here.'}
+            </EmptyRows>
+          )}
+        />
+        <Pager page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={data?.limit || state.limit}
+          noun={data?.total === 1 ? 'request' : 'requests'} onPage={setPage} size="sm" sizes={[10, 25, 50]} onLimit={(n) => set({ limit: n })} />
+      </ListCard>
+
+      {/* ── File leave ────────────────────────────────────────────────────── */}
+      <FormModal open={modal} onClose={() => setModal(false)} busy={saving} onSubmit={save}
+        icon="calendar" title="File Hostel Leave" subtitle="Create a hostel leave request for a student with all required details."
+        submitLabel="Submit Leave" submitIcon="check"
+        steps={[
+          { key: 'details', title: 'Leave Details', sub: 'Basic leave information', icon: 'fileDoc' },
+          { key: 'more', title: 'Additional Information', sub: 'Destination and guardian details', icon: 'mapPin' },
+          { key: 'docs', title: 'Documents', sub: 'Upload supporting documents', icon: 'paperclip' },
+          { key: 'review', title: 'Review', sub: 'Verify and submit', icon: 'oCheckRound' },
+        ]}>
+        <InfoNote>Leave requests are subject to approval. The system will check room availability, current allocation, and hostel rules automatically.</InfoNote>
+        <FormSection step="details" icon="calendar" title="Leave Details" sub="Select the student and specify the leave period.">
+          <Grid cols={2}>
+            <Fld label="Student" required hint="Only current residents are listed">
+              <StudentPicker value={form.student} onChange={pickStudent} params={{ allocated: 'true' }} />
+            </Fld>
+            <Fld label="Academic Year" required icon="calendar" hint={picked ? 'Taken from the student’s allocation' : ''}>
+              <select value={picked?.allocation?.academicYear || years.find((y) => y.status === 'active')?._id || ''} disabled onChange={() => {}}>
+                {years.map((y) => <option key={y._id} value={y._id}>{y.yearName}</option>)}
               </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Leave Type</label>
-              <select className="form-control" value={form.leaveType} onChange={(e) => set('leaveType', e.target.value)}>
-                {TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
+            </Fld>
+            <Fld label="Leave Type" required icon="home">
+              <select value={form.leaveType} onChange={(e) => setF('leaveType', e.target.value)}>
+                {Object.entries(LEAVE_TYPE).map(([v, [l]]) => <option key={v} value={v}>{l === 'Home' ? 'Home Leave' : l}</option>)}
               </select>
-            </div>
-          </div>
-          <div className="form-row form-row-2">
-            <div className="form-group">
-              <label className="form-label required">From</label>
-              <input className="form-control" type="date" required value={form.fromDate} onChange={(e) => set('fromDate', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label required">To</label>
-              <input className="form-control" type="date" required value={form.toDate} onChange={(e) => set('toDate', e.target.value)} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label required">Reason</label>
-            <textarea className="form-control" rows={2} required value={form.reason} onChange={(e) => set('reason', e.target.value)} />
-          </div>
-          <div className="form-row form-row-3">
-            <div className="form-group">
-              <label className="form-label">Destination</label>
-              <input className="form-control" value={form.destination} onChange={(e) => set('destination', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Guardian</label>
-              <input className="form-control" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Guardian Phone</label>
-              <input className="form-control" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} />
-            </div>
-          </div>
-        </form>
-      </Modal>
+            </Fld>
+            <RadioCards half label="Leave Duration" value={form.span} onChange={(v) => setForm((f) => ({ ...f, span: v, toDate: v === 'single' ? '' : f.toDate }))}
+              options={[['single', 'Single Day'], ['multiple', 'Multiple Days']]} />
+            <Fld label="From Date" required icon="calendar">
+              <input type="date" value={form.fromDate} onChange={(e) => setF('fromDate', e.target.value)} />
+            </Fld>
+            <Fld label="To Date" required={form.span === 'multiple'} icon="calendar" hint={days ? `${days} day${days === 1 ? '' : 's'}` : ''}>
+              <input type="date" disabled={form.span === 'single'} min={form.fromDate || undefined} value={form.span === 'single' ? form.fromDate : form.toDate}
+                onChange={(e) => setF('toDate', e.target.value)} />
+            </Fld>
+          </Grid>
+          <Fld label="Reason for Leave" required count={[form.reason.length, 500]}>
+            <textarea rows={2} maxLength={500} value={form.reason} placeholder="Enter reason for leave (e.g., vacation, family function, medical, etc.)" onChange={(e) => setF('reason', e.target.value)} />
+          </Fld>
+        </FormSection>
+        <FormSection step="more" icon="mapPin" title="Destination & Guardian Details" sub="Provide where the student will be staying and contact information.">
+          <Fld label="Destination / Address" required count={[form.destination.length, 200]}>
+            <textarea rows={2} maxLength={200} value={form.destination} placeholder="Enter destination address" onChange={(e) => setF('destination', e.target.value)} />
+          </Fld>
+          <Grid cols={3}>
+            <Fld label="Guardian Name" required icon="user"><input value={form.guardianName} maxLength={80} placeholder="Enter guardian name" onChange={(e) => setF('guardianName', e.target.value)} /></Fld>
+            <Fld label="Guardian Phone" required icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={form.guardianPhone} placeholder="Enter phone number" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
+            <Fld label="Relation" required icon="users"><input value={form.guardianRelation} maxLength={30} placeholder="e.g. Father, Mother, Uncle" onChange={(e) => setF('guardianRelation', e.target.value)} /></Fld>
+          </Grid>
+        </FormSection>
+        <FormSection step="docs" icon="paperclip" title="Supporting Documents" sub="Upload any relevant documents (optional).">
+          <FileDrop value={form.attachments} onChange={(v) => setF('attachments', v)} entityType="HostelLeave" />
+        </FormSection>
+        <FormSection step="review" icon="oCheckRound" title="Review" sub="Verify the leave before it is submitted.">
+          <ReviewList groups={[
+            { title: 'Leave', step: 0, rows: [['Student', picked?.name], ['Type', (LEAVE_TYPE[form.leaveType] || [words(form.leaveType)])[0]],
+              ['Dates', form.fromDate ? `${dmy(form.fromDate)}${form.span === 'multiple' && form.toDate ? ` – ${dmy(form.toDate)}` : ''}` : ''], ['Days', days || ''], ['Reason', form.reason]] },
+            { title: 'Destination & guardian', step: 1, rows: [['Destination', form.destination], ['Guardian', [form.guardianName, form.guardianRelation && `(${form.guardianRelation})`, form.guardianPhone].filter(Boolean).join(' ')]] },
+            { title: 'Documents', step: 2, rows: [['Files', form.attachments.length ? `${form.attachments.length} attached` : 'None']] },
+          ]} />
+        </FormSection>
+      </FormModal>
 
-      <Modal open={!!act} onClose={() => setAct(null)} maxWidth={460}
-        title={act ? `${label(act.action)} — ${act.row.leaveNumber}` : ''}
-        footer={<><Button variant="secondary" onClick={() => setAct(null)}>Cancel</Button>
-          <Button loading={busy} variant={act?.action === 'reject' ? 'danger' : 'primary'} onClick={submitAct}>Confirm</Button></>}>
-        {act && (
+      {/* ── A step of the workflow ────────────────────────────────────────── */}
+      <FormModal open={!!act} onClose={() => setAct(null)} busy={busy} onSubmit={submitAct}
+        icon={STEP_ICON[act?.action]?.[0] || 'checkCircle'} iconTone={STEP_ICON[act?.action]?.[1] || 'indigo'}
+        title={act ? ACT[act.action] : ''} subtitle={act ? `${act.row.leaveNumber || ''} · ${fmtDate(act.row.fromDate)} to ${fmtDate(act.row.toDate)}` : ''}
+        submitLabel={act ? ACT[act.action] : 'Confirm'} tone={['reject', 'cancel', 'revoke'].includes(act?.action) ? 'danger' : undefined}
+        cancelLabel={['cancel', 'revoke'].includes(act?.action) ? 'Keep Leave' : 'Cancel'}>
+        {act ? (
+          <FormSection>
+            <PersonCard name={act.row.studentName} photo={act.row.studentPhoto} meta={[act.row.studentClass, act.row.hostelName]} />
+            {act.action === 'approve' && act.row.parentApprovalRequired && !act.row.parentApprovedAt ? (
+              <InfoNote tone="amber">Parent consent has not been recorded yet — approval will be refused. Record the consent first.</InfoNote>
+            ) : null}
+            <Fld label={['reject', 'cancel', 'revoke'].includes(act.action) ? 'Reason' : 'Remark'} required={act.action === 'reject'}
+              optional={act.action !== 'reject'} count={[remark.length, 300]}>
+              <textarea rows={3} maxLength={300} value={remark} onChange={(e) => setRemark(e.target.value)} />
+            </Fld>
+          </FormSection>
+        ) : null}
+      </FormModal>
+
+      {/* ── Detail ────────────────────────────────────────────────────────── */}
+      <Drawer open={!!detail} onClose={() => setDetail(null)} label="Leave details">
+        {detail ? (
           <>
-            <p style={{ fontSize: '.86rem', marginTop: 0 }}>
-              <strong>{act.row.student?.name}</strong> — {dd(act.row.fromDate)} to {dd(act.row.toDate)}
-            </p>
-            {act.action === 'approve' && act.row.parentApprovalRequired && !act.row.parentApprovedAt && (
-              <Alert variant="warning">Parent consent has not been recorded yet — approval will be refused.</Alert>
-            )}
-            <div className="form-group" style={{ marginTop: 12 }}>
-              <label className="form-label">{act.action === 'reject' ? 'Reason' : 'Remark'}</label>
-              <textarea className="form-control" rows={3} value={remark} onChange={(e) => setRemark(e.target.value)} />
-            </div>
+            <DrawerHead
+              mark={<Avatar name={detail.studentName} src={detail.studentPhoto} size={52} />}
+              name={detail.studentName} sub={[detail.leaveNumber, detail.studentClass, detail.studentRoll ? `Roll ${detail.studentRoll}` : ''].filter(Boolean).join(' · ')}
+              tags={<><StatusTag value={detail.status} /><LeaveType value={detail.leaveType} /></>}
+              onClose={() => setDetail(null)}
+            />
+            <DrawerBody>
+              <DrawerSection title="Leave">
+                <DrawerFields fields={[
+                  ['From', fmtDate(detail.fromDate)], ['To', fmtDate(detail.toDate)], ['Days', detail.totalDays],
+                  ['Reason', detail.reason], ['Destination', detail.destination],
+                  ['Hostel', detail.hostelName], ['Room / bed', detail.roomNumber ? roomShort(detail) : ''],
+                  ['Applied on', fmtDate(detail.createdAt)],
+                ]} />
+              </DrawerSection>
+              <DrawerSection title="Consent and movement">
+                <DrawerFields fields={[
+                  ['Parent consent', !detail.parentApprovalRequired ? 'Not required' : detail.parentApprovedAt ? `${fmtDate(detail.parentApprovedAt)}, ${fmtTime(detail.parentApprovedAt)}` : 'Not recorded'],
+                  ['Warden approval', detail.wardenApprovedAt ? `${fmtDate(detail.wardenApprovedAt)}, ${fmtTime(detail.wardenApprovedAt)}` : ''],
+                  ['Departed', detail.departedAt ? `${fmtDate(detail.departedAt)}, ${fmtTime(detail.departedAt)}` : ''],
+                  ['Returned', detail.returnedAt ? `${fmtDate(detail.returnedAt)}, ${fmtTime(detail.returnedAt)}` : ''],
+                  ['Rejection reason', detail.rejectionReason],
+                ]} />
+              </DrawerSection>
+              <DrawerSection title="Guardian">
+                <DrawerFields fields={[
+                  ['Guardian', detail.guardianName], ['Phone', fmtPhone(detail.guardianPhone)], ['Emergency contact', detail.emergencyContact],
+                ]} />
+                {!detail.guardianName && !detail.guardianPhone && !detail.emergencyContact ? <p className="hs-muted">No guardian details on this request.</p> : null}
+              </DrawerSection>
+              {detail.attachments?.length ? (
+                <DrawerSection title={`Documents (${detail.attachments.length})`}>
+                  <Attachments value={detail.attachments} disabled />
+                </DrawerSection>
+              ) : null}
+            </DrawerBody>
+            {steps(detail).filter((x) => x && x !== '-').length ? (
+              <DrawerFoot>
+                {steps(detail).filter((x) => x && x !== '-').map((x) => (
+                  <Btn key={x.label} kind={x.danger ? 'danger' : x.label === ACT.approve || x.label === ACT.return ? 'primary' : 'outline'} onClick={x.onClick}>{x.label}</Btn>
+                ))}
+              </DrawerFoot>
+            ) : null}
           </>
-        )}
-      </Modal>
-
-      <Modal open={!!detail} onClose={() => setDetail(null)} maxWidth={620} title={detail?.leaveNumber || 'Leave'}>
-        {detail && (
-          <FieldGrid>
-            <Field label="Student">{detail.student?.name}</Field>
-            <Field label="Hostel">{detail.hostel?.name}</Field>
-            <Field label="Type">{label(detail.leaveType)}</Field>
-            <Field label="From">{dd(detail.fromDate)}</Field>
-            <Field label="To">{dd(detail.toDate)}</Field>
-            <Field label="Days">{detail.totalDays}</Field>
-            <Field label="Status"><StatusBadge value={detail.status} /></Field>
-            <Field label="Destination">{detail.destination}</Field>
-            <Field label="Guardian">{detail.guardianName} {detail.guardianPhone}</Field>
-            <Field label="Parent consent">{detail.parentApprovedAt ? dt(detail.parentApprovedAt) : 'Not recorded'}</Field>
-            <Field label="Warden approval">{detail.wardenApprovedAt ? dt(detail.wardenApprovedAt) : '—'}</Field>
-            <Field label="Departed">{detail.departedAt ? dt(detail.departedAt) : '—'}</Field>
-            <Field label="Returned">{detail.returnedAt ? dt(detail.returnedAt) : '—'}</Field>
-            <Field label="Reason" wide>{detail.reason}</Field>
-            {detail.rejectionReason && <Field label="Rejection reason" wide>{detail.rejectionReason}</Field>}
-          </FieldGrid>
-        )}
-      </Modal>
+        ) : null}
+      </Drawer>
     </div>
   );
 }

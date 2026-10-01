@@ -4,13 +4,14 @@ import { getPaymentGateway, updatePaymentGateway } from '../../api/admin.api';
 import { Button, Spinner, Alert } from '../ui/index';
 
 // The school's merchant account, configured once here rather than inside each
-// module. Fees and library fines both charge through it, and `modules` decides
+// module. Fees, library fines and hostel fees all charge through it, and `modules` decides
 // which of them is allowed to — a school can take fee payments online without
 // also opening library fines to card payments.
 
 const MODULE_LABEL = {
   fees:    { name: 'Fees', hint: 'Students and parents pay term fees online' },
   library: { name: 'Library fines', hint: 'Members settle overdue and damage charges online' },
+  hostel:  { name: 'Hostel fees', hint: 'Residents — students, their parents, and teachers who live in — pay hostel bills online' },
 };
 
 export default function PaymentGatewayCard() {
@@ -34,7 +35,7 @@ export default function PaymentGatewayCard() {
           stripeSecretKey: '',
           currency: d.currency || 'INR',
           currencySymbol: d.currencySymbol || '₹',
-          modules: { fees: !!d.modules?.fees, library: !!d.modules?.library },
+          modules: Object.fromEntries(Object.keys(MODULE_LABEL).map((k) => [k, !!d.modules?.[k]])),
         });
       })
       .catch(err => toast.error(err?.message || 'Could not load the gateway settings'))

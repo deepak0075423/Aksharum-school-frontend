@@ -1,6 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Badge, Button } from '../../components/ui/index';
+import api from '../../api/axios';
+import { feeReceiptPath, refundVoucherPath } from '../../api/hostel.api';
 
 /**
  * Shared presentation helpers for the hostel screens.
@@ -40,6 +43,46 @@ export const label = (v) => String(v || '').replace(/_/g, ' ');
 
 export const StatusBadge = ({ value, tone }) =>
   value ? <Badge variant={tone || STATUS_TONE[value] || 'muted'}>{label(value)}</Badge> : <span>—</span>;
+
+/**
+ * Opens a screen's "new" form when it is reached from the Dashboard's New menu
+ * (`?new=1`, or `?new=floor` where a screen has two forms), then takes the
+ * parameter off the URL — so Back, a refresh or a shared link does not open
+ * the form again. `ready` holds it until whatever the form defaults from has
+ * loaded: the academic years for an admission, the buildings for a floor.
+ *
+ * The parameter comes off a tick AFTER the form opens, and only if this copy
+ * of the page is still mounted then. AppLayout re-keys the page after every
+ * change of path, in an effect, so a page reached by a link is mounted once,
+ * thrown away and mounted again; a copy that removed the parameter before it
+ * was thrown away left its replacement nothing to open.
+ *
+ * `extra` names parameters that travel with `new` to prefill the form
+ * (`?new=1&student=…&incident=…`): the opener gets them as its second argument
+ * and they come off the URL in the same step as `new`, for the same reason.
+ */
+export function useNewFromLink(ready, open, extra = []) {
+  const [params, setParams] = useSearchParams();
+  const want = params.get('new');
+  const done = useRef(null);
+  const opener = useRef(open);
+  opener.current = open;
+  const extraKey = extra.join(',');
+
+  useEffect(() => {
+    if (!want) { done.current = null; return undefined; }
+    if (!ready) return undefined;
+    if (done.current !== want) {
+      done.current = want;
+      opener.current(want, Object.fromEntries(extraKey.split(',').filter(Boolean).map((k) => [k, params.get(k) || ''])));
+    }
+    const t = setTimeout(() => setParams((p) => {
+      const n = new URLSearchParams(p); n.delete('new'); extraKey.split(',').filter(Boolean).forEach((k) => n.delete(k)); return n;
+    }, { replace: true }), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [want, ready, setParams, extraKey]);
+}
 
 /** yyyy-mm-dd for <input type="date">, in local time. */
 export const di = (v) => {
@@ -122,7 +165,43 @@ export const UPLOADS_BASE =
   || (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')
   || '';
 
-export const fileUrl = (stored) => (stored ? `${UPLOADS_BASE}/uploads/hostel-docs/${stored}` : '');
+/**
+ * Open an uploaded hostel file.
+ *
+ * The files are private: the folder is not served to the public, so a plain
+ * link to it is refused. The file is asked for with the caller's login — the
+ * server decides whether it is theirs to read — and shown from memory.
+ */
+export async function openHostelFile(stored) {
+  if (!stored) return;
+  const tab = window.open('', '_blank');
+  try {
+    const res = await fetch(`${api.defaults.baseURL}/hostel/files/${encodeURIComponent(stored)}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.message || 'Could not open the file');
+    }
+    const url = URL.createObjectURL(await res.blob());
+    if (tab) tab.location.href = url; else window.location.assign(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    tab?.close();
+    toast.error(err?.message || 'Could not open the file');
+  }
+}
+
+/** A link to an uploaded file, by its stored name. `max` trims a long name. */
+export function FileLink({ name, max = 26, className = 'hs-filelink', style, children }) {
+  if (!name) return null;
+  return (
+    <a href="#file" className={className} style={style} title={name}
+      onClick={(e) => { e.preventDefault(); openHostelFile(name); }}>
+      {children ?? (name.length > max ? `${name.slice(0, max)}…` : name)}
+    </a>
+  );
+}
 
 /**
  * Attachment picker.
@@ -166,10 +245,10 @@ export function Attachments({ value = [], onChange, upload, entityType, entityId
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
               border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', fontSize: '.82rem',
             }}>
-              <a href={fileUrl(f)} target="_blank" rel="noreferrer"
+              <FileLink name={f} className=""
                 style={{ color: 'var(--primary)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 📎 {f}
-              </a>
+              </FileLink>
               {!disabled && (
                 <button type="button" onClick={() => onChange(value.filter((x) => x !== f))}
                   style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '.76rem' }}>
@@ -213,4 +292,33 @@ export function PassQr({ image, token, caption, size = 220 }) {
       {caption && <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 10 }}>{caption}</div>}
     </div>
   );
+}
+
+/**
+ * Opens a hostel fee receipt in a new tab. The document is fetched with the
+ * caller's token and written into the tab — a plain link carries no token.
+ * `invoice` pins an old, repeated receipt number to the right resident.
+ */
+export const openHostelReceipt = (receiptNumber, invoice) => openDocument(feeReceiptPath(receiptNumber, invoice), 'receipt');
+/** The voucher for a refund, the same way. */
+export const openRefundVoucher = (voucherNumber) => openDocument(refundVoucherPath(voucherNumber), 'voucher');
+
+async function openDocument(path, what) {
+  const tab = window.open('', '_blank');
+  try {
+    const res = await fetch(`${api.defaults.baseURL}${path}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.message || `Could not open the ${what}`);
+    }
+    const html = await res.text();
+    if (!tab) { toast.error(`Allow pop-ups to view the ${what}`); return; }
+    tab.document.write(html);
+    tab.document.close();
+  } catch (err) {
+    tab?.close();
+    toast.error(err?.message || `Could not open the ${what}`);
+  }
 }

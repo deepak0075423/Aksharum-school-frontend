@@ -34,6 +34,9 @@ const ALL_QUICK_LINKS = [
   { key: 'library',     to: '/teacher/library',          icon: 'bookOpen',    tone: 'indigo', label: 'Library',         sub: 'Borrow & return',  module: 'library' },
   { key: 'videos',      to: '/teacher/videos/catalog',   icon: 'video',       tone: 'pink',   label: 'Video Learning',  sub: 'Lessons',          module: 'videoLibrary' },
   { key: 'feedback',    to: '/teacher/feedback/dashboard', icon: 'star',      tone: 'purple', label: 'My Feedback',     sub: 'What students say', module: 'feedback' },
+  // Two different things: living in the hostel, and being posted to run one.
+  { key: 'hostel',      to: '/teacher/hostel',           icon: 'hotel',       tone: 'orange', label: 'My Hostel',       sub: 'Room, leave & fees', module: 'hostel', requires: 'hostelResident' },
+  { key: 'hostelDuty',  to: '/admin/hostel/dashboard',   icon: 'hotel',       tone: 'indigo', label: 'Hostel Duty',     sub: 'Roll call & requests', module: 'hostel', requires: 'hostelDuty' },
   { key: 'holidays',    to: '/teacher/holidays',         icon: 'party',       tone: 'teal',   label: 'Holidays',        sub: 'School calendar',  module: 'holiday' },
   { key: 'notices',     to: '/teacher/notifications',    icon: 'megaphone',   tone: 'blue',   label: 'Notice Board',    sub: 'School notices',   module: 'notification' },
   { key: 'chat',        to: '/chat',                     icon: 'chat',        tone: 'indigo', label: 'Chat',            sub: 'Message staff',    module: 'chat' },

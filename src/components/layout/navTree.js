@@ -121,6 +121,8 @@ export const TEACHER_NAV = [
   { to: '/teacher/documents',       icon: 'files', label: 'Documents',     module: 'document' },
   // A teacher sees Transport when they ride the bus themselves or crew one.
   { to: '/teacher/transport',       icon: 'bus', label: 'Transport',     module: 'transport', requires: 'transportEnrolled' },
+  // Only for a teacher who lives in the hostel (or has a hostel bill).
+  { to: '/teacher/hostel',          icon: 'hotel', label: 'My Hostel',     module: 'hostel', requires: 'hostelResident' },
   { to: '/teacher/payroll/ctc', match: '/teacher/payroll',     icon: 'banknote', label: 'Payroll',       module: 'payroll',
     children: sub(PAYROLL_TEACHER_TABS) },
   { to: '/teacher/library', match: '/teacher/library', icon: 'bookOpen', label: 'Library', module: 'library',

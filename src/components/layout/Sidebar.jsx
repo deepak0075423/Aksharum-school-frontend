@@ -82,6 +82,12 @@ export default function Sidebar({ onLinkClick, collapsed }) {
         .filter(m => modules.moduleAdmin[m.key] && !TEACHER_OWN_ADMIN.has(m.key))
         .map(m => ({ to: m.adminHome, icon: m.icon, label: `Manage ${m.label}` }))
     : [];
+  // A teacher posted to a hostel — its warden or staff — runs its day-to-day
+  // screens without administering the module. One entry, unless they already
+  // have "Manage Hostel" above.
+  if (user?.role === 'teacher' && modulesReady && modules?.hostelDuty && !modules?.moduleAdmin?.hostel) {
+    manageNav.push({ to: '/admin/hostel/dashboard', match: '/admin/hostel', icon: 'hotel', label: 'Hostel Duty' });
+  }
   // Some submenus belong only to some people — a plain teacher has one
   // directory screen, so it must not sprout the administrator's sections.
   const navResolved = nav.map(item => (

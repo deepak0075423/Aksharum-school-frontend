@@ -287,7 +287,7 @@ export default function SchoolSettings() {
 
   // ── Sections ───────────────────────────────────────────────────────────────
   // Payments and receipts only exist for a school that charges for something.
-  const money = modulesReady && (isEnabled('fees') || isEnabled('library'));
+  const money = modulesReady && (isEnabled('fees') || isEnabled('library') || isEnabled('hostel'));
 
   const tabs = useMemo(() => [
     { key: 'general',  label: 'General',      icon: 'building' },
@@ -565,7 +565,7 @@ export default function SchoolSettings() {
             <SelfSaveNote>
               Each receipt design is saved from inside the panel, per module.
             </SelfSaveNote>
-            <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library') }} />
+            <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library'), hostel: isEnabled('hostel') }} />
           </div>
         </>
       )}

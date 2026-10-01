@@ -11,6 +11,7 @@ import { Button, Spinner } from '../ui/index';
 const MODULES = [
   ['fees',    'Fee receipts'],
   ['library', 'Library fine receipts'],
+  ['hostel',  'Hostel fee receipts'],
 ];
 
 const TOGGLES = [

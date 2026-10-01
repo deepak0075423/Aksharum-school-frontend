@@ -1897,6 +1897,12 @@ select.form-control {
 
 /* A strip inside a card header, where a full-size tab crowds the title. */
 .uitabs--sm .uitab { padding: 6px 10px; font-size: .8rem; gap: 5px; }
+
+/* A module rail drawn a size down, as the Hostel mockups draw it: 33px pills,
+   13px labels, a wider gap between them than between the rows they wrap to.
+   Opt-in through ModuleNav's `size="compact"`. */
+.uitabs--compact.uitabs--pill { column-gap: 7px; row-gap: 5px; }
+.uitabs--compact .uitab { padding: 7px 13px; font-size: .8125rem; border-radius: 7px; }
 .uitabs--sm.uitabs--line .uitab { padding: 8px 10px; }
 
 /* The strip and whatever shares its row — a search box, a year picker, the
