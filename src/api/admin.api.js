@@ -334,16 +334,86 @@ export const aptitudeQuestionApi = {
 };
 
 // Results
+// The list answers `{ data: [...], total, pages, tabs }` — rows beside their
+// paging and tab counts — so read the whole reply, not `useFetch().data`.
+export const getResultOverview  = () => api.get('/admin/results/overview');
 export const getFormalExams = (params) => api.get('/admin/results/exams', { params });
 export const createFormalExam = (data) => api.post('/admin/results/exams', data);
 export const getFormalExam  = (id) => api.get(`/admin/results/exams/${id}`);
 export const updateFormalExam  = (id, data) => api.put(`/admin/results/exams/${id}`, data);
 export const deleteFormalExam  = (id) => api.delete(`/admin/results/exams/${id}`);
-export const approveFormalExam = (id) => api.post(`/admin/results/exams/${id}/approve`);
+export const setFormalExamOptions = (id, data) => api.put(`/admin/results/exams/${id}/options`, data);
+/** A published exam's result date, while its results have not reached families; `date` null releases them now. */
+export const setFormalExamResultDate = (id, date) => api.put(`/admin/results/exams/${id}/result-date`, { date });
+/** Re-exams on published results: who may sit them, and their marks, date and counting rule. */
+export const getReExam  = (id) => api.get(`/admin/results/exams/${id}/re-exam`);
+/** A filled-in marks file (Excel or CSV), read into rows for the marks grid to match. Nothing is saved. */
+export const readMarksFile = (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/admin/results/marks-import', fd); };
+/** Every class test in the school; one as its marks sheet; the office's approval or send-back. */
+export const getClassTestsAsOffice      = (params) => api.get('/admin/results/class-tests', { params });
+export const getClassTestSheetAsOffice  = (id) => api.get(`/admin/results/class-tests/${id}/sheet`);
+export const approveClassTestAsOffice   = (id, data) => api.post(`/admin/results/class-tests/${id}/approve`, data);
+export const rejectClassTestAsOffice    = (id, data) => api.post(`/admin/results/class-tests/${id}/reject`, data);
+export const saveReExam = (id, data) => api.put(`/admin/results/exams/${id}/re-exam`, data);
+export const openFormalExamMarks  = (id) => api.post(`/admin/results/exams/${id}/open`);
+export const draftFormalExam      = (id) => api.post(`/admin/results/exams/${id}/draft`);
+export const validateFormalExam   = (id, data) => api.post(`/admin/results/exams/${id}/validate`, data);
+export const approveFormalExam = (id, data) => api.post(`/admin/results/exams/${id}/approve`, data);
 export const rejectFormalExam  = (id, data) => api.post(`/admin/results/exams/${id}/reject`, data);
 export const reopenFormalExam  = (id, data) => api.post(`/admin/results/exams/${id}/reopen`, data);
+export const archiveFormalExam = (id) => api.post(`/admin/results/exams/${id}/archive`);
+export const restoreFormalExam = (id) => api.post(`/admin/results/exams/${id}/restore`);
+export const bulkFormalExams   = (action, ids) => api.post('/admin/results/exams/bulk', { action, ids });
 export const getMarksReview    = (id) => api.get(`/admin/results/exams/${id}/marks-review`);
+export const getFormalExamMarks  = (id, subjectId) => api.get(`/admin/results/exams/${id}/marks/${subjectId}`);
+export const saveFormalExamMarks = (id, subjectId, data) => api.put(`/admin/results/exams/${id}/marks/${subjectId}`, data);
+export const getFormalExamResults = (id) => api.get(`/admin/results/exams/${id}/result`);
+export const getResultFormMeta    = () => api.get('/admin/results/form-meta');
+export const getResultFormSubjects = (sectionIds) => api.get('/admin/results/form-subjects', { params: { sections: sectionIds.join(',') } });
+export const getResultAnalytics   = (params) => api.get('/admin/results/analytics', { params });
+export const getResultOverall     = (params) => api.get('/admin/results/overall', { params });
 export const getResultSectionSubjects = (sectionId) => api.get(`/admin/results/sections/${sectionId}/subjects`);
+/** The school's Results settings: grading scale, exam types, report cards, reminders. */
+export const getResultSettings    = () => api.get('/admin/results/settings');
+export const updateResultSettings = (data) => api.put('/admin/results/settings', data);
+/** A section's report cards for a year; the class teacher's remarks and co-scholastic grades. */
+export const getReportCards       = (params) => api.get('/admin/results/report-cards', { params });
+export const saveReportCardNotes  = (data) => api.put('/admin/results/report-cards/notes', data);
+/** The section's cards (or one, `studentId`) as the school's PDF. */
+export const getReportCardsPdf    = (params) => api.get('/admin/results/report-cards/pdf', { params, responseType: 'blob' });
+/** Every section's exam papers, day by day, each exam with its status; clashing papers marked. */
+export const getExamScheduleAsOffice = () => api.get('/admin/results/schedule');
+// Oct 2026, the second audit.
+/** One sheet's history: every save, and every mark changed — who, when, from what to what. */
+export const getSheetHistory      = (id, subjectId) => api.get(`/admin/results/exams/${id}/marks/${subjectId}/history`);
+/** Send one subject's marks back to its teacher; the rest stay as they are. */
+export const returnExamSubject    = (id, data) => api.post(`/admin/results/exams/${id}/return-subject`, data);
+/** Correct one paper of a published result in place. */
+export const correctPublishedMark = (id, data) => api.post(`/admin/results/exams/${id}/correct`, data);
+/** Hold results back from families (unpaid fees, discipline), or release them. */
+export const setResultsWithheld   = (id, data) => api.put(`/admin/results/exams/${id}/withheld`, data);
+export const getExamFeeDues       = (id) => api.get(`/admin/results/exams/${id}/fee-dues`);
+/** A final exam's promotion decided by hand for one student. */
+export const setPromotionDecision = (id, data) => api.put(`/admin/results/exams/${id}/promotion-decision`, data);
+export const getMeritList         = (params) => api.get('/admin/results/merit', { params });
+export const getElectives         = (params) => api.get('/admin/results/electives', { params });
+export const saveElective         = (data) => api.put('/admin/results/electives', data);
+export const getRechecks          = (params) => api.get('/admin/results/rechecks', { params });
+export const resolveRecheck       = (id, data) => api.put(`/admin/results/rechecks/${id}`, data);
+export const getResultActivity    = (params) => api.get('/admin/results/activity', { params });
+export const releaseReportCards   = (data) => api.post('/admin/results/report-cards/release', data);
+export const sendReportCards      = (data) => api.post('/admin/results/report-cards/send', data);
+export const uploadReportSignature = (kind, file) => { const fd = new FormData(); fd.append('kind', kind); fd.append('file', file); return api.post('/admin/results/settings/signature', fd); };
+export const handOverClassTest    = (id, data) => api.post(`/admin/results/class-tests/${id}/hand-over`, data);
+export const deleteClassTestAsOffice = (id) => api.delete(`/admin/results/class-tests/${id}`);
+// Printed from an exam: its marks register (Excel) and admit cards (PDF, one student with `studentId`).
+export const getMarksRegister = (id) => api.get(`/admin/results/exams/${id}/register.xlsx`, { responseType: 'blob' });
+export const getAdmitCards = (id, studentId) => api.get(`/admin/results/exams/${id}/admit-cards.pdf`, { params: studentId ? { studentId } : {}, responseType: 'blob' });
+// The exam day's plan: where students sit and who invigilates (services/resultSeating).
+export const getExamDay     = (date) => api.get('/admin/results/exam-day', { params: date ? { date } : {} });
+export const planExamDay    = (data) => api.post('/admin/results/exam-day', data);
+export const publishExamDay = (data) => api.post('/admin/results/exam-day/publish', data);
+export const removeExamDay  = (date) => api.delete('/admin/results/exam-day', { params: { date } });
 
 // Notifications
 export const sendNotification = (data) => api.post('/admin/notifications/send', data);

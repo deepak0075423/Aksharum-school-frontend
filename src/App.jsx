@@ -29,6 +29,7 @@ const ResetPassword  = lazy(() => import('./pages/auth/ResetPassword'));
 const MagicLogin     = lazy(() => import('./pages/auth/MagicLogin'));
 const ChooseAccount  = lazy(() => import('./pages/auth/ChooseAccount'));
 const NotifRedirect  = lazy(() => import('./pages/shared/NotificationRedirect'));
+const VerifyCard     = lazy(() => import('./pages/shared/VerifyReportCard'));
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
 const SADashboard      = lazy(() => import('./pages/super-admin/Dashboard'));
@@ -119,6 +120,7 @@ const TAttendance   = lazy(() => import('./pages/teacher/Attendance'));
 const TTimetable    = lazy(() => import('./pages/teacher/Timetable'));
 const TExams        = lazy(() => import('./pages/teacher/Exams'));
 const TResults      = lazy(() => import('./pages/teacher/Results'));
+const TExamSchedule = lazy(() => import('./pages/teacher/ExamSchedule'));
 const TLeave        = lazy(() => import('./pages/teacher/Leave'));
 const TDocuments    = lazy(() => import('./pages/teacher/Documents'));
 const THolidays     = lazy(() => import('./pages/teacher/Holidays'));
@@ -131,6 +133,7 @@ const SAttendance   = lazy(() => import('./pages/student/Attendance'));
 const STimetable    = lazy(() => import('./pages/student/Timetable'));
 const SExams        = lazy(() => import('./pages/student/Exams'));
 const SResults      = lazy(() => import('./pages/student/Results'));
+const SExamSchedule = lazy(() => import('./pages/student/ExamSchedule'));
 const SDocuments    = lazy(() => import('./pages/student/Documents'));
 const SHolidays     = lazy(() => import('./pages/student/Holidays'));
 const SFees         = lazy(() => import('./pages/fees/student/MyFees'));
@@ -147,6 +150,7 @@ const PChildClass   = lazy(() => import('./pages/parent/ChildClass'));
 const PAttendance   = lazy(() => import('./pages/parent/ChildAttendance'));
 const PExams        = lazy(() => import('./pages/parent/Exams'));
 const PResults      = lazy(() => import('./pages/parent/Results'));
+const PExamSchedule = lazy(() => import('./pages/parent/ExamSchedule'));
 const PDocuments    = lazy(() => import('./pages/parent/Documents'));
 const PHolidays     = lazy(() => import('./pages/parent/Holidays'));
 const PTimetable    = lazy(() => import('./pages/parent/Timetable'));
@@ -351,6 +355,8 @@ export default function App() {
           {/* Where every notification email points — resolves to the reader's
               own screen for that notification, whatever their role. */}
           <Route path="/n/:receiptId" element={<NotifRedirect />} />
+          {/* A printed report card's QR — open to anyone holding the paper. */}
+          <Route path="/verify/report-card/:code" element={<VerifyCard />} />
           <Route path="/" element={<HomeRedirect />} />
 
           {/* Super Admin */}
@@ -588,6 +594,7 @@ export default function App() {
             <Route path="substitutions" element={<TSubstitutions />} />
             <Route path="exams/*"      element={<TExams />} />
             <Route path="results/*"    element={<TResults />} />
+            <Route path="exam-schedule" element={<TExamSchedule />} />
             <Route path="leave"        element={<TLeave />} />
             <Route path="documents"    element={<TDocuments />} />
             {/* A teacher account reaches Transport either because they RIDE the
@@ -673,6 +680,7 @@ export default function App() {
             <Route path="timetable"        element={<STimetable />} />
             <Route path="exams/*"          element={<SExams />} />
             <Route path="results/*"        element={<SResults />} />
+            <Route path="exam-schedule"    element={<SExamSchedule />} />
             <Route path="documents"        element={<SDocuments />} />
             <Route path="holidays"         element={<SHolidays />} />
             <Route path="fees/*"           element={<SFees />} />
@@ -706,6 +714,7 @@ export default function App() {
             <Route path="child-attendance" element={<PAttendance />} />
             <Route path="exams"            element={<PExams />} />
             <Route path="results/*"        element={<PResults />} />
+            <Route path="exam-schedule"    element={<PExamSchedule />} />
             <Route path="documents"        element={<PDocuments />} />
             <Route path="holidays"         element={<PHolidays />} />
             <Route path="feedback"         element={<FbParChild />} />

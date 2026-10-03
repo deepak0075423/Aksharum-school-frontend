@@ -16,7 +16,7 @@
  */
 import React, { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useModules } from '../contexts/ModulesContext';
+import { useModules, useGate } from '../contexts/ModulesContext';
 import { Forbidden } from '../pages/errors/ErrorPage';
 import { Spinner } from './ui/index';
 import { SUPER_ADMIN_NAV, ADMIN_NAV, TEACHER_NAV, STUDENT_NAV, PARENT_NAV } from './layout/navTree';
@@ -49,13 +49,18 @@ export default function ModuleRouteGuard({ children }) {
   const { isEnabled, levelOf, modules, ready } = useModules();
   const index = useMemo(buildIndex, []);
   const key = useMemo(() => moduleForPath(pathname, index), [pathname, index]);
+  // A refusal is confirmed with the server before it is drawn: a module
+  // switched on, or a designation granted, while this person was signed in is
+  // otherwise refused on the answer from before. Per module — this guard sits
+  // above every page, and one module's "no" says nothing about the next.
+  const { pending } = useGate(!key || (ready && isEnabled(key)), key || '');
 
   // Not a module page — dashboards, profile, People, Academics, Settings.
   if (!key) return children;
   // `isEnabled` answers true for a map that has not landed, so waiting is the
   // only honest option: bouncing now would throw people out of modules they do
   // have. See ModulesContext for the fail-open and why it is deliberate.
-  if (!ready) return <div className="loading-page"><Spinner /></div>;
+  if (pending) return <div className="loading-page"><Spinner /></div>;
   if (isEnabled(key)) return children;
 
   // Two refusals wear the same 403 and mean quite different things to the

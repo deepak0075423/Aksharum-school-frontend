@@ -175,7 +175,11 @@ export function AnnouncementRow({ ann, tone, onDelete }) {
     <div className={`tsec-ann tsec-t--${tone}`}>
       <span className="tsec-ico"><Icon name="megaphone" size={19} /></span>
       <span className="tsec-ann__body">
-        <span className="tsec-ann__title">{ann.title}</span>
+        {/* `where` is set on a notice the teacher posted to a class other than
+            their own — the own class's board needs no label. */}
+        <span className="tsec-ann__title">
+          {ann.title}{ann.where ? <span className="tsec-year tsec-ann__where">{ann.where}</span> : null}
+        </span>
         <span className="tsec-ann__text">{ann.message}</span>
       </span>
       <span className="tsec-ann__date">{when}</span>

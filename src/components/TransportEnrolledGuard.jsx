@@ -1,5 +1,5 @@
 import React from 'react';
-import { useModules } from '../contexts/ModulesContext';
+import { useModules, useGate } from '../contexts/ModulesContext';
 import { Forbidden } from '../pages/errors/ErrorPage';
 import { Spinner } from './ui/index';
 
@@ -16,12 +16,16 @@ import { Spinner } from './ui/index';
  * Fails closed like MySectionGuard: with no module map there is no reason to
  * believe anyone is enrolled, and the endpoints refuse the data regardless —
  * the guards on /transport/{student,parent,staff}/* enforce the same rule.
+ *
+ * A "no" is confirmed with the server first (`useGate`): someone enrolled while
+ * they were signed in is otherwise refused on the answer from before.
  */
 export default function TransportEnrolledGuard({ children }) {
-  const { modules, ready } = useModules();
+  const { modules, ready, failed } = useModules();
   const allowed = ready && modules?.transportEnrolled === true;
+  const { pending } = useGate(allowed, 'transport');
 
-  if (!ready) return <div className="loading-page"><Spinner /></div>;
-  if (!allowed) return <Forbidden reason="not_enrolled" what="Transport" />;
-  return children;
+  if (pending) return <div className="loading-page"><Spinner /></div>;
+  if (allowed) return children;
+  return <Forbidden reason={failed ? 'unverified' : 'not_enrolled'} what="Transport" />;
 }

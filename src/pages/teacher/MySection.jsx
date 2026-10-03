@@ -6,18 +6,28 @@
  * headline tiles are the summary; everything under them is the detail, and
  * every row opens the same section drawer.
  *
- * Only a class teacher or vice class teacher reaches it (MySectionGuard in
- * App.jsx; the endpoint answers 403 MY_SECTION_NOT_ASSIGNED to anyone else).
+ * It is for any teacher attached to a section this year — class teacher, vice
+ * class teacher or subject teacher (MySectionGuard in App.jsx; the endpoint
+ * answers 403 MY_SECTION_NOT_ASSIGNED to a teacher attached to nothing).
+ *
+ * A section is shown ONCE, in the place of the strongest tie the teacher has to
+ * it as a class:
+ *   • class teacher        → "My Class", their vice classes in a list beside it;
+ *   • vice class teacher   → the class they cover IS their class, so it is the
+ *     only                   "My Class" panel and is not listed a second time;
+ *   • subject teacher only → no class of their own: the classes they teach
+ *                            take the main column instead.
+ * The subjects a teacher takes are listed per subject, so a class they also run
+ * can appear there too — that row is about the subject, not the class.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
 import { Forbidden } from '../errors/ErrorPage';
 import { getMySection, createAnnouncement, deleteAnnouncement } from '../../api/teacher.api';
-import { Button, Modal, Spinner, Confirm } from '../../components/ui/index';
+import { Button, Modal, Spinner, Confirm, Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   Tile, Panel, Fact, SectionRow, SectionActions, SectionBlock, RoleRow, AnnouncementRow,
@@ -30,7 +40,7 @@ export default function MySection() {
   const { isEnabled, reload: reloadModules } = useModules();
   const { user: me } = useAuth();
   const [denied, setDenied] = useState(false);
-  const { data, loading, refetch } = useFetch(() => getMySection().catch((err) => {
+  const { data, loading, error, refetch } = useFetch(() => getMySection().catch((err) => {
     if (err?.data?.code === 'MY_SECTION_NOT_ASSIGNED') setDenied(true);
     throw err;
   }));
@@ -100,22 +110,75 @@ export default function MySection() {
     finally { setDeleting(false); }
   };
 
-  // The menu hid the page, but the module map is read once per session: a
-  // teacher taken off their class since still has the old answer. The server's
-  // refusal is the current one, so it wins — refresh the map and leave.
-  if (denied) return <Navigate to="/teacher/dashboard" replace />;
+  // The server's refusal is the current answer, whatever the module map said
+  // when this page was opened — a teacher taken off their class since, or one
+  // let through because the map could not be loaded at all (MySectionGuard).
+  // It gets the same page the guard shows, which says why. (A redirect to the
+  // dashboard sat in front of this line and made it unreachable: being bounced
+  // home without a word is what that page exists to replace.)
   if (denied) return <Forbidden reason="class_teacher" what="My Section" />;
   if (loading) return <div className="loading-page"><Spinner /></div>;
+  // Not loaded is not the same as empty: drawing the page around nothing told a
+  // class teacher they had no class, no vice post and no subjects.
+  if (error && !data) {
+    return (
+      <div className="page tsecpg">
+        <Empty icon="⚠️" title="My Section could not be loaded" message={error}
+          action={<Button onClick={refetch}>Try again</Button>} />
+      </div>
+    );
+  }
 
-  const viceRows = allVice ? viceOf : viceOf.slice(0, SHOWN);
+  const isClassTeacher = role === 'classTeacher';
+  // What "My Class" holds. A vice class teacher with no class of their own has
+  // the class they cover as their class — and that used to be drawn twice: once
+  // here, and again in the "Vice Class Teacher" list below it. The list is now
+  // only for a class teacher's ADDITIONAL vice classes.
+  const ownRows  = isClassTeacher ? classTeacherOf : viceOf;
+  const ownRole  = isClassTeacher ? 'classTeacher' : 'vice';
+  const ownLabel = isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher';
+  const viceList = isClassTeacher ? viceOf : [];
+  // Where "Vice Class Teacher" on a tile or a responsibility leads.
+  const toVice   = viceList.length ? goTo(viceRef) : goTo(mineRef);
+
+  const viceRows = allVice ? viceList : viceList.slice(0, SHOWN);
   const subjRows = allSubj ? subjectClasses : subjectClasses.slice(0, SHOWN);
   const annRows  = allAnn  ? announcements : announcements.slice(0, SHOWN);
-  const isClassTeacher = role === 'classTeacher';
 
   // Posting is open to anyone attached to the section; taking a notice down is
   // not — you wrote it, or it is on the board of a class you are class teacher
   // of. The server enforces the same rule.
   const canRemove = (ann) => isClassTeacher || String(ann.createdBy) === String(me?.id || me?._id);
+
+  // One panel, two places: beside the teacher's own class, or — when they have
+  // none — in the main column, where it is the page.
+  const subjectPanel = subjectClasses.length > 0 && (
+    <div ref={subjRef}>
+      <Panel title="Subject Classes" count={subjectClasses.length}
+        link={subjectClasses.length > SHOWN
+          ? { label: allSubj ? 'Show Less' : 'View All', onClick: () => setAllSubj(!allSubj) }
+          : null}>
+        <div className="tsec-rows">
+          {subjRows.map((s) => (
+            <SectionBlock key={`${s._id}:${s.subject}`}>
+              <SectionRow row={s} tone="rose"
+                chip={String(s.subject || '?')[0].toUpperCase()}
+                title={s.subject || 'Subject'}
+                facts={<Fact icon="layers">{secLabel(s)}</Fact>}
+                right={<span className="tsec-count">
+                  <Icon name="users" size={15} />{plural(s.studentCount, 'Student')}
+                </span>}
+                onOpen={() => setDrawer(s)} />
+              {/* No attendance: the day is recorded by the section,
+                  and a subject teacher has the class for a period. */}
+              <SectionActions row={s} role="subject" isEnabled={isEnabled}
+                onStudents={setDrawer} onAnnounce={setAnnOpen} />
+            </SectionBlock>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
 
   return (
     <div className="page tsecpg">
@@ -149,7 +212,7 @@ export default function MySection() {
         <Tile tone="green" icon="users" label="Vice Class Teacher"
           value={viceOf.length ? plural(viceOf.length, 'Class', 'Classes') : 'None'}
           sub={viceOf.length ? 'You are vice class teacher' : 'Not covering any class'}
-          onClick={viceOf.length ? goTo(viceRef) : undefined} />
+          onClick={viceOf.length ? toVice : undefined} />
         <Tile tone="violet" icon="bookOpen" label="Subject Teacher"
           value={subjectClasses.length ? plural(subjectClasses.length, 'Class', 'Classes') : 'None'}
           sub={subjectClasses.length ? 'Across different sections' : 'No subject assignments'}
@@ -163,16 +226,14 @@ export default function MySection() {
           {section && (
             <div ref={mineRef}>
               <Panel
-                title={`My Class (${isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'})`}
+                title={`My Class (${ownLabel})`}
                 link={{ label: 'View Details', onClick: () => setDrawer(section) }}>
                 <div className="tsec-mine">
                   <span className="tsec-chip tsec-chip--lg tsec-t--indigo">{chipFor(section)}</span>
                   <div className="tsec-mine__body">
                     <div className="tsec-mine__title">
                       {classLabel(section)}
-                      <span className="tsec-badge tsec-t--indigo">
-                        {isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'}
-                      </span>
+                      <span className="tsec-badge tsec-t--indigo">{ownLabel}</span>
                       <YearTag row={section} />
                     </div>
                     <div className="tsec-row__facts">
@@ -183,14 +244,15 @@ export default function MySection() {
                   </div>
                 </div>
 
-                <SectionActions row={section} role={isClassTeacher ? 'classTeacher' : 'vice'}
+                <SectionActions row={section} role={ownRole}
                   isEnabled={isEnabled} canAnnounce={canPost}
                   onStudents={setDrawer} onAnnounce={setAnnOpen} />
 
-                {/* A teacher can hold more than one class of their own */}
-                {classTeacherOf.length > 1 && (
+                {/* A teacher can hold more than one class of their own — or,
+                    with none of their own, cover more than one as vice. */}
+                {ownRows.length > 1 && (
                   <div className="tsec-rows tsec-rows--tight">
-                    {classTeacherOf.slice(1).map((s) => (
+                    {ownRows.slice(1).map((s) => (
                       <SectionBlock key={s._id}>
                         <SectionRow row={s} tone="indigo"
                           title={classLabel(s)}
@@ -198,8 +260,8 @@ export default function MySection() {
                             <Fact icon="layers">Section {s.sectionName}</Fact>
                             <Fact icon="users">{plural(s.studentCount, 'Student')}</Fact>
                           </>}
-                          badge="Class Teacher" onOpen={() => setDrawer(s)} />
-                        <SectionActions row={s} role="classTeacher" isEnabled={isEnabled}
+                          badge={ownLabel} onOpen={() => setDrawer(s)} />
+                        <SectionActions row={s} role={ownRole} isEnabled={isEnabled}
                           onStudents={setDrawer} onAnnounce={setAnnOpen} />
                       </SectionBlock>
                     ))}
@@ -209,10 +271,10 @@ export default function MySection() {
             </div>
           )}
 
-          {viceOf.length > 0 && (
+          {viceList.length > 0 && (
             <div ref={viceRef}>
-              <Panel title="Vice Class Teacher" count={viceOf.length}
-                link={viceOf.length > SHOWN
+              <Panel title="Vice Class Teacher" count={viceList.length}
+                link={viceList.length > SHOWN
                   ? { label: allVice ? 'Show Less' : 'View All', onClick: () => setAllVice(!allVice) }
                   : null}>
                 <div className="tsec-rows">
@@ -237,26 +299,36 @@ export default function MySection() {
             </div>
           )}
 
-          {section && (
-            <Panel title="Recent Announcements"
-              link={announcements.length > SHOWN
-                ? { label: allAnn ? 'Show Less' : 'View All', onClick: () => setAllAnn(!allAnn) }
-                : null}>
-              {annRows.length ? (
-                <div className="tsec-rows tsec-rows--tight">
-                  {annRows.map((a, i) => (
-                    <AnnouncementRow key={a._id} ann={a} tone={i % 2 ? 'green' : 'indigo'}
-                      onDelete={canRemove(a) ? () => setDelAnn(a) : null} />
-                  ))}
-                </div>
-              ) : (
-                <NoRows icon="megaphone">
-                  Nothing posted to {secLabel(section)} yet.
-                  {canPost && ' Use Post Announcement above to tell your class something.'}
-                </NoRows>
-              )}
-            </Panel>
-          )}
+          {/* With no class of their own, the classes a teacher takes a subject
+              in are what the page is about — they get the main column. */}
+          {!section && subjectPanel}
+
+          {/* The board of the teacher's own class, plus what they themselves
+              posted to the other classes they teach (each named for where it
+              went) — a notice sent to a subject class used to vanish from the
+              page the moment it was posted. */}
+          <Panel title="Recent Announcements"
+            link={announcements.length > SHOWN
+              ? { label: allAnn ? 'Show Less' : 'View All', onClick: () => setAllAnn(!allAnn) }
+              : null}>
+            {annRows.length ? (
+              <div className="tsec-rows tsec-rows--tight">
+                {annRows.map((a, i) => (
+                  <AnnouncementRow key={a._id} ann={a} tone={i % 2 ? 'green' : 'indigo'}
+                    onDelete={canRemove(a) ? () => setDelAnn(a) : null} />
+                ))}
+              </div>
+            ) : section ? (
+              <NoRows icon="megaphone">
+                Nothing posted to {secLabel(section)} yet.
+                {canPost && ' Use Post Announcement above to tell your class something.'}
+              </NoRows>
+            ) : (
+              <NoRows icon="megaphone">
+                Nothing posted yet. What you post to the classes you teach is listed here.
+              </NoRows>
+            )}
+          </Panel>
         </div>
 
         {/* ── Side column ───────────────────────────────────────── */}
@@ -271,7 +343,7 @@ export default function MySection() {
               {viceOf.length > 0 && (
                 <RoleRow tone="green" icon="users" label="Vice Class Teacher"
                   sub={viceOf.map(secLabel).join(', ')}
-                  onClick={goTo(viceRef)} />
+                  onClick={toVice} />
               )}
               {subjectClasses.length > 0 && (
                 <RoleRow tone="violet" icon="bookOpen" label="Subject Teacher"
@@ -280,33 +352,7 @@ export default function MySection() {
             </div>
           </Panel>
 
-          {subjectClasses.length > 0 && (
-            <div ref={subjRef}>
-              <Panel title="Subject Classes" count={subjectClasses.length}
-                link={subjectClasses.length > SHOWN
-                  ? { label: allSubj ? 'Show Less' : 'View All', onClick: () => setAllSubj(!allSubj) }
-                  : null}>
-                <div className="tsec-rows">
-                  {subjRows.map((s) => (
-                    <SectionBlock key={`${s._id}:${s.subject}`}>
-                      <SectionRow row={s} tone="rose"
-                        chip={String(s.subject || '?')[0].toUpperCase()}
-                        title={s.subject || 'Subject'}
-                        facts={<Fact icon="layers">{secLabel(s)}</Fact>}
-                        right={<span className="tsec-count">
-                          <Icon name="users" size={15} />{plural(s.studentCount, 'Student')}
-                        </span>}
-                        onOpen={() => setDrawer(s)} />
-                      {/* No attendance: the day is recorded by the section,
-                          and a subject teacher has the class for a period. */}
-                      <SectionActions row={s} role="subject" isEnabled={isEnabled}
-                        onStudents={setDrawer} onAnnounce={setAnnOpen} />
-                    </SectionBlock>
-                  ))}
-                </div>
-              </Panel>
-            </div>
-          )}
+          {section && subjectPanel}
 
           {monitors.length > 0 && (
             <Panel title="Class Monitors" count={monitors.length}>

@@ -44,6 +44,9 @@ const LABELS = {
   feedback:             'Teacher Feedback',
   chat:                 'Chat',
   profile:              'My Profile',
+  merit:                'Merit List',
+  rechecks:             'Re-check Requests',
+  'exam-day':           'Exam Day Plan',
 };
 
 const titleCase = (seg) =>

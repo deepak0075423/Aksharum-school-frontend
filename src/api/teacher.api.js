@@ -107,6 +107,36 @@ export const getDocumentSubs     = (id)     => api.get(`/teacher/documents/${id}
 export const reviewSubmission    = (subId, data) => api.post(`/teacher/documents/submissions/${subId}/review`, data);
 export const getHolidays         = () => api.get('/teacher/holidays');
 export const getClassHolidays    = () => api.get('/teacher/class-holidays');
+export const getResultBoard   = () => api.get('/teacher/results/board');
+export const getExamSchedule  = () => api.get('/teacher/results/schedule');
+/** Report cards of the sections this teacher is class or vice class teacher of. */
+export const getReportCards      = (params) => api.get('/teacher/results/report-cards', { params });
+/** A filled-in marks file (Excel or CSV), read into rows for the marks grid to match. Nothing is saved. */
+export const readMarksFile = (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/teacher/results/marks-import', fd); };
+/** Re-exam marks for the papers of this teacher's subjects, once the office has set up the re-exam. */
+export const getReExam  = (examId) => api.get(`/teacher/results/exams/${examId}/re-exam`);
+export const saveReExam = (examId, data) => api.put(`/teacher/results/exams/${examId}/re-exam`, data);
+export const saveReportCardNotes = (data) => api.put('/teacher/results/report-cards/notes', data);
+export const getReportCardsPdf   = (params) => api.get('/teacher/results/report-cards/pdf', { params, responseType: 'blob' });
+export const getTestOptions   = () => api.get('/teacher/results/test-options');
+export const getTeacherSheet  = (examId, subjectId) => api.get(`/teacher/results/sheets/${examId}/${subjectId}`);
+export const getExamReview    = (examId) => api.get(`/teacher/results/review/${examId}`);
+export const getSectionResults = (examId) => api.get(`/teacher/results/exams/${examId}/result`);
+export const getTestSheet     = (id) => api.get(`/teacher/results/class-tests/${id}/sheet`);
+// Oct 2026, the second audit.
+export const getSheetHistory  = (examId, subjectId) => api.get(`/teacher/results/sheets/${examId}/${subjectId}/history`);
+export const getElectives     = (params) => api.get('/teacher/results/electives', { params });
+export const saveElective     = (data) => api.put('/teacher/results/electives', data);
+export const releaseReportCards = (data) => api.post('/teacher/results/report-cards/release', data);
+export const sendReportCards  = (data) => api.post('/teacher/results/report-cards/send', data);
+// A class teacher's own section: the exam's marks register and its admit cards.
+export const getMarksRegister = (examId) => api.get(`/teacher/results/exams/${examId}/register.xlsx`, { responseType: 'blob' });
+export const getAdmitCards = (examId) => api.get(`/teacher/results/exams/${examId}/admit-cards.pdf`, { responseType: 'blob' });
+export const deleteClassTest  = (id) => api.delete(`/teacher/results/class-tests/${id}`);
+export const updateClassTest  = (id, data) => api.put(`/teacher/results/class-tests/${id}`, data);
+export const reopenClassTest  = (id) => api.post(`/teacher/results/class-tests/${id}/reopen`);
+export const approveClassTest = (id, data) => api.post(`/teacher/results/class-test-validation/${id}/approve`, data);
+export const rejectClassTest  = (id, data) => api.post(`/teacher/results/class-test-validation/${id}/reject`, data);
 export const getMarksEntry  = () => api.get('/teacher/results/marks-entry');
 export const getMarksForm   = (examId, subjectId) => api.get(`/teacher/results/marks-entry/${examId}/${subjectId}`);
 export const saveMarks      = (examId, subjectId, data) => api.post(`/teacher/results/marks-entry/${examId}/${subjectId}/save`, data);

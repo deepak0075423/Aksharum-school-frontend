@@ -97,15 +97,34 @@ const REASONS = {
   class_teacher: {
     title: 'You do not have a section this year',
     body: () => (
-      <><b>My Section</b> belongs to the class teacher and vice class teacher of a
-        section. Your record does not show you as either this academic year.</>
+      <><b>My Section</b> lists the sections you run or teach in. Your record does not
+        show you as class teacher, vice class teacher or subject teacher of any
+        section this academic year.</>
     ),
     tips: () => [
-      { icon: 'users', tone: 'blue', title: 'No section assigned', text: 'You are not class or vice class teacher of a section.' },
+      { icon: 'users', tone: 'blue', title: 'No section assigned', text: 'You do not run a section or take a subject in one.' },
       { icon: 'shieldCheck', tone: 'violet', title: 'Nothing is wrong', text: 'Every other teacher screen works as normal.' },
-      { icon: 'sparkle', tone: 'green', title: 'Should you have one?', text: 'The school office assigns sections each year.' },
+      { icon: 'sparkle', tone: 'green', title: 'Should you have one?', text: 'The school office assigns sections and subjects each year.' },
     ],
-    note: 'If you were given a section recently, sign out and back in to refresh it.',
+    // This used to say "sign out and back in". The page is checked with the
+    // server before it is shown and again the moment the office assigns a
+    // section, so there is nothing for the teacher to do.
+    note: 'When the school office gives you a section, or a subject in one, My Section opens by itself — there is no need to sign out.',
+  },
+  // Not a refusal: the server could not be asked, so nobody knows the answer.
+  // Saying "you do not have one" here told people something that may be false.
+  unverified: {
+    title: 'We could not check your access',
+    body: (what) => (
+      <>The server did not answer, so there is no telling yet whether <b>{what}</b> is
+        yours to open. Nothing about your account has changed.</>
+    ),
+    tips: () => [
+      { icon: 'wifiOff', tone: 'blue', title: 'No answer from the server', text: 'Usually the connection, or the server restarting.' },
+      { icon: 'shieldCheck', tone: 'violet', title: 'Not a refusal', text: 'Your access has not been taken away.' },
+      { icon: 'sparkle', tone: 'green', title: 'Nothing to do', text: 'It is tried again by itself and opens when it can.' },
+    ],
+    note: 'This page keeps trying in the background. Reloading it asks again straight away.',
   },
   role: {
     title: 'This screen is for a different account',

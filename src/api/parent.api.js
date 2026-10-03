@@ -9,6 +9,21 @@ export const getChildAttendanceOverview = (params) => api.get('/parent/child-att
 export const getChildCorrections = (params) => api.get('/parent/child-attendance/requests', { params });
 // `child` picks which child; the reply lists `children` to switch between.
 export const getExams         = (params) => api.get('/parent/exams', { params });
+/** One child's results — `childId`, or else the child `focus` (an exam or class test a notice was about) concerns. */
+export const getResultsOverview = (childId, focus) => api.get('/parent/results/overview', {
+  params: { ...(childId ? { childId } : {}), ...(!childId && focus ? { focus } : {}) },
+});
+export const getExamSchedule = (childId) => api.get('/parent/results/schedule', { params: childId ? { childId } : {} });
+export const getReportCard = (childId, academicYear, term) => api.get('/parent/results/report-card', {
+  params: { ...(childId ? { childId } : null), ...(academicYear ? { academicYear } : null), ...(term ? { term } : null) },
+});
+export const getReportCardPdf = (childId, academicYear, term) => api.get('/parent/results/report-card/pdf', {
+  params: { ...(childId ? { childId } : null), ...(academicYear ? { academicYear } : null), ...(term ? { term } : null) }, responseType: 'blob',
+});
+/** Ask for a paper of one of the child's published results to be checked again. */
+export const requestRecheck = (data) => api.post('/parent/results/recheck', data);
+/** A child's admit card for an exam, once its timetable is shared. */
+export const getAdmitCard = (childId, examId) => api.get('/parent/results/admit-card', { params: { examId, ...(childId ? { childId } : null) }, responseType: 'blob' });
 export const getResults       = () => api.get('/parent/results');
 export const getResultDetail  = (id) => api.get(`/parent/results/${id}`);
 export const getDocuments     = () => api.get('/parent/documents');

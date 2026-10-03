@@ -1,5 +1,5 @@
 import React from 'react';
-import { useModules } from '../contexts/ModulesContext';
+import { useModules, useGate } from '../contexts/ModulesContext';
 import { Forbidden } from '../pages/errors/ErrorPage';
 import { Spinner } from './ui/index';
 
@@ -15,12 +15,16 @@ import { Spinner } from './ui/index';
  * Fails closed, like TransportEnrolledGuard. The screen's endpoints are keyed
  * on the caller's own id, so a teacher who is not a resident would be shown
  * nothing by them either.
+ *
+ * A "no" is confirmed with the server first (`useGate`): a bed given while the
+ * person was signed in is otherwise refused on the answer from before.
  */
 export default function HostelResidentGuard({ children }) {
-  const { modules, ready } = useModules();
+  const { modules, ready, failed } = useModules();
   const allowed = ready && modules?.hostelResident === true;
+  const { pending } = useGate(allowed, 'hostel');
 
-  if (!ready) return <div className="loading-page"><Spinner /></div>;
-  if (!allowed) return <Forbidden reason="not_enrolled" what="Hostel" />;
-  return children;
+  if (pending) return <div className="loading-page"><Spinner /></div>;
+  if (allowed) return children;
+  return <Forbidden reason={failed ? 'unverified' : 'not_enrolled'} what="Hostel" />;
 }

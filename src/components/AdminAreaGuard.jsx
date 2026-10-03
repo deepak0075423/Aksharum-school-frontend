@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { Forbidden } from '../pages/errors/ErrorPage';
 import { useAuth } from '../contexts/AuthContext';
-import { useModules } from '../contexts/ModulesContext';
+import { useModules, useGate } from '../contexts/ModulesContext';
 import { moduleForAdminPath } from '../utils/modules';
 import { wardenMay } from '../utils/hostelDuty';
 import { Spinner } from './ui/index';
@@ -24,13 +24,21 @@ export default function AdminAreaGuard({ children }) {
   const { ready, isAdmin, modules } = useModules();
   const { pathname } = useLocation();
 
+  const isTeacher = user?.role === 'teacher';
+  const moduleKey = moduleForAdminPath(pathname);
+  // Whether a teacher's designation (or hostel posting) opens this address.
+  const opens = !!moduleKey && (isAdmin(moduleKey) || (moduleKey === 'hostel' && !!modules?.hostelDuty && wardenMay(pathname)));
+  // A refusal is confirmed with the server first: administrative access given
+  // while the teacher was signed in is otherwise refused on the old answer.
+  // Only a teacher's answer comes from the map, so only theirs is re-asked.
+  const { pending } = useGate(!isTeacher || (ready && opens), isTeacher ? `admin:${pathname}` : '');
+
   if (user?.role === 'school_admin') return children;
-  if (user?.role !== 'teacher') return <Forbidden reason="role" what="the admin area" />;
+  if (!isTeacher) return <Forbidden reason="role" what="the admin area" />;
 
   // Permissions decide the answer — wait rather than guess.
-  if (!ready) return <div className="loading-page"><Spinner /></div>;
+  if (pending) return <div className="loading-page"><Spinner /></div>;
 
-  const moduleKey = moduleForAdminPath(pathname);
   if (moduleKey && isAdmin(moduleKey)) return children;
 
   // A teacher posted to a hostel as its warden or staff runs its day-to-day

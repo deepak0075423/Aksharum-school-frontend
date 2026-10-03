@@ -26,6 +26,14 @@ export const getDocuments       = () => api.get('/student/documents');
 export const getDocument        = (id)   => api.get(`/student/documents/${id}`);
 export const submitAssignment   = (id, data) => api.post(`/student/documents/${id}/submit`, data);
 export const getHolidays    = () => api.get('/student/holidays');
+export const getResultsOverview = () => api.get('/student/results/overview');
+export const getExamSchedule = () => api.get('/student/results/schedule');
+export const getReportCard = (academicYear, term) => api.get('/student/results/report-card', { params: { ...(academicYear ? { academicYear } : null), ...(term ? { term } : null) } });
+export const getReportCardPdf = (academicYear, term) => api.get('/student/results/report-card/pdf', { params: { ...(academicYear ? { academicYear } : null), ...(term ? { term } : null) }, responseType: 'blob' });
+/** Ask for a paper of a published result to be checked again. */
+export const requestRecheck = (data) => api.post('/student/results/recheck', data);
+/** The student's admit card for an exam, once its timetable is shared. */
+export const getAdmitCard = (examId) => api.get('/student/results/admit-card', { params: { examId }, responseType: 'blob' });
 export const getResults     = () => api.get('/student/results');
 export const getResultDetail = (id) => api.get(`/student/results/${id}`);
 export const getClassTests  = () => api.get('/student/results/class-tests');

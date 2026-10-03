@@ -1,5 +1,5 @@
 import React from 'react';
-import { useModules } from '../contexts/ModulesContext';
+import { useModules, useGate } from '../contexts/ModulesContext';
 import { Spinner } from './ui/index';
 import { Forbidden } from '../pages/errors/ErrorPage';
 
@@ -21,11 +21,16 @@ import { Forbidden } from '../pages/errors/ErrorPage';
  * It used to redirect to '/'. Being bounced to the dashboard says nothing about
  * WHY, so a switched-off module, a designation that does not grant one, and a
  * dead link were all the same non-event. It now says which.
+ *
+ * A refusal is confirmed with the server first (`useGate`): a module switched
+ * on, or a designation granted, while the person was signed in is otherwise
+ * refused on the answer from before.
  */
 export default function ModuleGuard({ module, children, label }) {
   const { isEnabled, levelOf, modules, ready } = useModules();
+  const { pending } = useGate(ready && isEnabled(module), `module:${module}`);
 
-  if (!ready) {
+  if (pending) {
     return <div className="loading-page"><Spinner /></div>;
   }
   if (!isEnabled(module)) {

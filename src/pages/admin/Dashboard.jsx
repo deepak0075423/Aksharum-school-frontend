@@ -40,7 +40,7 @@ const ALL_MODULES = [
 const PENDING_ITEMS = [
   { key: 'regularizations', module: 'attendance', to: '/admin/attendance?tab=requests', icon: 'userCircle',  tone: 'pink',   one: 'Attendance regularization', many: 'Attendance regularizations', sub: 'Pending review' },
   { key: 'leaves',          module: 'leave',      to: '/admin/leave',         icon: 'umbrella',    tone: 'amber',  one: 'Leave application',         many: 'Leave applications',         sub: 'Awaiting approval' },
-  { key: 'examsToPublish',  module: 'result',     to: '/admin/results',       icon: 'chart',       tone: 'indigo', one: 'Result ready to publish',   many: 'Results ready to publish',   sub: 'Requires approval' },
+  { key: 'examsToPublish',  module: 'result',     to: '/admin/results?tab=validation&status=CLASS_APPROVED', icon: 'chart',       tone: 'indigo', one: 'Result ready to publish',   many: 'Results ready to publish',   sub: 'Requires approval' },
   { key: 'payments',        module: 'fees',       to: '/admin/fees/payments', icon: 'creditCard',  tone: 'blue',   one: 'Fee payment to verify',     many: 'Fee payments to verify',     sub: 'Action required' },
 ];
 

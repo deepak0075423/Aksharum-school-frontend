@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import useFetch from '../../hooks/useFetch';
 import {
-  getDashboard, getModules, getHolidays, getMyLeaves, getSchoolConfig,
+  getDashboard, getHolidays, getMyLeaves, getSchoolConfig,
   getMyAttendance, clockIn, clockOut,
 } from '../../api/teacher.api';
 import { getInbox } from '../../api/notifications.api';
 import { Spinner, MiniCalendar } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
+import { useModules } from '../../contexts/ModulesContext';
 import Icon, { SchoolScene } from '../../components/ui/icons';
 import ClockCard from '../../components/attendance/ClockCard';
 import { Panel, PanelLink, RowLink, Note } from '../../components/dashboard/parts';
@@ -17,8 +18,8 @@ import { TodaySchedule, SectionCard, ClassPerformance } from './dashboardParts';
 /**
  * Every shortcut a teacher can keep on Quick Access, filtered by the module map
  * so the picker only offers what this school actually runs. `requires` names a
- * flag on the same payload that must be true — My Section is only for a class
- * teacher or vice class teacher.
+ * flag on the same payload that must be true — My Section is only for a teacher
+ * with a section this year (class teacher, vice class teacher or subject teacher).
  */
 const ALL_QUICK_LINKS = [
   { key: 'section',     to: '/teacher/my-section',       icon: 'building',    tone: 'indigo', label: 'My Section',      sub: 'Students & info', requires: 'hasMySection' },
@@ -92,8 +93,24 @@ function selfPercent(summary) {
 
 export default function TeacherDashboard() {
   const { user }                                 = useAuth();
-  const { data: dash, loading: dashLoading }     = useFetch(getDashboard);
-  const { data: modules, loading: modLoading }   = useFetch(getModules);
+  const { data: dash, loading: dashLoading, refetch: refetchDash } = useFetch(getDashboard);
+  // The shared module map rather than a copy fetched here. A copy showed what
+  // was true when this page was opened; the shared one is kept in step while
+  // the session is open (ModulesContext), so the My Section tile is there the
+  // moment the office gives this teacher a class. It is still asked afresh on
+  // every visit, as this page always did.
+  const { modules, ready: modReady, refresh: refreshModules } = useModules();
+  const modLoading = !modReady;
+  useEffect(() => { refreshModules(10000); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // The section card comes from the dashboard payload, so it is re-read when
+  // the map learns the teacher has gained or lost their section.
+  const hasSection  = modules?.hasMySection === true;
+  const seenSection = useRef(null);
+  useEffect(() => {
+    if (!modReady) return;
+    if (seenSection.current !== null && seenSection.current !== hasSection) refetchDash();
+    seenSection.current = hasSection;
+  }, [hasSection, modReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const { data: schoolConfig }                   = useFetch(getSchoolConfig);
   const [holidays, setHolidays] = useState([]);
   const [leaves,   setLeaves]   = useState([]);
