@@ -47,6 +47,8 @@ const LABELS = {
   merit:                'Merit List',
   rechecks:             'Re-check Requests',
   'exam-day':           'Exam Day Plan',
+  'id-card':            'My ID Card',
+  'id-cards':           'ID Cards',
 };
 
 const titleCase = (seg) =>
@@ -74,6 +76,8 @@ const MODULE_HEADERS = {
   // Hostel is twenty-five tabs of one module; its mockups read "Hostel" above
   // every one — not "Structure" over Buildings & Floors or "Audit" over the log.
   'admin/hostel': 'Hostel',
+  // ID Cards is eight tabs of one module — the bar names the module above each.
+  'admin/id-cards': 'ID Cards',
 };
 
 /** The header title for a pathname. Falls back to the app name at the root. */

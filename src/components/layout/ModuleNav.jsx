@@ -255,3 +255,16 @@ export const DIRECTORY_TABS = (base) => ([
   { to: `${base}/verification`,  label: '🔎 Verification' },
   { to: `${base}/reports`,       label: '📈 Reports' },
 ]);
+
+// ID Cards — the office's eight sections. Student cards carry the year picker,
+// Generate and the history of earlier years inside the one screen.
+export const IDCARD_ADMIN_TABS = [
+  { to: '/admin/id-cards/dashboard',    label: '🏠 Dashboard',        icon: 'home' },
+  { to: '/admin/id-cards/students',     label: '🎓 Student Cards',    icon: 'student' },
+  { to: '/admin/id-cards/teachers',     label: '🧑‍🏫 Teacher Cards',   icon: 'teacher' },
+  { to: '/admin/id-cards/staff',        label: '💼 Staff Cards',      icon: 'briefcase' },
+  { to: '/admin/id-cards/parents',      label: '👪 Parent Cards',     icon: 'users' },
+  { to: '/admin/id-cards/templates',    label: '🎨 Templates',        icon: 'sliders' },
+  { to: '/admin/id-cards/verification', label: '🔎 Verification',     icon: 'shieldCheck' },
+  { to: '/admin/id-cards/settings',     label: '⚙️ Settings',         icon: 'settings' },
+];

@@ -20,7 +20,7 @@ import {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, PAYROLL_TEACHER_TABS, LIBRARY_ADMIN_TABS, LIBRARY_MANAGE_TABS,
   LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, INVENTORY_ADMIN_TABS, TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
   HOSTEL_ADMIN_TABS, VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS, FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS,
-  FEEDBACK_PRINCIPAL_TABS, TIMETABLE_ADMIN_TABS, DIRECTORY_TABS,
+  FEEDBACK_PRINCIPAL_TABS, TIMETABLE_ADMIN_TABS, DIRECTORY_TABS, IDCARD_ADMIN_TABS,
 } from './ModuleNav';
 
 /**
@@ -83,6 +83,8 @@ export const ADMIN_NAV = [
     children: sub(TRANSPORT_ADMIN_TABS) },
   { to: '/admin/hostel/dashboard', match: '/admin/hostel',  icon: 'hotel', label: 'Hostel',        module: 'hostel',
     children: sub(HOSTEL_ADMIN_TABS) },
+  { to: '/admin/id-cards/dashboard', match: '/admin/id-cards', icon: 'idCard', label: 'ID Cards',    module: 'idCard',
+    children: sub(IDCARD_ADMIN_TABS) },
   { to: '/admin/videos/browse', match: '/admin/videos',     icon: 'video', label: 'Video Learning', module: 'videoLibrary',
     children: sub(VIDEO_ADMIN_TABS) },
   { to: '/admin/feedback/overview', match: '/admin/feedback', icon: 'star', label: 'Teacher Feedback', module: 'feedback',
@@ -102,6 +104,7 @@ export const ADMIN_NAV = [
 export const TEACHER_NAV = [
   { section: 'Overview' },
   { to: '/teacher/dashboard',       icon: 'home', label: 'Dashboard' },
+  { to: '/teacher/id-card',         icon: 'idCard', label: 'My ID Card',    module: 'idCard' },
   { section: 'My Class' },
   { to: '/teacher/my-section',      icon: 'building', label: 'My Section',    requires: 'hasMySection' },
   { to: '/teacher/attendance',      icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
@@ -147,6 +150,7 @@ export const TEACHER_NAV = [
 export const STUDENT_NAV = [
   { section: 'Overview' },
   { to: '/student/dashboard',       icon: 'home', label: 'Dashboard' },
+  { to: '/student/id-card',         icon: 'idCard', label: 'My ID Card',    module: 'idCard' },
   { section: 'Academics' },
   { to: '/student/my-class',        icon: 'building', label: 'My Class' },
   { to: '/student/timetable',       icon: 'clock', label: 'Timetable',     module: 'timetable' },
@@ -175,6 +179,7 @@ export const STUDENT_NAV = [
 export const PARENT_NAV = [
   { section: 'Overview' },
   { to: '/parent/dashboard',        icon: 'home', label: 'Dashboard' },
+  { to: '/parent/id-cards',         icon: 'idCard', label: 'ID Cards',      module: 'idCard' },
   { section: "My Child" },
   { to: '/parent/child-class',      icon: 'building', label: 'Class Info' },
   { to: '/parent/timetable',        icon: 'clock', label: 'Timetable',     module: 'timetable' },

@@ -28,6 +28,7 @@ export const MODULES = [
   { key: 'holiday',      label: 'Holidays',         icon: 'party', adminBase: '/admin/holidays',    adminHome: '/admin/holidays' },
   { key: 'notification', label: 'Notifications',    icon: 'bell', adminBase: '/admin/notifications', adminHome: '/admin/notifications' },
   { key: 'employeeDirectory', label: 'Employee Directory', icon: 'folder', adminBase: '/admin/employee-directory', adminHome: '/admin/employee-directory/dashboard' },
+  { key: 'idCard',       label: 'ID Cards',         icon: 'idCard', adminBase: '/admin/id-cards',    adminHome: '/admin/id-cards/dashboard' },
   { key: 'chat',         label: 'Chat',             icon: 'chat' },   // no administrative surface
 ];
 

@@ -22,6 +22,7 @@ const MODULES = [
   { key: 'holiday',      label: 'Holidays',       icon: '🎉' },
   { key: 'notification', label: 'Notifications',  icon: '🔔' },
   { key: 'employeeDirectory', label: 'Employee Directory', icon: '🗂️' },
+  { key: 'idCard',       label: 'ID Cards',       icon: '🪪' },
   { key: 'chat',         label: 'Chat',           icon: '💬' },
 ];
 

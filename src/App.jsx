@@ -17,7 +17,7 @@ import ModuleNav, {
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS, HOSTEL_ADMIN_TABS,
   VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
   FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS, FEEDBACK_PRINCIPAL_TABS,
-  TIMETABLE_ADMIN_TABS, DIRECTORY_TABS,
+  TIMETABLE_ADMIN_TABS, DIRECTORY_TABS, IDCARD_ADMIN_TABS,
 } from './components/layout/ModuleNav';
 
 // ── Auth Pages ────────────────────────────────────────────────────────────────
@@ -30,6 +30,17 @@ const MagicLogin     = lazy(() => import('./pages/auth/MagicLogin'));
 const ChooseAccount  = lazy(() => import('./pages/auth/ChooseAccount'));
 const NotifRedirect  = lazy(() => import('./pages/shared/NotificationRedirect'));
 const VerifyCard     = lazy(() => import('./pages/shared/VerifyReportCard'));
+const VerifyIdCard   = lazy(() => import('./pages/idcards/VerifyIdCard'));
+
+// ── ID cards: the holders' pages ─────────────────────────────────────────────
+const MyIdCard       = lazy(() => import('./pages/idcards/portal/MyIdCard'));
+const FamilyIdCards  = lazy(() => import('./pages/idcards/portal/FamilyIdCards'));
+// ── ID cards: the office ──────────────────────────────────────────────────────
+const IcDashboard    = lazy(() => import('./pages/idcards/admin/Dashboard'));
+const IcCardList     = lazy(() => import('./pages/idcards/admin/CardList'));
+const IcTemplates    = lazy(() => import('./pages/idcards/admin/Templates'));
+const IcVerification = lazy(() => import('./pages/idcards/admin/Verification'));
+const IcSettings     = lazy(() => import('./pages/idcards/admin/Settings'));
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
 const SADashboard      = lazy(() => import('./pages/super-admin/Dashboard'));
@@ -357,6 +368,7 @@ export default function App() {
           <Route path="/n/:receiptId" element={<NotifRedirect />} />
           {/* A printed report card's QR — open to anyone holding the paper. */}
           <Route path="/verify/report-card/:code" element={<VerifyCard />} />
+          <Route path="/verify/id/:code" element={<VerifyIdCard />} />
           <Route path="/" element={<HomeRedirect />} />
 
           {/* Super Admin */}
@@ -514,6 +526,18 @@ export default function App() {
               {/* The tab was called Activity Log while the URL said /audit. */}
               <Route path="audit"       element={<Navigate to="/admin/transport/activity" replace />} />
             </Route>
+            {/* ID cards */}
+            <Route path="id-cards" element={<ModuleNav tabs={IDCARD_ADMIN_TABS} nowrap />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard"    element={<IcDashboard />} />
+              <Route path="students"     element={<IcCardList kind="student" />} />
+              <Route path="teachers"     element={<IcCardList kind="teacher" />} />
+              <Route path="staff"        element={<IcCardList kind="staff" />} />
+              <Route path="parents"      element={<IcCardList kind="parent" />} />
+              <Route path="templates"    element={<IcTemplates />} />
+              <Route path="verification" element={<IcVerification />} />
+              <Route path="settings"     element={<IcSettings />} />
+            </Route>
             {/* Hostel */}
             <Route path="hostel" element={<HostelNav />}>
               <Route index element={<Navigate to="dashboard" replace />} />
@@ -583,6 +607,7 @@ export default function App() {
                 layout drew with an empty Outlet — a blank page, not a 404. */}
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"    element={<TDashboard />} />
+            <Route path="id-card"      element={<MyIdCard role="teacher" />} />
             {/* Class teachers and vice class teachers only — a subject teacher
                 typing the URL is sent back to the dashboard. */}
             <Route path="my-section"   element={<MySectionGuard><TMySection /></MySectionGuard>} />
@@ -675,6 +700,7 @@ export default function App() {
                 layout drew with an empty Outlet — a blank page, not a 404. */}
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"        element={<SDashboard />} />
+            <Route path="id-card"          element={<MyIdCard role="student" />} />
             <Route path="my-class"         element={<SMyClass />} />
             <Route path="attendance"       element={<SAttendance />} />
             <Route path="timetable"        element={<STimetable />} />
@@ -709,6 +735,7 @@ export default function App() {
                 layout drew with an empty Outlet — a blank page, not a 404. */}
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"        element={<PDashboard />} />
+            <Route path="id-cards"         element={<FamilyIdCards />} />
             <Route path="child-class"      element={<PChildClass />} />
             <Route path="timetable"        element={<PTimetable />} />
             <Route path="child-attendance" element={<PAttendance />} />
