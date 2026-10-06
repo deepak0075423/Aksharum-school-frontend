@@ -23,6 +23,7 @@ import {
 } from './hsList';
 import { Members, MenuSchedule, MealAttendance, Expenses, Analytics } from './MessTabs';
 import { FormModal, FormSection, Grid, Fld, StatusSelect, ChipSelect, Toggle, ReviewList, ConfirmDialog, ampm, dmy } from './hsForm';
+import PhoneInput from '../../../components/ui/PhoneInput';
 
 export const MEALS = ['breakfast', 'lunch', 'snacks', 'dinner'];
 const MESS_TYPE = { veg: 'Vegetarian', non_veg: 'Non-vegetarian', both: 'Veg & non-veg' };
@@ -304,7 +305,7 @@ export default function Mess() {
         <FormSection step="vendor" icon="briefcase" title="Vendor & Contract" sub="Leave the vendor empty for an in-house mess.">
           <Grid cols={3}>
             <Fld label="Vendor" icon="briefcase"><input value={form.vendorName} maxLength={80} placeholder="Blank = in-house" onChange={(e) => setF('vendorName', e.target.value)} /></Fld>
-            <Fld label="Vendor Contact" icon="phone"><input value={form.vendorContact} maxLength={40} disabled={!form.vendorName} onChange={(e) => setF('vendorContact', e.target.value)} /></Fld>
+            <Fld label="Vendor Contact" icon="phone"><PhoneInput value={form.vendorContact} disabled={!form.vendorName} onChange={(e) => setF('vendorContact', e.target.value)} /></Fld>
             <Fld label="Contract Amount (₹)" icon="rupee"><input type="number" min="0" value={form.contractAmount} disabled={!form.vendorName} onChange={(e) => setF('contractAmount', e.target.value)} /></Fld>
             <Fld label="Contract From" icon="calendar"><input type="date" value={form.contractFrom} disabled={!form.vendorName} onChange={(e) => setF('contractFrom', e.target.value)} /></Fld>
             <Fld label="Contract To" icon="calendar"><input type="date" min={form.contractFrom || undefined} value={form.contractTo} disabled={!form.vendorName} onChange={(e) => setF('contractTo', e.target.value)} /></Fld>

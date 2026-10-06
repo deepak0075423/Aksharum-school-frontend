@@ -27,7 +27,8 @@ import { useModules } from '../../contexts/ModulesContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
-import { isEmail, isPhone, isURL } from '../../utils/validators';
+import { isEmail, isURL, phoneError } from '../../utils/validators';
+import PhoneInput from '../../components/ui/PhoneInput';
 import { schoolLogoUrl } from '../../utils/branding';
 import { Crumbs, PageFoot } from './listParts';
 import {
@@ -200,7 +201,7 @@ export default function SchoolSettings() {
     if (form.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim()))
       e.code = 'Code must be 2–20 letters, numbers, hyphens or underscores';
     if (form.email && !isEmail(form.email)) e.email = 'Enter a valid email address';
-    if (form.phone && !isPhone(form.phone)) e.phone = 'Enter a valid phone number';
+    if (phoneError(form.phone)) e.phone = 'Enter a valid 10-digit mobile number';
     if (form.website && !isURL(form.website)) e.website = 'The website must start with http:// or https://';
     return e;
   };
@@ -361,8 +362,8 @@ export default function SchoolSettings() {
               </div>
               <div className="form-group">
                 <label className="form-label">Phone</label>
-                <input className={`form-control${errors.phone ? ' error' : ''}`} value={form.phone}
-                  onChange={(e) => set('phone', e.target.value)} placeholder="+91 98765 43210" />
+                <PhoneInput className={`form-control${errors.phone ? ' error' : ''}`} value={form.phone}
+                  onChange={(e) => set('phone', e.target.value)} placeholder="9876543210" />
                 {err('phone')}
               </div>
             </div>

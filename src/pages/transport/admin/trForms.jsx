@@ -9,6 +9,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '../../../components/ui/icons';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError } from '../../../utils/validators';
 import * as api from '../../../api/transport.api';
 import {
   Modal, Btn, Field, Input, Textarea, Select, FormGrid, Check, Toggle, Note, Badge, Empty, Seg,
@@ -580,7 +582,8 @@ export function CrewAssignForm({ open, onClose, onSaved, role = 'driver' }) {
 
   const v = useValidate({
     __picked:      (_x, f) => !f.__pickedId && 'Pick the teacher account this role is for',
-    phone:         (x) => !String(x || '').trim() && 'A phone number is required',
+    phone:         (x) => (!String(x || '').trim() ? 'A phone number is required' : phoneError(x, 'Phone number')),
+    emergencyContactPhone: (x) => phoneError(x, 'Emergency contact phone'),
     dateOfJoining: (x) => !String(x || '').trim() && 'A date of joining transport is required',
     licenseNumber: (x) => meta.needsLicence && !String(x || '').trim() && 'A driver needs a licence number',
     licenseType:   (x) => meta.needsLicence && !String(x || '').trim() && 'A licence class is required',
@@ -726,8 +729,8 @@ export function CrewAssignForm({ open, onClose, onSaved, role = 'driver' }) {
                 <Field label="Phone Number" required error={v.errors.phone}>
                   <span className="tr-ifield">
                     <Ico name="phone" size={16} />
-                    <Input value={form.phone} aria-invalid={!!v.errors.phone}
-                           onChange={(e) => put('phone', e.target.value)} placeholder="98765 43210" />
+                    <PhoneInput className="tr-input" value={form.phone} aria-invalid={!!v.errors.phone}
+                           onChange={(e) => put('phone', e.target.value)} placeholder="9876543210" />
                   </span>
                 </Field>
                 <Field label="Emergency Contact Name">
@@ -737,11 +740,11 @@ export function CrewAssignForm({ open, onClose, onSaved, role = 'driver' }) {
                            onChange={(e) => put('emergencyContactName', e.target.value)} placeholder="e.g. Ramesh Kumar" />
                   </span>
                 </Field>
-                <Field label="Emergency Contact Phone">
+                <Field label="Emergency Contact Phone" error={v.errors.emergencyContactPhone}>
                   <span className="tr-ifield">
                     <Ico name="phone" size={16} />
-                    <Input value={form.emergencyContactPhone}
-                           onChange={(e) => put('emergencyContactPhone', e.target.value)} placeholder="e.g. 98765 43210" />
+                    <PhoneInput className="tr-input" value={form.emergencyContactPhone} aria-invalid={!!v.errors.emergencyContactPhone}
+                           onChange={(e) => put('emergencyContactPhone', e.target.value)} placeholder="e.g. 9876543210" />
                   </span>
                 </Field>
                 <Field label="Address" span2>
@@ -904,6 +907,8 @@ export function StaffForm({ open, onClose, onSaved, row }) {
 
   const submit = async () => {
     if (!linked && !form.name?.trim()) throw new Error('A name is required');
+    const badPhone = !linked && (phoneError(form.phone, 'Phone number') || phoneError(form.emergencyContact.phone, 'Emergency phone'));
+    if (badPhone) throw new Error(badPhone);
     const payload = { ...form, experienceYears: +form.experienceYears || 0 };
     delete payload.leaves;      // leave has its own action
     delete payload.lastLocation;
@@ -947,12 +952,12 @@ export function StaffForm({ open, onClose, onSaved, row }) {
           {!linked ? (
             <>
               <Field label="Full name" required><Input value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
-              <Field label="Phone"><Input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
+              <Field label="Phone"><PhoneInput className="tr-input" value={form.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
               <Field label="Date of birth"><Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} /></Field>
               <Field label="Date of joining"><Input type="date" value={form.dateOfJoining} onChange={(e) => set('dateOfJoining', e.target.value)} /></Field>
               <Field label="Address" full><Textarea value={form.address} onChange={(e) => set('address', e.target.value)} /></Field>
               <Field label="Emergency contact"><Input value={form.emergencyContact.name} onChange={(e) => sub('emergencyContact', 'name', e.target.value)} /></Field>
-              <Field label="Emergency phone"><Input value={form.emergencyContact.phone} onChange={(e) => sub('emergencyContact', 'phone', e.target.value)} /></Field>
+              <Field label="Emergency phone"><PhoneInput className="tr-input" value={form.emergencyContact.phone} onChange={(e) => sub('emergencyContact', 'phone', e.target.value)} /></Field>
             </>
           ) : null}
 

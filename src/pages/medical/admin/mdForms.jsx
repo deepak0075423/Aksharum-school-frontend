@@ -14,6 +14,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast';
 import * as api from '../../../api/medical.api';
 import { FormDialog, VitalsFields, MedicineLines, SupplyLines, clean } from '../mdForm';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError } from '../../../utils/validators';
 import {
   Dialog, Btn, IconBtn, Field, Note, Segmented, Switch, AlertArea, Ico, Spin, Select, Chips, useLoad,
 } from '../mdUI';
@@ -25,6 +27,10 @@ import {
   stampInput, todayStr, dayInput, addDays, errorText, labelOf, fileSize, fmtStamp,
 } from '../mdMeta';
 import { DoseCheck, withSafety } from './mdSafety';
+
+// The phone typed under "Someone else" stays in the form when a known contact
+// is picked instead; it is not theirs, so it is not sent.
+const collectionToSend = (c) => (c?.contact === 'other' ? c : { ...c, phone: undefined });
 
 /* ── Return-to-school rules, read once ────────────────────────────────────── */
 
@@ -250,12 +256,14 @@ export function VisitStatusDialog({ visit, open, onClose, onDone, meta }) {
   const go = async () => {
     const handover = status === 'sent_home' && collectNow;
     if (handover && !collection.contact) { setErr('Choose who collected the student'); return; }
+    const badPhone = handover && collection.contact === 'other' && phoneError(collection.phone, 'Their phone');
+    if (badPhone) { setErr(badPhone); return; }
     if (status === 'sent_home' && offRule === 'other' && !offUntil) { setErr('Give the date the student can come back'); return; }
     setBusy(true); setErr('');
     try {
       await api.setVisitStatus(visit._id, {
         status, note, outcomeNote: outcome, bed: bed || undefined, referral: status === 'referred' ? { ...ref, referred: true } : undefined, notifyParents: notify,
-        collection: handover ? collection : undefined,
+        collection: handover ? collectionToSend(collection) : undefined,
         exclusion: status === 'sent_home' && offRule ? { rule: offRule, until: offRule === 'other' ? offUntil : undefined } : undefined,
       });
       toast.success(`Visit ${visit.number}: ${labelOf(VISIT_STATUS, status)}`);
@@ -738,18 +746,18 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           ] },
           { title: 'Emergency contacts', icon: 'phone', hint: 'Parents are taken from the admission record. Add who else to call.', fields: [
             { name: 'emergencyContact.name', label: 'Emergency contact' },
-            { name: 'emergencyContact.phone', label: 'Phone', inputType: 'tel' },
+            { name: 'emergencyContact.phone', label: 'Phone', type: 'phone' },
             { name: 'emergencyContact.relation', label: 'Relation' },
             { name: 'alternateContact.name', label: 'Alternate contact' },
-            { name: 'alternateContact.phone', label: 'Phone', inputType: 'tel' },
+            { name: 'alternateContact.phone', label: 'Phone', type: 'phone' },
             { name: 'alternateContact.relation', label: 'Relation' },
           ] },
           { title: 'Doctor and hospital', icon: 'hospital', fields: [
             { name: 'doctor.name', label: 'Family doctor' },
-            { name: 'doctor.phone', label: 'Doctor’s phone', inputType: 'tel' },
+            { name: 'doctor.phone', label: 'Doctor’s phone', type: 'phone' },
             { name: 'doctor.clinic', label: 'Clinic', wide: true },
             { name: 'hospital.name', label: 'Preferred hospital' },
-            { name: 'hospital.phone', label: 'Hospital phone', inputType: 'tel' },
+            { name: 'hospital.phone', label: 'Hospital phone', type: 'phone' },
             { name: 'hospital.address', label: 'Hospital address', wide: true },
           ] },
           { title: 'Private notes', icon: 'lock', fields: [
@@ -871,7 +879,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           ] },
           { title: 'Sign-off and review', icon: 'shieldCheck', fields: [
             { name: 'doctorName', label: 'Doctor who signed it off' },
-            { name: 'doctorPhone', label: 'Doctor’s phone', inputType: 'tel' },
+            { name: 'doctorPhone', label: 'Doctor’s phone', type: 'phone' },
             { name: 'doctorSignedOn', label: 'Signed on', type: 'date', max: todayStr() },
             { name: 'reviewDue', label: 'Review by', type: 'date' },
             { name: 'status', label: 'Status', type: 'seg', wide: true, options: [{ value: 'active', label: 'In use' }, { value: 'draft', label: 'Draft — not shown yet' }] },
@@ -892,7 +900,9 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         onSubmit={(x) => {
           const c = x.collection || {};
           if (!c.contact) throw new Error('Choose who collected the student');
-          return api.recordVisitCollection(v._id, c);
+          const badPhone = c.contact === 'other' && phoneError(c.phone, 'Their phone');
+          if (badPhone) throw new Error(badPhone);
+          return api.recordVisitCollection(v._id, collectionToSend(c));
         }} />;
     }
     case 'restriction': {
@@ -1145,7 +1155,7 @@ export function CollectorPick({ visitId, value = {}, onChange }) {
           <div className="md-form__grid">
             <Field label="Name" required><input className="md-input" value={value.name || ''} onChange={(e) => set({ name: e.target.value })} maxLength={120} /></Field>
             <Field label="Relation"><input className="md-input" value={value.relation || ''} onChange={(e) => set({ relation: e.target.value })} placeholder="e.g. Neighbour, driver" maxLength={60} /></Field>
-            <Field label="Phone"><input className="md-input" type="tel" value={value.phone || ''} onChange={(e) => set({ phone: e.target.value })} maxLength={30} /></Field>
+            <Field label="Phone"><PhoneInput className="md-input" value={value.phone || ''} onChange={(e) => set({ phone: e.target.value })} /></Field>
             <Field label="Who allowed it" required><input className="md-input" value={value.note || ''} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. Mother, by phone at 11:40" maxLength={300} /></Field>
           </div>
         </>

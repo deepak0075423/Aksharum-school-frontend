@@ -4,12 +4,13 @@ import * as api from '../../api/admin.api';
 import { Button, Modal } from '../../components/ui/index';
 import AddressFields from '../../components/ui/AddressFields';
 import ExistingDoc from '../../components/ExistingDoc';
+import PhoneInput from '../../components/ui/PhoneInput';
 import { isPincode } from '../../utils/indiaStates';
+import { phoneError } from '../../utils/validators';
 import { withFileToken } from '../../utils/fileAccess';
 
 // Kept in step with validateTeacherIntake() in school-backend/controllers/admin.controller.js
 const EMAIL_RE    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE    = /^[+\d\s-]{7,15}$/;
 const AADHAAR_RE  = /^\d{12}$/;
 const PAN_RE      = /^[A-Z]{5}\d{4}[A-Z]$/i;
 const IFSC_RE     = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
@@ -198,6 +199,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
   const validateStep = (n) => {
     const e = {};
     const need = (key, msg) => { if (!String(form[key] ?? '').trim()) e[key] = msg; };
+    const phone = (key, label) => { const m = phoneError(form[key], label); if (m) e[key] = m; };
     // A file already on the record counts as supplied, so an edit never forces
     // the admin to re-upload paperwork just to fix a typo.
     const hasFile = (key) => !!files[key] || !!onFile[key];
@@ -218,13 +220,12 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
       need('fatherOrHusbandName', "Father's / husband's name is required");
       need('emergencyContactName', 'Emergency contact name is required');
       need('emergencyContactPhone', 'Emergency contact phone is required');
-      if (form.emergencyContactPhone && !PHONE_RE.test(form.emergencyContactPhone))
-        e.emergencyContactPhone = 'Invalid phone number';
+      phone('emergencyContactPhone', 'Emergency contact phone');
     }
     if (n === 2) {
       need('phone', 'Mobile number is required');
-      if (form.phone && !PHONE_RE.test(form.phone)) e.phone = 'Invalid mobile number';
-      if (form.alternatePhone && !PHONE_RE.test(form.alternatePhone)) e.alternatePhone = 'Invalid phone number';
+      phone('phone', 'Mobile number');
+      phone('alternatePhone', 'Secondary phone number');
       need('email', 'Email address is required');
       if (form.email && !EMAIL_RE.test(form.email)) e.email = 'Invalid email address';
       needAddress('current', 'Current residential');
@@ -395,8 +396,8 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
             </div>
             <div className="form-group">
               <label className="form-label required">Emergency Contact Phone</label>
-              <input type="tel" className={`form-control${errs.emergencyContactPhone ? ' error' : ''}`}
-                placeholder="+91 98765 43210" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} />
+              <PhoneInput className={`form-control${errs.emergencyContactPhone ? ' error' : ''}`}
+                placeholder="9876543210" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} />
               <Err msg={errs.emergencyContactPhone} />
             </div>
           </Row>
@@ -409,13 +410,13 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           <Row>
             <div className="form-group">
               <label className="form-label required">Mobile Number</label>
-              <input type="tel" className={`form-control${errs.phone ? ' error' : ''}`} autoFocus
-                placeholder="+91 98765 43210" value={form.phone} onChange={set('phone')} />
+              <PhoneInput className={`form-control${errs.phone ? ' error' : ''}`} autoFocus
+                placeholder="9876543210" value={form.phone} onChange={set('phone')} />
               <Err msg={errs.phone} />
             </div>
             <div className="form-group">
               <label className="form-label">Secondary Phone Number</label>
-              <input type="tel" className={`form-control${errs.alternatePhone ? ' error' : ''}`}
+              <PhoneInput className={`form-control${errs.alternatePhone ? ' error' : ''}`}
                 placeholder="Optional" value={form.alternatePhone} onChange={set('alternatePhone')} />
               <Err msg={errs.alternatePhone} />
             </div>

@@ -24,6 +24,7 @@ import React, { Children, useCallback, useEffect, useId, useLayoutEffect, useRef
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/hostel.api';
+import PhoneInput from '../../../components/ui/PhoneInput';
 import { Glyph, words } from './hsUI';
 import { Popover, Avatar, fmtDate } from './hsList';
 
@@ -232,7 +233,8 @@ export function Fld({ label, required, optional, hint, hintTone, icon, span, cou
   const auto = useId();
   const id = given || auto;
   const child = Children.only(children);
-  const control = React.isValidElement(child) && typeof child.type === 'string'
+  // PhoneInput renders a plain <input>, so it is dressed like one.
+  const control = React.isValidElement(child) && (typeof child.type === 'string' || child.type === PhoneInput)
     ? React.cloneElement(child, { id: child.props.id || id, required: child.props.required ?? required, className: `hsf-in ${child.props.className || ''}` })
     : child;
   const isSelect = React.isValidElement(child) && child.type === 'select';

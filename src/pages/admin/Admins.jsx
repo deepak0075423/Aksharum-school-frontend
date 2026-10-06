@@ -5,7 +5,8 @@ import * as api from '../../api/admin.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge, Button, Confirm, Modal } from '../../components/ui/index';
 import Icon, { AdminsScene, SupportScene } from '../../components/ui/icons';
-import { isEmail } from '../../utils/validators';
+import PhoneInput from '../../components/ui/PhoneInput';
+import { isEmail, phoneError } from '../../utils/validators';
 import { saveFile } from '../../utils/downloadFile';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
@@ -300,6 +301,8 @@ function InviteAdmin({ open, onClose, onCreated }) {
     e.preventDefault();
     if (form.name.trim().length < 2) return toast.error('Name must be at least 2 characters');
     if (!isEmail(form.email))        return toast.error('Please enter a valid email address');
+    const badPhone = phoneError(form.phone, 'Phone number');
+    if (badPhone) return toast.error(badPhone);
     setSaving(true);
     try {
       const res = await api.createAdmin({ ...form, name: form.name.trim(), email: form.email.trim() });
@@ -331,7 +334,7 @@ function InviteAdmin({ open, onClose, onCreated }) {
         </div>
         <div className="form-group">
           <label className="form-label">Phone</label>
-          <input className="form-control" value={form.phone}
+          <PhoneInput className="form-control" value={form.phone} placeholder="9876543210"
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
         </div>
         <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -360,6 +363,8 @@ function EditAdmin({ admin, onClose, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     if (form.name.trim().length < 2) return toast.error('Name must be at least 2 characters');
+    const badPhone = phoneError(form.phone, 'Phone number');
+    if (badPhone) return toast.error(badPhone);
     setSaving(true);
     try {
       await api.updateUser(admin._id, { name: form.name.trim(), phone: form.phone.trim() });
@@ -384,7 +389,7 @@ function EditAdmin({ admin, onClose, onSaved }) {
         </div>
         <div className="form-group">
           <label className="form-label">Phone</label>
-          <input className="form-control" value={form.phone}
+          <PhoneInput className="form-control" value={form.phone} placeholder="9876543210"
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>

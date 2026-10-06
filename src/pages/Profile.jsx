@@ -8,7 +8,8 @@ import { Button, Modal, Spinner, Badge, PasswordInput, PasswordStrength, Passwor
 import AccountSwitcher from '../components/AccountSwitcher';
 import { passwordStrength, matchState } from '../utils/passwordStrength';
 import AddressFields from '../components/ui/AddressFields';
-import { isPhone, passwordError } from '../utils/validators';
+import PhoneInput from '../components/ui/PhoneInput';
+import { passwordError, phoneError } from '../utils/validators';
 import {
   Avatar, Field, Block, Chips, MailIcon, PhoneIcon, PinIcon, CalendarIcon,
   UserIcon, BuildingIcon, BookIcon, BadgeIcon, fmtDate, fileUrl,
@@ -96,11 +97,10 @@ export default function Profile() {
 
   const saveProfile = async () => {
     if (!form.name.trim()) return toast.error('Name is required');
-    if (form.phone && !isPhone(form.phone)) return toast.error('Please enter a valid phone number');
-    if (empForm?.alternatePhone && !isPhone(empForm.alternatePhone))
-      return toast.error('Secondary phone is not valid');
-    if (empForm?.emergencyContactPhone && !isPhone(empForm.emergencyContactPhone))
-      return toast.error('Emergency contact phone is not valid');
+    const badPhone = phoneError(form.phone, 'Phone number')
+      || phoneError(empForm?.alternatePhone, 'Secondary phone')
+      || phoneError(empForm?.emergencyContactPhone, 'Emergency contact phone');
+    if (badPhone) return toast.error(badPhone);
 
     setSaving(true);
     try {
@@ -392,7 +392,7 @@ export default function Profile() {
         </div>
         <div className="form-group">
           <label className="form-label">Phone Number</label>
-          <input type="tel" className="form-control" value={form.phone} placeholder="+91 98765 43210"
+          <PhoneInput className="form-control" value={form.phone} placeholder="9876543210"
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
@@ -482,7 +482,7 @@ export default function Profile() {
               </div>
               <div className="form-group">
                 <label className="form-label">Emergency Contact Phone</label>
-                <input type="tel" className="form-control" value={empForm.emergencyContactPhone || ''}
+                <PhoneInput className="form-control" value={empForm.emergencyContactPhone || ''}
                   onChange={setEmpField('emergencyContactPhone')} />
               </div>
             </div>
@@ -490,7 +490,7 @@ export default function Profile() {
             <h3 style={{ fontSize: '.95rem', fontWeight: 700, margin: '18px 0 12px' }}>Contact</h3>
             <div className="form-group">
               <label className="form-label">Secondary Phone</label>
-              <input type="tel" className="form-control" placeholder="Optional"
+              <PhoneInput className="form-control" placeholder="Optional"
                 value={empForm.alternatePhone || ''} onChange={setEmpField('alternatePhone')} />
             </div>
             <div style={{ fontWeight: 600, fontSize: '.85rem', margin: '4px 0 8px' }}>Current Address</div>

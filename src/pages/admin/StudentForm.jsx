@@ -4,7 +4,9 @@ import * as api from '../../api/admin.api';
 import { Button, Modal, Spinner } from '../../components/ui/index';
 import ExistingDoc from '../../components/ExistingDoc';
 import AddressFields from '../../components/ui/AddressFields';
+import PhoneInput from '../../components/ui/PhoneInput';
 import { isPincode } from '../../utils/indiaStates';
+import { phoneError } from '../../utils/validators';
 import { withFileToken } from '../../utils/fileAccess';
 import { useModules } from '../../contexts/ModulesContext';
 import { ALLERGY_CATEGORY, ALLERGY_SEVERITY, CONDITION_TYPE, CONDITION_SEVERITY } from '../medical/mdMeta';
@@ -12,7 +14,6 @@ import { ALLERGY_CATEGORY, ALLERGY_SEVERITY, CONDITION_TYPE, CONDITION_SEVERITY 
 // Kept in step with validateStudentProfile() / resolveNewParent() in
 // school-backend/controllers/admin.controller.js
 const EMAIL_RE   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE   = /^[+\d\s-]{7,15}$/;
 const AADHAAR_RE = /^\d{12}$/;
 const PAN_RE     = /^[A-Z]{5}\d{4}[A-Z]$/i;
 
@@ -167,7 +168,7 @@ function HealthPanel({ value, onChange, errs }) {
         </div>
         <div className="form-group">
           <label className="form-label">Doctor&rsquo;s phone</label>
-          <input className={`form-control${errs.doctorPhone ? ' error' : ''}`} value={value.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} maxLength={20} />
+          <PhoneInput className={`form-control${errs.doctorPhone ? ' error' : ''}`} value={value.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} />
           <Err msg={errs.doctorPhone} />
         </div>
       </Row>
@@ -376,16 +377,19 @@ function ParentPanel({ form, setForm, errs, setErrs, files, setFile, existingPar
             const label   = role === 'guardian' ? 'Guardian' : role[0].toUpperCase() + role.slice(1);
             const isOwner = np.accountFor === (role === 'guardian' ? 'Guardian' : label);
             const err     = (key) => errs[`${role}${key[0].toUpperCase()}${key.slice(1)}`];
-            const text    = (key, labelText, opts = {}) => (
+            const text    = (key, labelText, opts = {}) => {
+              const Ctl = opts.phone ? PhoneInput : 'input';
+              return (
               <div className="form-group" style={opts.full ? { gridColumn: 'span 2' } : undefined}>
                 <label className={`form-label${opts.required ? ' required' : ''}`}>{labelText}</label>
-                <input type={opts.type || 'text'} className={`form-control${err(key) ? ' error' : ''}`}
+                <Ctl type={opts.type || 'text'} className={`form-control${err(key) ? ' error' : ''}`}
                   placeholder={opts.placeholder} inputMode={opts.inputMode}
                   value={np[role][key] ?? ''}
                   onChange={e => setBlock(role, key, opts.upper ? e.target.value.toUpperCase() : e.target.value)} />
                 <Err msg={err(key)} />
               </div>
-            );
+              );
+            };
 
             return (
               <div key={role} style={{
@@ -409,7 +413,7 @@ function ParentPanel({ form, setForm, errs, setErrs, files, setFile, existingPar
                       value={np[role].email} onChange={e => setBlock(role, 'email', e.target.value)} />
                     <Err msg={err('email')} />
                   </div>
-                  {text('phone', 'Mobile Number', { required: true, type: 'tel', placeholder: '+91 98765 43210' })}
+                  {text('phone', 'Mobile Number', { required: true, phone: true, placeholder: '9876543210' })}
                   {text('occupation', 'Occupation', { required: true, placeholder: 'e.g. Engineer' })}
                   {text('organization', 'Organization', { placeholder: 'Company / employer' })}
                   {text('designation', 'Designation', { placeholder: 'e.g. Manager' })}
@@ -549,10 +553,12 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
   const validateStep = (n) => {
     const e = {};
     if (n === 8) {
-      if (withHealth && health.doctorPhone.trim() && !PHONE_RE.test(health.doctorPhone.trim())) e.doctorPhone = 'The doctor’s phone number is not valid';
+      const doctor = withHealth && phoneError(health.doctorPhone, 'The doctor’s phone number');
+      if (doctor) e.doctorPhone = doctor;
       return e;
     }
     const need = (key, msg) => { if (!String(form[key] ?? '').trim()) e[key] = msg; };
+    const phone = (key, label) => { const m = phoneError(form[key], label); if (m) e[key] = m; };
     const needAddress = (prefix, label) => {
       const k = (base) => (prefix ? prefix + base[0].toUpperCase() + base.slice(1) : base);
       need(k('address'), `${label} address is required`);
@@ -568,7 +574,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
         need('email', 'Email is required');
         if (form.email && !EMAIL_RE.test(form.email)) e.email = 'Invalid email address';
       }
-      if (form.phone && !PHONE_RE.test(form.phone)) e.phone = 'Invalid phone number';
+      phone('phone', 'Phone number');
       if (isEdit && form.password && form.password.length < 6) e.password = 'Min 6 characters';
     }
     if (n === 2) {
@@ -580,8 +586,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       need('nationality', 'Nationality is required');
       need('emergencyContactName', 'Emergency contact name is required');
       need('emergencyContactPhone', 'Emergency contact phone is required');
-      if (form.emergencyContactPhone && !PHONE_RE.test(form.emergencyContactPhone))
-        e.emergencyContactPhone = 'Invalid phone number';
+      phone('emergencyContactPhone', 'Emergency contact phone');
       need('emergencyContactRelation', 'Relation with the student is required');
     }
     if (n === 3) {
@@ -612,8 +617,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       need('previousAcademicYear', 'Previous academic year is required');
       need('previousSchoolLeavingDate', 'Leaving date is required');
       need('previousSchoolContact', 'Previous school contact is required');
-      if (form.previousSchoolContact && !PHONE_RE.test(form.previousSchoolContact))
-        e.previousSchoolContact = 'Invalid contact number';
+      phone('previousSchoolContact', 'Previous school contact');
       need('tcNumber', 'TC number is required');
       need('tcDate', 'TC date is required');
       if (!files.tc && !docs?.tcFile) e.tc = 'Transfer Certificate upload is required';
@@ -631,8 +635,8 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
           const label = role[0].toUpperCase() + role.slice(1);
           const key   = (k) => `${role}${k[0].toUpperCase()}${k.slice(1)}`;
           if (!b.name?.trim())       e[key('name')]       = `${label}'s name is required`;
-          if (!b.phone?.trim())      e[key('phone')]      = `${label}'s phone is required`;
-          else if (!PHONE_RE.test(b.phone)) e[key('phone')] = 'Invalid phone';
+          const ph = phoneError(b.phone, `${label}'s phone`, { required: true });
+          if (ph) e[key('phone')] = ph;
           if (!b.occupation?.trim()) e[key('occupation')] = `${label}'s occupation is required`;
           if (!b.aadhaarNumber?.trim()) e[key('aadhaarNumber')] = `${label}'s Aadhaar number is required`;
           else if (!AADHAAR_RE.test(b.aadhaarNumber.replace(/\s/g, ''))) e[key('aadhaarNumber')] = 'Aadhaar must be 12 digits';
@@ -788,8 +792,8 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Phone</label>
-                  <input type="tel" className={`form-control${errs.phone ? ' error' : ''}`}
-                    placeholder="+91 98765 43210" value={form.phone} onChange={set('phone')} />
+                  <PhoneInput className={`form-control${errs.phone ? ' error' : ''}`}
+                    placeholder="9876543210" value={form.phone} onChange={set('phone')} />
                   <Err msg={errs.phone} />
                 </div>
               </Row>
@@ -864,8 +868,8 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
               <Row>
                 <div className="form-group">
                   <label className="form-label required">Contact Phone</label>
-                  <input type="tel" className={`form-control${errs.emergencyContactPhone ? ' error' : ''}`}
-                    placeholder="+91 98765 43210" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} />
+                  <PhoneInput className={`form-control${errs.emergencyContactPhone ? ' error' : ''}`}
+                    placeholder="9876543210" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} />
                   <Err msg={errs.emergencyContactPhone} />
                 </div>
                 <div className="form-group">
@@ -1016,8 +1020,8 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                     </div>
                     <div className="form-group">
                       <label className="form-label required">Previous School Contact</label>
-                      <input type="tel" className={`form-control${errs.previousSchoolContact ? ' error' : ''}`}
-                        placeholder="+91 20 1234 5678" value={form.previousSchoolContact} onChange={set('previousSchoolContact')} />
+                      <PhoneInput className={`form-control${errs.previousSchoolContact ? ' error' : ''}`}
+                        placeholder="9876543210" value={form.previousSchoolContact} onChange={set('previousSchoolContact')} />
                       <Err msg={errs.previousSchoolContact} />
                     </div>
                   </Row>

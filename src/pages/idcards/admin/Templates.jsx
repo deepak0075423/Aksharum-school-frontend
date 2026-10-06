@@ -17,10 +17,10 @@ import { KIND, KINDS, errorText, plural } from '../icMeta';
 import { Dialog } from './dialogs';
 
 const SAMPLE = {
-  student: { name: 'Aarav Sharma', holderCode: 'APS2026017', className: 'Class VIII', sectionName: 'B', rollNumber: '12', dob: '2013-05-14', bloodGroup: 'B+', parentName: 'Rahul Sharma', emergencyPhone: '+91 98220 41234', address: '12, MG Road, Kothrud, Pune 411038' },
-  teacher: { name: 'Priya Sharma', holderCode: 'EMP1024', designation: 'Senior Teacher', department: 'Mathematics', bloodGroup: 'O+', dob: '1986-02-11', joiningDate: '2015-06-01', phone: '+91 98500 11223', emergencyPhone: '+91 99220 30041' },
-  staff: { name: 'Lata Joshi', holderCode: 'EMP2011', designation: 'Accountant', department: 'Accounts', bloodGroup: 'A+', dob: '1982-09-21', joiningDate: '2012-07-01', phone: '+91 98500 11050', emergencyPhone: '+91 99220 30082' },
-  parent: { name: 'Rahul Sharma', holderCode: 'PAR10245', relationship: 'Father', children: [{ name: 'Aarav Sharma' }, { name: 'Ananya Sharma' }], phone: '+91 98220 41234' },
+  student: { name: 'Aarav Sharma', holderCode: 'APS2026017', className: 'Class VIII', sectionName: 'B', rollNumber: '12', dob: '2013-05-14', bloodGroup: 'B+', parentName: 'Rahul Sharma', emergencyPhone: '9822041234', address: '12, MG Road, Kothrud, Pune 411038' },
+  teacher: { name: 'Priya Sharma', holderCode: 'EMP1024', designation: 'Senior Teacher', department: 'Mathematics', bloodGroup: 'O+', dob: '1986-02-11', joiningDate: '2015-06-01', phone: '9850011223', emergencyPhone: '9922030041' },
+  staff: { name: 'Lata Joshi', holderCode: 'EMP2011', designation: 'Accountant', department: 'Accounts', bloodGroup: 'A+', dob: '1982-09-21', joiningDate: '2012-07-01', phone: '9850011050', emergencyPhone: '9922030082' },
+  parent: { name: 'Rahul Sharma', holderCode: 'PAR10245', relationship: 'Father', children: [{ name: 'Aarav Sharma' }, { name: 'Ananya Sharma' }], phone: '9822041234' },
 };
 const NUMBER = { student: 'ST2627-00042', teacher: 'TC2026-0007', staff: 'SF2026-0003', parent: 'PR2026-00103' };
 

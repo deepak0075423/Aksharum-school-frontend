@@ -13,6 +13,8 @@ import {
   getIdCardSettings, saveIdCardSettings, applyIdCardSettings, uploadIdCardImage, removeIdCardImage, getIdCardTemplates,
 } from '../../../api/idcards.api';
 import IdCard3D from '../IdCard3D';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError, phoneInputValue } from '../../../utils/validators';
 import { Page, PageHead, Panel, Btn, Ico, Field, Switch, Segmented, Spin, Empty, Note, useLoad } from '../icUI';
 import { errorText, fileUrl, plural } from '../icMeta';
 import { Dialog } from './dialogs';
@@ -81,6 +83,8 @@ export default function Settings() {
   }, [data, form, tpl.data]);
 
   const save = async () => {
+    const badPhone = phoneError(form.phone, 'Phone');
+    if (badPhone) { toast.error(badPhone); return; }
     setBusy('save');
     try {
       const r = await saveIdCardSettings(form);
@@ -154,7 +158,7 @@ export default function Settings() {
               <textarea className="ic-textarea" rows={2} value={form.address} onChange={text('address')} placeholder={sch.address || 'Street, area, city, PIN'} maxLength={200} />
             </Field>
             <div className="ics-grid3">
-              <Field label="Phone"><input className="ic-input" value={form.phone} onChange={text('phone')} placeholder={sch.phone || '+91 …'} maxLength={40} /></Field>
+              <Field label="Phone"><PhoneInput className="ic-input" value={form.phone} onChange={text('phone')} placeholder={phoneInputValue(sch.phone) || '9876543210'} /></Field>
               <Field label="Email"><input className="ic-input" type="email" value={form.email} onChange={text('email')} placeholder={sch.email || 'office@school.edu'} maxLength={120} /></Field>
               <Field label="Website"><input className="ic-input" value={form.website} onChange={text('website')} placeholder={sch.website || 'www.school.edu'} maxLength={120} /></Field>
             </div>

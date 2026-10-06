@@ -20,6 +20,7 @@ import {
 } from './hsList';
 import { ROOM_TYPES, roomTypeLabel } from './hsRoom';
 import { FormModal, FormSection, Grid, Fld, StudentPicker, studentMeta, PersonCard, ToggleRow, InfoNote, ReviewList, dmy } from './hsForm';
+import PhoneInput from '../../../components/ui/PhoneInput';
 
 /** A decision's title, icon, tone and button. */
 const DECIDE = {
@@ -374,10 +375,10 @@ export default function Admissions() {
         <FormSection step="contacts" icon="phone" title="Contacts" sub="Guardian and emergency contacts are pre-filled from the student's record.">
           <Grid cols={3}>
             <Fld label="Guardian Name" icon="user"><input value={form.guardianName} maxLength={80} placeholder="Auto-filled" onChange={(e) => setF('guardianName', e.target.value)} /></Fld>
-            <Fld label="Guardian Phone" icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={form.guardianPhone} placeholder="Auto-filled" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
+            <Fld label="Guardian Phone" icon="phone"><PhoneInput value={form.guardianPhone} placeholder="Auto-filled" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
             <Fld label="Relation" icon="users"><input value={form.guardianRelation} maxLength={30} placeholder="Auto-filled" onChange={(e) => setF('guardianRelation', e.target.value)} /></Fld>
             <Fld label="Emergency Contact" icon="user"><input value={form.emergencyContactName} maxLength={80} placeholder="Enter name" onChange={(e) => setF('emergencyContactName', e.target.value)} /></Fld>
-            <Fld label="Emergency Phone" icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={form.emergencyContactPhone} placeholder="Enter phone number" onChange={(e) => setF('emergencyContactPhone', e.target.value)} /></Fld>
+            <Fld label="Emergency Phone" icon="phone"><PhoneInput value={form.emergencyContactPhone} placeholder="Enter phone number" onChange={(e) => setF('emergencyContactPhone', e.target.value)} /></Fld>
             <Fld label="Relation" icon="users"><input value={form.emergencyContactRelation} maxLength={30} placeholder="e.g. Uncle, Aunt" onChange={(e) => setF('emergencyContactRelation', e.target.value)} /></Fld>
           </Grid>
           {picked && !picked.guardianName && !editRow ? <InfoNote tone="amber">No parent is linked to this student yet, so there was nothing to fill in. Enter the guardian here, or link a parent under Students.</InfoNote> : null}

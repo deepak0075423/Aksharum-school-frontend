@@ -16,6 +16,7 @@ import { label, useNewFromLink } from '../shared';
 import { PageHead, Mark, words } from './hsUI';
 import { HostelArt, BedArt } from './hsArt';
 import { FormModal, FormSection, Grid, Fld, StatusSelect, ChipSelect, InfoNote, ReviewList, ConfirmDialog, ampm } from './hsForm';
+import PhoneInput from '../../../components/ui/PhoneInput';
 import {
   Kpis, Kpi, FilterBar, FSearch, FSelect, Btn, SplitBtn, Kebab, ListCard, DataTable, Pager, EmptyRows,
   Badge, IconCell, TwoLine, Meter, Ico, fmtPhone, useListState, useBoardData,
@@ -309,7 +310,7 @@ export default function Hostels() {
         <FormSection step="basic" icon="mapPin" title="Location & Contact" sub="Set the hostel's address and contact information.">
           <Grid cols={2}>
             <Fld label="Contact Number" icon="phone">
-              <input type="tel" inputMode="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number: digits, spaces and + ( ) -" value={form.contactNumber}
+              <PhoneInput value={form.contactNumber}
                 placeholder="Enter contact number" onChange={(e) => setF('contactNumber', e.target.value)} />
             </Fld>
             <Fld label="Email" icon="mail">

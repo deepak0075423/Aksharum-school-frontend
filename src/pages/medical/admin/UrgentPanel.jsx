@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 import * as api from '../../../api/medical.api';
 import { Btn, Badge, Panel, Person, Ico, Dialog, Field, Chips, Note, ConfirmDialog } from '../mdUI';
 import { fmtTime, since, telOf, studentLine, errorText } from '../mdMeta';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError } from '../../../utils/validators';
 
 const RESULT = {
   answered: { label: 'Answered', tone: 'green' }, no_answer: { label: 'No answer', tone: 'amber' }, busy: { label: 'Busy', tone: 'amber' },
@@ -56,9 +58,11 @@ function LogCall({ notice, onClose, onDone }) {
   const save = async () => {
     if (!result) { setErr('Say how the call went'); return; }
     if (contact === 'other' && !other.to.trim()) { setErr('Who did you call?'); return; }
+    const badPhone = contact === 'other' && phoneError(other.phone, 'Number');
+    if (badPhone) { setErr(badPhone); return; }
     setBusy(true); setErr('');
     try {
-      await api.logUrgentAttempt(notice._id, { contact: contact === 'other' ? undefined : contact, to: other.to, phone: other.phone, result, note, channel: 'call' });
+      await api.logUrgentAttempt(notice._id, { contact: contact === 'other' ? undefined : contact, to: other.to, phone: contact === 'other' ? other.phone : undefined, result, note, channel: 'call' });
       toast.success(result === 'answered' ? 'Family reached — the call list has stopped' : 'Call logged');
       onDone();
     } catch (e) { setErr(errorText(e)); setBusy(false); }
@@ -75,7 +79,7 @@ function LogCall({ notice, onClose, onDone }) {
       {contact === 'other' ? (
         <div className="md-form__grid">
           <Field label="Name and relation" required><input className="md-input" value={other.to} onChange={(e) => setOther((o) => ({ ...o, to: e.target.value }))} maxLength={120} placeholder="e.g. Grandmother" /></Field>
-          <Field label="Number" optional><input className="md-input" value={other.phone} onChange={(e) => setOther((o) => ({ ...o, phone: e.target.value }))} maxLength={30} /></Field>
+          <Field label="Number" optional><PhoneInput className="md-input" value={other.phone} onChange={(e) => setOther((o) => ({ ...o, phone: e.target.value }))} /></Field>
         </div>
       ) : null}
       <Field label="How did it go?" required>

@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import * as api from '../../api/superAdmin.api';
 import { PageHeader, Button, Card } from '../../components/ui/index';
 import { schoolLogoUrl } from '../../utils/branding';
+import PhoneInput from '../../components/ui/PhoneInput';
+import { isPhone } from '../../utils/validators';
 
 const SCHOOL_BOARDS = ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge (IGCSE)', 'NIOS', 'Other'];
 
@@ -41,7 +43,7 @@ function validate(form) {
   if (!errors.name && form.name.trim().length < 3) errors.name = 'School name must be at least 3 characters';
   if (!errors.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim())) errors.code = 'Code must be 2-20 letters, numbers, hyphens or underscores';
   if (!errors.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Please enter a valid email address';
-  if (!errors.phone && !/^\+?[\d\s\-()]{7,15}$/.test(form.phone)) errors.phone = 'Please enter a valid phone number';
+  if (!errors.phone && !isPhone(form.phone)) errors.phone = 'Please enter a valid 10-digit mobile number';
   if (form.website && !/^https?:\/\/.+\..+/.test(form.website)) errors.website = 'Website must be a valid URL starting with http:// or https://';
   return errors;
 }
@@ -132,10 +134,12 @@ export default function SchoolForm() {
     ? <span style={{ color: 'var(--danger)', fontSize: '.78rem', marginTop: 4, display: 'block' }}>{errors[name]}</span>
     : null;
 
-  const inp = (name, label, type = 'text', placeholder = '', required = true) => (
+  const inp = (name, label, type = 'text', placeholder = '', required = true) => {
+    const Ctl = type === 'tel' ? PhoneInput : 'input';
+    return (
     <div className="form-group">
       <label className={`form-label${required ? ' required' : ''}`}>{label}</label>
-      <input
+      <Ctl
         name={name} type={type} className={`form-control${errors[name] ? ' is-invalid' : ''}`}
         value={form[name]} onChange={onChange} placeholder={placeholder}
         required={required}
@@ -143,7 +147,8 @@ export default function SchoolForm() {
       />
       {fieldError(name)}
     </div>
-  );
+    );
+  };
 
   return (
     <div style={{ padding: 24, maxWidth: 820, margin: '0 auto' }}>
@@ -215,7 +220,7 @@ export default function SchoolForm() {
           </div>
           <div className="form-row form-row-2">
             {inp('email', 'Email Address', 'email', 'admin@school.edu.in')}
-            {inp('phone', 'Phone Number', 'tel', '+91 98765 43210')}
+            {inp('phone', 'Phone Number', 'tel', '9876543210')}
           </div>
 
           <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0 20px' }} />

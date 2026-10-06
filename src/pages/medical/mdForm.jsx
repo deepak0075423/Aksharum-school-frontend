@@ -9,11 +9,14 @@
  *
  * Field types: text, textarea, number, date, time, datetime, select, seg,
  * chips (quick picks into a text field), multi (chips, many), switch, check,
- * student, custom. Names may be paths ("vitals.temperature").
+ * student, phone (a 10-digit mobile number, checked on save), custom. Names
+ * may be paths ("vitals.temperature").
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Modal } from '../../components/ui';
+import PhoneInput from '../../components/ui/PhoneInput';
+import { phoneError } from '../../utils/validators';
 import { Btn, Field, Ico, Note, Segmented, Chips, Switch, Avatar, Popover, IconBtn, useDebounced } from './mdUI';
 import { errorText, qty } from './mdMeta';
 
@@ -304,6 +307,8 @@ function Control({ f, value, values, set, ctx }) {
     return <StudentPicker value={value} onChange={set} fetcher={f.fetcher} disabled={f.disabled} autoFocus={f.autoFocus} />;
   case 'custom':
     return f.render({ value, set, values, ctx });
+  case 'phone':
+    return <PhoneInput id={id} className="md-input" value={value ?? ''} placeholder={f.placeholder} onChange={(e) => set(e.target.value)} autoFocus={f.autoFocus} />;
   default:
     return <input id={id} className="md-input" type={f.inputType || 'text'} value={value ?? ''} maxLength={f.maxLength || 200} placeholder={f.placeholder} onChange={(e) => set(e.target.value)} autoFocus={f.autoFocus} />;
   }
@@ -348,6 +353,7 @@ export function FormDialog({
         if (!visible(f)) continue;
         const v = getPath(values, f.name);
         if (f.required && (empty(v) || (f.type === 'student' && !v?._id))) errs[f.name] = `${f.label || 'This'} is required`;
+        else if (f.type === 'phone' && phoneError(v)) errs[f.name] = `${f.label || 'Phone'} must be a valid 10-digit mobile number`;
         else if (f.validate) { const m = f.validate(v, values); if (m) errs[f.name] = m; }
       }
     }

@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import Icon, { ICON_NAMES } from '../../../components/ui/icons';
 import Tabs from '../../../components/ui/Tabs';
+import { normalizePhone } from '../../../utils/validators';
 import { Glyph, Mark, count, num } from './hsUI';
 
 /** The shared outline icon when it exists, else the kit's solid glyph. */
@@ -649,11 +650,10 @@ export const fmtDate = (d) => { const x = valid(d); return x ? `${String(x.getDa
 export const fmtTime = (d) => { const x = valid(d); return x ? x.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''; };
 /** Sep 2026 */
 export const fmtMonth = (d) => { const x = valid(d); return x ? `${MON[x.getMonth()]} ${x.getFullYear()}` : '—'; };
-/** +91 98765 43210 — an Indian mobile number as the mockups print it. */
+/** 98765 43210 — a 10-digit mobile number, grouped for reading. No +91: the platform is India-only. */
 export const fmtPhone = (p) => {
-  const d = String(p || '').replace(/\D/g, '');
-  const ten = d.length === 12 && d.startsWith('91') ? d.slice(2) : d.length === 11 && d.startsWith('0') ? d.slice(1) : d;
-  return ten.length === 10 ? `+91 ${ten.slice(0, 5)} ${ten.slice(5)}` : (p || '');
+  const ten = normalizePhone(p);
+  return /^\d{10}$/.test(ten) ? `${ten.slice(0, 5)} ${ten.slice(5)}` : (p || '');
 };
 export const rupees = (n) => `₹${num(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 export const fileSize = (b) => { const n = num(b); return n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; };

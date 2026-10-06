@@ -9,6 +9,8 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '../../../components/ui/icons';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError } from '../../../utils/validators';
 import * as api from '../../../api/transport.api';
 import { LocationField } from './trPicker';
 import {
@@ -45,6 +47,8 @@ export default function TransportSettings() {
   const setIn = (group, k, v) => setForm((f) => ({ ...f, [group]: { ...(f[group] || {}), [k]: v } }));
 
   const save = async () => {
+    const badPhone = phoneError(form.contactPhone, 'Contact number');
+    if (badPhone) { toast.error(badPhone); return; }
     setSaving(true);
     try {
       await api.updateSettingsFull(form);
@@ -110,7 +114,7 @@ export default function TransportSettings() {
                     <Input type="email" value={form.contactEmail || ''} onChange={(e) => set('contactEmail', e.target.value)} placeholder="transport@school.edu.in" />
                   </Field>
                   <Field label="Contact Number">
-                    <Input value={form.contactPhone || ''} onChange={(e) => set('contactPhone', e.target.value)} placeholder="+91 98765 43210" />
+                    <PhoneInput className="tr-input" value={form.contactPhone || ''} onChange={(e) => set('contactPhone', e.target.value)} placeholder="9876543210" />
                   </Field>
                   <Field label="Address">
                     <Textarea value={form.officeAddress || ''} onChange={(e) => set('officeAddress', e.target.value)} placeholder={d.school?.address || ''} />

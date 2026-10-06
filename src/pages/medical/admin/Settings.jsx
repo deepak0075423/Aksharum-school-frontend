@@ -8,6 +8,8 @@ import toast from 'react-hot-toast';
 import * as api from '../../../api/medical.api';
 import { Page, PageHead, Panel, Btn, Field, Switch, Segmented, Note, Spin, LoadError, Ico, LineTabs, useLoad } from '../mdUI';
 import { INCIDENT_TYPE, errorText } from '../mdMeta';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError } from '../../../utils/validators';
 import { refreshMeta, forgetExclusionRules } from './mdForms';
 import { askStepUp } from '../stepUp';
 import { ImportPanel, RolloverPanel } from './ImportRollover';
@@ -265,6 +267,8 @@ export default function MedicalSettings() {
   const setN = (k) => (v) => setS((x) => ({ ...x, notify: { ...x.notify, [k]: v } }));
   const dirty = JSON.stringify(s) !== JSON.stringify(data);
   const save = async () => {
+    const badPhone = phoneError(s.roomPhone, "The room's phone");
+    if (badPhone) { toast.error(badPhone); return; }
     setBusy(true);
     try {
       const res = await api.saveMedSettings(s);
@@ -300,7 +304,7 @@ export default function MedicalSettings() {
           <div className="md-form__grid">
             <Field label="Name" required><input className="md-input" value={s.roomName} onChange={(e) => set('roomName')(e.target.value)} maxLength={160} /></Field>
             <Field label="Where it is"><input className="md-input" value={s.roomLocation} onChange={(e) => set('roomLocation')(e.target.value)} placeholder="e.g. Ground floor, near the main office" /></Field>
-            <Field label="Phone / extension" hint="Shown on emergency cards and to families."><input className="md-input" value={s.roomPhone} onChange={(e) => set('roomPhone')(e.target.value)} /></Field>
+            <Field label="Phone" hint="Shown on emergency cards and to families."><PhoneInput className="md-input" value={s.roomPhone} onChange={(e) => set('roomPhone')(e.target.value)} /></Field>
             <Field label="Opening hours"><input className="md-input" value={s.roomHours} onChange={(e) => set('roomHours')(e.target.value)} placeholder="e.g. 7:45 AM – 3:30 PM" /></Field>
             <Field label="Temperature in"><Segmented value={s.temperatureUnit} onChange={set('temperatureUnit')} options={[{ value: 'F', label: '°F (Fahrenheit)' }, { value: 'C', label: '°C (Celsius)' }]} label="Temperature unit" /></Field>
           </div>

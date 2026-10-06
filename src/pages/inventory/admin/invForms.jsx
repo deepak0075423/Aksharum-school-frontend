@@ -14,6 +14,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/inventory.api';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { phoneError } from '../../../utils/validators';
 import {
   Field, Input, Textarea, Select, Btn, IconBtn, Check, Badge, StatusBadge, Note,
   Thumb, Modal, FormGrid, IconPicker, Ico, invalidateMeta,
@@ -2036,7 +2038,7 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
     const e = {};
     if (!v.name.trim()) e.name = 'Give the vendor a name';
     if (v.email && !/^\S+@\S+\.\S+$/.test(v.email)) e.email = 'That does not look like an email address';
-    if (v.phone && !/^[+\d][\d\s-]{6,17}$/.test(v.phone.trim())) e.phone = 'That does not look like a phone number';
+    if (phoneError(v.phone)) e.phone = 'Enter a valid 10-digit mobile number';
     if (v.gstNumber && !/^[0-9A-Z]{15}$/i.test(v.gstNumber.trim())) e.gstNumber = 'A GSTIN is 15 characters';
     if (v.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(v.pan.trim())) e.pan = 'A PAN is five letters, four digits and a letter';
     if (v.pincode && !/^\d{6}$/.test(v.pincode.trim())) e.pincode = 'A PIN code is six digits';
@@ -2142,8 +2144,8 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
           </Field>
           <Field label="Phone number" error={f.err('phone')}>
             <Affix icon="phone">
-              <Input data-field="phone" value={f.values.phone} onChange={(e) => f.set('phone', e.target.value)}
-                placeholder="+91 98765 43210" />
+              <PhoneInput className="inv-input" data-field="phone" value={f.values.phone} onChange={(e) => f.set('phone', e.target.value)}
+                placeholder="9876543210" />
             </Affix>
           </Field>
           <Field label="Email address" error={f.err('email')}>
@@ -2410,6 +2412,7 @@ export function WarehouseForm({ open, warehouse, meta = {}, onClose, onDone }) {
     if (!v.name.trim()) e.name = 'Give the store a name';
     if (v.capacity !== '' && num(v.capacity) < 0) e.capacity = 'A capacity cannot be negative';
     if (num(v.lowCapacityAt) < 1 || num(v.lowCapacityAt) > 100) e.lowCapacityAt = 'A percentage between 1 and 100';
+    if (phoneError(v.phone)) e.phone = 'Enter a valid 10-digit mobile number';
     return e;
   }, []);
   const f = useForm(initial, validate);
@@ -2527,9 +2530,9 @@ export function WarehouseForm({ open, warehouse, meta = {}, onClose, onDone }) {
                 placeholder="Not assigned" />
             </Affix>
           </Field>
-          <Field label="Contact phone (Optional)">
+          <Field label="Contact phone (Optional)" error={f.err('phone')}>
             <Affix icon="phone">
-              <Input value={f.values.phone} onChange={(e) => f.set('phone', e.target.value)} placeholder="+91 98765 43210" />
+              <PhoneInput className="inv-input" data-field="phone" value={f.values.phone} onChange={(e) => f.set('phone', e.target.value)} placeholder="9876543210" />
             </Affix>
           </Field>
         </FormGrid>

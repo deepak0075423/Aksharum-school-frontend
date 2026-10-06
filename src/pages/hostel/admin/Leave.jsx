@@ -20,6 +20,7 @@ import {
 } from './hsList';
 import { StudentCell, roomShort } from './hsPeople';
 import { FormModal, FormSection, Grid, Fld, RadioCards, StudentPicker, PersonCard, FileDrop, InfoNote, ReviewList, dmy } from './hsForm';
+import PhoneInput from '../../../components/ui/PhoneInput';
 
 /** A leave type as the mockup tags it: its words, its tint and its glyph. */
 export const LEAVE_TYPE = {
@@ -286,7 +287,7 @@ export default function Leave() {
           </Fld>
           <Grid cols={3}>
             <Fld label="Guardian Name" required icon="user"><input value={form.guardianName} maxLength={80} placeholder="Enter guardian name" onChange={(e) => setF('guardianName', e.target.value)} /></Fld>
-            <Fld label="Guardian Phone" required icon="phone"><input type="tel" pattern="[0-9+ ()-]{6,20}" title="A phone number" value={form.guardianPhone} placeholder="Enter phone number" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
+            <Fld label="Guardian Phone" required icon="phone"><PhoneInput value={form.guardianPhone} placeholder="Enter phone number" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
             <Fld label="Relation" required icon="users"><input value={form.guardianRelation} maxLength={30} placeholder="e.g. Father, Mother, Uncle" onChange={(e) => setF('guardianRelation', e.target.value)} /></Fld>
           </Grid>
         </FormSection>

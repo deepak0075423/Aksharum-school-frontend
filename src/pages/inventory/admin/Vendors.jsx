@@ -138,7 +138,7 @@ export default function InventoryVendors() {
           { label: v.preferred ? 'Remove from preferred' : 'Mark as preferred', icon: 'star',
             onClick: async () => {
               try {
-                await api.updateVendor(v._id, { ...v, preferred: !v.preferred });
+                await api.updateVendor(v._id, { preferred: !v.preferred });
                 toast.success(v.preferred ? `${v.name} is no longer preferred` : `${v.name} marked preferred`);
                 reload();
               } catch (e) { toast.error(e?.message || 'That could not be saved'); }
