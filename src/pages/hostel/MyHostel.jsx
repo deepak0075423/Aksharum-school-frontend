@@ -321,10 +321,10 @@ export default function MyHostel({ role = 'student' }) {
           </FormSection>
           <FormSection step="contacts" icon="phone" title="Contacts" sub="The guardian is filled in from the parent's record; change it if needed.">
             <Grid cols={3}>
-              <Fld label="Guardian Name" icon="user"><input value={applyForm.guardianName} maxLength={80} placeholder="Enter guardian name" onChange={(e) => setA('guardianName', e.target.value)} /></Fld>
+              <Fld label="Guardian Name" icon="user"><input data-text="name" value={applyForm.guardianName} maxLength={80} placeholder="Enter guardian name" onChange={(e) => setA('guardianName', e.target.value)} /></Fld>
               <Fld label="Guardian Phone" icon="phone"><PhoneInput value={applyForm.guardianPhone} placeholder="Enter phone number" onChange={(e) => setA('guardianPhone', e.target.value)} /></Fld>
               <Fld label="Relation" icon="users"><input value={applyForm.guardianRelation} maxLength={30} placeholder="e.g. Father, Mother" onChange={(e) => setA('guardianRelation', e.target.value)} /></Fld>
-              <Fld label="Emergency Contact" icon="user"><input value={applyForm.emergencyContactName} maxLength={80} placeholder="Enter name" onChange={(e) => setA('emergencyContactName', e.target.value)} /></Fld>
+              <Fld label="Emergency Contact" icon="user"><input data-text="name" value={applyForm.emergencyContactName} maxLength={80} placeholder="Enter name" onChange={(e) => setA('emergencyContactName', e.target.value)} /></Fld>
               <Fld label="Emergency Phone" icon="phone"><PhoneInput value={applyForm.emergencyContactPhone} placeholder="Enter phone number" onChange={(e) => setA('emergencyContactPhone', e.target.value)} /></Fld>
               <Fld label="Relation" icon="users"><input value={applyForm.emergencyContactRelation} maxLength={30} placeholder="e.g. Uncle, Aunt" onChange={(e) => setA('emergencyContactRelation', e.target.value)} /></Fld>
             </Grid>
@@ -444,7 +444,7 @@ export default function MyHostel({ role = 'student' }) {
             <textarea rows={2} maxLength={200} value={leaveForm.destination} placeholder="Enter destination address" onChange={(e) => setL('destination', e.target.value)} />
           </Fld>
           <Grid cols={3}>
-            <Fld label={`${contact} Name`} required={!staff} icon="user"><input value={leaveForm.guardianName} maxLength={80} placeholder={`Enter ${contact.toLowerCase()} name`} onChange={(e) => setL('guardianName', e.target.value)} /></Fld>
+            <Fld label={`${contact} Name`} required={!staff} icon="user"><input data-text="name" value={leaveForm.guardianName} maxLength={80} placeholder={`Enter ${contact.toLowerCase()} name`} onChange={(e) => setL('guardianName', e.target.value)} /></Fld>
             <Fld label={`${contact} Phone`} required={!staff} icon="phone"><PhoneInput value={leaveForm.guardianPhone} placeholder="Enter phone number" onChange={(e) => setL('guardianPhone', e.target.value)} /></Fld>
             <Fld label="Relation" required={!staff} icon="users"><input value={leaveForm.guardianRelation} maxLength={30} placeholder={staff ? 'e.g. Spouse, Brother' : 'e.g. Father, Mother, Uncle'} onChange={(e) => setL('guardianRelation', e.target.value)} /></Fld>
           </Grid>
@@ -516,7 +516,7 @@ export default function MyHostel({ role = 'student' }) {
             <textarea rows={2} maxLength={200} value={outForm.destination} placeholder="Enter full destination address" onChange={(e) => setO('destination', e.target.value)} />
           </Fld>
           <Grid cols={3}>
-            <Fld label={`${contact} Name`} required={!staff} icon="user"><input value={outForm.guardianName} maxLength={80} placeholder={`Enter ${contact.toLowerCase()} name`} onChange={(e) => setO('guardianName', e.target.value)} /></Fld>
+            <Fld label={`${contact} Name`} required={!staff} icon="user"><input data-text="name" value={outForm.guardianName} maxLength={80} placeholder={`Enter ${contact.toLowerCase()} name`} onChange={(e) => setO('guardianName', e.target.value)} /></Fld>
             <Fld label={`${contact} Phone`} required={!staff} icon="phone"><PhoneInput value={outForm.guardianPhone} placeholder="Enter phone number" onChange={(e) => setO('guardianPhone', e.target.value)} /></Fld>
             <Fld label="Relation" required={!staff} icon="users"><input value={outForm.guardianRelation} maxLength={30} placeholder={staff ? 'e.g. Spouse, Brother' : 'e.g. Father, Mother, Uncle'} onChange={(e) => setO('guardianRelation', e.target.value)} /></Fld>
           </Grid>
@@ -544,7 +544,7 @@ export default function MyHostel({ role = 'student' }) {
         </InfoNote>
         <FormSection icon="user" title="Visitor Details" sub="The person the gate should expect.">
           <Grid cols={2}>
-            <Fld label="Visitor Name" required icon="user"><input value={visitorForm.visitorName} maxLength={80} placeholder="Full name" onChange={(e) => setV('visitorName', e.target.value)} /></Fld>
+            <Fld label="Visitor Name" required icon="user"><input data-text="name" value={visitorForm.visitorName} maxLength={80} placeholder="Full name" onChange={(e) => setV('visitorName', e.target.value)} /></Fld>
             <Fld label="Mobile" icon="phone"><PhoneInput value={visitorForm.mobile} placeholder="Enter mobile number" onChange={(e) => setV('mobile', e.target.value)} /></Fld>
             <Fld label="Relationship" icon="users"><input list="hs-my-visitor-types" value={visitorForm.relationship} maxLength={30} placeholder="e.g. Parent" onChange={(e) => setV('relationship', e.target.value)} /></Fld>
             <Fld label="Expected At" icon="clock" hint="Checked against visiting hours">

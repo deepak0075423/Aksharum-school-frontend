@@ -142,12 +142,12 @@ function UpdateForm({ preset, record, onClose, onDone }) {
         v.kind === 'contact' ? { title: 'Contact', icon: 'phone', fields: [
           { name: 'payload.slot', label: 'Which contact', type: 'seg', wide: true, onSet: (sl, x) => load(x, 'contact', 'add', '', sl),
             options: [{ value: 'emergency', label: 'Emergency contact' }, { value: 'alternate', label: 'Alternate contact' }] },
-          { name: 'payload.name', label: 'Name', required: true },
+          { name: 'payload.name', label: 'Name', required: true, text: 'name' },
           { name: 'payload.phone', label: 'Phone', required: true, type: 'phone' },
           { name: 'payload.relation', label: 'Relation to the child', placeholder: 'e.g. Uncle' },
         ] } : null,
         v.kind === 'doctor' ? { title: 'Family doctor', icon: 'stethoscope', fields: [
-          { name: 'payload.name', label: 'Doctor', required: true }, { name: 'payload.phone', label: 'Phone', type: 'phone' }, { name: 'payload.clinic', label: 'Clinic', wide: true },
+          { name: 'payload.name', label: 'Doctor', required: true, text: 'name' }, { name: 'payload.phone', label: 'Phone', type: 'phone' }, { name: 'payload.clinic', label: 'Clinic', wide: true },
         ] } : null,
         v.kind === 'hospital' ? { title: 'Preferred hospital', icon: 'hospital', fields: [
           { name: 'payload.name', label: 'Hospital', required: true }, { name: 'payload.phone', label: 'Phone', type: 'phone' }, { name: 'payload.address', label: 'Address', wide: true },

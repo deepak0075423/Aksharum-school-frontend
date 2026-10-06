@@ -109,10 +109,10 @@ export function StaffRecordDialog({ open, health, title, intro, onClose, save, o
         </div>
       </Field>
       <div className="md-form__grid md-form__grid--3">
-        <Field label="Person to call"><input className="md-input" value={v.emergencyContact.name || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: e.target.value } })} maxLength={120} /></Field>
+        <Field label="Person to call"><input data-text="name" className="md-input" value={v.emergencyContact.name || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: e.target.value } })} maxLength={120} /></Field>
         <Field label="Relation"><input className="md-input" value={v.emergencyContact.relation || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: e.target.value } })} maxLength={60} /></Field>
         <Field label="Their phone"><PhoneInput className="md-input" value={v.emergencyContact.phone || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, phone: e.target.value } })} /></Field>
-        <Field label="Doctor"><input className="md-input" value={v.doctor.name || ''} onChange={(e) => setV({ ...v, doctor: { ...v.doctor, name: e.target.value } })} maxLength={120} /></Field>
+        <Field label="Doctor"><input data-text="name" className="md-input" value={v.doctor.name || ''} onChange={(e) => setV({ ...v, doctor: { ...v.doctor, name: e.target.value } })} maxLength={120} /></Field>
         <Field label="Doctor's phone"><PhoneInput className="md-input" value={v.doctor.phone || ''} onChange={(e) => setV({ ...v, doctor: { ...v.doctor, phone: e.target.value } })} /></Field>
       </div>
       <Field label="Anything else the Medical Room should know"><textarea className="md-textarea" rows={2} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} maxLength={600} /></Field>

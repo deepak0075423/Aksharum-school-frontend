@@ -10,13 +10,15 @@
  * Field types: text, textarea, number, date, time, datetime, select, seg,
  * chips (quick picks into a text field), multi (chips, many), switch, check,
  * student, phone (a 10-digit mobile number, checked on save), custom. Names
- * may be paths ("vitals.temperature").
+ * may be paths ("vitals.temperature"). `text: 'name'` makes a text field a
+ * person's name (utils/textRules), checked as it is typed and on save.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Modal } from '../../components/ui';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { phoneError } from '../../utils/validators';
+import { textError } from '../../utils/textRules';
 import { Btn, Field, Ico, Note, Segmented, Chips, Switch, Avatar, Popover, IconBtn, useDebounced } from './mdUI';
 import { errorText, qty } from './mdMeta';
 
@@ -310,7 +312,7 @@ function Control({ f, value, values, set, ctx }) {
   case 'phone':
     return <PhoneInput id={id} className="md-input" value={value ?? ''} placeholder={f.placeholder} onChange={(e) => set(e.target.value)} autoFocus={f.autoFocus} />;
   default:
-    return <input id={id} className="md-input" type={f.inputType || 'text'} value={value ?? ''} maxLength={f.maxLength || 200} placeholder={f.placeholder} onChange={(e) => set(e.target.value)} autoFocus={f.autoFocus} />;
+    return <input id={id} data-text={f.text} className="md-input" type={f.inputType || 'text'} value={value ?? ''} maxLength={f.maxLength || 200} placeholder={f.placeholder} onChange={(e) => set(e.target.value)} autoFocus={f.autoFocus} />;
   }
 }
 
@@ -354,6 +356,7 @@ export function FormDialog({
         const v = getPath(values, f.name);
         if (f.required && (empty(v) || (f.type === 'student' && !v?._id))) errs[f.name] = `${f.label || 'This'} is required`;
         else if (f.type === 'phone' && phoneError(v)) errs[f.name] = `${f.label || 'Phone'} must be a valid 10-digit mobile number`;
+        else if (f.text && textError(v, f.label || 'This field', f.text)) errs[f.name] = textError(v, f.label || 'This field', f.text);
         else if (f.validate) { const m = f.validate(v, values); if (m) errs[f.name] = m; }
       }
     }

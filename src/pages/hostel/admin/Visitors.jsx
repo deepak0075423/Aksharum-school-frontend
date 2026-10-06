@@ -260,7 +260,7 @@ export default function Visitors() {
         ]}>
         <FormSection step="who" icon="user" title="Visitor Details" sub="The person at the gate.">
           <Grid cols={2}>
-            <Fld label="Visitor Name" required icon="user"><input value={form.visitorName} maxLength={80} placeholder="Full name" onChange={(e) => setF('visitorName', e.target.value)} /></Fld>
+            <Fld label="Visitor Name" required icon="user"><input data-text="name" value={form.visitorName} maxLength={80} placeholder="Full name" onChange={(e) => setF('visitorName', e.target.value)} /></Fld>
             <Fld label="Mobile" icon="phone"><PhoneInput value={form.mobile} placeholder="Enter mobile number" onChange={(e) => setF('mobile', e.target.value)} /></Fld>
             <Fld label="Relationship" icon="users" hint="Parent, Guardian, Relative, Delivery…"><input list="hs-visitor-types" value={form.relationship} maxLength={30} placeholder="e.g. Parent" onChange={(e) => setF('relationship', e.target.value)} /></Fld>
             <Fld label="Number of Visitors" icon="users"><input type="number" min="1" max="20" value={form.visitorCount} onChange={(e) => setF('visitorCount', e.target.value)} /></Fld>
@@ -307,7 +307,7 @@ export default function Visitors() {
             options={[['authorized', 'Authorized', 'Approved automatically'], ['restricted', 'Restricted', 'Refused at registration']]} />
           <Grid cols={2}>
             <Fld label="Student" required><StudentPicker value={form.student} onChange={(id) => setF('student', id)} params={{ allocated: 'true' }} /></Fld>
-            <Fld label="Visitor Name" required icon="user"><input value={form.visitorName} maxLength={80} onChange={(e) => setF('visitorName', e.target.value)} /></Fld>
+            <Fld label="Visitor Name" required icon="user"><input data-text="name" value={form.visitorName} maxLength={80} onChange={(e) => setF('visitorName', e.target.value)} /></Fld>
             <Fld label="Relationship" icon="users"><input list="hs-visitor-types" value={form.relationship} maxLength={30} placeholder="Parent, Guardian…" onChange={(e) => setF('relationship', e.target.value)} /></Fld>
             <Fld label="Mobile" icon="phone"><PhoneInput value={form.mobile} onChange={(e) => setF('mobile', e.target.value)} /></Fld>
           </Grid>

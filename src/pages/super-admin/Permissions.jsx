@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/superAdmin.api';
 import { PageHeader, Spinner, SchoolLogo } from '../../components/ui/index';
+import { natural } from '../../utils/listOrder';
 
 const MODULES = [
   { key: 'attendance',    label: 'Attendance',     icon: '✅' },
@@ -25,7 +26,7 @@ const MODULES = [
   { key: 'idCard',       label: 'ID Cards',       icon: '🪪' },
   { key: 'medical',      label: 'Medical Room',   icon: '🩺' },
   { key: 'chat',         label: 'Chat',           icon: '💬' },
-];
+].sort((a, b) => natural(a.label, b.label));   // A–Z by name
 
 function Toggle({ enabled, loading, onClick }) {
   return (
@@ -59,8 +60,9 @@ export default function Permissions() {
   const [expanded, setExpanded] = useState({});
 
   // Sync server data into local state once
+  // A–Z by name, whatever order they arrive in — the same on every load.
   useEffect(() => {
-    if (serverData) setSchools(serverData);
+    if (serverData) setSchools([...serverData].sort((a, b) => natural(a.name, b.name)));
   }, [serverData]);
 
   /* Toggle a single module — optimistic local update, no page reload */

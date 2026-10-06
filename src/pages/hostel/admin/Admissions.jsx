@@ -375,10 +375,10 @@ export default function Admissions() {
         </FormSection>
         <FormSection step="contacts" icon="phone" title="Contacts" sub="Guardian and emergency contacts are pre-filled from the student's record.">
           <Grid cols={3}>
-            <Fld label="Guardian Name" icon="user"><input value={form.guardianName} maxLength={80} placeholder="Auto-filled" onChange={(e) => setF('guardianName', e.target.value)} /></Fld>
+            <Fld label="Guardian Name" icon="user"><input data-text="name" value={form.guardianName} maxLength={80} placeholder="Auto-filled" onChange={(e) => setF('guardianName', e.target.value)} /></Fld>
             <Fld label="Guardian Phone" icon="phone"><PhoneInput value={form.guardianPhone} placeholder="Auto-filled" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
             <Fld label="Relation" icon="users"><input value={form.guardianRelation} maxLength={30} placeholder="Auto-filled" onChange={(e) => setF('guardianRelation', e.target.value)} /></Fld>
-            <Fld label="Emergency Contact" icon="user"><input value={form.emergencyContactName} maxLength={80} placeholder="Enter name" onChange={(e) => setF('emergencyContactName', e.target.value)} /></Fld>
+            <Fld label="Emergency Contact" icon="user"><input data-text="name" value={form.emergencyContactName} maxLength={80} placeholder="Enter name" onChange={(e) => setF('emergencyContactName', e.target.value)} /></Fld>
             <Fld label="Emergency Phone" icon="phone"><PhoneInput value={form.emergencyContactPhone} placeholder="Enter phone number" onChange={(e) => setF('emergencyContactPhone', e.target.value)} /></Fld>
             <Fld label="Relation" icon="users"><input value={form.emergencyContactRelation} maxLength={30} placeholder="e.g. Uncle, Aunt" onChange={(e) => setF('emergencyContactRelation', e.target.value)} /></Fld>
           </Grid>

@@ -774,6 +774,7 @@ export function Composer({ chatId, draft, setDraft, replyTo, editing, onCancel, 
           </button>
           <label className="ch-sr" htmlFor="ch-composer">Message</label>
           <textarea
+            data-text="any"
             id="ch-composer"
             ref={ref}
             rows={1}

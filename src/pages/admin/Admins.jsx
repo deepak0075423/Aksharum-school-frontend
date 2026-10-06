@@ -324,7 +324,7 @@ function InviteAdmin({ open, onClose, onCreated }) {
       <form id="admin-invite" onSubmit={submit}>
         <div className="form-group">
           <label className="form-label required">Full Name</label>
-          <input className="form-control" required value={form.name}
+          <input data-text="name" className="form-control" required value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </div>
         <div className="form-group">
@@ -384,7 +384,7 @@ function EditAdmin({ admin, onClose, onSaved }) {
       <form id="admin-edit" onSubmit={submit}>
         <div className="form-group">
           <label className="form-label required">Full Name</label>
-          <input className="form-control" required value={form.name}
+          <input data-text="name" className="form-control" required value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </div>
         <div className="form-group">

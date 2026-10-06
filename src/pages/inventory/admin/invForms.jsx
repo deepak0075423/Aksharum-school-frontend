@@ -1475,7 +1475,7 @@ export function IssueForm({ open, preset, meta = {}, onClose, onDone }) {
                 </Affix>
               </Field>
               <Field label="Or enter name (optional)" error={f.err('issuedToName')}>
-                <Input data-field="issuedToName" value={f.values.issuedToName} disabled={!!f.values.issuedToUser}
+                <Input data-text="name" data-field="issuedToName" value={f.values.issuedToName} disabled={!!f.values.issuedToUser}
                   onChange={(e) => f.set('issuedToName', e.target.value)} placeholder="e.g. Rohan Mehta" />
               </Field>
             </FormGrid>
@@ -1910,7 +1910,7 @@ export function AssetForm({ open, asset, meta = {}, onClose, onDone }) {
             </Affix>
           </Field>
           <Field label="Or a name">
-            <Input value={f.values.assignedName} disabled={!!f.values.assignedTo}
+            <Input data-text="name" value={f.values.assignedName} disabled={!!f.values.assignedTo}
               onChange={(e) => f.set('assignedName', e.target.value)} placeholder="Driver (Ramesh)" />
           </Field>
           <Field label="Status">
@@ -2138,7 +2138,7 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
         <FormGrid>
           <Field label="Contact person">
             <Affix icon="user">
-              <Input value={f.values.contactPerson} onChange={(e) => f.set('contactPerson', e.target.value)}
+              <Input data-text="name" value={f.values.contactPerson} onChange={(e) => f.set('contactPerson', e.target.value)}
                 placeholder="e.g. Rohan Mehta" />
             </Affix>
           </Field>
@@ -2193,7 +2193,7 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
             </Affix>
           </Field>
           <Field label="Account name">
-            <Input value={f.values.accountName} onChange={(e) => f.set('accountName', e.target.value)} />
+            <Input data-text="name" value={f.values.accountName} onChange={(e) => f.set('accountName', e.target.value)} />
           </Field>
           <Field label="Account number">
             <Input value={f.values.accountNumber} onChange={(e) => f.set('accountNumber', e.target.value)} />
@@ -2526,7 +2526,7 @@ export function WarehouseForm({ open, warehouse, meta = {}, onClose, onDone }) {
         <FormGrid>
           <Field label="In charge">
             <Affix icon="user">
-              <Input value={f.values.contactPerson} onChange={(e) => f.set('contactPerson', e.target.value)}
+              <Input data-text="name" value={f.values.contactPerson} onChange={(e) => f.set('contactPerson', e.target.value)}
                 placeholder="Not assigned" />
             </Affix>
           </Field>
@@ -2588,7 +2588,7 @@ export function DepartmentForm({ open, department, onClose, onDone }) {
           </Field>
           <Field label="Head of department">
             <Affix icon="user">
-              <Input value={f.values.headName} onChange={(e) => f.set('headName', e.target.value)} />
+              <Input data-text="name" value={f.values.headName} onChange={(e) => f.set('headName', e.target.value)} />
             </Affix>
           </Field>
           <Field label="Financial year">

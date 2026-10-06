@@ -347,7 +347,7 @@ export default function Incidents() {
                 </select>
               </Fld>
               <Fld label="Hospital" icon="oBuilding"><input value={form.hospitalName} maxLength={80} onChange={(e) => setF('hospitalName', e.target.value)} /></Fld>
-              <Fld label="Doctor" icon="user"><input value={form.doctorName} maxLength={80} onChange={(e) => setF('doctorName', e.target.value)} /></Fld>
+              <Fld label="Doctor" icon="user"><input data-text="name" value={form.doctorName} maxLength={80} onChange={(e) => setF('doctorName', e.target.value)} /></Fld>
             </Grid>
             <Fld label="Treatment Given" optional count={[form.treatmentGiven.length, 500]}>
               <textarea rows={2} maxLength={500} value={form.treatmentGiven} onChange={(e) => setF('treatmentGiven', e.target.value)} />

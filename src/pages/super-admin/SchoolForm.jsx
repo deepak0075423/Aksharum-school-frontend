@@ -5,27 +5,35 @@ import * as api from '../../api/superAdmin.api';
 import { PageHeader, Button, Card } from '../../components/ui/index';
 import { schoolLogoUrl } from '../../utils/branding';
 import PhoneInput from '../../components/ui/PhoneInput';
+import AddressFields from '../../components/ui/AddressFields';
 import { isPhone } from '../../utils/validators';
+import { textError } from '../../utils/textRules';
+import { STATES_AND_UTS, isPincode } from '../../utils/indiaStates';
 
 const SCHOOL_BOARDS = ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge (IGCSE)', 'NIOS', 'Other'];
 
 // "State Board" and "Other" do not say which board — the school names it.
-// Same rule as the server (superAdmin.controller NAMED_BOARDS).
+// Same rule as the server (superAdmin.controller NAMED_BOARDS): another board
+// is a plain name, English letters and spaces only — refused as it is typed
+// (data-text="letters", utils/textGuard) and checked again on save; a state
+// board's name may carry its short form.
 const NAMED_BOARDS = {
-  'State Board': { label: 'State Board Name', placeholder: 'e.g. Maharashtra State Board (MSBSHSE)' },
-  'Other':       { label: 'Board Name',       placeholder: 'e.g. Bihar Sanskrit Shiksha Board' },
+  'State Board': { label: 'State Board Name', placeholder: 'e.g. Maharashtra State Board (MSBSHSE)',
+                   ok: /^[A-Za-z][A-Za-z .,&'()-]*$/, msg: "State Board Name can only have English letters, spaces and . , & ' ( ) -" },
+  'Other':       { label: 'Other Board Name', placeholder: 'e.g. Bihar Sanskrit Shiksha Board', text: 'letters',
+                   ok: /^[A-Za-z ]+$/, msg: 'Other Board Name can only have English letters and spaces' },
 };
 
 const initial = {
   name: '', code: '', board: '', boardName: '', email: '', phone: '',
-  address: '', city: '', state: '', country: 'India',
+  address: '', pincode: '', city: '', state: '', country: 'India',
   website: '', isActive: true,
 };
 
-const REQUIRED_FIELDS = ['name', 'code', 'board', 'email', 'phone', 'address', 'city', 'state', 'country'];
+const REQUIRED_FIELDS = ['name', 'code', 'board', 'email', 'phone', 'address', 'pincode', 'city', 'state', 'country'];
 const FIELD_LABELS = {
   name: 'School Name', code: 'School Code', board: 'School Board', email: 'Email', phone: 'Phone',
-  address: 'Address', city: 'City', state: 'State', country: 'Country',
+  address: 'Address', pincode: 'PIN code', city: 'City', state: 'State', country: 'Country',
 };
 
 // Returns { field: message } for every invalid field, {} when the form is valid.
@@ -39,7 +47,12 @@ function validate(form) {
     const bn = form.boardName.trim();
     if (!bn) errors.boardName = `${named.label} is required`;
     else if (bn.length < 2 || bn.length > 100) errors.boardName = `${named.label} must be 2-100 characters`;
+    else if (!named.ok.test(bn)) errors.boardName = named.msg;
   }
+  if (!errors.pincode && !isPincode(form.pincode)) errors.pincode = 'PIN code must be 6 digits';
+  if (!errors.state && !STATES_AND_UTS.includes(form.state)) errors.state = 'Select a valid state or union territory';
+  if (!errors.city) { const e = textError(form.city, 'City', 'name'); if (e) errors.city = e; }
+  if (!errors.name) { const e = textError(form.name, 'School name'); if (e) errors.name = e; }
   if (!errors.name && form.name.trim().length < 3) errors.name = 'School name must be at least 3 characters';
   if (!errors.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim())) errors.code = 'Code must be 2-20 letters, numbers, hyphens or underscores';
   if (!errors.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Please enter a valid email address';
@@ -73,6 +86,7 @@ export default function SchoolForm() {
             email:    s.email   || '',
             phone:    s.phone   || '',
             address:  s.address || '',
+            pincode:  s.pincode || '',
             city:     s.city    || '',
             state:    s.state   || '',
             country:  s.country || 'India',
@@ -126,7 +140,11 @@ export default function SchoolForm() {
       toast.success(isEdit ? 'School updated' : 'School created');
       navigate('/super-admin/schools');
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Save failed');
+      const message = err.response?.data?.message || err.message || 'Save failed';
+      // A refusal about one field (a school code already in use) shows under it too.
+      const field = err.response?.data?.field || err.data?.field;
+      if (field) setErrors((er) => ({ ...er, [field]: message }));
+      toast.error(message);
     } finally { setLoading(false); }
   };
 
@@ -134,12 +152,13 @@ export default function SchoolForm() {
     ? <span style={{ color: 'var(--danger)', fontSize: '.78rem', marginTop: 4, display: 'block' }}>{errors[name]}</span>
     : null;
 
-  const inp = (name, label, type = 'text', placeholder = '', required = true) => {
+  const inp = (name, label, type = 'text', placeholder = '', required = true, text = undefined) => {
     const Ctl = type === 'tel' ? PhoneInput : 'input';
     return (
     <div className="form-group">
       <label className={`form-label${required ? ' required' : ''}`}>{label}</label>
       <Ctl
+        data-text={text}
         name={name} type={type} className={`form-control${errors[name] ? ' is-invalid' : ''}`}
         value={form[name]} onChange={onChange} placeholder={placeholder}
         required={required}
@@ -216,7 +235,7 @@ export default function SchoolForm() {
               {fieldError('board')}
             </div>
             {/* Beside the board it names, and only for the two that need naming. */}
-            {NAMED_BOARDS[form.board] && inp('boardName', NAMED_BOARDS[form.board].label, 'text', NAMED_BOARDS[form.board].placeholder)}
+            {NAMED_BOARDS[form.board] && inp('boardName', NAMED_BOARDS[form.board].label, 'text', NAMED_BOARDS[form.board].placeholder, true, NAMED_BOARDS[form.board].text)}
           </div>
           <div className="form-row form-row-2">
             {inp('email', 'Email Address', 'email', 'admin@school.edu.in')}
@@ -237,11 +256,9 @@ export default function SchoolForm() {
               style={errors.address ? { borderColor: 'var(--danger)' } : {}} />
             {fieldError('address')}
           </div>
-          <div className="form-row form-row-3">
-            {inp('city',    'City',    'text', 'Mumbai')}
-            {inp('state',   'State',   'text', 'Maharashtra')}
-            {inp('country', 'Country', 'text', 'India')}
-          </div>
+          {/* PIN code first: city and state fill in from it, as on the teacher form. */}
+          <AddressFields form={form} setForm={setForm} errs={errors} setErrs={setErrors}
+            showAddress={false} lookupPin={api.pincodeLookup} />
 
           <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0 20px' }} />
 

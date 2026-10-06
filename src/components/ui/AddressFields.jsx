@@ -19,12 +19,18 @@ const Row = ({ children }) => (
  * more than one address: prefix="current" maps to currentAddress, currentCity,
  * currentState, currentPincode, currentCountry. No prefix keeps the plain
  * address/city/state/pincode/country names the student intake already uses.
+ *
+ * `showAddress={false}` leaves the street line to the caller (the school form
+ * keeps its own multi-line box); `lookupPin` is the PIN code lookup to call — the
+ * school office's by default, the super admin's on the school form.
  */
 export default function AddressFields({
   form, setForm, errs, setErrs,
   prefix = '',
   required = true,
   disabled = false,
+  showAddress = true,
+  lookupPin = api.pincodeLookup,
 }) {
   const [pinLoading, setPinLoading] = React.useState(false);
   const [pinNote, setPinNote]       = React.useState('');
@@ -41,7 +47,7 @@ export default function AddressFields({
     setPinLoading(true);
     setPinNote('');
     try {
-      const res = await api.pincodeLookup(pin);
+      const res = await lookupPin(pin);
       const d   = res?.data || res;
       setForm(f => ({
         ...f,
@@ -81,12 +87,14 @@ export default function AddressFields({
 
   return (
     <>
-      <div className="form-group">
-        <label className={lbl}>Address</label>
-        <input className={`form-control${errs[kAddress] ? ' error' : ''}`} placeholder="House / street / locality"
-          disabled={disabled} value={form[kAddress] || ''} onChange={onField(kAddress)} />
-        <Err msg={errs[kAddress]} />
-      </div>
+      {showAddress && (
+        <div className="form-group">
+          <label className={lbl}>Address</label>
+          <input className={`form-control${errs[kAddress] ? ' error' : ''}`} placeholder="House / street / locality"
+            disabled={disabled} value={form[kAddress] || ''} onChange={onField(kAddress)} />
+          <Err msg={errs[kAddress]} />
+        </div>
+      )}
       <Row>
         <div className="form-group">
           <label className={lbl}>PIN Code</label>
@@ -106,7 +114,7 @@ export default function AddressFields({
         </div>
         <div className="form-group">
           <label className={lbl}>City / District</label>
-          <input className={`form-control${errs[kCity] ? ' error' : ''}`} placeholder="Pune" list={listId}
+          <input data-text="name" className={`form-control${errs[kCity] ? ' error' : ''}`} placeholder="Pune" list={listId}
             disabled={disabled} value={form[kCity] || ''} onChange={onField(kCity)} />
           {areas.length > 0 && (
             <datalist id={listId}>{areas.map(a => <option key={a} value={a} />)}</datalist>

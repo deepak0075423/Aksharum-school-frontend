@@ -45,6 +45,7 @@ export const downloadStudentTemplate = () => api.get('/super-admin/users/templat
 export const generateLoginLink = (id)  => api.post(`/super-admin/users/${id}/login-link`);
 
 // Permissions — school-level module enablement
+export const pincodeLookup    = (pin)    => api.get(`/super-admin/pincode/${pin}`);
 export const getPermissions   = ()       => api.get('/super-admin/permissions');
 export const updatePermissions = (data)  => api.put('/super-admin/permissions', data);
 

@@ -164,7 +164,7 @@ function HealthPanel({ value, onChange, errs }) {
       <Row>
         <div className="form-group">
           <label className="form-label">Family doctor</label>
-          <input className="form-control" value={value.doctorName} onChange={(e) => set('doctorName', e.target.value)} maxLength={120} />
+          <input data-text="name" className="form-control" value={value.doctorName} onChange={(e) => set('doctorName', e.target.value)} maxLength={120} />
         </div>
         <div className="form-group">
           <label className="form-label">Doctor&rsquo;s phone</label>
@@ -382,7 +382,7 @@ function ParentPanel({ form, setForm, errs, setErrs, files, setFile, existingPar
               return (
               <div className="form-group" style={opts.full ? { gridColumn: 'span 2' } : undefined}>
                 <label className={`form-label${opts.required ? ' required' : ''}`}>{labelText}</label>
-                <Ctl type={opts.type || 'text'} className={`form-control${err(key) ? ' error' : ''}`}
+                <Ctl type={opts.type || 'text'} data-text={opts.text} className={`form-control${err(key) ? ' error' : ''}`}
                   placeholder={opts.placeholder} inputMode={opts.inputMode}
                   value={np[role][key] ?? ''}
                   onChange={e => setBlock(role, key, opts.upper ? e.target.value.toUpperCase() : e.target.value)} />
@@ -404,8 +404,8 @@ function ParentPanel({ form, setForm, errs, setErrs, files, setFile, existingPar
                   )}
                 </div>
                 <Row>
-                  {text('name', `${label}'s Name`, { required: true, full: true })}
-                  {role === 'guardian' && text('relation', 'Relation with the Student', { required: true, full: true, placeholder: 'e.g. Uncle, Grandmother' })}
+                  {text('name', `${label}'s Name`, { required: true, full: true, text: 'name' })}
+                  {role === 'guardian' && text('relation', 'Relation with the Student', { required: true, full: true, placeholder: 'e.g. Uncle, Grandmother', text: 'letters' })}
                   <div className="form-group">
                     <label className={`form-label${isOwner ? ' required' : ''}`}>Email</label>
                     <input type="email" className={`form-control${err('email') ? ' error' : ''}`}
@@ -778,7 +778,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
             <div>
               <div className="form-group">
                 <label className="form-label required">Full Name</label>
-                <input className={`form-control${errs.name ? ' error' : ''}`} autoFocus
+                <input data-text="name" className={`form-control${errs.name ? ' error' : ''}`} autoFocus
                   placeholder="Aarav Sharma" value={form.name} onChange={set('name')} />
                 <Err msg={errs.name} />
               </div>
@@ -861,7 +861,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
               <div style={{ fontWeight: 600, fontSize: '.85rem', margin: '10px 0 8px' }}>Emergency Contact</div>
               <div className="form-group">
                 <label className="form-label required">Contact Name</label>
-                <input className={`form-control${errs.emergencyContactName ? ' error' : ''}`}
+                <input data-text="name" className={`form-control${errs.emergencyContactName ? ' error' : ''}`}
                   placeholder="Who should the school call first?" value={form.emergencyContactName} onChange={set('emergencyContactName')} />
                 <Err msg={errs.emergencyContactName} />
               </div>

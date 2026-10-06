@@ -352,7 +352,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         <div>
           <div className="form-group">
             <label className="form-label required">Full Name</label>
-            <input className={`form-control${errs.name ? ' error' : ''}`} autoFocus
+            <input data-text="name" className={`form-control${errs.name ? ' error' : ''}`} autoFocus
               placeholder="Anita Sharma" value={form.name} onChange={set('name')} />
             <Err msg={errs.name} />
           </div>
@@ -383,7 +383,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
             </div>
             <div className="form-group">
               <label className="form-label required">{fatherOrHusbandLabel(form.gender)}</label>
-              <input className={`form-control${errs.fatherOrHusbandName ? ' error' : ''}`}
+              <input data-text="name" className={`form-control${errs.fatherOrHusbandName ? ' error' : ''}`}
                 value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
               <Err msg={errs.fatherOrHusbandName} />
             </div>
@@ -391,7 +391,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           <Row>
             <div className="form-group">
               <label className="form-label required">Emergency Contact Name</label>
-              <input className={`form-control${errs.emergencyContactName ? ' error' : ''}`}
+              <input data-text="name" className={`form-control${errs.emergencyContactName ? ' error' : ''}`}
                 value={form.emergencyContactName} onChange={set('emergencyContactName')} />
               <Err msg={errs.emergencyContactName} />
             </div>
@@ -601,7 +601,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         <div>
           <div className="form-group">
             <label className="form-label required">Bank Account Holder Name</label>
-            <input className={`form-control${errs.bankAccountHolder ? ' error' : ''}`} autoFocus
+            <input data-text="name" className={`form-control${errs.bankAccountHolder ? ' error' : ''}`} autoFocus
               value={form.bankAccountHolder} onChange={set('bankAccountHolder')} />
             <Err msg={errs.bankAccountHolder} />
           </div>

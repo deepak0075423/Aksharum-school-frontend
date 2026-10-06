@@ -745,15 +745,15 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
             { name: 'emergencyMedication.instructions', label: 'How to give it', type: 'textarea', rows: 2, wide: true, show: (v) => v.emergencyMedication?.required },
           ] },
           { title: 'Emergency contacts', icon: 'phone', hint: 'Parents are taken from the admission record. Add who else to call.', fields: [
-            { name: 'emergencyContact.name', label: 'Emergency contact' },
+            { name: 'emergencyContact.name', label: 'Emergency contact', text: 'name' },
             { name: 'emergencyContact.phone', label: 'Phone', type: 'phone' },
             { name: 'emergencyContact.relation', label: 'Relation' },
-            { name: 'alternateContact.name', label: 'Alternate contact' },
+            { name: 'alternateContact.name', label: 'Alternate contact', text: 'name' },
             { name: 'alternateContact.phone', label: 'Phone', type: 'phone' },
             { name: 'alternateContact.relation', label: 'Relation' },
           ] },
           { title: 'Doctor and hospital', icon: 'hospital', fields: [
-            { name: 'doctor.name', label: 'Family doctor' },
+            { name: 'doctor.name', label: 'Family doctor', text: 'name' },
             { name: 'doctor.phone', label: 'Doctor’s phone', type: 'phone' },
             { name: 'doctor.clinic', label: 'Clinic', wide: true },
             { name: 'hospital.name', label: 'Preferred hospital' },
@@ -1153,7 +1153,7 @@ export function CollectorPick({ visitId, value = {}, onChange }) {
         <>
           <Note tone="amber" icon="alertTri">Only with a parent&rsquo;s permission — say who gave it. The parents are told at once.</Note>
           <div className="md-form__grid">
-            <Field label="Name" required><input className="md-input" value={value.name || ''} onChange={(e) => set({ name: e.target.value })} maxLength={120} /></Field>
+            <Field label="Name" required><input data-text="name" className="md-input" value={value.name || ''} onChange={(e) => set({ name: e.target.value })} maxLength={120} /></Field>
             <Field label="Relation"><input className="md-input" value={value.relation || ''} onChange={(e) => set({ relation: e.target.value })} placeholder="e.g. Neighbour, driver" maxLength={60} /></Field>
             <Field label="Phone"><PhoneInput className="md-input" value={value.phone || ''} onChange={(e) => set({ phone: e.target.value })} /></Field>
             <Field label="Who allowed it" required><input className="md-input" value={value.note || ''} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. Mother, by phone at 11:40" maxLength={300} /></Field>

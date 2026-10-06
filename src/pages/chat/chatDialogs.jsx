@@ -313,7 +313,7 @@ function ClassGroupForm({ open, pick, onClose, onBack, onCreated, onOpenExisting
           <label className="ch-field">
             <span>Group name</span>
             {/* The roster arrives after the dialog opened; take focus when it does. */}
-            <input value={form.name} maxLength={80} autoFocus onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setErr(''); }} />
+            <input data-text="any" value={form.name} maxLength={80} autoFocus onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setErr(''); }} />
           </label>
           <label className="ch-field">
             <span>Description <em>(optional)</em></span>
@@ -421,7 +421,7 @@ function StaffGroupForm({ open, onClose, onBack, myRole, staffOnly, onCreated })
       </>}>
       <label className="ch-field">
         <span>Group name</span>
-        <input value={form.name} maxLength={80} onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setErr(''); }}
+        <input data-text="any" value={form.name} maxLength={80} onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setErr(''); }}
           placeholder="e.g. Grade 10 Teachers" />
       </label>
       <label className="ch-field">
@@ -537,7 +537,7 @@ export function EditGroupDialog({ open, onClose, chat, onSaved }) {
       </>}>
       <label className="ch-field">
         <span>Group name</span>
-        <input value={form.name} maxLength={80} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+        <input data-text="any" value={form.name} maxLength={80} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
       </label>
       <label className="ch-field">
         <span>Description <em>(optional)</em></span>

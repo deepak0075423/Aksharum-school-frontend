@@ -736,7 +736,7 @@ export function CrewAssignForm({ open, onClose, onSaved, role = 'driver' }) {
                 <Field label="Emergency Contact Name">
                   <span className="tr-ifield">
                     <Ico name="user" size={16} />
-                    <Input value={form.emergencyContactName}
+                    <Input data-text="name" value={form.emergencyContactName}
                            onChange={(e) => put('emergencyContactName', e.target.value)} placeholder="e.g. Ramesh Kumar" />
                   </span>
                 </Field>
@@ -951,12 +951,12 @@ export function StaffForm({ open, onClose, onSaved, row }) {
 
           {!linked ? (
             <>
-              <Field label="Full name" required><Input value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
+              <Field label="Full name" required><Input data-text="name" value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
               <Field label="Phone"><PhoneInput className="tr-input" value={form.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
               <Field label="Date of birth"><Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} /></Field>
               <Field label="Date of joining"><Input type="date" value={form.dateOfJoining} onChange={(e) => set('dateOfJoining', e.target.value)} /></Field>
               <Field label="Address" full><Textarea value={form.address} onChange={(e) => set('address', e.target.value)} /></Field>
-              <Field label="Emergency contact"><Input value={form.emergencyContact.name} onChange={(e) => sub('emergencyContact', 'name', e.target.value)} /></Field>
+              <Field label="Emergency contact"><Input data-text="name" value={form.emergencyContact.name} onChange={(e) => sub('emergencyContact', 'name', e.target.value)} /></Field>
               <Field label="Emergency phone"><PhoneInput className="tr-input" value={form.emergencyContact.phone} onChange={(e) => sub('emergencyContact', 'phone', e.target.value)} /></Field>
             </>
           ) : null}

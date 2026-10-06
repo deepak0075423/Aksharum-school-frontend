@@ -384,7 +384,7 @@ function AssetDrawer({ asset: r, onClose, steps, onEdit }) {
     if (!qr?.qrImage) return;
     const w = window.open('', '_blank', 'width=360,height=460');
     if (!w) { toast.error('Allow pop-ups to print the label'); return; }
-    w.document.write(`<title>${qr.code}</title><body style="font-family:sans-serif;text-align:center;padding:24px">
+    w.document.write(`<title>${String(qr.code).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</title><body style="font-family:sans-serif;text-align:center;padding:24px">
       <img src="${qr.qrImage}" width="220" height="220" style="image-rendering:pixelated"/><h3 style="margin:10px 0 2px">${String(qr.name).replace(/</g, '&lt;')}</h3>
       <div style="font:600 14px monospace">${String(qr.code).replace(/</g, '&lt;')}</div></body>`);
     w.document.close(); w.focus(); w.print();

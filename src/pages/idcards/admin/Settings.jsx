@@ -166,7 +166,7 @@ export default function Settings() {
 
           <Panel title="Signatory" sub="Who signs the cards" icon="pencil" tone="violet">
             <div className="ics-grid2">
-              <Field label="Name"><input className="ic-input" value={form.signatoryName} onChange={text('signatoryName')} placeholder="e.g. Dr. Meera Kulkarni" maxLength={80} /></Field>
+              <Field label="Name"><input data-text="name" className="ic-input" value={form.signatoryName} onChange={text('signatoryName')} placeholder="e.g. Dr. Meera Kulkarni" maxLength={80} /></Field>
               <Field label="Title printed under the signature"><input className="ic-input" value={form.signatoryTitle} onChange={text('signatoryTitle')} placeholder="Principal" maxLength={60} /></Field>
             </div>
             <ImageSlot label="Signature" hint="A scan on a white or clear background (PNG works best). Without one, a line is printed to sign on." path={s.signature}

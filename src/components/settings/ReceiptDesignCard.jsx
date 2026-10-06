@@ -215,7 +215,7 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
 
               <div className="form-group">
                 <label className="form-label">Signatory</label>
-                <input className="form-control" value={form.signatoryName || ''} onChange={set('signatoryName')}
+                <input data-text="name" className="form-control" value={form.signatoryName || ''} onChange={set('signatoryName')}
                   placeholder="e.g. Accounts Officer" />
               </div>
 

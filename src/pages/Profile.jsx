@@ -382,7 +382,7 @@ export default function Profile() {
         </>}>
         <div className="form-group">
           <label className="form-label required">Full Name</label>
-          <input className="form-control" value={form.name}
+          <input data-text="name" className="form-control" value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </div>
         <div className="form-group">
@@ -473,12 +473,12 @@ export default function Profile() {
             <div className="form-row form-row-3">
               <div className="form-group">
                 <label className="form-label">{fatherOrHusbandLabel(empForm.gender)}</label>
-                <input className="form-control" value={empForm.fatherOrHusbandName || ''}
+                <input data-text="name" className="form-control" value={empForm.fatherOrHusbandName || ''}
                   onChange={setEmpField('fatherOrHusbandName')} />
               </div>
               <div className="form-group">
                 <label className="form-label">Emergency Contact Name</label>
-                <input className="form-control" value={empForm.emergencyContactName || ''}
+                <input data-text="name" className="form-control" value={empForm.emergencyContactName || ''}
                   onChange={setEmpField('emergencyContactName')} />
               </div>
               <div className="form-group">

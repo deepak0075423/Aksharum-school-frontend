@@ -96,7 +96,7 @@ function OutbreakDialog({ id, onClose, onChanged }) {
         <>
           <Field label="To the families of"><Segmented value={v.audience} onChange={draft} label="Audience" options={audiences} /></Field>
           <Field label="The notice" required hint="Say what to watch for and what to do. Do not name or describe any child — the school refuses a notice with a child's name in it."><textarea className="md-textarea" rows={6} value={v.text} onChange={(e) => setV({ ...v, text: e.target.value })} maxLength={1500} /></Field>
-          <Field label="In Hindi (optional)" optional hint="Families who read Hindi get this instead — or both, if the school sends both."><textarea className="md-textarea" rows={4} value={v.textHi} onChange={(e) => setV({ ...v, textHi: e.target.value })} maxLength={1500} placeholder="हिन्दी में सूचना" /></Field>
+          <Field label="In Hindi (optional)" optional hint="Families who read Hindi get this instead — or both, if the school sends both."><textarea data-text="any" className="md-textarea" rows={4} value={v.textHi} onChange={(e) => setV({ ...v, textHi: e.target.value })} maxLength={1500} placeholder="हिन्दी में सूचना" /></Field>
           <Note tone="indigo" icon="info">The class teachers of the sections it reaches get it too.</Note>
         </>
       ) : null}
