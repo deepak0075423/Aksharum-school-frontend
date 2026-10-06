@@ -28,7 +28,7 @@ import { fmtMoney } from './viz';
 import { Crumbs, Identity, TabStrip, Tile, Tiles } from './studentDetailParts';
 import {
   AlertsTab, AptitudeTab, AssignmentsTab, AttendanceTab, FeesTab, GeneralTab,
-  InventoryTab, LibraryTab, ResultsTab, TimetableTab, TransportTab, VideosTab,
+  InventoryTab, LibraryTab, MedicalTab, ResultsTab, TimetableTab, TransportTab, VideosTab,
 } from './studentTabs';
 
 // key → label, icon, and the module flag that has to be on for it to exist.
@@ -45,6 +45,8 @@ const TABS = [
   { key: 'timetable',   label: 'Timetable',   icon: 'calendarDays', module: 'timetable' },
   { key: 'inventory',   label: 'Inventory',   icon: 'package',     module: 'inventory' },
   { key: 'alerts',      label: 'Alerts',      icon: 'bell',        module: 'notification' },
+  // Built by the server for medical staff only — a teacher never gets the block, so never the tab.
+  { key: 'medical',     label: 'Medical Room', icon: 'medical',    module: 'medical', needs: 'medical' },
 ];
 
 export default function StudentDetail() {
@@ -59,8 +61,8 @@ export default function StudentDetail() {
 
   const modules = data?.modules || {};
   const tabs = useMemo(
-    () => TABS.filter((t) => !t.module || modules[t.module]),
-    [modules],
+    () => TABS.filter((t) => (!t.module || modules[t.module]) && (!t.needs || data?.[t.needs])),
+    [modules, data],
   );
 
   const wanted = params.get('tab') || 'general';
@@ -172,6 +174,7 @@ export default function StudentDetail() {
         {tab === 'timetable'   && <TimetableTab t={data.timetable} />}
         {tab === 'inventory'   && <InventoryTab i={data.inventory} />}
         {tab === 'alerts'      && <AlertsTab n={data.notifications} />}
+        {tab === 'medical'     && <MedicalTab m={data.medical} />}
       </div>
 
       {/* Printing should give the student, not the application around them. */}

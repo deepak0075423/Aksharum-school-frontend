@@ -20,10 +20,12 @@ import { Button, Empty, Spinner, Pagination, PageSize } from '../../components/u
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { DrawerHead as UiDrawerHead, DrawerSection as UiDrawerSection } from '../../components/ui/Drawer';
+import { withFileToken } from '../../utils/fileAccess';
 
 // Uploads are served from the backend root while VITE_API_URL points at /api.
 const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
-export const fileUrl = (path) => (!path ? '' : /^https?:/.test(path) ? path : `${uploadBase}${path}`);
+// Private folders get the reader's file token on the address (utils/fileAccess).
+export const fileUrl = (path) => withFileToken(!path ? '' : /^https?:/.test(path) ? path : `${uploadBase}${path}`);
 
 // ── Small formatters ─────────────────────────────────────────────────────────
 

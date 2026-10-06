@@ -78,6 +78,11 @@ const MODULE_HEADERS = {
   'admin/hostel': 'Hostel',
   // ID Cards is eight tabs of one module — the bar names the module above each.
   'admin/id-cards': 'ID Cards',
+  // The Medical Room is seventeen tabs of one module; the bar names the module.
+  'admin/medical': 'Medical Room',
+  'teacher/medical': 'Medical Room',
+  'student/medical': 'My Health',
+  'parent/medical': 'Medical Information',
 };
 
 /** The header title for a pathname. Falls back to the app name at the root. */

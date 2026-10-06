@@ -42,6 +42,60 @@ const IcTemplates    = lazy(() => import('./pages/idcards/admin/Templates'));
 const IcVerification = lazy(() => import('./pages/idcards/admin/Verification'));
 const IcSettings     = lazy(() => import('./pages/idcards/admin/Settings'));
 
+// ── Medical Room ──────────────────────────────────────────────────────────────
+const MdShell        = lazy(() => import('./pages/medical/admin/MedicalShell'));
+const MdKiosk        = lazy(() => import('./pages/medical/Kiosk'));
+const MdDashboard    = lazy(() => import('./pages/medical/admin/Dashboard'));
+const MdRequests     = lazy(() => import('./pages/medical/admin/Requests'));
+const MdVisits       = lazy(() => import('./pages/medical/admin/Visits'));
+const MdIncidents    = lazy(() => import('./pages/medical/admin/Incidents'));
+const MdHealth       = lazy(() => import('./pages/medical/admin/Health'));
+const MdMedicines    = lazy(() => import('./pages/medical/admin/Health').then((m) => ({ default: m.MedicinesGroup })));
+const MdProfiles     = lazy(() => import('./pages/medical/admin/Profiles'));
+const MdAllergies    = lazy(() => import('./pages/medical/admin/Allergies'));
+const MdConditions   = lazy(() => import('./pages/medical/admin/Conditions'));
+const MdCarePlans    = lazy(() => import('./pages/medical/admin/CarePlans'));
+const MdRescueMeds   = lazy(() => import('./pages/medical/admin/RescueMeds'));
+const MdRestrictions = lazy(() => import('./pages/medical/admin/Restrictions'));
+const MdReturn       = lazy(() => import('./pages/medical/admin/ReturnToSchool'));
+const MdStaffHealth  = lazy(() => import('./pages/medical/admin/StaffHealth'));
+const MdConsents     = lazy(() => import('./pages/medical/admin/Consents'));
+const MdPlaces       = lazy(() => import('./pages/medical/admin/Places'));
+const MdReorder      = lazy(() => import('./pages/medical/admin/Reorder'));
+const MdDisposal     = lazy(() => import('./pages/medical/admin/DisposalFridge'));
+const MdSafeguarding = lazy(() => import('./pages/medical/admin/SafeguardingPage'));
+const MdPrivacy      = lazy(() => import('./pages/medical/admin/Privacy'));
+const MdHistory      = lazy(() => import('./pages/medical/admin/History'));
+const MdEmergency    = lazy(() => import('./pages/medical/admin/Emergency'));
+const MdUpdates      = lazy(() => import('./pages/medical/admin/Updates'));
+const MdStudent      = lazy(() => import('./pages/medical/admin/Student'));
+const MdMedInventory = lazy(() => import('./pages/medical/admin/MedicineInventory'));
+const MdAdminister   = lazy(() => import('./pages/medical/admin/Administration'));
+const MdMedHistory   = lazy(() => import('./pages/medical/admin/MedicationHistory'));
+const MdFirstAid     = lazy(() => import('./pages/medical/admin/FirstAid'));
+const MdVaccinations = lazy(() => import('./pages/medical/admin/Vaccinations'));
+const MdVaccGroup    = lazy(() => import('./pages/medical/admin/Health').then((m) => ({ default: m.VaccinationsGroup })));
+const MdCoverage     = lazy(() => import('./pages/medical/admin/VaccineCoverage'));
+const MdCheckupGroup = lazy(() => import('./pages/medical/admin/Health').then((m) => ({ default: m.CheckupsGroup })));
+const MdGrowth       = lazy(() => import('./pages/medical/admin/Growth'));
+const MdReferrals    = lazy(() => import('./pages/medical/admin/Referrals'));
+const MdProgrammes   = lazy(() => import('./pages/medical/admin/Health').then((m) => ({ default: m.ProgrammesGroup })));
+const MdCampaigns    = lazy(() => import('./pages/medical/admin/Campaigns'));
+const MdCampaign     = lazy(() => import('./pages/medical/admin/CampaignDetail'));
+const MdOutbreaks    = lazy(() => import('./pages/medical/admin/Outbreaks'));
+const MdIllness      = lazy(() => import('./pages/medical/admin/IllnessReports'));
+const MdCheckups     = lazy(() => import('./pages/medical/admin/Checkups'));
+const MdDocuments    = lazy(() => import('./pages/medical/admin/Documents'));
+const MdRoom         = lazy(() => import('./pages/medical/admin/Room'));
+const MdInventory    = lazy(() => import('./pages/medical/admin/Inventory'));
+const MdEquipment    = lazy(() => import('./pages/medical/admin/Equipment'));
+const MdAlerts       = lazy(() => import('./pages/medical/admin/Alerts'));
+const MdReports      = lazy(() => import('./pages/medical/admin/Reports'));
+const MdSettings     = lazy(() => import('./pages/medical/admin/Settings'));
+const MdActivity     = lazy(() => import('./pages/medical/admin/Activity'));
+const MdTeacher      = lazy(() => import('./pages/medical/teacher/TeacherMedical'));
+const MdFamily       = lazy(() => import('./pages/medical/family/FamilyMedical'));
+
 // ── Super Admin ───────────────────────────────────────────────────────────────
 const SADashboard      = lazy(() => import('./pages/super-admin/Dashboard'));
 const SASchools        = lazy(() => import('./pages/super-admin/Schools'));
@@ -538,6 +592,67 @@ export default function App() {
               <Route path="verification" element={<IcVerification />} />
               <Route path="settings"     element={<IcSettings />} />
             </Route>
+            {/* Medical Room */}
+            <Route path="medical" element={<MdShell />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard"     element={<MdDashboard />} />
+              <Route path="requests"      element={<MdRequests />} />
+              <Route path="visits"        element={<MdVisits />} />
+              <Route path="incidents"     element={<MdIncidents />} />
+              <Route path="health" element={<MdHealth />}>
+                <Route index element={<Navigate to="profiles" replace />} />
+                <Route path="profiles"    element={<MdProfiles />} />
+                <Route path="allergies"   element={<MdAllergies />} />
+                <Route path="conditions"  element={<MdConditions />} />
+                <Route path="care-plans"  element={<MdCarePlans />} />
+                <Route path="rescue-medicines" element={<MdRescueMeds />} />
+                <Route path="restrictions" element={<MdRestrictions />} />
+                <Route path="return-to-school" element={<MdReturn />} />
+                <Route path="consents" element={<MdConsents />} />
+                <Route path="history"     element={<MdHistory />} />
+                <Route path="emergency"   element={<MdEmergency />} />
+                <Route path="updates"     element={<MdUpdates />} />
+              </Route>
+              <Route path="students/:id"  element={<MdStudent />} />
+              <Route path="medicines" element={<MdMedicines />}>
+                <Route index element={<Navigate to="inventory" replace />} />
+                <Route path="inventory"      element={<MdMedInventory />} />
+                <Route path="administration" element={<MdAdminister />} />
+                <Route path="places"         element={<MdPlaces />} />
+                <Route path="reorder"        element={<MdReorder />} />
+                <Route path="disposal"       element={<MdDisposal />} />
+                <Route path="history"        element={<MdMedHistory />} />
+              </Route>
+              <Route path="first-aid"     element={<MdFirstAid />} />
+              <Route path="vaccinations" element={<MdVaccGroup />}>
+                <Route index                element={<MdVaccinations />} />
+                <Route path="coverage"      element={<MdCoverage />} />
+              </Route>
+              <Route path="checkups" element={<MdCheckupGroup />}>
+                <Route index                element={<MdCheckups />} />
+                <Route path="growth"        element={<MdGrowth />} />
+                <Route path="referrals"     element={<MdReferrals />} />
+              </Route>
+              <Route path="programmes" element={<MdProgrammes />}>
+                <Route index element={<Navigate to="campaigns" replace />} />
+                <Route path="campaigns"     element={<MdCampaigns />} />
+                <Route path="campaigns/:id" element={<MdCampaign />} />
+                <Route path="outbreaks"     element={<MdOutbreaks />} />
+                <Route path="off-sick"      element={<MdIllness />} />
+              </Route>
+              <Route path="documents"     element={<MdDocuments />} />
+              <Route path="room"          element={<MdRoom />} />
+              <Route path="staff-health"  element={<MdStaffHealth />} />
+              <Route path="safeguarding"  element={<MdSafeguarding />} />
+              <Route path="privacy"       element={<MdPrivacy />} />
+              <Route path="access-review" element={<Navigate to="/admin/medical/privacy" replace />} />
+              <Route path="inventory"     element={<MdInventory />} />
+              <Route path="equipment"     element={<MdEquipment />} />
+              <Route path="alerts"        element={<MdAlerts />} />
+              <Route path="reports"       element={<MdReports />} />
+              <Route path="settings"      element={<MdSettings />} />
+              <Route path="activity"      element={<MdActivity />} />
+            </Route>
             {/* Hostel */}
             <Route path="hostel" element={<HostelNav />}>
               <Route index element={<Navigate to="dashboard" replace />} />
@@ -608,6 +723,7 @@ export default function App() {
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"    element={<TDashboard />} />
             <Route path="id-card"      element={<MyIdCard role="teacher" />} />
+            <Route path="medical"      element={<MdTeacher />} />
             {/* Class teachers and vice class teachers only — a subject teacher
                 typing the URL is sent back to the dashboard. */}
             <Route path="my-section"   element={<MySectionGuard><TMySection /></MySectionGuard>} />
@@ -701,6 +817,7 @@ export default function App() {
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"        element={<SDashboard />} />
             <Route path="id-card"          element={<MyIdCard role="student" />} />
+            <Route path="medical"          element={<MdFamily role="student" />} />
             <Route path="my-class"         element={<SMyClass />} />
             <Route path="attendance"       element={<SAttendance />} />
             <Route path="timetable"        element={<STimetable />} />
@@ -736,6 +853,7 @@ export default function App() {
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"        element={<PDashboard />} />
             <Route path="id-cards"         element={<FamilyIdCards />} />
+            <Route path="medical"          element={<MdFamily role="parent" />} />
             <Route path="child-class"      element={<PChildClass />} />
             <Route path="timetable"        element={<PTimetable />} />
             <Route path="child-attendance" element={<PAttendance />} />
@@ -775,6 +893,10 @@ export default function App() {
             <Route path="all-chats" element={<ChatOversight />} />
             <Route path="*" element={<NotFoundRoute />} />
           </Route>
+
+          {/* The Medical Room's walk-in kiosk: a tablet at the door, signed in as the room —
+              full screen, no layout. The page itself checks the caller is medical staff. */}
+          <Route path="/medical-kiosk" element={<Protected roles={['school_admin', 'teacher']}><MdKiosk /></Protected>} />
 
           {/* Profile (all roles) */}
           <Route path="/profile" element={

@@ -20,7 +20,7 @@ import {
   FEES_ADMIN_TABS, PAYROLL_ADMIN_TABS, PAYROLL_TEACHER_TABS, LIBRARY_ADMIN_TABS, LIBRARY_MANAGE_TABS,
   LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, INVENTORY_ADMIN_TABS, TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
   HOSTEL_ADMIN_TABS, VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS, FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS,
-  FEEDBACK_PRINCIPAL_TABS, TIMETABLE_ADMIN_TABS, DIRECTORY_TABS, IDCARD_ADMIN_TABS,
+  FEEDBACK_PRINCIPAL_TABS, TIMETABLE_ADMIN_TABS, DIRECTORY_TABS, IDCARD_ADMIN_TABS, MEDICAL_ADMIN_TABS,
 } from './ModuleNav';
 
 /**
@@ -85,6 +85,8 @@ export const ADMIN_NAV = [
     children: sub(HOSTEL_ADMIN_TABS) },
   { to: '/admin/id-cards/dashboard', match: '/admin/id-cards', icon: 'idCard', label: 'ID Cards',    module: 'idCard',
     children: sub(IDCARD_ADMIN_TABS) },
+  { to: '/admin/medical/dashboard', match: '/admin/medical', icon: 'medical', label: 'Medical Room', module: 'medical',
+    children: sub(MEDICAL_ADMIN_TABS) },
   { to: '/admin/videos/browse', match: '/admin/videos',     icon: 'video', label: 'Video Learning', module: 'videoLibrary',
     children: sub(VIDEO_ADMIN_TABS) },
   { to: '/admin/feedback/overview', match: '/admin/feedback', icon: 'star', label: 'Teacher Feedback', module: 'feedback',
@@ -122,6 +124,7 @@ export const TEACHER_NAV = [
   { to: '/teacher/exam-schedule',   icon: 'calendarDays', label: 'Exam Schedule', module: 'result' },
   { section: 'Modules' },
   { to: '/teacher/leave',           icon: 'umbrella', label: 'My Leave',      module: 'leave' },
+  { to: '/teacher/medical',         icon: 'medical', label: 'Medical Room',  module: 'medical' },
   { to: '/teacher/documents',       icon: 'files', label: 'Documents',     module: 'document' },
   // A teacher sees Transport when they ride the bus themselves or crew one.
   { to: '/teacher/transport',       icon: 'bus', label: 'Transport',     module: 'transport', requires: 'transportEnrolled' },
@@ -159,6 +162,7 @@ export const STUDENT_NAV = [
   { to: '/student/results',         icon: 'chart', label: 'Results',       module: 'result' },
   { to: '/student/exam-schedule',   icon: 'calendarDays', label: 'Exam Schedule', module: 'result' },
   { section: 'Resources' },
+  { to: '/student/medical',         icon: 'medical', label: 'My Health',     module: 'medical' },
   { to: '/student/documents',       icon: 'files', label: 'Documents',     module: 'document' },
   { to: '/student/holidays',        icon: 'party', label: 'Holidays',      module: 'holiday' },
   { to: '/student/fees',            icon: 'wallet', label: 'Fees',          module: 'fees' },
@@ -184,6 +188,7 @@ export const PARENT_NAV = [
   { to: '/parent/child-class',      icon: 'building', label: 'Class Info' },
   { to: '/parent/timetable',        icon: 'clock', label: 'Timetable',     module: 'timetable' },
   { to: '/parent/child-attendance', icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },
+  { to: '/parent/medical',          icon: 'medical', label: 'Medical Information', module: 'medical' },
   { to: '/parent/exams',            icon: 'fileCheck', label: 'Exams',         module: 'aptitudeExam' },
   { to: '/parent/results',          icon: 'chart', label: 'Results',       module: 'result' },
   { to: '/parent/exam-schedule',    icon: 'calendarDays', label: 'Exam Schedule', module: 'result' },
@@ -244,6 +249,7 @@ const UNDER = [
   ['/admin/results/',               '/admin/results'],
   ['/admin/leave/',                 '/admin/leave'],
   ['/admin/notifications/',         '/admin/notifications'],
+  ['/admin/medical/students/',      '/admin/medical'],
   ['/teacher/student-analytics/',   '/teacher/student-analytics'],
   ['/teacher/exams/',               '/teacher/exams'],
   ['/teacher/documents/',           '/teacher/documents'],
@@ -317,6 +323,12 @@ export function trailFor(pathname, role) {
   let entry = nav.find(e => e.to && !e.section && inside(e, target));
   // A page under another page: find the row by its path, prefix match included.
   if (!entry) entry = nav.find(e => e.to === target || (e.match && target.startsWith(e.match)));
+  // A teacher who administers a module (a nurse, a storekeeper) works on that
+  // module's /admin screens, which only the administrator's rail lists — so
+  // that row names the steps, not the URL's words ("Medical › Health").
+  if (!entry && role === 'teacher' && target.startsWith('/admin/')) {
+    entry = ADMIN_NAV.find(e => e.module && e.to && !e.section && inside(e, target));
+  }
   // Nothing in the rail owns this page — a screen reached only from another
   // screen, or one whose row this person cannot see. The URL still describes
   // where they are, so the trail is read off that rather than stopping dead:

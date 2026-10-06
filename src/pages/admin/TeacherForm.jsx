@@ -5,6 +5,7 @@ import { Button, Modal } from '../../components/ui/index';
 import AddressFields from '../../components/ui/AddressFields';
 import ExistingDoc from '../../components/ExistingDoc';
 import { isPincode } from '../../utils/indiaStates';
+import { withFileToken } from '../../utils/fileAccess';
 
 // Kept in step with validateTeacherIntake() in school-backend/controllers/admin.controller.js
 const EMAIL_RE    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,7 +16,7 @@ const IFSC_RE     = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
 
 // Uploads are served from the backend ROOT, while VITE_API_URL points at /api
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
-const docUrl   = (file) => (file ? `${API_BASE}/uploads/staff-docs/${file}` : '');
+const docUrl   = (file) => (file ? withFileToken(`${API_BASE}/uploads/staff-docs/${file}`) : '');
 
 const BLOOD_GROUPS  = ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'];
 const QUALIFICATIONS = ['B.A.', 'B.Sc.', 'B.Com.', 'M.A.', 'M.Sc.', 'M.Com.', 'B.Tech.', 'M.Tech.', 'Ph.D.', 'Other'];

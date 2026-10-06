@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
 import { Empty } from '../../components/ui/index';
+import { withFileToken } from '../../utils/fileAccess';
 
 // Shared pieces of the Employee Directory. Everything here is built from the
 // existing design system — no new UI framework, no new colour scale.
@@ -26,7 +27,8 @@ export const STATUS_LABEL = { active: 'Active', on_leave: 'On Leave', inactive: 
 export const VERIFY_TONE = { verified: 'success', pending: 'warning', rejected: 'danger' };
 
 export const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
-export const fileUrl = (path) => (!path ? '' : /^https?:/.test(path) ? path : `${uploadBase}${path}`);
+// Private folders get the reader's file token on the address (utils/fileAccess).
+export const fileUrl = (path) => withFileToken(!path ? '' : /^https?:/.test(path) ? path : `${uploadBase}${path}`);
 
 /** Initials avatar, falling back to the account photo when there is one. */
 export function Avatar({ name, src, size = 40 }) {

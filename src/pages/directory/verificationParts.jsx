@@ -29,6 +29,7 @@ import Icon from '../../components/ui/icons';
 import { Badge, Button, Spinner } from '../../components/ui/index';
 import { Avatar, VERIFY_TONE, fileUrl } from './parts';
 import { VIZ } from '../analytics/palette';
+import { withFileToken } from '../../utils/fileAccess';
 
 /**
  * Where an employee stands.
@@ -344,8 +345,8 @@ export function Lightbox({ doc, onClose }) {
       {/* Stops a click on the document itself from closing what it opened. */}
       <div className="verlight__stage" onClick={(e) => e.stopPropagation()}>
         {doc.image
-          ? <img src={doc.url} alt={doc.label} />
-          : <iframe src={doc.url} title={doc.label} />}
+          ? <img src={withFileToken(doc.url)} alt={doc.label} />
+          : <iframe src={withFileToken(doc.url)} title={doc.label} />}
       </div>
     </div>,
     document.body,

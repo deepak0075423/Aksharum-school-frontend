@@ -9,8 +9,15 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // The Medical Room's "confirm it is you" token, for its staff pages (pages/medical/stepUp.jsx).
+  if (String(config.url || '').startsWith('/medical/')) {
+    try { const up = sessionStorage.getItem('medicalStepUp'); if (up) config.headers['X-Medical-Step-Up'] = up; } catch { /* storage off */ }
+  }
   return config;
 });
+
+// One "confirm it is you" at a time, however many requests were turned away.
+let stepUpWait = null;
 
 api.interceptors.response.use(
   (res) => res.data,
@@ -39,6 +46,18 @@ api.interceptors.response.use(
           localStorage.clear();
           window.location.href = '/login';
         }
+      }
+    }
+
+    // The Medical Room asks its staff to confirm who they are (an emailed code): ask once, then send again.
+    if (status === 403 && err.response?.data?.code === 'MEDICAL_STEP_UP' && !err.config?._stepUp && window.__medicalStepUpHost) {
+      stepUpWait = stepUpWait || new Promise((resolve) => window.dispatchEvent(new CustomEvent('medical:stepup', { detail: { resolve } })));
+      const ok = await stepUpWait;
+      stepUpWait = null;
+      if (ok) {
+        err.config._stepUp = true;
+        try { err.config.headers['X-Medical-Step-Up'] = sessionStorage.getItem('medicalStepUp'); } catch { /* storage off */ }
+        return api(err.config);
       }
     }
 

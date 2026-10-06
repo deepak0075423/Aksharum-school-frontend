@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
 import { notificationIconUrl } from '../../utils/branding';
 import { notificationPath, hasTarget } from '../../utils/notificationLink';
+import { enableWebPush, isWebPushOn } from '../../utils/webPush';
 import AccountSwitcher from '../AccountSwitcher';
 import Icon from '../ui/icons';
 import GlobalSearch from './GlobalSearch';
@@ -33,17 +34,19 @@ function playNotifSound() {
 // `onOpen` fires when the OS notification itself is clicked — the tab is
 // focused first, since the browser leaves it in the background otherwise and
 // the navigation would happen somewhere nobody is looking.
-function requestBrowserPush(title, body, school, onOpen) {
+function requestBrowserPush(title, body, school, onOpen, { urgent = false } = {}) {
   if (!('Notification' in window)) return;
   const icon = notificationIconUrl(school);   // the school's own logo when it has one
   const show = () => {
-    const n = new Notification(title, { body, icon });
+    // Urgent news (a child sent home, an emergency) stays on screen until it is dismissed.
+    const n = new Notification(title, { body, icon, requireInteraction: urgent });
     n.onclick = () => { window.focus(); n.close(); onOpen?.(); };
   };
   if (Notification.permission === 'granted') {
     show();
   } else if (Notification.permission === 'default') {
-    Notification.requestPermission().then(p => { if (p === 'granted') show(); });
+    // Allowed now: this one is shown, and Web Push takes over from here (the tab may close).
+    Notification.requestPermission().then(p => { if (p === 'granted') { show(); enableWebPush(); } });
   }
 }
 
@@ -78,6 +81,8 @@ export default function Header({ onMenuClick, onCollapseClick }) {
     if (!user) return;
     const token = localStorage.getItem('token');
     if (!token) return;
+    // This browser also shows them as desktop notifications with no tab open (Web Push), once allowed.
+    enableWebPush();
     const sock = connectSocket(token);
 
     sock.on('notification:unread_count', ({ count }) => {
@@ -92,9 +97,15 @@ export default function Header({ onMenuClick, onCollapseClick }) {
       playNotifSound();
       const path = notificationPath(n);
       const open = () => { if (path) navigate(path); };
-      requestBrowserPush(n?.title || 'New Notification', n?.body || '', user?.school, open);
+      // The sender marked it urgent (a child sent home, an emergency): red, and it stays up longer.
+      const urgent = !!n?.urgent;
+      // With Web Push on, the service worker shows the desktop notification (once for all open tabs).
+      if (!isWebPushOn()) requestBrowserPush(n?.title || 'New Notification', n?.body || '', user?.school, open, { urgent });
       toast(t => (
         <div style={{ cursor: 'pointer' }} onClick={() => { toast.dismiss(t.id); open(); }}>
+          {urgent && (
+            <span style={{ display: 'block', fontSize: '.66rem', fontWeight: 800, letterSpacing: '.06em', color: '#b91c1c' }}>URGENT</span>
+          )}
           <strong style={{ display: 'block', fontSize: '.88rem' }}>{n?.title}</strong>
           {n?.body && (
             <span style={{ fontSize: '.8rem', color: '#64748b', display: 'block',
@@ -106,7 +117,9 @@ export default function Header({ onMenuClick, onCollapseClick }) {
             <span style={{ fontSize: '.75rem', color: 'var(--primary)', fontWeight: 600 }}>Tap to open →</span>
           )}
         </div>
-      ), { icon: '🔔', duration: 5000 });
+      ), urgent
+        ? { icon: '🚨', duration: 30000, style: { border: '1px solid #fca5a5', borderLeft: '4px solid #dc2626', background: '#fef2f2' } }
+        : { icon: '🔔', duration: 5000 });
       // Show it instantly in the bell dropdown list. The receipt id comes from
       // the payload so this row can be marked read and followed like any other.
       setNotifs(prev => [{

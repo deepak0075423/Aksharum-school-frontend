@@ -23,6 +23,7 @@ const MODULES = [
   { key: 'notification', label: 'Notifications',  icon: '🔔' },
   { key: 'employeeDirectory', label: 'Employee Directory', icon: '🗂️' },
   { key: 'idCard',       label: 'ID Cards',       icon: '🪪' },
+  { key: 'medical',      label: 'Medical Room',   icon: '🩺' },
   { key: 'chat',         label: 'Chat',           icon: '💬' },
 ];
 

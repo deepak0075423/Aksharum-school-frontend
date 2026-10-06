@@ -150,6 +150,8 @@ const PATHS = {
   check:       <path d="m5.5 12.5 4.2 4.2L18.5 8" />,
   phone:       <path d="M7.6 3.8 9.4 8 7.5 9.9a12.6 12.6 0 0 0 6.6 6.6L16 14.6l4.2 1.8v3.1a1.5 1.5 0 0 1-1.7 1.5C9.9 20.1 3.9 14.1 3 5.5a1.5 1.5 0 0 1 1.5-1.7z" />,
   idCard:      <><rect x="2.5" y="5" width="19" height="14" rx="2.4" /><circle cx="8.4" cy="11.2" r="2.3" /><path d="M4.9 16.4a3.9 3.9 0 0 1 7 0" /><path d="M14.5 10h4.6M14.5 13.6h3.2" /></>,
+  // The Medical Room: a stethoscope.
+  medical:     <><path d="M6 3.5H4.5v5a4.5 4.5 0 0 0 9 0v-5H12" /><path d="M9 13v2.5a5 5 0 0 0 10 0V13" /><circle cx="19" cy="10.8" r="2.2" /></>,
 
   // Messaging
   send:        <><path d="M21 3 10.2 13.8" /><path d="M21 3l-6.6 18-4.2-7.2L3 9.6z" /></>,

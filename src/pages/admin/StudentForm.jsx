@@ -5,6 +5,9 @@ import { Button, Modal, Spinner } from '../../components/ui/index';
 import ExistingDoc from '../../components/ExistingDoc';
 import AddressFields from '../../components/ui/AddressFields';
 import { isPincode } from '../../utils/indiaStates';
+import { withFileToken } from '../../utils/fileAccess';
+import { useModules } from '../../contexts/ModulesContext';
+import { ALLERGY_CATEGORY, ALLERGY_SEVERITY, CONDITION_TYPE, CONDITION_SEVERITY } from '../medical/mdMeta';
 
 // Kept in step with validateStudentProfile() / resolveNewParent() in
 // school-backend/controllers/admin.controller.js
@@ -21,9 +24,25 @@ const MEDIUMS      = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Bengali', 'Tam
 
 // Uploads are served from the backend ROOT, while VITE_API_URL points at /api
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
-const docUrl   = (file) => (file ? `${API_BASE}/uploads/student-docs/${file}` : '');
+const docUrl   = (file) => (file ? withFileToken(`${API_BASE}/uploads/student-docs/${file}`) : '');
 
 const STEPS = ['Basic', 'Personal', 'Address', 'Documents', 'Previous School', 'Enrolment', 'Parents'];
+
+// 8 — Health (adding a student, when the school uses the Medical Room): what the
+// family wrote on the admission form, written into the Medical Room's record
+// (school-backend services/medicalIntake). After admission it is kept there.
+const EMPTY_HEALTH = { allergies: [], conditions: [], medicines: '', doctorName: '', doctorPhone: '', dietary: '', notes: '' };
+const healthBody = (h) => ({
+  allergies: h.allergies.filter((a) => a.allergen.trim()),
+  // A condition left unnamed takes its type's name ("Asthma").
+  conditions: h.conditions.map((c) => ({ ...c, condition: c.condition.trim() || (c.type !== 'other' ? CONDITION_TYPE[c.type] : '') })).filter((c) => c.condition),
+  medicines: h.medicines, doctor: { name: h.doctorName, phone: h.doctorPhone }, dietary: h.dietary, notes: h.notes,
+});
+const healthFilled = (h) => {
+  const b = healthBody(h);
+  return !!(b.allergies.length || b.conditions.length || b.medicines.trim() || b.doctor.name.trim() || b.doctor.phone.trim() || b.dietary.trim() || b.notes.trim());
+};
+const opts = (map) => Object.entries(map).map(([value, v]) => ({ value, label: typeof v === 'string' ? v : v.label }));
 
 const EMPTY_PARENT_BLOCK = {
   name: '', email: '', phone: '', occupation: '', organization: '', designation: '',
@@ -77,10 +96,10 @@ const Hint = ({ children }) => (
   <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>{children}</p>
 );
 
-function Stepper({ step }) {
+function Stepper({ step, steps = STEPS }) {
   return (
     <div className="stepper">
-      {STEPS.map((label, i) => {
+      {steps.map((label, i) => {
         const n = i + 1, done = step > n, active = step === n;
         return (
           <React.Fragment key={label}>
@@ -94,12 +113,72 @@ function Stepper({ step }) {
                 color: active ? 'var(--text)' : 'var(--text-muted)',
               }}>{label}</span>
             </div>
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <div className="stepper__bar" style={{ background: step > n ? 'var(--success)' : 'var(--border)' }} />
             )}
           </React.Fragment>
         );
       })}
+    </div>
+  );
+}
+
+/** Step 8: the family's health details, as they wrote them on the admission form. */
+function HealthPanel({ value, onChange, errs }) {
+  const set = (k, v) => onChange({ ...value, [k]: v });
+  const setRow = (list, i, patch) => set(list, value[list].map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const drop = (list, i) => set(list, value[list].filter((_, j) => j !== i));
+  return (
+    <div>
+      <Hint>Optional — anything the school nurse should know from the first day. It goes into the Medical Room&rsquo;s record, where the nurse checks it with the family; after admission it is kept there.</Hint>
+      <div className="form-group" style={{ marginTop: 12 }}>
+        <label className="form-label">Allergies</label>
+        {value.allergies.map((a, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr auto', gap: 8, marginBottom: 8 }}>
+            <input className="form-control" placeholder="e.g. Peanuts" value={a.allergen} onChange={(e) => setRow('allergies', i, { allergen: e.target.value })} maxLength={120} aria-label="Allergic to" />
+            <select className="form-control" value={a.category} onChange={(e) => setRow('allergies', i, { category: e.target.value })} aria-label="Kind">{opts(ALLERGY_CATEGORY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+            <select className="form-control" value={a.severity} onChange={(e) => setRow('allergies', i, { severity: e.target.value })} aria-label="How severe">{opts(ALLERGY_SEVERITY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+            <Button variant="secondary" onClick={() => drop('allergies', i)} aria-label="Remove this allergy">✕</Button>
+            <input className="form-control" style={{ gridColumn: '1 / -1' }} placeholder="What happens (reaction) — optional" value={a.reaction} onChange={(e) => setRow('allergies', i, { reaction: e.target.value })} maxLength={400} aria-label="Reaction" />
+          </div>
+        ))}
+        <Button variant="secondary" onClick={() => set('allergies', [...value.allergies, { allergen: '', category: 'food', severity: 'moderate', reaction: '' }])}>+ Add an allergy</Button>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Medical conditions</label>
+        {value.conditions.map((c, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr auto', gap: 8, marginBottom: 8 }}>
+            <input className="form-control" placeholder="e.g. Asthma" value={c.condition} onChange={(e) => setRow('conditions', i, { condition: e.target.value })} maxLength={120} aria-label="Condition" />
+            <select className="form-control" value={c.type} onChange={(e) => setRow('conditions', i, { type: e.target.value })} aria-label="Type">{opts(CONDITION_TYPE).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+            <select className="form-control" value={c.severity} onChange={(e) => setRow('conditions', i, { severity: e.target.value })} aria-label="Severity">{opts(CONDITION_SEVERITY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+            <Button variant="secondary" onClick={() => drop('conditions', i)} aria-label="Remove this condition">✕</Button>
+          </div>
+        ))}
+        <Button variant="secondary" onClick={() => set('conditions', [...value.conditions, { condition: '', type: 'other', severity: 'mild' }])}>+ Add a condition</Button>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Medicines taken regularly</label>
+        <textarea className="form-control" rows={2} value={value.medicines} onChange={(e) => set('medicines', e.target.value)} maxLength={600} placeholder="Name, dose and when — e.g. Salbutamol inhaler when needed" />
+      </div>
+      <Row>
+        <div className="form-group">
+          <label className="form-label">Family doctor</label>
+          <input className="form-control" value={value.doctorName} onChange={(e) => set('doctorName', e.target.value)} maxLength={120} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Doctor&rsquo;s phone</label>
+          <input className={`form-control${errs.doctorPhone ? ' error' : ''}`} value={value.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} maxLength={20} />
+          <Err msg={errs.doctorPhone} />
+        </div>
+      </Row>
+      <div className="form-group">
+        <label className="form-label">Food needs</label>
+        <input className="form-control" value={value.dietary} onChange={(e) => set('dietary', e.target.value)} maxLength={600} placeholder="e.g. Vegetarian, no nuts" />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Anything else the nurse should know</label>
+        <textarea className="form-control" rows={2} value={value.notes} onChange={(e) => set('notes', e.target.value)} maxLength={1200} />
+      </div>
     </div>
   );
 }
@@ -385,11 +464,16 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
   const [classes, setClasses]   = useState([]);
   const [docs, setDocs]         = useState(null);          // files already on record
   const [existingParent, setEP] = useState(null);
+  const [health, setHealth]     = useState(EMPTY_HEALTH);
+  const { isEnabled } = useModules();
+  // The health step: adding a student, at a school that uses the Medical Room.
+  const withHealth = !isEdit && isEnabled('medical');
+  const steps = withHealth ? [...STEPS, 'Health'] : STEPS;
 
   const set     = (key) => (e) => { setErrs(x => ({ ...x, [key]: undefined })); setForm(f => ({ ...f, [key]: e.target.value })); };
   const setFile = (key) => (file) => { setErrs(x => ({ ...x, [key]: undefined })); setFiles(f => ({ ...f, [key]: file })); };
 
-  const reset = () => { setStep(1); setForm(EMPTY_STUDENT); setFiles({}); setErrs({}); setDocs(null); setEP(null); };
+  const reset = () => { setStep(1); setForm(EMPTY_STUDENT); setFiles({}); setErrs({}); setDocs(null); setEP(null); setHealth(EMPTY_HEALTH); };
   const close = () => { reset(); onClose(); };
 
   useEffect(() => {
@@ -464,6 +548,10 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
   // ── Validation ──────────────────────────────────────────────────────────────
   const validateStep = (n) => {
     const e = {};
+    if (n === 8) {
+      if (withHealth && health.doctorPhone.trim() && !PHONE_RE.test(health.doctorPhone.trim())) e.doctorPhone = 'The doctor’s phone number is not valid';
+      return e;
+    }
     const need = (key, msg) => { if (!String(form[key] ?? '').trim()) e[key] = msg; };
     const needAddress = (prefix, label) => {
       const k = (base) => (prefix ? prefix + base[0].toUpperCase() + base.slice(1) : base);
@@ -588,10 +676,10 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
   const submit = async () => {
     // Every step is re-checked so a jumped-over problem cannot slip through
     const all = {};
-    for (let n = 1; n <= STEPS.length; n++) Object.assign(all, validateStep(n));
+    for (let n = 1; n <= steps.length; n++) Object.assign(all, validateStep(n));
     setErrs(all);
     if (Object.keys(all).length) {
-      const firstBadStep = [1, 2, 3, 4, 5, 6, 7].find(n => Object.keys(validateStep(n)).length);
+      const firstBadStep = steps.map((_, i) => i + 1).find(n => Object.keys(validateStep(n)).length);
       setStep(firstBadStep);
       return toast.error(Object.values(all)[0]);
     }
@@ -644,11 +732,16 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
     if (form.parentMode === 'search') fd.append('parentId', form.parentId || '');
     else fd.append('newParent', JSON.stringify(form.newParent));
     Object.entries(files).forEach(([k, file]) => { if (file) fd.append(k, file); });
+    if (withHealth && healthFilled(health)) fd.append('health', JSON.stringify(healthBody(health)));
 
     setSaving(true);
     try {
       if (isEdit) await api.updateStudentForm(student._id, fd);
-      else        await api.createStudentForm(fd);
+      else {
+        const res = await api.createStudentForm(fd);
+        const failed = (res?.data ?? res)?.healthSaved?.failed || [];
+        if (failed.length) toast.error(`Some health details were not saved — add them in the Medical Room: ${failed[0]}`, { duration: 8000 });
+      }
       toast.success(isEdit ? 'Student updated' : 'Student created — login OTP emailed');
       reset();
       onSaved?.();
@@ -657,7 +750,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
     finally { setSaving(false); }
   };
 
-  const isLast = step === STEPS.length;
+  const isLast = step === steps.length;
 
   return (
     <Modal open={open} onClose={close} title={isEdit ? 'Edit Student' : 'Add Student'} maxWidth={640}
@@ -670,7 +763,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
             : <Button onClick={next} loading={checking}>Next →</Button>}
         </>
       }>
-      <Stepper step={step} />
+      <Stepper step={step} steps={steps} />
 
       {loading ? (
         <div style={{ padding: '32px 0', display: 'flex', justifyContent: 'center' }}><Spinner /></div>
@@ -996,6 +1089,9 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
             <ParentPanel form={form} setForm={setForm} errs={errs} setErrs={setErrs}
               files={files} setFile={setFile} existingParent={existingParent} />
           )}
+
+          {/* 8 ── Health (adding, with the Medical Room) ─────────────────── */}
+          {step === 8 && withHealth && <HealthPanel value={health} onChange={setHealth} errs={errs} />}
         </>
       )}
     </Modal>

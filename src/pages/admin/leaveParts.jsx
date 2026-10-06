@@ -14,6 +14,7 @@ import Icon from '../../components/ui/icons';
 import { Button, Modal, Spinner } from '../../components/ui/index';
 import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
 import Tabs from '../../components/ui/Tabs';
+import { withFileToken } from '../../utils/fileAccess';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 
@@ -315,7 +316,7 @@ export const ApprovalStep = ({ request: r }) => {
 };
 
 /** Leave documents are served from the backend root, not from /api. */
-export const docUrl = (name) => (!name ? '' : `/uploads/leave-docs/${name}`);
+export const docUrl = (name) => (!name ? '' : withFileToken(`/uploads/leave-docs/${name}`));
 
 export const ReasonCell = ({ request: r }) => (
   <div className="lvreason" title={r.reason || ''}>

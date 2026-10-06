@@ -1217,3 +1217,41 @@ export function AlertsTab({ n }) {
     </>
   );
 }
+
+// ── Medical Room (medical staff only) ────────────────────────────────────────
+
+export function MedicalTab({ m }) {
+  const sum = m?.summary || {};
+  if (!sum.visits && !sum.incidents) {
+    return (
+      <Panel icon="medical" tone="pink" title="Medical Room" wide>
+        <NoData icon="medical" title="No visits this academic year" hint="Visits to the Medical Room appear here — how often, and why, against the school's average." />
+      </Panel>
+    );
+  }
+  return (
+    <>
+      <Tiles>
+        <Tile icon="medical" tone={sum.aboveAverage ? 'pink' : 'blue'} value={sum.visits} label="Visits this year"
+          caption={`School average ${sum.schoolAverage} per student`} />
+        <Tile icon="home" tone="amber" value={sum.sentHome} label="Sent home" caption={sum.referred ? `${sum.referred} referred to hospital` : 'From the Medical Room'} />
+        <Tile icon="alert" tone="purple" value={sum.incidents} label="Incidents" caption="Injuries and accidents" />
+        <Tile icon="clock" tone="teal" value={sum.lastVisitAt ? fmtDate(sum.lastVisitAt) : '—'} label="Last visit" />
+      </Tiles>
+      {sum.aboveAverage ? (
+        <Panel icon="alert" tone="pink" title="More visits than most" wide>
+          <p style={{ margin: 0 }}>Several times the school&rsquo;s average — worth a word with the family or the class teacher.</p>
+        </Panel>
+      ) : null}
+      <Grid>
+        <Panel icon="trending" tone="blue" title="Visits by month">
+          {m.byMonth?.length ? <Columns data={m.byMonth.map((x) => ({ month: fmtMonthKey(x.month), visits: x.visits }))} xKey="month" yKey="visits" /> : <NoData icon="medical" title="No visits" />}
+        </Panel>
+        <Panel icon="listDots" tone="pink" title="Why they came">
+          {m.reasons?.length ? <RankBars data={m.reasons} labelKey="reason" valueKey="n" labelWidth={150} /> : <NoData icon="medical" title="No visits" />}
+        </Panel>
+      </Grid>
+      <p style={{ margin: '8px 2px', fontSize: '.82rem' }}><a href={m.link}>Open the full medical record</a> — opening it is recorded.</p>
+    </>
+  );
+}

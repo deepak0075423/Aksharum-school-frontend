@@ -31,6 +31,7 @@ const ALL_MODULES = [
   { key: 'feedback',          to: '/admin/feedback/overview',              icon: 'star',        tone: 'purple', label: 'Teacher Feedback', sub: 'Campaigns & reports' },
   { key: 'employeeDirectory', to: '/admin/employee-directory/dashboard',   icon: 'folder',      tone: 'indigo', label: 'Employee Directory', sub: 'Staff records' },
   { key: 'idCard',            to: '/admin/id-cards/dashboard',             icon: 'idCard',      tone: 'blue',   label: 'ID Cards',        sub: 'Issue, print & verify' },
+  { key: 'medical',           to: '/admin/medical/dashboard',              icon: 'medical',     tone: 'pink',   label: 'Medical Room',    sub: 'Visits, health & medicines' },
   { key: 'document',          to: '/admin/documents',                      icon: 'files',       tone: 'orange', label: 'Documents',       sub: 'Files & certificates' },
   { key: 'holiday',           to: '/admin/holidays',                       icon: 'party',       tone: 'teal',   label: 'Holidays',        sub: 'Calendar & closures' },
   { key: 'notification',      to: '/admin/notifications',                  icon: 'megaphone',   tone: 'blue',   label: 'Notice Board',    sub: 'Create & manage notices' },

@@ -268,3 +268,29 @@ export const IDCARD_ADMIN_TABS = [
   { to: '/admin/id-cards/verification', label: '🔎 Verification',     icon: 'shieldCheck' },
   { to: '/admin/id-cards/settings',     label: '⚙️ Settings',         icon: 'settings' },
 ];
+
+// The Medical Room (Oct 2026). Student Health and Medicines are groups with a
+// second row of their own (pages/medical/admin/Health.jsx).
+export const MEDICAL_ADMIN_TABS = [
+  { to: '/admin/medical/dashboard',    label: '🏠 Dashboard' },
+  { to: '/admin/medical/requests',     label: '📨 Medical Requests' },
+  { to: '/admin/medical/visits',       label: '🩺 Medical Visits' },
+  { to: '/admin/medical/incidents',    label: '⚠️ Medical Incidents' },
+  { to: '/admin/medical/health',       label: '❤️ Student Health' },
+  { to: '/admin/medical/medicines',    label: '💊 Medicines' },
+  { to: '/admin/medical/first-aid',    label: '🩹 First Aid' },
+  { to: '/admin/medical/vaccinations', label: '💉 Vaccinations' },
+  { to: '/admin/medical/checkups',     label: '📋 Health Checkups' },
+  { to: '/admin/medical/programmes',   label: '📣 Health Programmes' },
+  { to: '/admin/medical/documents',    label: '📁 Medical Documents' },
+  { to: '/admin/medical/room',         label: '🛏 Medical Room Management' },
+  { to: '/admin/medical/staff-health', label: '🧑‍🏫 Staff Health' },
+  { to: '/admin/medical/safeguarding', label: '🛡 Safeguarding' },
+  { to: '/admin/medical/privacy',      label: '🔒 Privacy & Records' },
+  { to: '/admin/medical/inventory',    label: '📦 Inventory' },
+  { to: '/admin/medical/equipment',    label: '🧰 Medical Equipment' },
+  { to: '/admin/medical/alerts',       label: '🚨 Medical Alerts' },
+  { to: '/admin/medical/reports',      label: '📈 Reports' },
+  { to: '/admin/medical/settings',     label: '⚙️ Settings' },
+  { to: '/admin/medical/activity',     label: '🧾 Activity Log' },
+];

@@ -17,6 +17,7 @@ import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
+import { withFileToken } from '../../utils/fileAccess';
 
 // ── What a document can be ───────────────────────────────────────────────────
 
@@ -87,10 +88,11 @@ const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '
 
 export function fileUrl(filePath) {
   if (!filePath) return '';
-  if (/^https?:/.test(filePath)) return filePath;
+  if (/^https?:/.test(filePath)) return withFileToken(filePath);
   const p   = filePath.replace(/\\/g, '/');
   const idx = p.indexOf('uploads/');
-  return idx !== -1 ? `${API_BASE}/${p.slice(idx)}` : `${API_BASE}/${p.replace(/^\//, '')}`;
+  // The folder is private now: the reader's file token rides on the address (utils/fileAccess).
+  return withFileToken(idx !== -1 ? `${API_BASE}/${p.slice(idx)}` : `${API_BASE}/${p.replace(/^\//, '')}`);
 }
 
 /**

@@ -18,6 +18,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/hostel.api';
 import { useHostelAccess } from './hsAccess';
+import { useModules } from '../../../contexts/ModulesContext';
 import {
   PageHead, YearPicker, NewMenu, Tiles, StatTile, Meters, MeterTile, Card, CardHead, CardSelect,
   ViewAll, Legend, Note, Mini, FigRow, Mark, Bar, Empty, DashboardSkeleton, LoadError, useBoard,
@@ -103,6 +104,8 @@ export default function HostelDashboard() {
   // A teacher posted to a hostel sees its day-to-day screens only, so a link
   // to a part they cannot open is left out rather than leading to a refusal.
   const { warden, may } = useHostelAccess();
+  const { isEnabled } = useModules();
+  const medicalOn = isEnabled('medical');
   const open = (to) => (may(to) ? to : undefined);
 
   // A refresh that fails keeps the last good figures on screen and says so.
@@ -162,6 +165,13 @@ export default function HostelDashboard() {
   return (
     <div className="hs-page">
       {head(d.years || [], d.year)}
+
+      {/* A warden on duty needs the residents' critical medical alerts — they are in the Medical Room (need to know). */}
+      {warden && medicalOn ? (
+        <Note icon="alertTri" title="Medical alerts for your residents">
+          Residents with a severe allergy, a condition or a rescue medicine — what to do, and the numbers to call — are in the Medical Room. <Link to="/teacher/medical?tab=alerts">Open them</Link>.
+        </Note>
+      ) : null}
 
       <Tiles>
         <StatTile tone="violet" icon="hostel" value={s.hostels} label="Total Hostels" art={<BuildingArt />} to={open('/admin/hostel/hostels')} grow={270} />

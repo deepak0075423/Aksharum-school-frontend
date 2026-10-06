@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/teacher.api';
 import { Table, Badge, Button, Modal, Spinner, Empty } from '../../components/ui/index';
+import { withFileToken } from '../../utils/fileAccess';
 
 // Leave sign-off queue for approvers picked by designation (e.g. a Principal).
 // They are teachers, so they have no admin screen — this is where their queue
@@ -74,7 +75,7 @@ export default function TeacherLeaveApprovals() {
     )},
     { key: 'reason', label: 'Reason', render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
     { key: 'doc', label: 'Doc', render: r => r.document
-      ? <a href={`/uploads/leave-docs/${r.document}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a>
+      ? <a href={withFileToken(`/uploads/leave-docs/${r.document}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a>
       : '—' },
     { key: 'actions', label: '', render: r => r.status === 'pending' ? (
       <div style={{ display: 'flex', gap: 4 }}>

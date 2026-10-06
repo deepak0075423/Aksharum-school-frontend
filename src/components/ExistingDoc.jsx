@@ -1,4 +1,5 @@
 import React from 'react';
+import { withFileToken } from '../utils/fileAccess';
 
 /**
  * The paperwork already on a record, shown inside a file picker.
@@ -13,8 +14,9 @@ import React from 'react';
  */
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
 
-export default function ExistingDoc({ url, name, replaceHint = 'choose a file to replace' }) {
-  if (!url) return null;
+export default function ExistingDoc({ url: rawUrl, name, replaceHint = 'choose a file to replace' }) {
+  if (!rawUrl) return null;
+  const url = withFileToken(rawUrl);
   const isImage = IMAGE_RE.test(name || url);
 
   return (

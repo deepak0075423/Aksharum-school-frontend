@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { getMe, switchAccount } from '../api/auth.api';
 import { roleHome } from '../pages/auth/roleHome';
 import { applySchoolFavicon, rememberSchoolBranding, getRememberedBranding } from '../utils/branding';
+import { startFileAccess, stopFileAccess } from '../utils/fileAccess';
+import { disableWebPush } from '../utils/webPush';
 
 const AuthContext = createContext(null);
 
@@ -24,6 +26,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => { loadUser(); }, [loadUser]);
+
+  // Private uploads open with a file token while someone is signed in (utils/fileAccess).
+  useEffect(() => {
+    if (user?._id) startFileAccess();
+    else if (!loading) stopFileAccess();
+  }, [user?._id, loading]);
 
   // Browser tab follows the signed-in user's school branding. Re-runs when the
   // admin uploads a new logo, since reload() refreshes user.school; before
@@ -62,6 +70,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = () => {
+    // This browser stops showing the account's notifications — with the token read before it is cleared.
+    disableWebPush(localStorage.getItem('token'));
     // Keep the school branding across sign-out so the login screen the user
     // comes back to still shows their school's logo.
     const branding = getRememberedBranding();

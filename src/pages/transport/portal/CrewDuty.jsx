@@ -14,7 +14,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { Link } from 'react-router-dom';
 import * as api from '../../../api/transport.api';
+import { useModules } from '../../../contexts/ModulesContext';
 import {
   TrHead, Tiles, Tile, Card, CardHead, CardBody, Panel, Badge, Mark, Ico, Btn,
   Avatar, Empty, Note, Loading, Facts, Fact, Toggle, Modal,
@@ -26,6 +28,7 @@ import { useLocationReporter } from './useLocationReporter';
 const ROLE_WORD = { driver: 'Driver', conductor: 'Conductor', helper: 'Crew Member', attendant: 'Crew Member' };
 
 export default function CrewDuty() {
+  const { isEnabled } = useModules();
   const { data, loading, error, reload } = useBoard(() => api.crewDuty(), [], { poll: 60 });
   const [sharing, setSharing] = useState(null);       // optimistic, until the server answers
   const [roster, setRoster] = useState(null);         // { trip, riders } for the open modal
@@ -109,6 +112,7 @@ export default function CrewDuty() {
   const roleWord = ROLE_WORD[me.role] || 'Crew';
   const t = d.tiles || {};
   const live = d.live;
+  const medicalOn = isEnabled('medical');
 
   return (
     <div className="tr-page">
@@ -126,6 +130,15 @@ export default function CrewDuty() {
           </Note>
         </div>
       ))}
+
+      {/* The riders' critical medical alerts live in the Medical Room (need to know): crew see them while they crew. */}
+      {medicalOn ? (
+        <div style={{ marginBottom: 12 }}>
+          <Note tone="info" title="Medical alerts for your riders">
+            The children on your bus with a severe allergy, a condition or a rescue medicine — what to do, and the numbers to call — are in the Medical Room. <Link to="/teacher/medical?tab=alerts">Open them</Link>.
+          </Note>
+        </div>
+      ) : null}
 
       <Tiles>
         <Tile icon="route"  tone="indigo" label="Routes I crew"  value={count(t.routes)} />

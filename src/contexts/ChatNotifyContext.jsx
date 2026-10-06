@@ -5,6 +5,7 @@ import { useModules } from './ModulesContext';
 import { getChats } from '../api/chat.api';
 import { connectSocket, getSocket } from '../socket';
 import { notificationIconUrl } from '../utils/branding';
+import { enableWebPush, isWebPushOn } from '../utils/webPush';
 
 const ChatNotifyContext = createContext({ unreadTotal: 0, refresh: () => {}, setActiveChat: () => {} });
 export const useChatNotify = () => useContext(ChatNotifyContext);
@@ -63,12 +64,15 @@ export function ChatNotifyProvider({ children }) {
   useEffect(() => {
     if (!user) return;
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
+      // Allowed: Web Push carries notifications and messages from now on, even with no tab open.
+      Notification.requestPermission().then((p) => { if (p === 'granted') enableWebPush(); }).catch(() => {});
     }
   }, [user]);
 
   const fireNotification = useCallback((title, body, chatId) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    // With Web Push on, the service worker shows the message (once, even with no tab open).
+    if (isWebPushOn()) return;
     // Only notify when the chat screen isn't the focused thing
     const onChat = locationRef.current.startsWith('/chat');
     if (onChat && !document.hidden) return;
