@@ -9,6 +9,7 @@ import { useModules } from '../../contexts/ModulesContext';
 import { Badge, Button } from '../../components/ui/index';
 import Icon, { TeachersScene, SupportScene } from '../../components/ui/icons';
 import TeacherForm from './TeacherForm';
+import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
 import TeacherDependencyDialog from '../../components/TeacherDependencyDialog';
 import BulkImport from '../../components/BulkImport';
 import { saveFile } from '../../utils/downloadFile';
@@ -367,7 +368,8 @@ export default function Teachers() {
             <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Columns:</strong>
             The template carries every field of the Add Teacher form — personal, contact, government ID,
             education, experience, bank and school details. Its <em>Reference</em> sheet lists the exact
-            values each column accepts, and which ones are required.
+            values each column accepts, and which ones are required. A male teacher&rsquo;s row takes the
+            Father&rsquo;s Name; a female teacher&rsquo;s takes the Father&rsquo;s Name or the Husband&rsquo;s Name.
             <strong style={{ color: 'var(--text)', display: 'block', marginTop: 6 }}>Note:</strong>
             Only the paperwork itself can’t be imported — Aadhaar and PAN scans, resignation letter,
             experience certificate. Open each teacher in Edit afterwards to attach them.
@@ -450,7 +452,7 @@ function TeacherDrawer({ row, onClose, onEdit, directoryPath }) {
           ['Gender', row.gender],
           ['Date of birth', fmtDate(p.dob)],
           ['Blood group', p.bloodGroup],
-          ["Father's / husband's name", p.fatherOrHusbandName],
+          [fatherOrHusbandLabel(row.gender || p.gender, 'sentence'), p.fatherOrHusbandName],
         ]} />
 
         <DrawerSection title="Qualifications" fields={[

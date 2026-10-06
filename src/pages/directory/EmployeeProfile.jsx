@@ -6,6 +6,7 @@ import * as api from '../../api/employeeDirectory.api';
 import { PageHeader, Badge, Button, Empty, Spinner, Modal, Select } from '../../components/ui/index';
 import { toggleTeacher } from '../../api/admin.api';
 import TeacherDependencyDialog from '../../components/TeacherDependencyDialog';
+import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
 import {
   Avatar, KV, Section, Restricted, Meter, Chips, ErrorState, Skeleton,
   Field, Block, MailIcon, PhoneIcon, PinIcon, CalendarIcon, UserIcon,
@@ -322,7 +323,7 @@ const Personal = ({ p = {} }) => (
     <KV label="Date of Birth" value={fmtDate(p.dob)} />
     <KV label="Gender" value={p.gender} />
     <KV label="Blood Group" value={p.bloodGroup} />
-    <KV label="Father's / Husband's Name" value={p.fatherOrHusbandName} />
+    <KV label={fatherOrHusbandLabel(p.gender)} value={p.fatherOrHusbandName} />
     <KV label="Emergency Contact Name" value={p.emergencyContactName} />
     <KV label="Emergency Contact Phone" value={p.emergencyContactPhone} />
   </Section>

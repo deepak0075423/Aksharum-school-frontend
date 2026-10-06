@@ -30,6 +30,7 @@ import { Badge, Button, Spinner } from '../../components/ui/index';
 import { Avatar, VERIFY_TONE, fileUrl } from './parts';
 import { VIZ } from '../analytics/palette';
 import { withFileToken } from '../../utils/fileAccess';
+import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
 
 /**
  * Where an employee stands.
@@ -217,7 +218,7 @@ export const fieldsFor = (section, d, revealed = {}) => {
       ['Date of birth', fmtDate(d.personal?.dob)],
       ['Gender', val(d.personal?.gender)],
       ['Blood group', val(d.personal?.bloodGroup)],
-      ['Father / husband', val(d.personal?.fatherOrHusbandName)],
+      [fatherOrHusbandLabel(d.personal?.gender, 'sentence'), val(d.personal?.fatherOrHusbandName)],
       ['Emergency contact', val(d.personal?.emergencyContactName)],
       ['Emergency phone', val(d.personal?.emergencyContactPhone)],
     ];

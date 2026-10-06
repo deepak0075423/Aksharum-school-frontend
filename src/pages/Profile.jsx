@@ -9,6 +9,7 @@ import AccountSwitcher from '../components/AccountSwitcher';
 import { passwordStrength, matchState } from '../utils/passwordStrength';
 import AddressFields from '../components/ui/AddressFields';
 import PhoneInput from '../components/ui/PhoneInput';
+import { fatherOrHusbandLabel } from '../utils/fatherOrHusband';
 import { passwordError, phoneError } from '../utils/validators';
 import {
   Avatar, Field, Block, Chips, MailIcon, PhoneIcon, PinIcon, CalendarIcon,
@@ -315,7 +316,7 @@ export default function Profile() {
                       value={personal.dob ? fmtDate(personal.dob) : ''} blank="Not recorded" />
                     <Field icon={<UserIcon />} label="Gender" value={personal.gender} blank="Not recorded" />
                     <Field icon={<BadgeIcon />} label="Blood Group" value={personal.bloodGroup} blank="Not recorded" />
-                    <Field icon={<UserIcon />} label="Father's / Husband's Name"
+                    <Field icon={<UserIcon />} label={fatherOrHusbandLabel(personal.gender)}
                       value={personal.fatherOrHusbandName} blank="Not recorded" />
                   </div>
                 </Block>
@@ -471,7 +472,7 @@ export default function Profile() {
             </div>
             <div className="form-row form-row-3">
               <div className="form-group">
-                <label className="form-label">Father&apos;s / Husband&apos;s Name</label>
+                <label className="form-label">{fatherOrHusbandLabel(empForm.gender)}</label>
                 <input className="form-control" value={empForm.fatherOrHusbandName || ''}
                   onChange={setEmpField('fatherOrHusbandName')} />
               </div>

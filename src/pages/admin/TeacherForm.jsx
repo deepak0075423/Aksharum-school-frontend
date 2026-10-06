@@ -7,6 +7,7 @@ import ExistingDoc from '../../components/ExistingDoc';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { isPincode } from '../../utils/indiaStates';
 import { phoneError } from '../../utils/validators';
+import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
 import { withFileToken } from '../../utils/fileAccess';
 
 // Kept in step with validateTeacherIntake() in school-backend/controllers/admin.controller.js
@@ -217,7 +218,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
       need('dob', 'Date of birth is required');
       need('gender', 'Gender is required');
       need('bloodGroup', 'Blood group is required');
-      need('fatherOrHusbandName', "Father's / husband's name is required");
+      need('fatherOrHusbandName', `${fatherOrHusbandLabel(form.gender, 'sentence')} is required`);
       need('emergencyContactName', 'Emergency contact name is required');
       need('emergencyContactPhone', 'Emergency contact phone is required');
       phone('emergencyContactPhone', 'Emergency contact phone');
@@ -381,7 +382,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
               <Err msg={errs.bloodGroup} />
             </div>
             <div className="form-group">
-              <label className="form-label required">Father's / Husband's Name</label>
+              <label className="form-label required">{fatherOrHusbandLabel(form.gender)}</label>
               <input className={`form-control${errs.fatherOrHusbandName ? ' error' : ''}`}
                 value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
               <Err msg={errs.fatherOrHusbandName} />
