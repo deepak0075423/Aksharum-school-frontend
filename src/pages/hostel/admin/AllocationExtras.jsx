@@ -13,6 +13,7 @@ import * as api from '../../../api/hostel.api';
 import { words } from './hsUI';
 import { Btn, Badge, ListCard, DataTable, EmptyRows, Person, TwoLine, fmtDate, fmtTime } from './hsList';
 import { FormModal, FormSection, Grid, Fld, PersonCard, InfoNote, bedFits } from './hsForm';
+import { newestYear } from '../../../utils/listOrder';
 
 const REQ_STATE = { pending: ['Waiting', 'amber'], approved: ['Approved', 'green'], rejected: ['Not approved', 'red'], cancelled: ['Cancelled', 'slate'] };
 const place = (hostel, room, bed) => [hostel, room, bed ? `Bed ${bed}` : ''].filter(Boolean).join(' · ');
@@ -137,7 +138,7 @@ export function RolloverModal({ open, onClose, years = [], hostels = [], onDone 
   useEffect(() => {
     if (!open) return;
     setResult(null); setReason(''); setHostel(''); setChoice({}); setRows(null);
-    setToYear(years.find((y) => y.status === 'active')?._id || years[0]?._id || '');
+    setToYear(years.find((y) => y.status === 'active')?._id || newestYear(years)?._id || '');
     api.getBoard('allocations', { tab: 'active', limit: 500 })
       .then((r) => setRows((r.data ?? r).rows || []))
       .catch((err) => { toast.error(err.message); setRows([]); });

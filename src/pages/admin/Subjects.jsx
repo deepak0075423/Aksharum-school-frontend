@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Spinner } from '../../components/ui/index';
 import Icon, { TeachersScene, SupportScene } from '../../components/ui/icons';
 import ImportYearStructureModal from '../../components/ImportYearStructureModal';
+import { newestYear } from '../../utils/listOrder';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
@@ -58,7 +59,7 @@ export default function Subjects() {
   // Start on the year the school is working in, and fall back to the newest.
   useEffect(() => {
     if (!years?.length || year) return;
-    setYear((years.find((y) => y.status === 'active') || years[0])._id);
+    setYear((years.find((y) => y.status === 'active') || newestYear(years))._id);
   }, [years, year]);
 
   const { data, meta, loading, error, refetch } = useFetch(

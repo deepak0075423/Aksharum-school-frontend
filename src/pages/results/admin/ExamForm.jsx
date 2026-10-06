@@ -43,6 +43,7 @@ import useFetch from '../../../hooks/useFetch';
 import { Btn, Ico, fmtDay, fmtRange, inputDay, plural } from '../rsUI';
 import { StepModal, Card, Field, TagSelect, CheckRow, SumList, Note, Review } from '../rsForm';
 import { EXAM_TYPES, typeLabel, statusOf, classLine, gradeTone, gradeRange } from '../resultMeta';
+import { newestYear } from '../../../utils/listOrder';
 
 const STEPS = [
   { key: 'details', title: 'Exam Details', sub: 'Basic information', icon: 'sheetBold' },
@@ -178,7 +179,7 @@ function Form({ exam, onClose, onSaved }) {
   /* A new exam starts in the year the school is working in, as a type the school offers. */
   useEffect(() => {
     if (editing || !meta) return;
-    const year = f.year ? null : meta.years.find((y) => y.current) || meta.years[0];
+    const year = f.year ? null : meta.years.find((y) => y.current) || newestYear(meta.years);
     const offered = meta.examTypes || [];
     const type = offered.length && !offered.some((t) => t.value === f.examType) ? offered[0].value : null;
     if (year || type) setF((s) => ({ ...s, ...(year ? { year: year._id } : null), ...(type ? { examType: type } : null) }));

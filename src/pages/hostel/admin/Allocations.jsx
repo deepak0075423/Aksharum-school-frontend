@@ -23,6 +23,7 @@ import { ROOM_TYPES, roomTypeLabel } from './hsRoom';
 import { TransferRequests, RolloverModal } from './AllocationExtras';
 import { useHostelAccess } from './hsAccess';
 import { FormModal, FormSection, Grid, Fld, RadioCards, ToggleRow, StudentPicker, studentMeta, PersonCard, SummaryCard, InfoNote, ReviewList, dmy, RESIDENT_KINDS, bedFits, occupantOf } from './hsForm';
+import { newestYear } from '../../../utils/listOrder';
 
 const STATUS = {
   active: ['Active', 'green'], pending: ['Pending', 'amber'], vacated: ['Vacated', 'slate'],
@@ -67,7 +68,7 @@ export default function Allocations() {
   const { data: meta } = useFetch(api.getMeta, []);
   const hostels = meta?.hostels || [];
   const years = meta?.academicYears || [];
-  const activeYear = years.find((y) => y.status === 'active')?._id || years[0]?._id || '';
+  const activeYear = years.find((y) => y.status === 'active')?._id || newestYear(years)?._id || '';
   const roomsById = Object.fromEntries((meta?.rooms || []).map((r) => [String(r._id), r]));
   const buildings = (meta?.buildings || []).filter((b) => !state.hostel || String(b.hostel) === state.hostel);
   const roomOptions = (meta?.rooms || []).filter((r) => (state.building

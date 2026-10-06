@@ -18,6 +18,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon, { SchoolScene, SupportScene } from '../../components/ui/icons';
 import ImportYearStructureModal from '../../components/ImportYearStructureModal';
+import { newestYear } from '../../utils/listOrder';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
@@ -27,9 +28,9 @@ import {
 } from './academicYearParts';
 
 const SORTS = [
+  { value: 'name',     label: 'Name (A–Z)' },
   { value: 'newest',   label: 'Newest first' },
   { value: 'oldest',   label: 'Oldest first' },
-  { value: 'name',     label: 'Name (A–Z)' },
   { value: 'students', label: 'Most students' },
 ];
 
@@ -56,7 +57,7 @@ export default function AcademicYears() {
   const [tab,    setTab]    = useState('all');
   const [search, setSearch] = useState('');
   const [term,   setTerm]   = useState('');
-  const [sort,   setSort]   = useState('newest');
+  const [sort,   setSort]   = useState('name');
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(10);
 
@@ -269,7 +270,7 @@ export default function AcademicYears() {
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
-            <Button variant="secondary" onClick={() => setImportInto(active || years[0])}
+            <Button variant="secondary" onClick={() => setImportInto(active || newestYear(years))}
               disabled={years.length < 2}
               title={years.length < 2 ? 'Two years are needed before one can be copied into another' : undefined}>
               <Icon name="upload" size={16} /> Import Structure

@@ -28,6 +28,7 @@ import { Link } from 'react-router-dom';
 import Icon, { ICON_NAMES } from '../../../components/ui/icons';
 import { Drawer, DrawerFoot } from '../../../components/ui/Drawer';
 import '../../../styles/inventory.css';
+import { newestYear } from '../../../utils/listOrder';
 
 /* ── Numbers ─────────────────────────────────────────────────────────────── */
 
@@ -1790,7 +1791,7 @@ export function useInvMeta(fetcher) {
     meta: meta || {},
     error,
     // The year the school is actually in, which is what the chip names.
-    activeYear: (meta?.years || []).find(y => y.status === 'active') || (meta?.years || [])[0] || null,
+    activeYear: (meta?.years || []).find(y => y.status === 'active') || newestYear(meta?.years),
   };
 }
 

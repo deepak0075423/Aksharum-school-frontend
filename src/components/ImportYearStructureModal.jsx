@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../api/admin.api';
 import { Modal, Button, Spinner } from './ui/index';
+import { newestYear, previousYear } from '../utils/listOrder';
 
 /**
  * Copy a year's academic structure into another year.
@@ -101,7 +102,7 @@ export default function ImportYearStructureModal({
 
   useEffect(() => {
     if (!open) return;
-    setFromYear(options[0]?._id || '');
+    setFromYear((previousYear(options, targetYear) || newestYear(options))?._id || '');
     setParts({ ...ALL_PARTS, ...defaultParts });
     setWithTeachers(false); setPlan(null); setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps

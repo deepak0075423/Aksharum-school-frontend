@@ -22,6 +22,7 @@ import Icon from '../../../components/ui/icons';
 import '../../../styles/payroll.css';
 import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
 import Tabs from '../../../components/ui/Tabs';
+import { newestYear } from '../../../utils/listOrder';
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
 
@@ -237,7 +238,7 @@ export const Crumbs = ({ trail = [] }) => {
  * and the main button are always in the same place.
  */
 export function SectionBar({ tabs = PAYROLL_TABS, years = [], year, onYear, children, hideYear, yearLabel = 'Academic Year', yearOptions }) {
-  const current = years.find(y => String(y._id) === String(year)) || years.find(y => y.status === 'active') || years[0];
+  const current = years.find(y => String(y._id) === String(year)) || years.find(y => y.status === 'active') || newestYear(years);
   return (
     <div className="pr-bar">
       <Tabs variant="pill" items={tabs} label="Payroll sections" />

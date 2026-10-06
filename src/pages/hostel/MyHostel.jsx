@@ -16,6 +16,7 @@ import { FormModal, FormSection, Grid, Fld, RadioCards, FileDrop, PersonCard, Su
 import PhoneInput from '../../components/ui/PhoneInput';
 import { words } from './admin/hsUI';
 import MyHostelFees from './MyHostelFees';
+import { newestYear } from '../../utils/listOrder';
 
 const LEAVE_TYPES = ['home', 'weekend', 'short', 'medical', 'emergency', 'holiday', 'other'];
 /** The outpass form's four cards; "Other" opens the rest of the types. */
@@ -157,7 +158,7 @@ export default function MyHostel({ role = 'student' }) {
       setApplyForm((f) => ({
         ...f,
         academicYear: (d.academicYears || []).find((y) => y.status === 'active')?._id
-          || d.academicYears?.[0]?._id || '',
+          || newestYear(d.academicYears)?._id || '',
       }));
     } catch { setAvailable([]); setYears([]); }
   };

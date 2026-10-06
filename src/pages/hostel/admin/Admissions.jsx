@@ -21,6 +21,7 @@ import {
 import { ROOM_TYPES, roomTypeLabel } from './hsRoom';
 import { FormModal, FormSection, Grid, Fld, StudentPicker, studentMeta, PersonCard, ToggleRow, InfoNote, ReviewList, dmy } from './hsForm';
 import PhoneInput from '../../../components/ui/PhoneInput';
+import { newestYear } from '../../../utils/listOrder';
 
 /** A decision's title, icon, tone and button. */
 const DECIDE = {
@@ -104,7 +105,7 @@ export default function Admissions() {
 
   const open = () => {
     setEditRow(null); setPicked(null);
-    setForm({ ...empty, academicYear: years.find((y) => y.status === 'active')?._id || years[0]?._id || '', joiningDate: di(new Date()) });
+    setForm({ ...empty, academicYear: years.find((y) => y.status === 'active')?._id || newestYear(years)?._id || '', joiningDate: di(new Date()) });
     setModal(true);
   };
   /** Choosing a student fills the contacts from their record — each can still be changed for this application. */

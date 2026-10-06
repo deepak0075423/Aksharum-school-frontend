@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/payroll.api';
 import Icon from '../../../components/ui/icons';
+import { newestYear, previousYear } from '../../../utils/listOrder';
 import {
   Modal, Drawer, Btn, Field, Row, Select, Search, Check, Toggle, Badge, Avatar, Who, Mark, Glyph,
   Ledger, NetBar, Loading, Empty, Note, IconBtn, Spinner,
@@ -437,8 +438,8 @@ export function CopyAssignmentsDialog({ open, onClose, onDone, years = [], curre
 
   useEffect(() => {
     if (!open) return;
-    const to = years.find(y => String(y._id) === String(currentYear)) || years[0];
-    const from = years.find(y => new Date(y.startDate) < new Date(to?.startDate || Date.now()));
+    const to = years.find(y => String(y._id) === String(currentYear)) || newestYear(years);
+    const from = previousYear(years, to);
     setForm({
       fromAcademicYear: from?._id || '', toAcademicYear: to?._id || '',
       incrementPercent: '', effectiveDate: to ? isoDay(to.startDate) : '',

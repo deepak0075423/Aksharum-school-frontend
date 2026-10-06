@@ -386,7 +386,9 @@ function DecisionDialog({ row, kind, onClose, onDone }) {
 
 /** A teacher changing a mark themselves, with the reason on record. */
 function NewCorrection({ sections, mode, onClose, onDone }) {
-  const [section, setSection] = useState(sections[0]?._id || '');
+  // The teacher's own section first; the list itself is in class order.
+  const own = sections.find((s) => s.role === 'classTeacher') || sections.find((s) => s.role === 'vice') || sections[0];
+  const [section, setSection] = useState(own?._id || '');
   const [subject, setSubject] = useState('');
   const [date, setDate]       = useState(todayKey());
   const [student, setStudent] = useState('');

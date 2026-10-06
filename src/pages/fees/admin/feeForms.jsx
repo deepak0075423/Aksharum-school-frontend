@@ -11,6 +11,7 @@ import { Modal, Confirm } from '../../../components/ui/index';
 import { Drawer, DrawerFoot } from '../../admin/listParts';
 import MonthPicker, { dueCount, amountFor, keysFor, unpaidMonths } from '../../../components/fees/MonthPicker';
 import Icon from '../../../components/ui/icons';
+import { newestYear, previousYear } from '../../../utils/listOrder';
 import {
   Btn, Select, Search, Toggle, Badge, StatusBadge, DUE_STATUS, STATUS, Avatar, Mark, money, fmtDate, fmtDateTime, isoDay,
   FREQUENCY, FREQUENCY_OPTIONS, MODE, COUNTER_MODES, ELIGIBILITY, FINE_APPLIES, yearOptions, parseCsv, saveFile, toCsv,
@@ -1662,8 +1663,10 @@ export function CopyYearDialog({ open, onClose, onDone, years = [], defaultTo })
   useEffect(() => {
     if (!open) return;
     setResult(null);
-    const to = defaultTo || years.find(y => y.status === 'active')?._id || years[0]?._id || '';
-    setForm({ toYearId: to, fromYearId: years.find(y => y._id !== to)?._id || '' });
+    const to = defaultTo || years.find(y => y.status === 'active')?._id || newestYear(years)?._id || '';
+    const toYear = years.find(y => y._id === to);
+    const from = previousYear(years, toYear) || newestYear(years.filter(y => y._id !== to));
+    setForm({ toYearId: to, fromYearId: from?._id || '' });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const submit = async () => {
     setSaving(true);
