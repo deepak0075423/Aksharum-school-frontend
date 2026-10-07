@@ -66,6 +66,9 @@ export default function Holidays() {
   const [term,   setTerm]   = useState('');
   const [type,   setType]   = useState('');
   const [year,   setYear]   = useState('');
+  // Who a holiday is for: '' every holiday, 'school' the school-wide ones,
+  // 'classes' the ones that reach only some classes.
+  const [scope,  setScope]  = useState('');
   const [sort,   setSort]   = useState('date');
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(10);
@@ -132,6 +135,10 @@ export default function Holidays() {
     let rows = source.filter((h) => {
       if (tab !== 'all' && statusOf(h) !== tab) return false;
       if (type && h.type !== type) return false;
+      if (scope) {
+        const forClasses = (h.applicability?.scope || 'all') === 'specific_classes';
+        if (scope === 'classes' ? !forClasses : forClasses) return false;
+      }
       if (year) {
         const id = h.academicYear?._id ? String(h.academicYear._id) : '';
         if (year === 'none' ? id : id !== year) return false;
@@ -147,14 +154,14 @@ export default function Holidays() {
       return sort === 'dateDsc' ? -cmp : cmp;
     });
     return rows;
-  }, [source, tab, type, year, term, sort]);
+  }, [source, tab, type, year, scope, term, sort]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / limit));
   const start = (Math.min(page, pages) - 1) * limit;
   const shown = filtered.slice(start, start + limit);
-  const anyFilter = !!term || tab !== 'all' || !!type || !!year;
+  const anyFilter = !!term || tab !== 'all' || !!type || !!year || !!scope;
 
-  const queryKey = `${view}|${tab}|${type}|${year}|${term}|${sort}|${page}|${limit}`;
+  const queryKey = `${view}|${tab}|${type}|${year}|${scope}|${term}|${sort}|${page}|${limit}`;
   const selection = useSelection(shown, queryKey);
 
   // The calendar always shows the whole school's calendar for the open month —
@@ -182,8 +189,15 @@ export default function Holidays() {
   }, [source]);
 
   const pick = (value) => { setTab(value); setPage(1); };
+  // The four tiles are four views of one list: each one sets its own filter
+  // and clears the other tiles' — "Upcoming" never quietly means "upcoming
+  // and class-specific" because of an earlier press.
+  const tileView = (nextTab, nextScope = '') => {
+    setTab(nextTab); setScope(nextScope); setPage(1);
+    if (view !== 'manage') setView('manage');
+  };
   const clearAll = () => {
-    setTab('all'); setSearch(''); setTerm(''); setType(''); setYear(''); setPage(1);
+    setTab('all'); setSearch(''); setTerm(''); setType(''); setYear(''); setScope(''); setPage(1);
   };
 
   // ── Create / edit ──────────────────────────────────────────────────────────
@@ -353,14 +367,15 @@ export default function Holidays() {
       <ListStats>
         <ListStat icon="calendar" tone="indigo" value={counts.total} label="Holidays"
           caption={counts.days ? `${counts.days} days off in total` : 'Nothing on the calendar yet'}
-          on={tab === 'all'} onClick={() => pick('all')} />
+          on={tab === 'all' && !scope} onClick={() => tileView('all')} />
         <ListStat icon="sunrise" tone="green" value={counts.upcoming} label="Upcoming"
           caption={next30 ? `${next30} in the next 30 days` : 'None in the next 30 days'}
-          on={tab === 'upcoming'} onClick={() => pick('upcoming')} />
+          on={tab === 'upcoming' && !scope} onClick={() => tileView('upcoming')} />
         <ListStat icon="clock" tone="amber" value={counts.past} label="Past"
-          caption="Already been this year" on={tab === 'past'} onClick={() => pick('past')} />
+          caption="Already been this year" on={tab === 'past' && !scope} onClick={() => tileView('past')} />
         <ListStat icon="users" tone="purple" value={counts.scoped} label="Class-specific"
-          caption={counts.scoped ? 'Not school-wide' : 'Every holiday is school-wide'} />
+          caption={counts.scoped ? 'Not school-wide' : 'Every holiday is school-wide'}
+          on={scope === 'classes' && tab === 'all'} onClick={() => tileView('all', 'classes')} />
       </ListStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -400,6 +415,13 @@ export default function Holidays() {
                   onChange={(e) => { setType(e.target.value); setPage(1); }} aria-label="Filter by type">
                   <option value="">All types</option>
                   {types.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+
+                <select className={`form-control lsel${scope ? ' lfsel--on' : ''}`} value={scope}
+                  onChange={(e) => { setScope(e.target.value); setPage(1); }} aria-label="Filter by who it applies to">
+                  <option value="">All audiences</option>
+                  <option value="school">School-wide only</option>
+                  <option value="classes">Class-specific only</option>
                 </select>
 
                 {/* Only offered when there is more than one year to choose

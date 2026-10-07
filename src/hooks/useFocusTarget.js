@@ -25,7 +25,10 @@ export default function useFocusTarget() {
   /** Wrap any filter/page setter so interacting with the list releases it. */
   const release = useCallback(() => setFocusId(null), []);
 
-  return { focusId, release };
+  /** Point the list at a record from inside the page — a row picked elsewhere on it. */
+  const focus = useCallback((id) => setFocusId(id || null), []);
+
+  return { focusId, release, focus };
 }
 
 /**

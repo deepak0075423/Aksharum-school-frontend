@@ -369,7 +369,9 @@ export function SubjectForm({
     || [t.name, t.email, t.department, t.designation, t.employeeId]
       .some((v) => String(v || '').toLowerCase().includes(needle)));
 
-  const problem = !form.name.trim() ? 'Give the subject a name.' : '';
+  const problem = !form.name.trim() ? 'Give the subject a name.'
+    : !form.code.trim() ? 'Give the subject a code.'
+      : '';
 
   const submit = (e) => {
     e.preventDefault();
@@ -404,10 +406,13 @@ export function SubjectForm({
 
         <div className="form-row form-row-2">
           <div className="form-group">
-            <label className="form-label">Code</label>
+            <label className="form-label required">Code</label>
             <input data-text="code" className="form-control" maxLength={20} placeholder="MATH"
-              value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
-            <div className="form-hint">Stored in capitals, and unique within the year.</div>
+              value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} />
+            <div className="form-hint">
+              No two subjects in your school&rsquo;s year can share one. Another school, or
+              another year, can use the same code.
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Type</label>

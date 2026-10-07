@@ -54,14 +54,17 @@ export default function Reports() {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <ListStats>
+        {/* Each opens the list it counts — the sections live on Classes, in
+            the same working year the figure is counted in. */}
         <HeadCount icon="teacher" tone="indigo" value={data?.teachers} label="Teachers"
-          added={growth.teachers} caption="On the staff roll" />
+          added={growth.teachers} caption="On the staff roll" to="/admin/teachers" />
         <HeadCount icon="student" tone="green" value={data?.students} label="Students"
-          added={growth.students} caption="Admitted to the school" />
+          added={growth.students} caption="Admitted to the school" to="/admin/students" />
         <HeadCount icon="users" tone="amber" value={data?.parents} label="Parents"
-          added={growth.parents} caption="With an account" />
+          added={growth.parents} caption="With an account" to="/admin/parents" />
         <HeadCount icon="layers" tone="blue" value={data?.sections} label="Active sections"
-          added={growth.sections} caption="Across all classes" />
+          added={growth.sections} caption={year?.yearName ? `In ${year.yearName}` : 'Across all classes'}
+          to="/admin/classes" />
       </ListStats>
 
       <section className="card">

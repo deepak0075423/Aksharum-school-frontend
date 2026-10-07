@@ -17,6 +17,10 @@
  *            ("North 24 Parganas"), which the PIN lookup fills in but nobody types
  *   title    the name of a thing — a class, subject, fee, hostel, item, vendor:
  *            English letters, digits, spaces and . , - & ' ( ) / + : # %
+ *   words    a label with no symbols at all (a leave type's name): English
+ *            letters, digits and spaces, starting with a letter
+ *   sentence a short line of description with no symbols (a leave type's
+ *            description): English letters, digits, spaces and . , ' - ( ) /
  *   code     an ID or a number with letters — admission number, employee ID,
  *            room number, a reference: English letters, digits and - / _ .
  *   upper    capital letters and digits (a vehicle registration); small
@@ -64,6 +68,8 @@ export const KINDS = {
   letters: { keep: /[^A-Za-z ]/g, ok: /^[A-Za-z][A-Za-z ]*$/, msg: (l) => `${l} can only have English letters and spaces` },
   place:   { keep: /[^A-Za-z .'()-]/g, ok: /^[A-Za-z][A-Za-z0-9 .'()-]*$/, msg: (l) => `${l} can only have English letters, spaces and . ' - ( )` },
   title:   { keep: /[^A-Za-z0-9 .,&'()/+:#%-]/g, ok: /^[A-Za-z0-9 .,&'()/+:#%-]+$/, msg: (l) => `${l} can only have English letters, numbers, spaces and . , - & ' ( ) / + : # %` },
+  words:   { keep: /[^A-Za-z0-9 ]/g, ok: /^[A-Za-z][A-Za-z0-9 ]*$/, msg: (l) => `${l} must start with a letter and can only have English letters, numbers and spaces` },
+  sentence: { keep: /[^A-Za-z0-9 .,'()/-]/g, ok: /^[A-Za-z0-9][A-Za-z0-9 .,'()/-]*$/, msg: (l) => `${l} must start with a letter or a number and can only have English letters, numbers, spaces and . , ' - ( ) /` },
   code:    { keep: /[^A-Za-z0-9/._-]/g, ok: /^[A-Za-z0-9/._-]+$/, msg: (l) => `${l} can only have English letters, numbers and - / _ .` },
   upper:   { upper: true, keep: /[^A-Z0-9]/g, ok: /^[A-Z0-9]+$/, msg: (l) => `${l} can only have capital letters and numbers` },
   digits:  { keep: /[^0-9]/g, ok: /^[0-9]+$/, msg: (l) => `${l} can only have numbers` },

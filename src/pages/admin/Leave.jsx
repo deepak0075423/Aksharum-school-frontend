@@ -7,7 +7,8 @@ import Icon, { LeaveScene } from '../../components/ui/icons';
 import { AdminCompOff } from './CompOff';
 import AdminLeavePolicies from './LeavePolicies';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
-import { useSearchParams } from 'react-router-dom';
+import { textError } from '../../utils/textRules';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useFocusTarget, { useFocusFilterReset } from '../../hooks/useFocusTarget';
 // The row menu is the one thing this page borrows from the account-list frame:
 // it is portalled, so it is never clipped by the table's scroll box.
@@ -20,7 +21,7 @@ import {
   ShowingCount, SplitButton, StatusBadge, TeacherCell, Toggle, TrendBars, TypeNameCell,
   ChartCard,
   BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep,
-  HelpPanel, LeaveDonut, SummaryLine, TypeIcon,
+  HelpPanel, LeaveDonut, SummaryLine, TypeIcon, OnLeaveTodayModal,
   chipTones, dayNum, docUrl, donutSlices, fmtDate,
 } from './leaveParts';
 
@@ -119,6 +120,7 @@ export default function AdminLeave() {
   const [reqStatus,    setReqStatus]    = useState('');
   const [reqTeacher,   setReqTeacher]   = useState('');
   const [reqLeaveType, setReqLeaveType] = useState('');
+  const [reqDept,      setReqDept]      = useState('');
   const [reqFromDate,  setReqFromDate]  = useState('');
   const [reqToDate,    setReqToDate]    = useState('');
   const [detail,       setDetail]       = useState(null);  // the row in the drawer
@@ -134,7 +136,8 @@ export default function AdminLeave() {
 
   // Following a notification: the server is told which request to show and
   // answers with the page holding it, instead of page 1 where it rarely is.
-  const { focusId, release: releaseFocus } = useFocusTarget();
+  const { focusId, release: releaseFocus, focus: focusOn } = useFocusTarget();
+  const navigate = useNavigate();
   const { data: reqData, meta: reqMeta, loading: reqLoading, refetch: refetchReq } = useFetch(
     () => api.getLeaveRequests({
       page: reqPage, limit: reqLimit,
@@ -142,25 +145,37 @@ export default function AdminLeave() {
       status:    reqStatus    || undefined,
       teacherId: reqTeacher   || undefined,
       leaveType: reqLeaveType || undefined,
+      department: reqDept     || undefined,
       fromDate:  reqFromDate  || undefined,
       toDate:    reqToDate    || undefined,
       focus:     focusId      || undefined,
     }),
-    [reqPage, reqLimit, reqTerm, reqStatus, reqTeacher, reqLeaveType,
+    [reqPage, reqLimit, reqTerm, reqStatus, reqTeacher, reqLeaveType, reqDept,
      reqFromDate, reqToDate, focusId],
   );
   const requests = reqData || [];
 
-  const anyReqFilter = !!(reqTerm || reqStatus || reqTeacher || reqLeaveType || reqFromDate || reqToDate);
+  const anyReqFilter = !!(reqTerm || reqStatus || reqTeacher || reqLeaveType || reqDept || reqFromDate || reqToDate);
 
   const clearReqFilters = useCallback(() => {
-    setReqStatus(''); setReqTeacher(''); setReqLeaveType('');
+    setReqStatus(''); setReqTeacher(''); setReqLeaveType(''); setReqDept('');
     setReqSearch(''); setReqTerm('');
     setReqFromDate(''); setReqToDate(''); setReqPage(1);
   }, []);
   // The request exists but a filter in force hides it — clearing them is what
   // following the notification meant.
   useFocusFilterReset(reqMeta, focusId, clearReqFilters);
+
+  // "On Leave Today" lists people; picking one shows their leave in the queue —
+  // every filter dropped so it cannot be hidden, the list asked for the page
+  // holding it, and ?focus= set so the layout's highlighter flags the row.
+  const [outOpen, setOutOpen] = useState(false);
+  const showOutRequest = (requestId) => {
+    setOutOpen(false);
+    clearReqFilters();
+    focusOn(requestId);
+    navigate({ search: `?focus=${requestId}` }, { replace: true });
+  };
 
   // Every filter and page control releases the notification's hold on the list.
   const onReqFilter = (setter) => (value) => { releaseFocus(); setReqPage(1); setter(value); };
@@ -171,6 +186,8 @@ export default function AdminLeave() {
   // this screen empty. This list rides the leave module's own guard.
   const { data: teachers } = useFetch(api.getLeaveEmployees);
   const teacherList = teachers || [];
+  const departments = [...new Set(teacherList.map((t) => t.department).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
 
   const askDecision = (kind, request) => { setComment(''); setDecision({ kind, request }); };
 
@@ -262,8 +279,13 @@ export default function AdminLeave() {
    * Hand-written rather than driven through the shared ListTable: this design
    * wants a numbered row, a days column of its own and labelled decision
    * buttons, none of which that component does.
+   *
+   * Called as a function, not mounted as a component: a component declared
+   * inside this one is a new type on every render, so React threw the whole
+   * table away and rebuilt it each time — taking the highlight a notification
+   * (or "On Leave Today") puts on a row with it, about 20ms after it landed.
    */
-  const RequestRows = () => {
+  const renderRequestRows = () => {
     if (reqLoading) {
       return (
         <div className="lvtable__state"><Spinner /></div>
@@ -407,6 +429,10 @@ export default function AdminLeave() {
   const [toggling,   setToggling]   = useState(null);   // the type mid-switch
   const TYPE_PAGE = 10;
 
+  // The types the annual figure adds up: active, and not Comp Off, which is
+  // earned rather than allocated. The tile and its filter share this one test.
+  const countsToward = (t) => t.isActive !== false && t.category !== 'compoff';
+
   const typeCounts = {
     total:    leaveTypes.length,
     active:   leaveTypes.filter((t) => t.isActive !== false).length,
@@ -414,13 +440,14 @@ export default function AdminLeave() {
     // Comp off is earned, never allocated, so counting its zero in the annual
     // total would be counting a figure that does not mean anything.
     allocation: leaveTypes
-      .filter((t) => t.isActive !== false && t.category !== 'compoff')
+      .filter(countsToward)
       .reduce((n, t) => n + (Number(t.annualAllocation) || 0), 0),
   };
 
   const typesFiltered = leaveTypes.filter((t) => {
     if (typeStatus === 'active'   && t.isActive === false) return false;
     if (typeStatus === 'inactive' && t.isActive !== false) return false;
+    if (typeStatus === 'allocated' && !countsToward(t)) return false;
     const q = typeSearch.trim().toLowerCase();
     if (!q) return true;
     return [t.name, t.code, t.description].filter(Boolean)
@@ -430,6 +457,13 @@ export default function AdminLeave() {
   const typePageNow = Math.min(typePage, typePages);
   const typeRows = typesFiltered.slice((typePageNow - 1) * TYPE_PAGE, typePageNow * TYPE_PAGE);
   const anyTypeFilter = !!(typeSearch.trim() || typeStatus);
+
+  // "Leave Types" on Allocations and Balance counts the types themselves —
+  // those tables' columns, not their rows — so it opens this tab, narrowed
+  // the way that figure was counted.
+  const openTypes = (status) => {
+    setTypeSearch(''); setTypeStatus(status); setTypePage(1); setTab('types');
+  };
 
   /**
    * Flip a type between active and inactive from the row.
@@ -489,7 +523,43 @@ export default function AdminLeave() {
     if (tab === 'balance')   { refetchAlloc(); refetchTypes(); }
   }, [tab]);
 
-  const openCreateType = () => { setTypeForm(EMPTY_TYPE); setEditType(null); setTypeModal(true); };
+  // A problem is shown on the box it is about — red, with the reason under it —
+  // not only in a toast that leaves the admin hunting for what to fix. Keyed by
+  // the field's name, which is also what the server sends back as `field`.
+  const [typeErrors, setTypeErrors] = useState({});
+  const TYPE_FIELDS = {
+    name: ['Name', 'words'], code: ['Code', 'code'], description: ['Description', 'sentence'],
+  };
+  /** Change one field, and stop calling it wrong. */
+  const setTypeField = (key, value) => {
+    setTypeForm((f) => ({ ...f, [key]: value }));
+    setTypeErrors((er) => (er[key] ? { ...er, [key]: '' } : er));
+  };
+  /**
+   * The browser's own check (an empty required box, a negative number) and the
+   * text guard (a symbol left in a box) both stop the form before
+   * handleSaveType runs — but each fires `invalid` on the box, so it is marked
+   * from here, in the same words handleSaveType would use.
+   */
+  const onTypeInvalid = (key) => (e) => {
+    const v = String(e.target.value ?? '');
+    const [label, kind] = TYPE_FIELDS[key] || [];
+    let msg;
+    if (key === 'annualAllocation') msg = 'Annual allocation must be 0 or more days';
+    else if (!v.trim()) msg = `${label} is required`;
+    else msg = (label && textError(v, label, kind)) || e.target.validationMessage;
+    setTypeErrors((er) => ({ ...er, [key]: msg }));
+  };
+  /** The box for `key`, red and saying why when it holds a problem. */
+  const typeBox = (key) => ({
+    name: key,
+    className: `form-control${typeErrors[key] ? ' error' : ''}`,
+    'aria-invalid': typeErrors[key] ? true : undefined,
+    onInvalid: onTypeInvalid(key),
+  });
+  const typeError = (key) => (typeErrors[key] ? <div className="form-error">{typeErrors[key]}</div> : null);
+
+  const openCreateType = () => { setTypeForm(EMPTY_TYPE); setTypeErrors({}); setEditType(null); setTypeModal(true); };
   const openEditType   = (t) => {
     setTypeForm({
       name: t.name, code: t.code, description: t.description || '',
@@ -497,11 +567,46 @@ export default function AdminLeave() {
       annualAllocation: t.annualAllocation,
       isActive: t.isActive !== false,
     });
+    setTypeErrors({});
     setEditType(t); setTypeModal(true);
   };
 
   const handleSaveType = async (e) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    // Every box is checked, so every one that is wrong turns red at once —
+    // not one per press of Save. No symbols in the name or the description
+    // (utils/textRules: words, sentence), the same rules the server holds.
+    const name = String(typeForm.name || '').trim();
+    const code = String(typeForm.code || '').trim().toUpperCase();
+    const errs = {
+      name: !name ? 'Name is required' : textError(name, 'Name', 'words'),
+      code: !code ? 'Code is required' : textError(code, 'Code', 'code'),
+      description: textError(typeForm.description, 'Description', 'sentence'),
+    };
+    // One code, one type — said here from the list already loaded; the server
+    // refuses it too (an add used to overwrite the type holding the code).
+    if (!errs.code) {
+      const holder = leaveTypes.find((t) => String(t.code || '').toUpperCase() === code
+        && String(t._id) !== String(editType?._id || ''));
+      if (holder) {
+        errs.code = `Code ${code} is already used by ${holder.name}`
+          + (holder.isActive === false
+            ? (editType ? ' (inactive)' : ' (inactive — switch it back on rather than adding it again)')
+            : '');
+      }
+    }
+    if (typeForm.category !== 'compoff') {
+      const days = Number(typeForm.annualAllocation);
+      if (!Number.isFinite(days) || days < 0) errs.annualAllocation = 'Annual allocation must be 0 or more days';
+    }
+    const first = ['name', 'code', 'description', 'annualAllocation'].find((k) => errs[k]);
+    setTypeErrors(errs);
+    if (first) {
+      toast.error(errs[first]);
+      form.elements.namedItem(first)?.focus();
+      return;
+    }
     setTypeLoad(true);
     try {
       if (editType) await api.updateLeaveType(editType._id, typeForm);
@@ -509,7 +614,15 @@ export default function AdminLeave() {
       toast.success(editType ? 'Leave type updated' : 'Leave type saved');
       setTypeModal(false); refetchTypes();
     } catch (err) {
-      toast.error(err?.response?.data?.message || err.message);
+      // The server names the field it refused (a code taken a moment ago by
+      // someone else, a comp off type already active) — mark that box too.
+      const message = err?.data?.message || err?.response?.data?.message || err.message;
+      const field = err?.data?.field;
+      if (field) {
+        setTypeErrors((er) => ({ ...er, [field]: message }));
+        form.elements.namedItem(field)?.focus();
+      }
+      toast.error(message);
     }
     finally { setTypeLoad(false); }
   };
@@ -692,6 +805,25 @@ export default function AdminLeave() {
     finally { setExportLoad(false); }
   };
 
+  /**
+   * A report figure, opened: the Requests tab narrowed the way the report
+   * counted — its year (as the leave's start date, the report's own rule),
+   * department and leave type — plus the tile's status. The list then holds
+   * exactly the applications the figure counted.
+   */
+  const openReportRequests = (status) => {
+    releaseFocus();
+    setReqSearch(''); setReqTerm(''); setReqTeacher('');
+    setReqStatus(status || repStatus || '');
+    setReqLeaveType(repType || '');
+    setReqDept(repDept || '');
+    // No year on record: the report covered everything, so no window here.
+    setReqFromDate(rep.window?.startDate ? String(rep.window.startDate).slice(0, 10) : '');
+    setReqToDate(rep.window?.endDate ? String(rep.window.endDate).slice(0, 10) : '');
+    setReqPage(1);
+    setTab('requests');
+  };
+
   const handleExportRequests = async () => {
     setReqExportLoad(true);
     try {
@@ -699,6 +831,7 @@ export default function AdminLeave() {
         status:    reqStatus    || undefined,
         teacherId: reqTeacher   || undefined,
         leaveType: reqLeaveType || undefined,
+        department: reqDept     || undefined,
         fromDate:  reqFromDate  || undefined,
         toDate:    reqToDate    || undefined,
       });
@@ -810,6 +943,7 @@ export default function AdminLeave() {
   const [balSearch, setBalSearch] = useState('');
   const [balDept,   setBalDept]   = useState('');
   const [balLow,    setBalLow]    = useState(false);
+  const [balWith,   setBalWith]   = useState(false);   // only teachers holding a balance
   const [balPage,   setBalPage]   = useState(1);
   const BAL_PAGE = 8;
 
@@ -859,6 +993,7 @@ export default function AdminLeave() {
   const balFiltered = balRows.filter((r) => {
     if (balDept && r.department !== balDept) return false;
     if (balLow && !r.low) return false;
+    if (balWith && !r.hasAny) return false;
     const q = balSearch.trim().toLowerCase();
     if (!q) return true;
     return [r.teacher?.name, r.teacher?.employeeId, r.department]
@@ -867,7 +1002,7 @@ export default function AdminLeave() {
   const balPages   = Math.max(1, Math.ceil(balFiltered.length / BAL_PAGE));
   const balPageNow = Math.min(balPage, balPages);
   const balShown   = balFiltered.slice((balPageNow - 1) * BAL_PAGE, balPageNow * BAL_PAGE);
-  const anyBalFilter = !!(balSearch.trim() || balDept || balLow);
+  const anyBalFilter = !!(balSearch.trim() || balDept || balLow || balWith);
 
   // ── Reports ─────────────────────────────────────────────────────────────────
   // The columns of the teacher table: the types that actually appear in the
@@ -1007,9 +1142,10 @@ export default function AdminLeave() {
           value={ov.counts?.rejected ?? 0} caption="This Year"
           on={reqStatus === 'rejected'} onClick={() => pickStatus('rejected')} />
         {/* Not a filter: who is out today is a different question from which
-            requests are in which state, and there is no status that answers it. */}
+            requests are in which state, and it counts people, not requests —
+            so it opens the people. */}
         <LeaveStat icon="calendar" tone="violet" label="On Leave Today"
-          value={ov.onLeaveToday ?? 0} caption="Teachers" />
+          value={ov.onLeaveToday ?? 0} caption="Teachers" popup onClick={() => setOutOpen(true)} />
       </LeaveStats>
       )}
 
@@ -1036,6 +1172,13 @@ export default function AdminLeave() {
             <FilterSelect label="Filter by leave type" value={reqLeaveType} all="All Types"
               options={leaveTypes.map((t) => ({ value: t._id, label: t.name }))}
               onChange={onFilter(setReqLeaveType)} />
+            {/* Only where the staff list has departments to pick from — or
+                one is in force, arriving from a report, and must be undoable. */}
+            {(departments.length > 1 || reqDept) && (
+              <FilterSelect label="Filter by department" value={reqDept} all="All Departments"
+                options={!reqDept || departments.includes(reqDept) ? departments : [...departments, reqDept]}
+                onChange={onFilter(setReqDept)} />
+            )}
             <DateRange from={reqFromDate} to={reqToDate}
               onFrom={onFilter(setReqFromDate)} onTo={onFilter(setReqToDate)} />
           </FilterRow>
@@ -1050,7 +1193,7 @@ export default function AdminLeave() {
             </div>
           )}
 
-          <RequestRows />
+          {renderRequestRows()}
 
           <div className="lvfoot">
             <ShowingCount page={reqMeta?.page || reqPage} limit={reqLimit}
@@ -1078,10 +1221,13 @@ export default function AdminLeave() {
                 label={`Inactive Type${typeCounts.inactive === 1 ? '' : 's'}`} caption="Not available"
                 on={typeStatus === 'inactive'}
                 onClick={() => { setTypeStatus((c) => (c === 'inactive' ? '' : 'inactive')); setTypePage(1); }} />
-              {/* Not a filter: this is a sum of the column, not a subset of
-                  the rows, so there is nothing for a press to narrow to. */}
+              {/* A sum of the Annual Allocation column, so a press narrows the
+                  table to the types it adds up — active, Comp Off left out —
+                  and the table says the total under them. */}
               <LeaveStat valueFirst icon="users" tone="violet" value={typeCounts.allocation}
-                label="Total Allocation (Annual)" caption="Across all active types" />
+                label="Total Allocation (Annual)" caption="Across all active types"
+                on={typeStatus === 'allocated'}
+                onClick={() => { setTypeStatus((c) => (c === 'allocated' ? '' : 'allocated')); setTypePage(1); }} />
             </LeaveStats>
 
             <section className="card lvcard">
@@ -1093,8 +1239,14 @@ export default function AdminLeave() {
                 <SearchBox value={typeSearch}
                   onChange={(v) => { setTypeSearch(v); setTypePage(1); }}
                   placeholder="Search leave type by name or code..." />
+                {/* "In the annual total" is what the Total Allocation tile sets —
+                    listed so the box says what is in force rather than "All". */}
                 <FilterSelect label="Filter by status" value={typeStatus} all="All Statuses"
-                  options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                    { value: 'allocated', label: 'In the annual total' },
+                  ]}
                   onChange={(v) => { setTypeStatus(v); setTypePage(1); }} />
               </FilterRow>
 
@@ -1171,8 +1323,17 @@ export default function AdminLeave() {
               )}
 
               <div className="lvfoot">
-                <ShowingCount page={typePageNow} limit={TYPE_PAGE} count={typeRows.length}
-                  total={typesFiltered.length} noun="leave type" />
+                <div className="lvfoot__left">
+                  <ShowingCount page={typePageNow} limit={TYPE_PAGE} count={typeRows.length}
+                    total={typesFiltered.length} noun="leave type" />
+                  {/* Opened from "Total Allocation (Annual)": say the figure
+                      these rows add up to, so the tile is answered here. */}
+                  {typeStatus === 'allocated' && typesFiltered.length > 0 && (
+                    <span className="lvfoot__sum">
+                      Adding up to <b>{typeCounts.allocation} day{typeCounts.allocation === 1 ? '' : 's'}</b> a year
+                    </span>
+                  )}
+                </div>
                 {/* Nothing to page through when the filter emptied the table. */}
                 <Pager page={typePageNow} pages={typesFiltered.length ? typePages : 0} onPage={setTypePage} />
               </div>
@@ -1207,10 +1368,10 @@ export default function AdminLeave() {
             <LeaveStat valueFirst icon="users" tone="indigo" value={allocCounts.teachers}
               label="Total Teachers" caption="All departments"
               on={!allocState} onClick={() => { setAllocState(''); setAllocPage(1); }} />
-            {/* Not a filter: the types are the columns of this table, not a
-                subset of its rows. */}
+            {/* Not a filter here — the types are this table's columns, not a
+                subset of its rows — so it opens the types themselves. */}
             <LeaveStat valueFirst icon="fileCheck" tone="blue" value={allocCounts.types}
-              label="Leave Types" caption="Configured" />
+              label="Leave Types" caption="Configured" onClick={() => openTypes('')} />
             <LeaveStat valueFirst icon="checkCircle" tone="green" value={allocCounts.allocated}
               label="Allocated" caption="Teachers have allocation"
               on={allocState === 'allocated'}
@@ -1375,19 +1536,20 @@ export default function AdminLeave() {
       {tab === 'balance' && (
         <>
           <LeaveStats className="lvstats--4">
+            {/* Three views of the rows — each clears the others — and the
+                types, which are this table's columns, open on their own tab. */}
             <LeaveStat valueFirst icon="users" tone="indigo" value={balCounts.teachers}
               label="Total Teachers" caption="All departments"
-              on={!balLow} onClick={() => { setBalLow(false); setBalPage(1); }} />
-            {/* Not a filter: the types are the columns of this table, not a
-                subset of its rows. */}
+              on={!balLow && !balWith} onClick={() => { setBalLow(false); setBalWith(false); setBalPage(1); }} />
             <LeaveStat valueFirst icon="fileCheck" tone="blue" value={balCounts.types}
-              label="Leave Types" caption="Active types" />
+              label="Leave Types" caption="Active types" onClick={() => openTypes('active')} />
             <LeaveStat valueFirst icon="checkCircle" tone="green" value={balCounts.withBal}
               label="Teachers with Balance"
-              caption={`For ${allocYear || allocMeta?.academicYear || 'this year'}`} />
+              caption={`For ${allocYear || allocMeta?.academicYear || 'this year'}`}
+              on={balWith} onClick={() => { setBalWith((v) => !v); setBalLow(false); setBalPage(1); }} />
             <LeaveStat valueFirst icon="clock" tone="red" value={balCounts.low}
               label="Low Balance" caption={`(≤ ${LOW_BALANCE} days)`}
-              on={balLow} onClick={() => { setBalLow((v) => !v); setBalPage(1); }} />
+              on={balLow} onClick={() => { setBalLow((v) => !v); setBalWith(false); setBalPage(1); }} />
           </LeaveStats>
 
           <div className="lvgrid">
@@ -1421,7 +1583,7 @@ export default function AdminLeave() {
                         ? 'Try another name, department, or turn the low-balance filter off.'
                         : 'Allocate leave to your staff and their balances appear here.'}
                       action={anyBalFilter
-                        ? <Button variant="secondary" onClick={() => { setBalSearch(''); setBalDept(''); setBalLow(false); setBalPage(1); }}>Clear filters</Button>
+                        ? <Button variant="secondary" onClick={() => { setBalSearch(''); setBalDept(''); setBalLow(false); setBalWith(false); setBalPage(1); }}>Clear filters</Button>
                         : <Button onClick={() => setTab('allocations')}>Go to Allocations</Button>}
                     />
                   </div>
@@ -1578,21 +1740,21 @@ export default function AdminLeave() {
 
           <LeaveStats className="lvstats--4">
             <LeaveStat icon="fileCheck" tone="blue" label="Total Leave Applications"
-              value={rep.totals?.applications ?? 0}
+              value={rep.totals?.applications ?? 0} onClick={() => openReportRequests('')}
               delta={rep.lastYear?.deltaPct ?? undefined}
               caption={rep.lastYear?.deltaPct == null
                 ? (rep.academicYear ? `In ${rep.academicYear}` : 'All time')
                 : undefined} />
             <LeaveStat icon="checkCircle" tone="green" label="Approved"
-              value={rep.totals?.approved ?? 0}
+              value={rep.totals?.approved ?? 0} onClick={() => openReportRequests('approved')}
               caption={repPct(rep.totals?.approved || 0)}
               share={repShare(rep.totals?.approved || 0)} />
             <LeaveStat icon="clock" tone="amber" label="Pending"
-              value={rep.totals?.pending ?? 0}
+              value={rep.totals?.pending ?? 0} onClick={() => openReportRequests('pending')}
               caption={repPct(rep.totals?.pending || 0)}
               share={repShare(rep.totals?.pending || 0)} />
             <LeaveStat icon="closeCircle" tone="red" label="Rejected"
-              value={rep.totals?.rejected ?? 0}
+              value={rep.totals?.rejected ?? 0} onClick={() => openReportRequests('rejected')}
               caption={repPct(rep.totals?.rejected || 0)}
               share={repShare(rep.totals?.rejected || 0)} />
           </LeaveStats>
@@ -1752,6 +1914,9 @@ export default function AdminLeave() {
           releaseFocus(); setReqTeacher(id); setReqPage(1); setTab('requests');
         }}
       />
+
+      <OnLeaveTodayModal open={outOpen} out={ov.out || []}
+        onClose={() => setOutOpen(false)} onPick={showOutRequest} />
 
       <RequestDrawer
         request={detail}
@@ -2041,55 +2206,68 @@ export default function AdminLeave() {
           <Button variant="secondary" onClick={() => setTypeModal(false)}>Cancel</Button>
           <Button form="type-form" type="submit" loading={typeLoad}>Save</Button>
         </>}>
-        <form id="type-form" onSubmit={handleSaveType}>
+        {/* noValidate: handleSaveType checks every box and marks each one
+            itself; the browser's bubble would sit on top of that message. */}
+        <form id="type-form" onSubmit={handleSaveType} noValidate>
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label required">Name</label>
-              <input data-text="title" type="text" className="form-control" required value={typeForm.name}
-                onChange={e => setTypeForm(f => ({ ...f, name: e.target.value }))} />
+              <input data-text="words" type="text" {...typeBox('name')} required value={typeForm.name}
+                maxLength={60} placeholder="e.g. Casual Leave"
+                onChange={e => setTypeField('name', e.target.value)} />
+              {typeError('name')}
             </div>
             <div className="form-group">
               <label className="form-label required">Code</label>
-              <input data-text="code" type="text" className="form-control" required value={typeForm.code}
-                onChange={e => setTypeForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. CL, SL" />
+              <input data-text="code" type="text" {...typeBox('code')} required value={typeForm.code}
+                onChange={e => setTypeField('code', e.target.value.toUpperCase())} placeholder="e.g. CL, SL" />
+              {typeError('code') || <div className="form-hint">No two leave types in your school can share a code.</div>}
             </div>
           </div>
           {/* Shown beside the type wherever it is listed, so "CL" does not have
               to be institutional knowledge. */}
           <div className="form-group">
             <label className="form-label">Description</label>
-            <input type="text" className="form-control" value={typeForm.description || ''}
+            <input data-text="sentence" type="text" {...typeBox('description')} value={typeForm.description || ''}
               maxLength={160} placeholder="e.g. For personal work and short leaves."
-              onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))} />
+              onChange={e => setTypeField('description', e.target.value)} />
+            {typeError('description') || <div className="form-hint">Letters, numbers, spaces and . , &apos; - ( ) / only.</div>}
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Category</label>
-              <select className="form-control" value={typeForm.category || 'general'}
-                onChange={e => setTypeForm(f => ({ ...f, category: e.target.value }))}>
+              <select {...typeBox('category')} value={typeForm.category || 'general'}
+                onChange={e => setTypeField('category', e.target.value)}>
                 <option value="general">General leave</option>
                 <option value="compoff">Comp Off (compensatory)</option>
               </select>
-              <div className="form-hint">
-                {typeForm.category === 'compoff'
-                  ? 'Balance is credited only when a Comp Off request is approved — it cannot be allocated or accrued.'
-                  : 'Standard leave — allocated annually or accrued monthly.'}
-              </div>
+              {typeError('category') || (
+                <div className="form-hint">
+                  {typeForm.category === 'compoff'
+                    ? 'Balance is credited only when a Comp Off request is approved — it cannot be allocated or accrued.'
+                    : 'Standard leave — allocated annually or accrued monthly.'}
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Annual Allocation (days)</label>
-              <input type="number" className="form-control" min={0} value={typeForm.annualAllocation}
+              <input type="number" {...typeBox('annualAllocation')} min={0} value={typeForm.annualAllocation}
                 disabled={typeForm.category === 'compoff'}
-                onChange={e => setTypeForm(f => ({ ...f, annualAllocation: +e.target.value }))} />
-              {typeForm.category === 'compoff' && <div className="form-hint">Not applicable — Comp Off days are earned</div>}
+                onChange={e => setTypeField('annualAllocation', +e.target.value)} />
+              {typeError('annualAllocation')
+                || (typeForm.category === 'compoff' && <div className="form-hint">Not applicable — Comp Off days are earned</div>)}
             </div>
           </div>
           {/* Every rule for this type — accrual, carry forward, encashment,
               day limits, documents, approvals — lives in Leave → Policies, so
               there is one place to look and nothing silently overrides. */}
           <div className="alert alert-info" style={{ fontSize: '.82rem' }}>
-            Monthly accrual, carry forward, encashment, day limits, document rules and the
-            approval workflow are configured per leave type under the <strong>Policies</strong> tab.
+            {/* One element: .alert is a flex row, and loose text around the
+                <strong> became three columns. */}
+            <span>
+              Monthly accrual, carry forward, encashment, day limits, document rules and the
+              approval workflow are configured per leave type under the <strong>Policies</strong> tab.
+            </span>
           </div>
 
           <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>

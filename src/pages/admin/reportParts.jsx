@@ -154,20 +154,24 @@ export const ReportGroup = ({ group }) => (
  * `growth` counts rows created since the 1st — it is an intake figure, not a
  * net change, so it is only ever shown as an addition and never as a trend.
  */
-export const HeadCount = ({ icon, tone, value, label, added, caption }) => (
-  <div className="lstat">
-    <span className={`lstat__icon tint-${tone}`}><Icon name={icon} size={24} /></span>
-    <span className="lstat__body">
-      <span className="lstat__value">{value ?? 0}</span>
-      <span className="lstat__label">{label}</span>
-      <span className="lstat__cap">
-        {added > 0
-          ? <span className="repup"><Icon name="arrowUp" size={11} /> {added} joined this month</span>
-          : caption}
+export const HeadCount = ({ icon, tone, value, label, added, caption, to }) => {
+  const body = (
+    <>
+      <span className={`lstat__icon tint-${tone}`}><Icon name={icon} size={24} /></span>
+      <span className="lstat__body">
+        <span className="lstat__value">{value ?? 0}</span>
+        <span className="lstat__label">{label}</span>
+        <span className="lstat__cap">
+          {added > 0
+            ? <span className="repup"><Icon name="arrowUp" size={11} /> {added} joined this month</span>
+            : caption}
+        </span>
       </span>
-    </span>
-  </div>
-);
+    </>
+  );
+  // `to`: the screen that lists what the figure counts.
+  return to ? <Link to={to} className="lstat">{body}</Link> : <div className="lstat">{body}</div>;
+};
 
 /** Where the reports that are not here have gone. */
 export const MissingPanel = ({ hidden }) => (

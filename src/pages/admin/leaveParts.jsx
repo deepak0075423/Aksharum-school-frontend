@@ -12,7 +12,7 @@
 import React from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal, Spinner } from '../../components/ui/index';
-import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
+import { Breakdown, Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
 import Tabs from '../../components/ui/Tabs';
 import { withFileToken } from '../../utils/fileAccess';
 
@@ -85,7 +85,7 @@ export const LeaveHero = ({ title, subtitle, quote, icon, scene: Scene }) => (
  * "Pending: 3" is a question, and pressing it should answer it. `on` marks the
  * tile whose filter is currently in force.
  */
-export const LeaveStat = ({ icon, tone, label, value, caption, onClick, on, valueFirst, share, delta, deltaNote = 'vs last year' }) => {
+export const LeaveStat = ({ icon, tone, label, value, caption, onClick, on, popup, valueFirst, share, delta, deltaNote = 'vs last year' }) => {
   const figure = <span className="lvstat__value" key="v">{value ?? 0}</span>;
   const name   = <span className="lvstat__label" key="l">{label}</span>;
   const body = (
@@ -114,8 +114,13 @@ export const LeaveStat = ({ icon, tone, label, value, caption, onClick, on, valu
     </>
   );
   const cls = `lvstat lvstat--${tone}${on ? ' is-on' : ''}`;
+  // `popup`: the tile opens a list of its own rather than filtering one, so it
+  // is not a toggle and has no pressed state.
   return onClick
-    ? <button type="button" className={cls} onClick={onClick} aria-pressed={!!on}>{body}</button>
+    ? (
+      <button type="button" className={cls} onClick={onClick}
+        aria-pressed={popup ? undefined : !!on} aria-haspopup={popup ? 'dialog' : undefined}>{body}</button>
+    )
     : <div className={cls}>{body}</div>;
 };
 
@@ -1976,3 +1981,56 @@ export const weekdayOf = (d) => {
   const x = new Date(`${d}T00:00:00Z`);
   return Number.isNaN(x.getTime()) ? '' : x.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' });
 };
+
+// ── On leave today ───────────────────────────────────────────────────────────
+
+/** Today as YYYY-MM-DD in the reader's own calendar — how leave dates are keyed. */
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * Who the "On Leave Today" tile counted, by name.
+ *
+ * The tile counts people while the table under it lists requests — a morning
+ * and an afternoon half day are one teacher out but two requests — so the
+ * figure opens its own list, one row per teacher, rather than filtering the
+ * table. `out` is the overview's approved-leave-covering-today rows; picking a
+ * row shows that leave in the queue.
+ */
+export function OnLeaveTodayModal({ open, out = [], onClose, onPick }) {
+  const byTeacher = new Map();
+  out.forEach((r) => {
+    const key = r.teacher || r._id;
+    if (!byTeacher.has(key)) byTeacher.set(key, []);
+    byTeacher.get(key).push(r);
+  });
+  const today = localToday();
+  const rows = [...byTeacher.values()].map((apps) => {
+    const first = apps[0];
+    // The latest day any of today's leaves runs to — when they are back.
+    const last = apps.reduce((a, b) => (String(b.toDate) > String(a.toDate) ? b : a));
+    return {
+      key: first.teacher || first._id,
+      icon: 'user',
+      tone: 'purple',
+      name: first.employeeId ? `${first.name} · ${first.employeeId}` : first.name,
+      sub: apps.map((a) => `${a.leaveType}${a.code ? ` (${a.code})` : ''}, ${modeLabel(a)}`).join('; '),
+      count: String(last.toDate || '').slice(0, 10) === today ? 'Today only' : `Until ${fmtDate(last.toDate)}`,
+      requestId: first._id,
+    };
+  });
+  const dateLine = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  return (
+    <Modal open={open} onClose={onClose} title="On Leave Today" maxWidth={600}
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+      <p className="lbreak__note">
+        {dateLine} — everyone on approved leave today. Choose a teacher to see their leave in the list.
+      </p>
+      <Breakdown rows={rows} onPick={(r) => onPick(r.requestId)}
+        empty="Nobody is on approved leave today." />
+    </Modal>
+  );
+}
