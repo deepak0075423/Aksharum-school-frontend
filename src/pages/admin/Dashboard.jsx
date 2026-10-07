@@ -169,7 +169,7 @@ export default function AdminDashboard() {
             <StatTile icon="student"  tone="green"  label="Students" value={stats?.students ?? 0}
               caption="Enrolled Students" delta={growth?.students} to="/admin/students" />
             <StatTile icon="users"    tone="amber"  label="Parents"  value={stats?.parents ?? 0}
-              caption="Registered Parents" delta={growth?.parents} />
+              caption="Registered Parents" delta={growth?.parents} to="/admin/parents" />
             <StatTile icon="building" tone="purple" label="Sections" value={stats?.sections ?? 0}
               caption="Total Sections"    delta={growth?.sections} to="/admin/classes" />
           </div>

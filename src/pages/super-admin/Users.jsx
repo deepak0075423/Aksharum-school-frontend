@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/superAdmin.api';
@@ -38,9 +39,22 @@ export default function SAUsers() {
   // Super admin accounts (and your own account) can never be deleted
   const canDelete = (u) => u && u.role !== 'super_admin' && String(u._id) !== String(me?._id);
 
+  const [params, setParams] = useSearchParams();
   const [page,   setPage]   = useState(1);
   const [search, setSearch] = useState('');
-  const [role,   setRole]   = useState('');
+  // The role filter lives in the address, so a dashboard tile can open the list
+  // already narrowed (?role=teacher), and the sidebar's plain /users clears it.
+  const role    = ROLES.includes(params.get('role')) ? params.get('role') : '';
+  const setRole = (r) => setParams(p => {
+    const next = new URLSearchParams(p);
+    if (r) next.set('role', r); else next.delete('role');
+    return next;
+  }, { replace: true });
+  // The page stays mounted when only the query changes, so a role changed from
+  // outside the dropdown (that sidebar link, Back) restarts at page one — in the
+  // same render, so no request goes out for a page the new role may not have.
+  const [pageRole, setPageRole] = useState(role);
+  if (pageRole !== role) { setPageRole(role); setPage(1); }
   const [school, setSchool] = useState('');
   const [status, setStatus] = useState('');
   const [sort,   setSort]   = useState({ field: 'createdAt', dir: -1 });

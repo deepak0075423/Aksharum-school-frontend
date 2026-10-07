@@ -133,6 +133,7 @@ const AHolidays     = lazy(() => import('./pages/admin/Holidays'));
 const AAttendance   = lazy(() => import('./pages/admin/Attendance'));
 const AExams        = lazy(() => import('./pages/admin/Exams'));
 const AAdmins       = lazy(() => import('./pages/admin/Admins'));
+const AParents      = lazy(() => import('./pages/admin/Parents'));
 const AReports         = lazy(() => import('./pages/admin/Reports'));
 const ASchoolSettings  = lazy(() => import('./pages/admin/SchoolSettings'));
 
@@ -463,6 +464,7 @@ export default function App() {
             <Route path="designations"    element={<ADesignations />} />
             <Route path="students"        element={<AStudents />} />
             <Route path="admins"          element={<AAdmins />} />
+            <Route path="parents"         element={<AParents />} />
             <Route path="academic-years"  element={<AAcademicYears />} />
             <Route path="classes"         element={<AClasses />} />
             <Route path="classes/:id"     element={<ASections />} />

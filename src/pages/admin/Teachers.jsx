@@ -6,7 +6,7 @@ import * as api from '../../api/admin.api';
 import { toggleTeacher } from '../../api/admin.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
-import { Badge, Button } from '../../components/ui/index';
+import { Alert, Badge, Button, Modal, Spinner } from '../../components/ui/index';
 import Icon, { TeachersScene, SupportScene } from '../../components/ui/icons';
 import TeacherForm from './TeacherForm';
 import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
@@ -17,7 +17,7 @@ import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
   FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
   Who, Stack, Chips, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
-  HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate,
+  HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, Breakdown,
 } from './listParts';
 import { experienceText } from '../../utils/validators';
 
@@ -74,6 +74,7 @@ export default function Teachers() {
   const [bulkOpen, setBulkOpen]   = useState(() => params.get('import') === '1');
   const [viewing, setViewing]     = useState(null);
   const [busy, setBusy]           = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);   // the "Subjects Covered" breakdown
 
   const urlSearch = params.get('search') || '';
   useEffect(() => {
@@ -126,6 +127,16 @@ export default function Teachers() {
   const filterCount = activeFilterCount(filters, EMPTY);
   const anyFilter   = !!term || filterCount > 0;
   const clearAll    = () => { setSearch(''); setTerm(''); setFilters(EMPTY); setPage(1); };
+
+  // "Who teaches Physics" wants every one of them, so the other filters go
+  // and the panel opens on the subject that is now in force.
+  const showSubject = (subject) => {
+    setCoverOpen(false);
+    setSearch(''); setTerm('');
+    setFilters((f) => ({ ...EMPTY, sort: f.sort, subject }));
+    setPage(1);
+    setShowFilters(true);
+  };
 
   // ── Actions ────────────────────────────────────────────────────────────────
   /**
@@ -254,8 +265,10 @@ export default function Teachers() {
           caption="Currently working" on={filters.status === 'active'} onClick={() => set({ status: 'active' })} />
         <ListStat icon="userCircle" tone="pink" value={stats.inactive} label="Inactive Teachers"
           caption="Not working" on={filters.status === 'inactive'} onClick={() => set({ status: 'inactive' })} />
+        {/* Counts subjects, not teachers, so it opens the subjects rather than
+            filtering — each one then narrows the list to who covers it. */}
         <ListStat icon="book" tone="amber" value={stats.subjectsCovered} label="Subjects Covered"
-          caption="With an assigned teacher" />
+          caption="With an assigned teacher" popup onClick={() => setCoverOpen(true)} />
       </ListStats>
 
       <section className="card">
@@ -394,7 +407,48 @@ export default function Teachers() {
         onClose={() => setDepTarget(null)}
         onDone={refetch}
       />
+
+      <SubjectsCovered open={coverOpen} onClose={() => setCoverOpen(false)} onPick={showSubject} />
     </div>
+  );
+}
+
+/**
+ * What "Subjects Covered" counts, opened up: each subject and who covers it.
+ *
+ * Asked for when it opens rather than carried on every page of the list — the
+ * server builds it from the same pairs as the tile and the subject filter, so
+ * a subject's count here is the number of rows picking it shows.
+ */
+function SubjectsCovered({ open, onClose, onPick }) {
+  const { data, loading, error } = useFetch(
+    () => (open ? api.getTeacherSubjects() : Promise.resolve(null)), [open],
+  );
+  const rows = (Array.isArray(data) ? data : []).map((r) => {
+    const n     = r.teachers.length;
+    const off   = r.teachers.filter((t) => !t.isActive).length;
+    const names = r.teachers.map((t) => t.name);
+    return {
+      key: r.subject, icon: 'book', tone: 'amber', name: r.subject, subject: r.subject,
+      sub: names.slice(0, 3).join(', ') + (names.length > 3 ? ` and ${names.length - 3} more` : ''),
+      count: `${n} teacher${n === 1 ? '' : 's'}${off ? ` · ${off} inactive` : ''}`,
+    };
+  });
+
+  return (
+    <Modal open={open} onClose={onClose} title="Subjects Covered" maxWidth={600}
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+      <p className="lbreak__note">
+        Every subject at least one teacher covers — listed on their profile, or assigned
+        to them on a section. Choose one to see its teachers.
+      </p>
+      {loading ? <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spinner /></div>
+        : error ? <Alert variant="danger">{error}</Alert>
+          : (
+            <Breakdown rows={rows} onPick={(r) => onPick(r.subject)}
+              empty="No teacher covers a subject yet. Assign subject teachers on a class's sections." />
+          )}
+    </Modal>
   );
 }
 

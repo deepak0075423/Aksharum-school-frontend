@@ -54,6 +54,7 @@ export const ADMIN_NAV = [
   { section: 'People' },
   { to: '/admin/teachers',          icon: 'teacher', label: 'Teachers' },
   { to: '/admin/students',          icon: 'student', label: 'Students' },
+  { to: '/admin/parents',           icon: 'users', label: 'Parents' },
   { to: '/admin/admins',            icon: 'user', label: 'Admins' },
   { to: '/admin/designations',      icon: 'badge', label: 'Designations' },
   { to: '/admin/employee-directory/dashboard', match: '/admin/employee-directory', icon: 'folder', label: 'Employee Directory', module: 'employeeDirectory',

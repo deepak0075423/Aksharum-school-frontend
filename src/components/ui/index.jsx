@@ -326,20 +326,26 @@ export const PageSize = ({ value, onChange, total, options = PAGE_SIZES, minTota
 };
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
-export const StatCard = ({ icon, label, value, color = 'blue', change }) => (
-  <div className="stat-card">
-    <div className={`stat-card__icon ${color}`}>{icon}</div>
-    <div className="stat-card__info">
-      <div className="stat-card__value">{value ?? '—'}</div>
-      <div className="stat-card__label">{label}</div>
-      {change && (
-        <div className={`stat-card__change ${change > 0 ? 'up' : 'down'}`}>
-          {change > 0 ? '↑' : '↓'} {Math.abs(change)}%
-        </div>
-      )}
-    </div>
-  </div>
-);
+// Given `to`, the card is a link to the list it counts.
+export const StatCard = ({ icon, label, value, color = 'blue', change, to }) => {
+  const body = (
+    <>
+      <div className={`stat-card__icon ${color}`}>{icon}</div>
+      <div className="stat-card__info">
+        <div className="stat-card__value">{value ?? '—'}</div>
+        <div className="stat-card__label">{label}</div>
+        {change && (
+          <div className={`stat-card__change ${change > 0 ? 'up' : 'down'}`}>
+            {change > 0 ? '↑' : '↓'} {Math.abs(change)}%
+          </div>
+        )}
+      </div>
+    </>
+  );
+  return to
+    ? <Link to={to} className="stat-card stat-card--link">{body}</Link>
+    : <div className="stat-card">{body}</div>;
+};
 
 // ── Page Header ───────────────────────────────────────────────────────────────
 export const PageHeader = ({ title, subtitle, action }) => (

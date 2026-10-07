@@ -147,8 +147,13 @@ export const ListHero = ({ title, subtitle, quote, scene: Scene }) => (
  * When `onClick` is given the tile is also the fastest way to narrow the list —
  * "Inactive Students: 4" is a question, and tapping it should answer it. `on`
  * marks the tile whose filter is currently in force.
+ *
+ * Not every figure is a subset of the rows below it. One that counts something
+ * else (subjects on the Teachers list) opens its own breakdown — `popup`, which
+ * is not a toggle and so has no pressed state — and one whose rows live on
+ * another screen is a link there (`to`).
  */
-export const ListStat = ({ icon, tone, value, label, caption, onClick, on }) => {
+export const ListStat = ({ icon, tone, value, label, caption, onClick, on, popup, to }) => {
   const body = (
     <>
       <span className={`lstat__icon tint-${tone}`}><Icon name={icon} size={24} /></span>
@@ -159,14 +164,42 @@ export const ListStat = ({ icon, tone, value, label, caption, onClick, on }) => 
       </span>
     </>
   );
+  if (to) return <Link to={to} className="lstat">{body}</Link>;
   if (!onClick) return <div className="lstat">{body}</div>;
   return (
     <button type="button" className={`lstat${on ? ' lstat--on' : ''}`} onClick={onClick}
-      aria-pressed={on}>{body}</button>
+      aria-pressed={popup ? undefined : !!on} aria-haspopup={popup ? 'dialog' : undefined}>{body}</button>
   );
 };
 
 export const ListStats = ({ children }) => <div className="lstats">{children}</div>;
+
+/**
+ * A `popup` tile's figure, opened up: one row per thing it counts, each a
+ * button that narrows the list to that one. Rows are
+ * `{ key, icon, tone, name, sub, count }`; `count` is already worded.
+ */
+export const Breakdown = ({ rows, onPick, empty }) => (
+  rows.length
+    ? (
+      <ul className="lbreak">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <button type="button" className="lbreak__row" onClick={() => onPick(r)}>
+              <span className={`lbreak__icon tint-${r.tone || 'indigo'}`}><Icon name={r.icon} size={18} /></span>
+              <span className="lbreak__body">
+                <span className="lbreak__name">{r.name}</span>
+                {r.sub ? <span className="lbreak__sub" title={r.sub}>{r.sub}</span> : null}
+              </span>
+              <span className="lbreak__count">{r.count}</span>
+              <Icon name="chevronRight" size={16} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    )
+    : <p className="lbreak__empty">{empty}</p>
+);
 
 // ── Filter bar ───────────────────────────────────────────────────────────────
 

@@ -315,8 +315,11 @@ export default function Classes() {
         <ListStat icon="alert" tone="amber" value={counts.setup} label="Needs Setup"
           caption="Missing sections, teachers or subjects"
           on={tab === 'setup'} onClick={() => pick('setup')} />
+        {/* The students themselves live on the Students list — opened on the
+            year picked here, read off the same section rosters this adds up. */}
         <ListStat icon="student" tone="blue" value={counts.students} label="Total Students"
-          caption={`Across ${counts.sections} section${counts.sections === 1 ? '' : 's'}${counts.seats ? ` · ${counts.seats} seats` : ''}`} />
+          caption={`Across ${counts.sections} section${counts.sections === 1 ? '' : 's'}${counts.seats ? ` · ${counts.seats} seats` : ''}`}
+          to={year ? `/admin/students?academicYear=${year}` : undefined} />
       </ListStats>
 
       {error && <Alert variant="danger">{error}</Alert>}

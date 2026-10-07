@@ -334,6 +334,33 @@ export const AdminsScene = ({ className = '' }) => (
   </svg>
 );
 
+/** Two grown-ups and a child between them — the parents list header. */
+export const ParentsScene = ({ className = '' }) => (
+  <svg viewBox="0 0 200 118" fill="none" className={className} aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* leaves behind */}
+      <path d="M34 96c-14-2-22-12-22-25 13-2 23 6 24 19" opacity=".55" />
+      <path d="M12 71c12 4 20 14 22 25" opacity=".4" strokeWidth="1.5" />
+      <path d="M168 92c13-3 20-13 19-26-13-1-22 8-22 21" opacity=".55" />
+      <path d="M187 66c-11 5-19 15-20 26" opacity=".4" strokeWidth="1.5" />
+      {/* the grown-ups */}
+      <circle cx="68" cy="34" r="11" />
+      <path d="M48 104V77c0-12 9-21 20-21s20 9 20 21v27" />
+      <circle cx="136" cy="34" r="11" />
+      <path d="M116 104V77c0-12 9-21 20-21s20 9 20 21v27" />
+      {/* the child */}
+      <circle cx="102" cy="68" r="8" />
+      <path d="M91 104V92c0-7 5-12 11-12s11 5 11 12v12" />
+      {/* heart */}
+      <path d="M102 40c-7-4.5-11-9-11-13.5a5.5 5.5 0 0 1 11-1.5 5.5 5.5 0 0 1 11 1.5c0 4.5-4 9-11 13.5z" opacity=".6" />
+      {/* ground */}
+      <path d="M40 104h120" opacity=".45" />
+      {/* sparkles */}
+      <path d="M30 30v9M25.5 34.5h9M172 24v7M168.5 27.5h7" opacity=".55" strokeWidth="1.5" />
+    </g>
+  </svg>
+);
+
 /** Support desk — the "need help" panel on every list page. */
 export const SupportScene = ({ className = '' }) => (
   <svg viewBox="0 0 150 110" fill="none" className={className} aria-hidden="true" focusable="false">

@@ -38,6 +38,8 @@ export const fetchReceiptPreview = async (params) => {
 
 // Users
 export const getTeachers = (params) => api.get('/admin/teachers', { params });
+// Each subject the Teachers list's "Subjects Covered" tile counts, with who covers it.
+export const getTeacherSubjects = () => api.get('/admin/teachers/subjects');
 export const getDesignations    = () => api.get('/admin/designations');
 export const updateDesignations = (designations) => api.put('/admin/designations', { designations });
 
@@ -106,8 +108,10 @@ const asSheet = (url, params) => api.get(url, { params, responseType: 'arraybuff
 export const exportStudents = (params) => asSheet('/admin/students/export', params);
 export const exportTeachers = (params) => asSheet('/admin/teachers/export', params);
 export const exportAdmins   = (params) => asSheet('/admin/admins/export',   params);
+export const exportParents  = (params) => asSheet('/admin/parents/export',  params);
 
 export const getAdmins = (params) => api.get('/admin/admins', { params });
+export const getParents = (params) => api.get('/admin/parents', { params });
 export const createAdmin = (data) => api.post('/admin/admins', data);
 export const deleteAdmin = (id) => api.delete(`/admin/admins/${id}`);
 

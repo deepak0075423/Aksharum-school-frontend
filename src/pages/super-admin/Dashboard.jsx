@@ -102,12 +102,12 @@ export default function SADashboard() {
 
       {/* ── Stats ── */}
       <div className="stat-grid" style={{ marginBottom: 28 }}>
-        <StatCard icon="🏫" label="Total Schools" value={data?.schoolCount} color="blue" />
-        <StatCard icon="👥" label="Total Users"   value={data?.userCount}   color="green" />
-        <StatCard icon="👤" label="School Admins" value={data?.roles?.admins ?? '—'}   color="purple" />
-        <StatCard icon="👨‍🏫" label="Teachers"     value={data?.roles?.teachers ?? '—'} color="orange" />
-        <StatCard icon="👨‍🎓" label="Students"     value={data?.roles?.students ?? '—'} color="blue" />
-        <StatCard icon="👨‍👩‍👧" label="Parents"      value={data?.roles?.parents ?? '—'}  color="green" />
+        <StatCard icon="🏫" label="Total Schools" value={data?.schoolCount} color="blue"   to="/super-admin/schools" />
+        <StatCard icon="👥" label="Total Users"   value={data?.userCount}   color="green"  to="/super-admin/users" />
+        <StatCard icon="👤" label="School Admins" value={data?.roles?.admins ?? '—'}   color="purple" to="/super-admin/users?role=school_admin" />
+        <StatCard icon="👨‍🏫" label="Teachers"     value={data?.roles?.teachers ?? '—'} color="orange" to="/super-admin/users?role=teacher" />
+        <StatCard icon="👨‍🎓" label="Students"     value={data?.roles?.students ?? '—'} color="blue"   to="/super-admin/users?role=student" />
+        <StatCard icon="👨‍👩‍👧" label="Parents"      value={data?.roles?.parents ?? '—'}  color="green"  to="/super-admin/users?role=parent" />
       </div>
 
       {/* ── Quick Links ── */}

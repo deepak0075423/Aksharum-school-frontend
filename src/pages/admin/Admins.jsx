@@ -25,7 +25,10 @@ const SORTS = [
 
 const STATUSES = [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
 
-const EMPTY = { status: '', sort: 'name' };
+// Accounts added since the academic year began — what "New Admins" counts.
+const ADDED = [{ value: 'year', label: 'This academic year' }];
+
+const EMPTY = { status: '', added: '', sort: 'name' };
 
 export default function Admins() {
   const { user: me } = useAuth();
@@ -190,15 +193,20 @@ export default function Admins() {
         scene={AdminsScene}
       />
 
+      {/* Four views of one list — each tile clears the others' filter. */}
       <ListStats>
         <ListStat icon="users" tone="indigo" value={stats.total} label="Total Admins"
-          caption="Manage your admin team" on={!filters.status} onClick={() => set({ status: '' })} />
+          caption="Manage your admin team" on={!filters.status && !filters.added}
+          onClick={() => set({ status: '', added: '' })} />
         <ListStat icon="checkCircle" tone="green" value={stats.active} label="Active Admins"
-          caption="Currently active" on={filters.status === 'active'} onClick={() => set({ status: 'active' })} />
+          caption="Currently active" on={filters.status === 'active' && !filters.added}
+          onClick={() => set({ status: 'active', added: '' })} />
         <ListStat icon="userCircle" tone="pink" value={stats.inactive} label="Inactive Admins"
-          caption="Deactivated accounts" on={filters.status === 'inactive'} onClick={() => set({ status: 'inactive' })} />
+          caption="Deactivated accounts" on={filters.status === 'inactive' && !filters.added}
+          onClick={() => set({ status: 'inactive', added: '' })} />
         <ListStat icon="userPlus" tone="amber" value={stats.newThisYear} label="New Admins"
-          caption="This academic year" />
+          caption="This academic year" on={filters.added === 'year' && !filters.status}
+          onClick={() => set({ added: 'year', status: '' })} />
       </ListStats>
 
       <section className="card">
@@ -224,6 +232,9 @@ export default function Admins() {
             <FilterField label="Status" value={filters.status}
               onChange={(v) => set({ status: v })}
               all="All status" options={STATUSES} />
+            <FilterField label="Added" value={filters.added}
+              onChange={(v) => set({ added: v })}
+              all="Any time" options={ADDED} />
             <FilterField label="Sort by" value={filters.sort} defaultValue="name"
               onChange={(v) => set({ sort: v })} options={SORTS} />
           </FilterPanel>

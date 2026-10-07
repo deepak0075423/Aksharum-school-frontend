@@ -29,7 +29,12 @@ const SORTS = [
   { value: 'oldest', label: 'Oldest first' },
 ];
 
-const EMPTY = { status: '', gender: '', classId: '', sectionId: '', sort: 'name' };
+// Accounts added since the academic year began — what "New Admissions" counts.
+const ADDED = [{ value: 'year', label: 'This academic year' }];
+
+const EMPTY = {
+  status: '', added: '', gender: '', classId: '', sectionId: '', academicYear: '', sort: 'name',
+};
 
 export default function Students() {
   const { user } = useAuth();
@@ -46,11 +51,16 @@ export default function Students() {
   const [search, setSearch]   = useState(() => params.get('search') || '');
   // ?classId= / ?sectionId= arrive from a class's Sections page, so "Students"
   // there lands on this list already narrowed to that class rather than on all
-  // 400 of them. The panel opens with them, or the filter would be invisible.
-  const urlClass   = params.get('classId')   || '';
-  const urlSection = params.get('sectionId') || '';
-  const [filters, setFilters] = useState(() => ({ ...EMPTY, classId: urlClass, sectionId: urlSection }));
-  const [showFilters, setShowFilters] = useState(() => !!(urlClass || urlSection));
+  // 400 of them. ?academicYear= arrives from the Classes screen's "Total
+  // Students" — everyone sitting in a section of that year. The panel opens
+  // with any of them, or the filter would be invisible.
+  const urlClass   = params.get('classId')      || '';
+  const urlSection = params.get('sectionId')    || '';
+  const urlYear    = params.get('academicYear') || '';
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY, classId: urlClass, sectionId: urlSection, academicYear: urlYear,
+  }));
+  const [showFilters, setShowFilters] = useState(() => !!(urlClass || urlSection || urlYear));
 
   const [del, setDel]         = useState(null);
   const [delLoad, setDL]      = useState(false);
@@ -88,6 +98,8 @@ export default function Students() {
 
   // Class and section dropdowns, from the running academic year.
   const { data: tree } = useFetch(() => api.getClassesWithSections(), []);
+  const { data: yearList } = useFetch(api.getAcademicYears, []);
+  const years = Array.isArray(yearList) ? yearList : [];
   const classes  = Array.isArray(tree) ? tree : [];
   const sections = filters.classId
     ? (classes.find((c) => c._id === filters.classId)?.sections || [])
@@ -246,15 +258,20 @@ export default function Students() {
         scene={StudentsScene}
       />
 
+      {/* Four views of one list — each tile clears the others' filter. */}
       <ListStats>
         <ListStat icon="users" tone="indigo" value={stats.total} label="Total Students"
-          caption="Across all classes" on={!filters.status} onClick={() => set({ status: '' })} />
+          caption="Across all classes" on={!filters.status && !filters.added}
+          onClick={() => set({ status: '', added: '' })} />
         <ListStat icon="student" tone="green" value={stats.active} label="Active Students"
-          caption="Currently enrolled" on={filters.status === 'active'} onClick={() => set({ status: 'active' })} />
+          caption="Currently enrolled" on={filters.status === 'active' && !filters.added}
+          onClick={() => set({ status: 'active', added: '' })} />
         <ListStat icon="userCircle" tone="pink" value={stats.inactive} label="Inactive Students"
-          caption="Not enrolled" on={filters.status === 'inactive'} onClick={() => set({ status: 'inactive' })} />
+          caption="Not enrolled" on={filters.status === 'inactive' && !filters.added}
+          onClick={() => set({ status: 'inactive', added: '' })} />
         <ListStat icon="userPlus" tone="amber" value={stats.newThisYear} label="New Admissions"
-          caption="This academic year" />
+          caption="This academic year" on={filters.added === 'year' && !filters.status}
+          onClick={() => set({ added: 'year', status: '' })} />
       </ListStats>
 
       <section className="card">
@@ -285,9 +302,17 @@ export default function Students() {
             <FilterField label="Section" value={filters.sectionId}
               onChange={(v) => set({ sectionId: v })}
               all="All sections" options={sections.map((x) => ({ value: x._id, label: x.sectionName }))} />
+            {/* In a section of that year's classes — read off the class rosters,
+                so a year that has ended still lists who sat in it. */}
+            <FilterField label="Enrolled in" value={filters.academicYear}
+              onChange={(v) => set({ academicYear: v })}
+              all="Any academic year" options={years.map((y) => ({ value: y._id, label: y.yearName }))} />
             <FilterField label="Status" value={filters.status}
               onChange={(v) => set({ status: v })}
               all="All status" options={STATUSES} />
+            <FilterField label="Added" value={filters.added}
+              onChange={(v) => set({ added: v })}
+              all="Any time" options={ADDED} />
             <FilterField label="Gender" value={filters.gender}
               onChange={(v) => set({ gender: v })}
               all="Any gender" options={GENDERS} />

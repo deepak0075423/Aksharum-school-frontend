@@ -18,9 +18,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Badge, Button, Confirm, Modal, Spinner } from '../../components/ui/index';
 import Icon, { AdminsScene, SupportScene } from '../../components/ui/icons';
 import { saveFile } from '../../utils/downloadFile';
+import { MODULES } from '../../utils/modules';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, Blank, ListTabs} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, Blank, ListTabs,
+  Breakdown} from './listParts';
 import {
   AccessDetail, AccessSummary, DesignationCell, DesignationDrawer, DesignationEditor,
   Holders, HoldersModal, countBy, levelOf,
@@ -80,6 +82,7 @@ export default function Designations() {
   const [deleting, setDeleting] = useState(false);
   const [holders,  setHolders]  = useState(null);   // { name, teachers[], blocking?, designationId }
   const [downloading, setDownloading] = useState(false);
+  const [modsOpen, setModsOpen] = useState(false);   // the "Modules Enabled" breakdown
 
   // ── Load ───────────────────────────────────────────────────────────────────
   const load = async () => {
@@ -139,6 +142,8 @@ export default function Designations() {
   const shown   = filtered.slice((Math.min(page, pages) - 1) * limit, Math.min(page, pages) * limit);
   const anyFilter = !!term || !!module || tab !== 'all';
   const clearAll  = () => { setSearch(''); setTerm(''); setModule(''); setTab('all'); setPage(1); setExpanded(null); };
+  // Every designation that reaches the module, whatever tab or search was in force.
+  const showModule = (key) => { setModsOpen(false); clearAll(); setModule(key); };
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const saveEdit = async (patch) => {
@@ -347,8 +352,10 @@ export default function Designations() {
           caption="Currently in use" on={tab === 'active'} onClick={() => { setTab('active'); setPage(1); setExpanded(null); }} />
         <ListStat icon="power" tone="pink" value={counts.inactive} label="Inactive Designations"
           caption="Deactivated" on={tab === 'inactive'} onClick={() => { setTab('inactive'); setPage(1); setExpanded(null); }} />
+        {/* Counts modules, not designations, so it opens the modules rather
+            than filtering — each one then narrows the list to who reaches it. */}
         <ListStat icon="grid" tone="blue" value={enabled.length} label="Modules Enabled"
-          caption="Available for access control" />
+          caption="Available for access control" popup onClick={() => setModsOpen(true)} />
       </ListStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -434,10 +441,49 @@ export default function Designations() {
       <HoldersModal state={holders} onClose={() => setHolders(null)}
         onDownload={download} downloading={downloading} />
 
+      <ModulesEnabled open={modsOpen} onClose={() => setModsOpen(false)}
+        modules={enabled} disabled={disabled} rows={rows} onPick={showModule} />
+
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} loading={deleting}
         title="Delete Designation"
         message={`Delete “${del?.name}”? Its configured module permissions are removed with it.`} />
     </div>
+  );
+}
+
+const MODULE_ICON = Object.fromEntries(MODULES.map((m) => [m.key, m.icon]));
+
+/**
+ * What "Modules Enabled" counts, opened up: each module the school has on and
+ * how many designations reach it. The count is the "Can reach" filter's, over
+ * every designation, so picking a row shows exactly that many.
+ */
+function ModulesEnabled({ open, onClose, modules, disabled, rows, onPick }) {
+  const items = modules.map((m) => {
+    const admin = rows.filter((r) => levelOf(r.permissions, m.key) === 'admin').length;
+    const user  = rows.filter((r) => levelOf(r.permissions, m.key) === 'user').length;
+    const n     = admin + user;
+    return {
+      key: m.key, icon: MODULE_ICON[m.key] || 'grid', tone: 'blue', name: m.label, sub: m.description,
+      count: n ? `${n} designation${n === 1 ? '' : 's'}${admin ? ` · ${admin} admin` : ''}` : 'No designation',
+    };
+  });
+  return (
+    <Modal open={open} onClose={onClose} title="Modules Enabled" maxWidth={600}
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+      <p className="lbreak__note">
+        The modules this school has switched on — the only ones a designation can grant.
+        Choose one to see the designations that reach it.
+      </p>
+      <Breakdown rows={items} onPick={(r) => onPick(r.key)}
+        empty="This school has no modules switched on." />
+      {disabled.length > 0 && (
+        <p className="lbreak__note" style={{ margin: '14px 0 0' }}>
+          Switched off for this school, so no designation can grant {disabled.length === 1 ? 'it' : 'them'}:{' '}
+          {disabled.map((m) => m.label).join(', ')}.
+        </p>
+      )}
+    </Modal>
   );
 }
 
