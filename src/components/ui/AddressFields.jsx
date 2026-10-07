@@ -99,7 +99,7 @@ export default function AddressFields({
         <div className="form-group">
           <label className={lbl}>PIN Code</label>
           <div style={{ position: 'relative' }}>
-            <input className={`form-control${errs[kPincode] ? ' error' : ''}`} inputMode="numeric" placeholder="411001"
+            <input data-text="pincode" className={`form-control${errs[kPincode] ? ' error' : ''}`} inputMode="numeric" placeholder="411001"
               disabled={disabled} value={form[kPincode] || ''} onChange={e => onPincode(e.target.value)} />
             {pinLoading && (
               <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>
@@ -114,7 +114,7 @@ export default function AddressFields({
         </div>
         <div className="form-group">
           <label className={lbl}>City / District</label>
-          <input data-text="name" className={`form-control${errs[kCity] ? ' error' : ''}`} placeholder="Pune" list={listId}
+          <input data-text="place" className={`form-control${errs[kCity] ? ' error' : ''}`} placeholder="Pune" list={listId}
             disabled={disabled} value={form[kCity] || ''} onChange={onField(kCity)} />
           {areas.length > 0 && (
             <datalist id={listId}>{areas.map(a => <option key={a} value={a} />)}</datalist>
@@ -132,7 +132,7 @@ export default function AddressFields({
         </div>
         <div className="form-group">
           <label className={lbl}>Country</label>
-          <input className={`form-control${errs[kCountry] ? ' error' : ''}`} placeholder="India"
+          <input data-text="place" className={`form-control${errs[kCountry] ? ' error' : ''}`} placeholder="India"
             disabled={disabled} value={form[kCountry] ?? 'India'} onChange={onField(kCountry)} />
           <Err msg={errs[kCountry]} />
         </div>

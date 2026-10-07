@@ -78,7 +78,7 @@ function LogCall({ notice, onClose, onDone }) {
       </Field>
       {contact === 'other' ? (
         <div className="md-form__grid">
-          <Field label="Name and relation" required><input className="md-input" value={other.to} onChange={(e) => setOther((o) => ({ ...o, to: e.target.value }))} maxLength={120} placeholder="e.g. Grandmother" /></Field>
+          <Field label="Name and relation" required><input data-text="name" className="md-input" value={other.to} onChange={(e) => setOther((o) => ({ ...o, to: e.target.value }))} maxLength={120} placeholder="e.g. Grandmother" /></Field>
           <Field label="Number" optional><PhoneInput className="md-input" value={other.phone} onChange={(e) => setOther((o) => ({ ...o, phone: e.target.value }))} /></Field>
         </div>
       ) : null}

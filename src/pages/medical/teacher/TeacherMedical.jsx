@@ -135,7 +135,7 @@ function SendForm({ meta, onSent }) {
       </Field>
       {v.urgency === 'emergency' ? <Note tone="red" icon="siren">For a life-threatening emergency, call the Medical Room{meta?.roomPhone ? ` (${meta.roomPhone})` : ''} and the emergency services first — then send this so it is recorded.</Note> : null}
       <div className="md-form__grid">
-        <Field label="Coming with" optional><input className="md-input" value={v.escortedBy} onChange={(e) => set('escortedBy')(e.target.value)} placeholder="e.g. Class monitor" maxLength={120} /></Field>
+        <Field label="Coming with" optional><input data-text="name" className="md-input" value={v.escortedBy} onChange={(e) => set('escortedBy')(e.target.value)} placeholder="e.g. Class monitor" maxLength={120} /></Field>
         <Field label="Remarks" optional><input className="md-input" value={v.remarks} onChange={(e) => set('remarks')(e.target.value)} maxLength={600} /></Field>
       </div>
       <div><Btn kind={v.urgency === 'emergency' ? 'emergency' : 'primary'} size="lg" icon="send" busy={busy} onClick={send}>Send to Medical Room</Btn></div>
@@ -181,7 +181,7 @@ function IncidentForm({ meta, onDone }) {
       <Field label="What happened" required><textarea className="md-textarea" rows={3} value={v.description} onChange={(e) => set('description')(e.target.value)} maxLength={2000} /></Field>
       <div className="md-form__grid">
         <Field label="Injury" optional><input className="md-input" value={v.injury} onChange={(e) => set('injury')(e.target.value)} placeholder="e.g. Grazed knee" /></Field>
-        <Field label="Part of the body" optional><input className="md-input" value={v.bodyPart} onChange={(e) => set('bodyPart')(e.target.value)} /></Field>
+        <Field label="Part of the body" optional><input data-text="title" className="md-input" value={v.bodyPart} onChange={(e) => set('bodyPart')(e.target.value)} /></Field>
         <Field label="First aid you gave" optional><input className="md-input" value={v.firstAid} onChange={(e) => set('firstAid')(e.target.value)} /></Field>
         <Field label="Witnesses" optional><input className="md-input" value={v.witnesses} onChange={(e) => set('witnesses')(e.target.value)} /></Field>
       </div>

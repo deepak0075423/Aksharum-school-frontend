@@ -123,7 +123,7 @@ function AutoReminders({ f, setIn, sym }) {
           <div className="fe-sgrid fe-sgrid--3" style={{ marginTop: 14 }}>
             <Labelled label="Smallest amount worth chasing" hint="Anything below this is left alone.">
               <span className="fe-affix fe-affix--pre"><span>{sym}</span>
-                <input className="fe-input" type="number" min="0" value={a.minAmount ?? 0}
+                <input step="0.01" className="fe-input" type="number" min="0" value={a.minAmount ?? 0}
                   onChange={e => setIn('autoReminders', 'minAmount')(e.target.value)} /></span>
             </Labelled>
             <Labelled label="Send at" hint="The school's local time.">
@@ -375,7 +375,7 @@ export default function FeesSettings() {
               <Section glyph="rupee" title="Limits" sub="Checked every time a payment is recorded">
                 <div className="fe-sgrid fe-sgrid--3">
                   <Labelled label="Smallest payment accepted" hint="0 = no minimum">
-                    <span className="fe-affix fe-affix--pre"><span>{sym}</span><input className="fe-input" type="number" min="0" value={f.minPaymentAmount ?? 0} onChange={e => set('minPaymentAmount')(e.target.value)} /></span>
+                    <span className="fe-affix fe-affix--pre"><span>{sym}</span><input step="0.01" className="fe-input" type="number" min="0" value={f.minPaymentAmount ?? 0} onChange={e => set('minPaymentAmount')(e.target.value)} /></span>
                   </Labelled>
                   <SwitchBox title="Allow Partial Payments" desc="Off: the office must collect the full amount due" checked={f.allowPartialPayments} onChange={set('allowPartialPayments')} />
                 </div>
@@ -389,7 +389,7 @@ export default function FeesSettings() {
             <>
               <Section glyph="receipt" title="Receipt Numbering" sub="Every completed payment gets the next number">
                 <div className="fe-sgrid fe-sgrid--3">
-                  <Labelled label="Receipt Prefix" hint="Letters, digits, / and - (up to 10)"><input className="fe-input" value={f.receiptPrefix || ''} onChange={e => set('receiptPrefix')(e.target.value.toUpperCase())} /></Labelled>
+                  <Labelled label="Receipt Prefix" hint="Letters, digits, / and - (up to 10)"><input data-text="code" className="fe-input" value={f.receiptPrefix || ''} onChange={e => set('receiptPrefix')(e.target.value.toUpperCase())} /></Labelled>
                   <Labelled label="Next receipt"><input className="fe-input" disabled value={`${f.receiptPrefix || 'REC'}-${String((s.lastReceiptNumber || 0) + 1).padStart(6, '0')}`} /></Labelled>
                 </div>
               </Section>

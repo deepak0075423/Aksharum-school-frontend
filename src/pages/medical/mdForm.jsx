@@ -155,7 +155,7 @@ export function MedicineLines({ value = [], onChange, items = [], plans = [], re
           <div className="md-line">
             <div>
               {l.source === 'parent' ? (
-                <input className="md-input" value={l.medicineName || ''} onChange={(e) => set(i, { medicineName: e.target.value })} placeholder="Family's own medicine — name" />
+                <input data-text="title" className="md-input" value={l.medicineName || ''} onChange={(e) => set(i, { medicineName: e.target.value })} placeholder="Family's own medicine — name" />
               ) : l.plan ? (
                 <span className="md-select is-set" style={{ width: '100%' }}>
                   <select value={l.plan} onChange={(e) => set(i, { plan: e.target.value })} aria-label="Medication plan">
@@ -173,7 +173,7 @@ export function MedicineLines({ value = [], onChange, items = [], plans = [], re
                 </button>
               </div>
             </div>
-            <input className="md-input" value={l.dosage || ''} onChange={(e) => set(i, { dosage: e.target.value })} placeholder="Dosage, e.g. 1 tablet" aria-label="Dosage" />
+            <input data-text="title" className="md-input" value={l.dosage || ''} onChange={(e) => set(i, { dosage: e.target.value })} placeholder="Dosage, e.g. 1 tablet" aria-label="Dosage" />
             <input className="md-input" type="number" min="0" step="0.5" value={l.source === 'parent' ? '' : (l.quantity ?? '')} disabled={l.source === 'parent'} onChange={(e) => set(i, { quantity: e.target.value })} placeholder="Qty" aria-label="Quantity from stock" />
             <IconBtn icon="trash" label="Remove" onClick={() => onChange(value.filter((_, j) => j !== i))} />
           </div>
@@ -325,12 +325,15 @@ export function FormDialog({
   const [busy, setBusy] = useState(false);
   const [fail, setFail] = useState('');
   const body = useRef(null);
+  // What the dialog opened with: a name saved before a rule existed is not
+  // re-judged unless it is changed (the server works the same way).
+  const opened = useRef(initial || {});
   // Reset only when the dialog OPENS. Resetting whenever `initial` changed
   // would wipe a half-filled form the moment a parent re-rendered with a fresh
   // object (a background refresh of the lists, a new "now" for a time field).
   const wasOpen = useRef(open);
   useEffect(() => {
-    if (open && !wasOpen.current) { setValues(initial || {}); setErrors({}); setFail(''); setBusy(false); }
+    if (open && !wasOpen.current) { setValues(initial || {}); opened.current = initial || {}; setErrors({}); setFail(''); setBusy(false); }
     wasOpen.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -356,7 +359,7 @@ export function FormDialog({
         const v = getPath(values, f.name);
         if (f.required && (empty(v) || (f.type === 'student' && !v?._id))) errs[f.name] = `${f.label || 'This'} is required`;
         else if (f.type === 'phone' && phoneError(v)) errs[f.name] = `${f.label || 'Phone'} must be a valid 10-digit mobile number`;
-        else if (f.text && textError(v, f.label || 'This field', f.text)) errs[f.name] = textError(v, f.label || 'This field', f.text);
+        else if (f.text && v !== getPath(opened.current, f.name) && textError(v, f.label || 'This field', f.text)) errs[f.name] = textError(v, f.label || 'This field', f.text);
         else if (f.validate) { const m = f.validate(v, values); if (m) errs[f.name] = m; }
       }
     }

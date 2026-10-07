@@ -195,8 +195,8 @@ export default function VideoLibrary() {
             </Select>
           </div>
           {form.source === 's3'
-            ? <Input label="S3 Object Key" value={form.s3Key} onChange={e => setForm(f => ({ ...f, s3Key: e.target.value }))} hint="Upload media after creating the draft, or paste an existing key" />
-            : <Input label={`${cap(form.source)} URL`} required value={form.sourceUrl} onChange={e => setForm(f => ({ ...f, sourceUrl: e.target.value }))} placeholder="https://youtu.be/…" />}
+            ? <Input data-text="token" label="S3 Object Key" value={form.s3Key} onChange={e => setForm(f => ({ ...f, s3Key: e.target.value }))} hint="Upload media after creating the draft, or paste an existing key" />
+            : <Input data-text="token" label={`${cap(form.source)} URL`} required value={form.sourceUrl} onChange={e => setForm(f => ({ ...f, sourceUrl: e.target.value }))} placeholder="https://youtu.be/…" />}
           <Textarea label="Short Description" rows={2} value={form.shortDescription} onChange={e => setForm(f => ({ ...f, shortDescription: e.target.value }))} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Select label="Difficulty" value={form.difficulty} onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))}>
@@ -211,12 +211,12 @@ export default function VideoLibrary() {
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>🔗 Mappings (comma-separated — one video, many mappings)</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Boards" value={form.taxonomy.board} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, board: e.target.value } }))} placeholder="CBSE, ICSE" />
-              <Input label="Classes" value={form.taxonomy.grade} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, grade: e.target.value } }))} placeholder="Class 9, Class 10" />
-              <Input label="Subjects" value={form.taxonomy.subject} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, subject: e.target.value } }))} placeholder="Science, Biology" />
-              <Input label="Chapters" value={form.taxonomy.chapter} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, chapter: e.target.value } }))} placeholder="Life Processes" />
-              <Input label="Topics" value={form.taxonomy.topic} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, topic: e.target.value } }))} placeholder="Photosynthesis" />
-              <Input label="Tags" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="ncert, board-exam" />
+              <Input data-text="title" label="Boards" value={form.taxonomy.board} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, board: e.target.value } }))} placeholder="CBSE, ICSE" />
+              <Input data-text="title" label="Classes" value={form.taxonomy.grade} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, grade: e.target.value } }))} placeholder="Class 9, Class 10" />
+              <Input data-text="title" label="Subjects" value={form.taxonomy.subject} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, subject: e.target.value } }))} placeholder="Science, Biology" />
+              <Input data-text="title" label="Chapters" value={form.taxonomy.chapter} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, chapter: e.target.value } }))} placeholder="Life Processes" />
+              <Input data-text="title" label="Topics" value={form.taxonomy.topic} onChange={e => setForm(f => ({ ...f, taxonomy: { ...f.taxonomy, topic: e.target.value } }))} placeholder="Photosynthesis" />
+              <Input data-text="title" label="Tags" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="ncert, board-exam" />
             </div>
           </div>
         </div>

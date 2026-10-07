@@ -39,7 +39,7 @@ export default function VerifyOtp() {
 
       <form onSubmit={onSubmit} noValidate>
         <Field id="otp-code" label="6-Digit Code" required>
-          <input
+          <input data-text="otp"
             id="otp-code"
             type="text"
             className="form-control au-otp"

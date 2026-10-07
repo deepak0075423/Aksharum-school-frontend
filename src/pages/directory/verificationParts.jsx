@@ -31,6 +31,7 @@ import { Avatar, VERIFY_TONE, fileUrl } from './parts';
 import { VIZ } from '../analytics/palette';
 import { withFileToken } from '../../utils/fileAccess';
 import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
+import { experienceText } from '../../utils/validators';
 
 /**
  * Where an employee stands.
@@ -236,7 +237,7 @@ export const fieldsFor = (section, d, revealed = {}) => {
         [val(q.qualification), val(q.specialization), val(q.institution), val(q.passingYear), val(q.grade)]
           .filter(Boolean).join(' · '),
       ]),
-      ['Total experience', val(d.employment?.totalExperience)],
+      ['Total experience', val(experienceText(d.employment?.totalExperience))],
       ['Previous school', val(d.employment?.previousSchool)],
       ['Last designation', val(d.employment?.lastDesignation)],
     ];

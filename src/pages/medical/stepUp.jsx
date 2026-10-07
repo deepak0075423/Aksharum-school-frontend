@@ -47,7 +47,7 @@ export function StepUpHost() {
       <Note tone="indigo" icon="info">{pending.force ? 'Before everyone is asked for a code, make sure the school\'s email reaches you.' : 'Your school asks the medical staff to confirm who they are every 12 hours before opening medical records.'}</Note>
       {sentTo ? (
         <Field label={`The code sent to ${sentTo}`} required>
-          <input className="md-input" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} maxLength={7} placeholder="6 digits" autoFocus />
+          <input data-text="otp" className="md-input" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} maxLength={7} placeholder="6 digits" autoFocus />
         </Field>
       ) : null}
       {err ? <Note tone="red" icon="alert">{err}</Note> : null}

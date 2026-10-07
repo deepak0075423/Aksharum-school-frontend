@@ -287,10 +287,10 @@ export default function Hostels() {
         <FormSection step="basic" icon="oBuilding" title="Basic Information" sub="Provide the essential details for the hostel.">
           <Grid cols={2}>
             <Fld label="Hostel Name" required icon="oBuilding">
-              <input value={form.name} maxLength={80} placeholder="Enter hostel name (e.g. Boys Hostel)" onChange={(e) => setF('name', e.target.value)} />
+              <input data-text="title" value={form.name} maxLength={80} placeholder="Enter hostel name (e.g. Boys Hostel)" onChange={(e) => setF('name', e.target.value)} />
             </Fld>
             <Fld label="Hostel Code" icon="oTag" hint={editId ? 'The code cannot be reused by another hostel' : 'Auto-generated if left blank (e.g. HL-001)'}>
-              <input value={form.code} maxLength={20} placeholder="HL-001" onChange={(e) => setF('code', e.target.value.toUpperCase())} />
+              <input data-text="code" value={form.code} maxLength={20} placeholder="HL-001" onChange={(e) => setF('code', e.target.value.toUpperCase())} />
             </Fld>
           </Grid>
           <Grid cols={3}>
@@ -314,17 +314,17 @@ export default function Hostels() {
                 placeholder="Enter contact number" onChange={(e) => setF('contactNumber', e.target.value)} />
             </Fld>
             <Fld label="Email" icon="mail">
-              <input type="email" value={form.email} placeholder="Enter email address" onChange={(e) => setF('email', e.target.value)} />
+              <input data-text="email" type="email" value={form.email} placeholder="Enter email address" onChange={(e) => setF('email', e.target.value)} />
             </Fld>
           </Grid>
           <Fld label="Address" icon="mapPin">
             <input value={form.address} placeholder="Enter full address" onChange={(e) => setF('address', e.target.value)} />
           </Fld>
           <Grid cols={3}>
-            <Fld label="City" icon="oBuilding"><input value={form.city} placeholder="City" onChange={(e) => setF('city', e.target.value)} /></Fld>
-            <Fld label="State" icon="oMap"><input value={form.state} placeholder="State" onChange={(e) => setF('state', e.target.value)} /></Fld>
+            <Fld label="City" icon="oBuilding"><input data-text="place" value={form.city} placeholder="City" onChange={(e) => setF('city', e.target.value)} /></Fld>
+            <Fld label="State" icon="oMap"><input data-text="place" value={form.state} placeholder="State" onChange={(e) => setF('state', e.target.value)} /></Fld>
             <Fld label="Pincode" icon="mapPin">
-              <input value={form.pincode} inputMode="numeric" pattern="[0-9]{6}" title="A six-digit pincode" maxLength={6} placeholder="Pincode"
+              <input data-text="pincode" value={form.pincode} inputMode="numeric" pattern="[0-9]{6}" title="A six-digit pincode" maxLength={6} placeholder="Pincode"
                 onChange={(e) => setF('pincode', e.target.value.replace(/\D/g, ''))} />
             </Fld>
           </Grid>

@@ -400,7 +400,7 @@ export default function Documents() {
           ({DOC_TYPES.map((t) => t.label).join(', ')}), which the tabs are built on.
         </p>
         <div className="docaddcat">
-          <input className="form-control" placeholder="New category name…" value={newCat}
+          <input data-text="title" className="form-control" placeholder="New category name…" value={newCat}
             onChange={(e) => setNewCat(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addCategory()} />
           <Button onClick={addCategory} loading={addingCat}>Add</Button>

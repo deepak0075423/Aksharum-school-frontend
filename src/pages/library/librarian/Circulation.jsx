@@ -387,7 +387,7 @@ export default function LibraryCirculation() {
         <form onSubmit={handleScan}>
           <div className="form-group">
             <label className="form-label">Copy code</label>
-            <input className="form-control" autoFocus value={scanCode}
+            <input data-text="code" className="form-control" autoFocus value={scanCode}
               placeholder="Scan the spine label, or type LIB-COPY-000042"
               onChange={e => setScanCode(e.target.value)} />
             <div className="form-hint">The scanner submits on its own — no need to press anything.</div>

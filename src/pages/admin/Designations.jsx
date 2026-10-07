@@ -492,7 +492,7 @@ function AddDesignation({ open, onClose, onCreate, saving }) {
       <form id="designation-add" onSubmit={submit}>
         <div className="form-group">
           <label className="form-label required">Name</label>
-          <input className="form-control" autoFocus maxLength={60} required
+          <input data-text="title" className="form-control" autoFocus maxLength={60} required
             placeholder="e.g. Head of Science" value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </div>

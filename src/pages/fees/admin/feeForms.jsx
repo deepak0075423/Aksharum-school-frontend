@@ -210,7 +210,7 @@ export function RecordPaymentDialog({ open, onClose, onDone, meta, student: pres
           <Field label="Payment Date"><DateInput value={form.paymentDate} max={isoDay(new Date())} onChange={set('paymentDate')} /></Field>
         </div>
         <div className="fe-form__row">
-          <Field label="Reference No." hint="UPI / cheque / card slip number"><Input value={form.transactionRef} onChange={set('transactionRef')} /></Field>
+          <Field label="Reference No." hint="UPI / cheque / card slip number"><Input data-text="code" value={form.transactionRef} onChange={set('transactionRef')} /></Field>
           <Field label="Remarks"><Input value={form.remarks} onChange={set('remarks')} /></Field>
         </div>
       </form>
@@ -636,7 +636,7 @@ export function StructureDialog({ open, onClose, onSaved, meta, source, mode = '
       footer={<Foot onClose={onClose} saving={saving} label={mode === 'edit' ? 'Save Changes' : 'Create Structure'} form="fe-st-form" />}>
       <form id="fe-st-form" className="fe-form" onSubmit={submit}>
         <div className="fe-form__row">
-          <Field label="Structure Name" required><Input value={form.name} onChange={set('name')} placeholder="e.g. Class 10 - Regular" /></Field>
+          <Field label="Structure Name" required><Input data-text="title" value={form.name} onChange={set('name')} placeholder="e.g. Class 10 - Regular" /></Field>
           <Field label="Academic Year" required hint={year ? `Runs ${monthName(firstMonth)} – ${monthName(lastMonth)}; no fee head can go past ${monthName(lastMonth)}.` : null}>
             <Select value={form.academicYearId} onChange={set('academicYearId')} options={yearOptions(years)} disabled={mode === 'edit'} />
           </Field>
@@ -1132,7 +1132,7 @@ export function HeadDialog({ open, onClose, onSaved, meta, head }) {
       title={<Title glyph="layers" tone="indigo" title={editing ? 'Edit Fee Head' : 'Add Fee Head'} sub="One component a fee structure can charge" />}
       footer={<Foot onClose={onClose} saving={saving} label={editing ? 'Save Changes' : 'Add Fee Head'} form="fe-head-form" />}>
       <form id="fe-head-form" className="fe-form" onSubmit={submit}>
-        <Field label="Fee Head Name" required><Input value={form.name || ''} onChange={set('name')} placeholder="e.g. Tuition Fee" /></Field>
+        <Field label="Fee Head Name" required><Input data-text="title" value={form.name || ''} onChange={set('name')} placeholder="e.g. Tuition Fee" /></Field>
         <div className="fe-form__row">
           <Field label="Category">
             <Select value={form.categoryId} onChange={set('categoryId')} all="No category"
@@ -1246,7 +1246,7 @@ export function CategoryDialog({ open, onClose, onSaved, category }) {
       title={<Title glyph="grid" tone="indigo" title={category ? 'Edit Category' : 'Add Category'} sub="A group of fee heads" />}
       footer={<Foot onClose={onClose} saving={saving} label={category ? 'Save Changes' : 'Add Category'} form="fe-cat-form" />}>
       <form id="fe-cat-form" className="fe-form" onSubmit={submit}>
-        <Field label="Category Name" required><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Academic Fees" /></Field>
+        <Field label="Category Name" required><Input data-text="title" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Academic Fees" /></Field>
         <Field label="Description"><textarea className="fe-textarea" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></Field>
         <Field label="Status"><span className="fe-togglerow"><Toggle checked={form.isActive} onChange={v => setForm(f => ({ ...f, isActive: v }))} />{form.isActive ? 'Active' : 'Inactive'}</span></Field>
       </form>
@@ -1286,13 +1286,13 @@ export function ConcessionDialog({ open, onClose, onSaved, meta, concession }) {
       title={<Title glyph="percent" tone="green" title={concession ? 'Edit Concession' : 'Add Concession'} sub="A scholarship, discount or waiver" />}
       footer={<Foot onClose={onClose} saving={saving} label={concession ? 'Save Changes' : 'Add Concession'} form="fe-con-form" />}>
       <form id="fe-con-form" className="fe-form" onSubmit={submit}>
-        <Field label="Concession Name" required><Input value={form.name || ''} onChange={set('name')} placeholder="e.g. Merit Scholarship" /></Field>
+        <Field label="Concession Name" required><Input data-text="title" value={form.name || ''} onChange={set('name')} placeholder="e.g. Merit Scholarship" /></Field>
         <div className="fe-form__row">
           <Field label="Type"><SegCtl value={form.concessionType} onChange={set('concessionType')} items={[{ value: 'percentage', label: 'Percentage' }, { value: 'fixed', label: 'Fixed Amount' }]} /></Field>
           <Field label={form.concessionType === 'percentage' ? 'Discount (%)' : 'Discount Amount'} required
             hint={form.concessionType === 'fixed' ? 'Taken once off the fee heads it covers' : null}>
             {form.concessionType === 'percentage'
-              ? <span className="fe-affix"><input className="fe-input" type="number" min="0" max="100" value={form.value || ''} onChange={set('value')} /><span>%</span></span>
+              ? <span className="fe-affix"><input step="0.01" className="fe-input" type="number" min="0" max="100" value={form.value || ''} onChange={set('value')} /><span>%</span></span>
               : <Money value={form.value || ''} onChange={set('value')} sym={meta?.settings?.currencySymbol} />}
           </Field>
         </div>
@@ -1496,7 +1496,7 @@ export function FineRuleDialog({ open, onClose, onSaved, meta, rule, copy }) {
       title={<Title glyph="rupee" tone="red" title={rule && !copy ? 'Edit Fine Rule' : 'Add Fine Rule'} sub="A late-payment fine, or a penalty the office charges by hand" />}
       footer={<Foot onClose={onClose} saving={saving} label={rule && !copy ? 'Save Changes' : 'Add Fine Rule'} form="fe-fine-form" />}>
       <form id="fe-fine-form" className="fe-form" onSubmit={submit}>
-        <Field label="Rule Name" required><Input value={form.name || ''} onChange={set('name')} placeholder="e.g. Late Fee - Monthly" /></Field>
+        <Field label="Rule Name" required><Input data-text="title" value={form.name || ''} onChange={set('name')} placeholder="e.g. Late Fee - Monthly" /></Field>
         <div className="fe-form__row">
           <Field label="Type"><SegCtl value={form.ruleType} onChange={set('ruleType')} items={[{ value: 'late_payment', label: 'Late Payment' }, { value: 'other', label: 'Other Fine' }]} /></Field>
           <Field label="Calculation"><SegCtl value={form.fineType} onChange={set('fineType')} items={[{ value: 'per_day', label: 'Per day' }, { value: 'flat', label: 'Fixed' }]} /></Field>

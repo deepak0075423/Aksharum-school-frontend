@@ -312,7 +312,7 @@ export function ClassForm({ open, cls, years, defaultYear, saving, error, onClos
 
         <div className="form-group">
           <label className="form-label required">Class name</label>
-          <input className="form-control" autoFocus maxLength={60} placeholder="Class 10" value={form.name}
+          <input data-text="title" className="form-control" autoFocus maxLength={60} placeholder="Class 10" value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           <div className="form-hint">What staff and parents see everywhere this class appears.</div>
         </div>

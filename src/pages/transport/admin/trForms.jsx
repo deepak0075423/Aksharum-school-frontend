@@ -224,26 +224,26 @@ export function VehicleForm({ open, onClose, onSaved, row }) {
           <>
             <FormGrid>
               <Field label="Fleet number" hint="Left blank, one is generated (VH-…)">
-                <Input value={form.vehicleNumber} onChange={(e) => put('vehicleNumber', e.target.value)} placeholder="WB-01" />
+                <Input data-text="code" value={form.vehicleNumber} onChange={(e) => put('vehicleNumber', e.target.value)} placeholder="WB-01" />
               </Field>
               <Field label="Registration number" required error={v.errors.registrationNumber}>
-                <Input value={form.registrationNumber} aria-invalid={!!v.errors.registrationNumber}
-                       onChange={(e) => put('registrationNumber', e.target.value)} placeholder="WB 01 AB 1234" />
+                <Input data-text="upper" value={form.registrationNumber} aria-invalid={!!v.errors.registrationNumber}
+                       onChange={(e) => put('registrationNumber', e.target.value)} placeholder="WB01AB1234" />
               </Field>
               <Field label="Model / bus name">
-                <Input value={form.busName} onChange={(e) => put('busName', e.target.value)} placeholder="Tata Starbus 52 Seater" />
+                <Input data-text="title" value={form.busName} onChange={(e) => put('busName', e.target.value)} placeholder="Tata Starbus 52 Seater" />
               </Field>
               <Field label="Type">
                 <Select value={form.vehicleType} onChange={(x) => put('vehicleType', x)}
                         options={Object.entries(VEHICLE_TYPE).filter(([k]) => k !== 'any').map(([value, label]) => ({ value, label }))} />
               </Field>
-              <Field label="Manufacturer"><Input value={form.manufacturer} onChange={(e) => put('manufacturer', e.target.value)} /></Field>
+              <Field label="Manufacturer"><Input data-text="title" value={form.manufacturer} onChange={(e) => put('manufacturer', e.target.value)} /></Field>
               <Field label="Model year" error={v.errors.modelYear}>
                 <Input type="number" value={form.modelYear || ''} aria-invalid={!!v.errors.modelYear}
                        onChange={(e) => put('modelYear', e.target.value)} />
               </Field>
               <Field label="Photo URL" hint="Shown in the fleet list and the vehicle panel" full>
-                <Input value={form.photo} onChange={(e) => put('photo', e.target.value)} placeholder="uploads/vehicles/wb-01.jpg" />
+                <Input data-text="token" value={form.photo} onChange={(e) => put('photo', e.target.value)} placeholder="uploads/vehicles/wb-01.jpg" />
               </Field>
             </FormGrid>
           </>
@@ -272,11 +272,11 @@ export function VehicleForm({ open, onClose, onSaved, row }) {
           <>
             <FormGrid>
               <Field label="GPS device ID" hint="Without one the vehicle can never show on the live map">
-                <Input value={form.gpsDeviceId} onChange={(e) => put('gpsDeviceId', e.target.value)} />
+                <Input data-text="code" value={form.gpsDeviceId} onChange={(e) => put('gpsDeviceId', e.target.value)} />
               </Field>
-              <Field label="RFID reader ID"><Input value={form.rfidDeviceId} onChange={(e) => put('rfidDeviceId', e.target.value)} /></Field>
-              <Field label="Engine number"><Input value={form.engineNumber} onChange={(e) => put('engineNumber', e.target.value)} /></Field>
-              <Field label="Chassis number"><Input value={form.chassisNumber} onChange={(e) => put('chassisNumber', e.target.value)} /></Field>
+              <Field label="RFID reader ID"><Input data-text="code" value={form.rfidDeviceId} onChange={(e) => put('rfidDeviceId', e.target.value)} /></Field>
+              <Field label="Engine number"><Input data-text="code" value={form.engineNumber} onChange={(e) => put('engineNumber', e.target.value)} /></Field>
+              <Field label="Chassis number"><Input data-text="code" value={form.chassisNumber} onChange={(e) => put('chassisNumber', e.target.value)} /></Field>
               <Field full><Check checked={form.hasCamera} onChange={(x) => put('hasCamera', x)} label="Has on-board camera" /></Field>
             </FormGrid>
           </>
@@ -285,7 +285,7 @@ export function VehicleForm({ open, onClose, onSaved, row }) {
           <>
             <FormGrid three>
               <Field label="Purchase date"><Input type="date" value={form.purchaseDate} onChange={(e) => put('purchaseDate', e.target.value)} /></Field>
-              <Field label="Purchase cost (₹)"><Input type="number" min="0" value={form.purchaseCost} onChange={(e) => put('purchaseCost', e.target.value)} /></Field>
+              <Field label="Purchase cost (₹)"><Input step="0.01" type="number" min="0" value={form.purchaseCost} onChange={(e) => put('purchaseCost', e.target.value)} /></Field>
               <Field label="Insurance expiry"><Input type="date" value={form.insuranceExpiry} onChange={(e) => put('insuranceExpiry', e.target.value)} /></Field>
               <Field label="Fitness expiry"><Input type="date" value={form.fitnessExpiry} onChange={(e) => put('fitnessExpiry', e.target.value)} /></Field>
               <Field label="Permit expiry"><Input type="date" value={form.permitExpiry} onChange={(e) => put('permitExpiry', e.target.value)} /></Field>
@@ -772,8 +772,8 @@ export function CrewAssignForm({ open, onClose, onSaved, role = 'driver' }) {
                   <Field label="License Number" required error={v.errors.licenseNumber}>
                     <span className="tr-ifield">
                       <Ico name="creditCard" size={16} />
-                      <Input value={form.licenseNumber} aria-invalid={!!v.errors.licenseNumber}
-                             onChange={(e) => put('licenseNumber', e.target.value)} placeholder="WB14 2015001234" />
+                      <Input data-text="code" value={form.licenseNumber} aria-invalid={!!v.errors.licenseNumber}
+                             onChange={(e) => put('licenseNumber', e.target.value)} placeholder="WB1420150001234" />
                     </span>
                   </Field>
                   <Field label="License Class" required error={v.errors.licenseType}>
@@ -964,8 +964,8 @@ export function StaffForm({ open, onClose, onSaved, row }) {
           {isDriver ? (
             <>
               <div className="tr-formgrid__full" style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--tr-muted)', marginTop: 4 }}>Licence</div>
-              <Field label="Licence number"><Input value={form.licenseNumber} onChange={(e) => set('licenseNumber', e.target.value)} /></Field>
-              <Field label="Licence class"><Input value={form.licenseType} onChange={(e) => set('licenseType', e.target.value)} placeholder="HMV" /></Field>
+              <Field label="Licence number"><Input data-text="code" value={form.licenseNumber} onChange={(e) => set('licenseNumber', e.target.value)} /></Field>
+              <Field label="Licence class"><Input data-text="title" value={form.licenseType} onChange={(e) => set('licenseType', e.target.value)} placeholder="HMV" /></Field>
               <Field label="Licence expiry"><Input type="date" value={form.licenseExpiry} onChange={(e) => set('licenseExpiry', e.target.value)} /></Field>
               <Field label="Experience (years)"><Input type="number" min="0" value={form.experienceYears} onChange={(e) => set('experienceYears', e.target.value)} /></Field>
             </>
@@ -1161,14 +1161,14 @@ export function RouteForm({ open, onClose, onSaved, row, palette = [] }) {
           <>
             <FormGrid three>
               <Field label="Route name" required error={v.errors.name}>
-                <Input value={form.name} aria-invalid={!!v.errors.name}
+                <Input data-text="title" value={form.name} aria-invalid={!!v.errors.name}
                        onChange={(e) => put('name', e.target.value)} placeholder="South Zone" />
               </Field>
               <Field label="Route code" hint="Leave blank to auto-generate">
-                <Input value={form.routeCode} onChange={(e) => set('routeCode', e.target.value)} placeholder="R1" />
+                <Input data-text="code" value={form.routeCode} onChange={(e) => set('routeCode', e.target.value)} placeholder="R1" />
               </Field>
               <Field label="Zone" required error={v.errors.zone}>
-                <Input value={form.zone} aria-invalid={!!v.errors.zone}
+                <Input data-text="title" value={form.zone} aria-invalid={!!v.errors.zone}
                        onChange={(e) => put('zone', e.target.value)} placeholder="South Kolkata" />
               </Field>
               <Field label="Colour" hint="Used for map, timetable, and charts">
@@ -1232,7 +1232,7 @@ export function RouteForm({ open, onClose, onSaved, row, palette = [] }) {
                       <Ico name="mapPin" size={15} />
                     </span>
                     <span className="tr-stoprow__text">
-                      <input value={s.name} onChange={(e) => setStop(i, 'name', e.target.value)}
+                      <input data-text="title" value={s.name} onChange={(e) => setStop(i, 'name', e.target.value)}
                              placeholder="Stop name" aria-label={`Stop ${i + 1} name`} />
                       <input value={s.landmark} onChange={(e) => setStop(i, 'landmark', e.target.value)}
                              placeholder="Landmark or road" aria-label={`Stop ${i + 1} landmark`} className="tr-stoprow__sub" />
@@ -1594,7 +1594,7 @@ export function AssignmentForm({ open, onClose, onSaved, row }) {
                 <Select value={form.dropStop} onChange={(x) => put('dropStop', x)} disabled={!route}
                         placeholder={route ? 'Same as pickup' : '—'} options={opt(route?.stops, 'name')} />
               </Field>
-              <Field label="Seat"><Input value={form.seatNumber} onChange={(e) => put('seatNumber', e.target.value)} placeholder="12A" /></Field>
+              <Field label="Seat"><Input data-text="code" value={form.seatNumber} onChange={(e) => put('seatNumber', e.target.value)} placeholder="12A" /></Field>
               <Field label="Shift">
                 <Select value={form.shift} onChange={(x) => put('shift', x)}
                         options={Object.entries(SHIFT).map(([value, label]) => ({ value, label }))} />
@@ -1614,7 +1614,7 @@ export function AssignmentForm({ open, onClose, onSaved, row }) {
               </Field>
               <Field label="Fee charged (₹)" error={v.errors.feeAmount}
                      hint={plan ? `Blank uses the plan's ${money(plan.amount)}` : 'Blank means no charge'}>
-                <Input type="number" min="0" value={form.feeAmount} aria-invalid={!!v.errors.feeAmount}
+                <Input step="0.01" type="number" min="0" value={form.feeAmount} aria-invalid={!!v.errors.feeAmount}
                        onChange={(e) => put('feeAmount', e.target.value)} placeholder={plan ? String(plan.amount) : ''} />
               </Field>
               <Field label="Payment status">
@@ -1841,7 +1841,7 @@ export function ScheduleTripModal({ open, onClose, onSaved }) {
           <Select value={form.tripType} onChange={(v) => set('tripType', v)}
                   options={['special', 'excursion', 'event', 'exam'].map((v) => ({ value: v, label: words(v) }))} />
         </Field>
-        <Field label="Name it" hint="Shown on the Trips list"><Input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Inter-school event" /></Field>
+        <Field label="Name it" hint="Shown on the Trips list"><Input data-text="title" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Inter-school event" /></Field>
         <Field label="Vehicle"><Select value={form.vehicle} onChange={(v) => set('vehicle', v)} placeholder="Route's vehicle" options={opt(meta.vehicles, 'vehicleNumber')} /></Field>
         <Field label="Driver"><Select value={form.driver} onChange={(v) => set('driver', v)} placeholder="Route's driver" options={opt(meta.drivers, 'name')} /></Field>
       </FormGrid>
@@ -1956,8 +1956,8 @@ export function FuelForm({ open, onClose, onSaved, row }) {
         papers: (
           <>
             <FormGrid>
-              <Field label="Station"><Input value={form.vendor} onChange={(e) => put('vendor', e.target.value)} placeholder="IOCL, Kalighat" /></Field>
-              <Field label="Bill number"><Input value={form.receipt} onChange={(e) => put('receipt', e.target.value)} placeholder="KLH2345" /></Field>
+              <Field label="Station"><Input data-text="title" value={form.vendor} onChange={(e) => put('vendor', e.target.value)} placeholder="IOCL, Kalighat" /></Field>
+              <Field label="Bill number"><Input data-text="code" value={form.receipt} onChange={(e) => put('receipt', e.target.value)} placeholder="KLH2345" /></Field>
               <Field label="Note" full><Input value={form.note} onChange={(e) => put('note', e.target.value)} /></Field>
             </FormGrid>
           </>
@@ -2035,7 +2035,7 @@ export function MaintenanceForm({ open, onClose, onSaved, row }) {
                 <Select value={form.vehicle} onChange={(x) => put('vehicle', x)} placeholder="Pick a vehicle" options={opt(meta.vehicles, 'vehicleNumber')} />
               </Field>
               <Field label="Service type" required error={v.errors.title}>
-                <Input value={form.title} aria-invalid={!!v.errors.title}
+                <Input data-text="title" value={form.title} aria-invalid={!!v.errors.title}
                        onChange={(e) => put('title', e.target.value)} placeholder="Routine Service" />
               </Field>
               <Field label="Category">
@@ -2074,9 +2074,9 @@ export function MaintenanceForm({ open, onClose, onSaved, row }) {
           <>
             <FormGrid>
               <Field label="Cost (₹)" error={v.errors.cost}>
-                <Input type="number" min="0" value={form.cost} aria-invalid={!!v.errors.cost} onChange={(e) => put('cost', e.target.value)} />
+                <Input step="0.01" type="number" min="0" value={form.cost} aria-invalid={!!v.errors.cost} onChange={(e) => put('cost', e.target.value)} />
               </Field>
-              <Field label="Workshop / vendor"><Input value={form.vendor} onChange={(e) => put('vendor', e.target.value)} /></Field>
+              <Field label="Workshop / vendor"><Input data-text="title" value={form.vendor} onChange={(e) => put('vendor', e.target.value)} /></Field>
               <Field label="Next due date"><Input type="date" value={form.nextDueDate} onChange={(e) => put('nextDueDate', e.target.value)} /></Field>
               <Field label="Next due odometer"><Input type="number" min="0" value={form.nextDueOdometer || ''} onChange={(e) => put('nextDueOdometer', e.target.value)} /></Field>
             </FormGrid>
@@ -2198,7 +2198,7 @@ export function IncidentForm({ open, onClose, onSaved, row }) {
                 <Input type="number" min="0" value={form.injuredCount} aria-invalid={!!v.errors.injuredCount}
                        onChange={(e) => put('injuredCount', e.target.value)} />
               </Field>
-              <Field label="Repair cost (₹)"><Input type="number" min="0" value={form.repairCost} onChange={(e) => put('repairCost', e.target.value)} /></Field>
+              <Field label="Repair cost (₹)"><Input step="0.01" type="number" min="0" value={form.repairCost} onChange={(e) => put('repairCost', e.target.value)} /></Field>
             </FormGrid>
           </>
         ),
@@ -2403,7 +2403,7 @@ export function FeePlanForm({ open, onClose, onSaved, row }) {
           <>
             <FormGrid>
               <Field label="Plan name" required full error={v.errors.name}>
-                <Input value={form.name} aria-invalid={!!v.errors.name}
+                <Input data-text="title" value={form.name} aria-invalid={!!v.errors.name}
                        onChange={(e) => put('name', e.target.value)} placeholder="R1 - South Zone" />
               </Field>
               <Field label="Charged by">
@@ -2422,7 +2422,7 @@ export function FeePlanForm({ open, onClose, onSaved, row }) {
               </Field>
               {!banded ? (
                 <Field label="Fee amount (₹)" required error={v.errors.amount}>
-                  <Input type="number" min="0" value={form.amount} aria-invalid={!!v.errors.amount}
+                  <Input step="0.01" type="number" min="0" value={form.amount} aria-invalid={!!v.errors.amount}
                          onChange={(e) => put('amount', e.target.value)} />
                 </Field>
               ) : null}
@@ -2435,11 +2435,11 @@ export function FeePlanForm({ open, onClose, onSaved, row }) {
             {v.errors.zones ? <span className="tr-field__err" style={{ marginBottom: 8 }}>{v.errors.zones}</span> : null}
             {form.zones.map((z, idx) => (
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 34px', gap: 8, marginBottom: 8 }}>
-                <Input value={z.name} placeholder="Band name"
+                <Input data-text="title" value={z.name} placeholder="Band name"
                        onChange={(e) => putZones((zs) => zs.map((x, k) => (k === idx ? { ...x, name: e.target.value } : x)))} />
-                <Input type="number" value={z.maxDistanceKm} placeholder="km"
+                <Input step="any" type="number" value={z.maxDistanceKm} placeholder="km"
                        onChange={(e) => putZones((zs) => zs.map((x, k) => (k === idx ? { ...x, maxDistanceKm: e.target.value } : x)))} />
-                <Input type="number" value={z.amount} placeholder="₹"
+                <Input step="0.01" type="number" value={z.amount} placeholder="₹"
                        onChange={(e) => putZones((zs) => zs.map((x, k) => (k === idx ? { ...x, amount: e.target.value } : x)))} />
                 <IconBtn icon="trash" kind="danger" label="Remove band"
                          onClick={() => putZones((zs) => zs.filter((_, k) => k !== idx))} />
@@ -2453,7 +2453,7 @@ export function FeePlanForm({ open, onClose, onSaved, row }) {
           <>
             <FormGrid>
               <Field label="Route"><Select value={form.route} onChange={(x) => put('route', x)} placeholder="All routes" options={opt(meta.routes, (r) => `${r.routeCode} — ${r.name}`)} /></Field>
-              <Field label="Zone label"><Input value={form.zoneLabel} onChange={(e) => put('zoneLabel', e.target.value)} placeholder="South Kolkata" /></Field>
+              <Field label="Zone label"><Input data-text="title" value={form.zoneLabel} onChange={(e) => put('zoneLabel', e.target.value)} placeholder="South Kolkata" /></Field>
               <Field label="Vehicle type">
                 <Select value={form.vehicleType} onChange={(x) => put('vehicleType', x)} placeholder="Any"
                         options={Object.entries(VEHICLE_TYPE).map(([value, label]) => ({ value, label }))} />
@@ -2464,9 +2464,9 @@ export function FeePlanForm({ open, onClose, onSaved, row }) {
         extras: (
           <>
             <FormGrid>
-              <Field label="Late fee per day (₹)"><Input type="number" min="0" value={form.lateFeePerDay} onChange={(e) => put('lateFeePerDay', e.target.value)} /></Field>
+              <Field label="Late fee per day (₹)"><Input step="0.01" type="number" min="0" value={form.lateFeePerDay} onChange={(e) => put('lateFeePerDay', e.target.value)} /></Field>
               <Field label="Sibling discount (%)" error={v.errors.siblingDiscountPct}>
-                <Input type="number" min="0" max="100" value={form.siblingDiscountPct} aria-invalid={!!v.errors.siblingDiscountPct}
+                <Input step="0.01" type="number" min="0" max="100" value={form.siblingDiscountPct} aria-invalid={!!v.errors.siblingDiscountPct}
                        onChange={(e) => put('siblingDiscountPct', e.target.value)} />
               </Field>
               <Field label="Effective from"><Input type="date" value={form.effectiveFrom} onChange={(e) => put('effectiveFrom', e.target.value)} /></Field>
@@ -2538,11 +2538,11 @@ export function PaymentModal({ open, onClose, onSaved, invoice }) {
                sub={`${invoice?.student?.name || ''} · ${money(due)} outstanding`}
                submitLabel="Record payment" onSubmit={submit}>
       <FormGrid>
-        <Field label="Amount (₹)" required><Input type="number" min="1" value={form.amount} onChange={(e) => set('amount', e.target.value)} /></Field>
+        <Field label="Amount (₹)" required><Input step="0.01" type="number" min="1" value={form.amount} onChange={(e) => set('amount', e.target.value)} /></Field>
         <Field label="Mode">
           <Select value={form.mode} onChange={(v) => set('mode', v)} options={Object.entries(PAY_MODE).map(([value, label]) => ({ value, label }))} />
         </Field>
-        <Field label="Reference" full><Input value={form.reference} onChange={(e) => set('reference', e.target.value)} placeholder="Cheque / UPI reference" /></Field>
+        <Field label="Reference" full><Input data-text="code" value={form.reference} onChange={(e) => set('reference', e.target.value)} placeholder="Cheque / UPI reference" /></Field>
         <Field label="Note" full><Input value={form.note} onChange={(e) => set('note', e.target.value)} /></Field>
       </FormGrid>
     </FormModal>
@@ -2626,7 +2626,7 @@ export function ScheduleReportModal({ open, onClose, onSaved, catalog = [], row 
           <Select value={form.reportType} onChange={(v) => set('reportType', v)}
                   options={catalog.map((c) => ({ value: c.key, label: c.name }))} />
         </Field>
-        <Field label="Name it" hint="Left blank, the report's own name is used"><Input value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
+        <Field label="Name it" hint="Left blank, the report's own name is used"><Input data-text="title" value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
         <Field label="Format">
           <Select value={form.format} onChange={(v) => set('format', v)}
                   options={[{ value: 'pdf', label: 'PDF' }, { value: 'excel', label: 'Excel' }, { value: 'csv', label: 'CSV' }]} />

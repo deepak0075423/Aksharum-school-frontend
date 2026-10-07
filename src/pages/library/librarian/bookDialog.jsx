@@ -252,7 +252,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               </div>
               <div className="form-group">
                 <label className="form-label">Author(s)</label>
-                <input className="form-control" placeholder="e.g. J.K. Rowling, John Smith"
+                <input data-text="title" className="form-control" placeholder="e.g. J.K. Rowling, John Smith"
                   value={form.authors} onChange={(e) => set('authors', e.target.value)} />
                 <div className="form-hint">Separate several with commas.</div>
               </div>
@@ -261,13 +261,13 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label">ISBN</label>
-                <input className="form-control" placeholder="e.g. 9780141439563"
+                <input data-text="code" className="form-control" placeholder="e.g. 9780141439563"
                   value={form.isbn} onChange={(e) => set('isbn', e.target.value)} />
                 <div className="form-hint">10 or 13 digits. Hyphens and spaces are fine.</div>
               </div>
               <div className="form-group">
                 <label className="form-label">Publisher</label>
-                <input className="form-control" placeholder="e.g. Bloomsbury"
+                <input data-text="title" className="form-control" placeholder="e.g. Bloomsbury"
                   value={form.publisher} onChange={(e) => set('publisher', e.target.value)} />
               </div>
             </div>
@@ -276,7 +276,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               <div className="form-group">
                 <label className="form-label">Category</label>
                 {newCat || !chosenCategories.length ? (
-                  <input className="form-control" placeholder="e.g. Fiction" value={form.category}
+                  <input data-text="title" className="form-control" placeholder="e.g. Fiction" value={form.category}
                     onChange={(e) => set('category', e.target.value)} />
                 ) : (
                   <select className="form-control" value={form.category}
@@ -292,7 +292,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               </div>
               <div className="form-group">
                 <label className="form-label">Subjects / Tags</label>
-                <input className="form-control" placeholder="e.g. Fantasy, Adventure, Magic"
+                <input data-text="title" className="form-control" placeholder="e.g. Fantasy, Adventure, Magic"
                   value={extra.subjects}
                   onChange={(e) => setExtra((x) => ({ ...x, subjects: e.target.value }))} />
                 <div className="form-hint">Keywords separated by commas — up to 20.</div>
@@ -303,7 +303,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               <div className="form-group">
                 <label className="form-label">Language</label>
                 {newLang ? (
-                  <input className="form-control" placeholder="Language" value={form.language}
+                  <input data-text="letters" className="form-control" placeholder="Language" value={form.language}
                     onChange={(e) => set('language', e.target.value)} />
                 ) : (
                   <select className="form-control" value={form.language}
@@ -318,7 +318,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               </div>
               <div className="form-group">
                 <label className="form-label">Edition</label>
-                <input className="form-control" placeholder="e.g. 3rd" value={form.edition}
+                <input data-text="title" className="form-control" placeholder="e.g. 3rd" value={form.edition}
                   onChange={(e) => set('edition', e.target.value)} />
                 <div className="form-hint">Two editions of one title are two catalogue entries.</div>
               </div>
@@ -449,7 +449,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
                             </div>
                             <div className="form-group">
                               <label className="form-label">Rack</label>
-                              <input className="form-control" placeholder="e.g. A-01" value={stock.rackLocation}
+                              <input data-text="title" className="form-control" placeholder="e.g. A-01" value={stock.rackLocation}
                                 onChange={(e) => setCopy('rackLocation', e.target.value)} />
                             </div>
                           </div>
@@ -468,12 +468,12 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
                           <div className="form-row form-row-2">
                             <div className="form-group">
                               <label className="form-label">Vendor</label>
-                              <input className="form-control" placeholder="Who it was bought from"
+                              <input data-text="title" className="form-control" placeholder="Who it was bought from"
                                 value={stock.vendor} onChange={(e) => setCopy('vendor', e.target.value)} />
                             </div>
                             <div className="form-group">
                               <label className="form-label">Bill number</label>
-                              <input className="form-control" placeholder="Invoice reference"
+                              <input data-text="code" className="form-control" placeholder="Invoice reference"
                                 value={stock.billNumber} onChange={(e) => setCopy('billNumber', e.target.value)} />
                             </div>
                           </div>

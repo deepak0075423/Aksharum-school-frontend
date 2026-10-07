@@ -109,9 +109,9 @@ export default function TransportSettings() {
               <CardHead icon="building" iconTone="indigo" title="School Information" sub="Basic details for transport operations." />
               <CardBody>
                 <FormGrid one>
-                  <Field label="School Name"><Input value={d.school?.name || ''} readOnly title="Edit this under School Settings" /></Field>
+                  <Field label="School Name"><Input data-text="title" value={d.school?.name || ''} readOnly title="Edit this under School Settings" /></Field>
                   <Field label="Contact Email" hint="Printed on transport invoices">
-                    <Input type="email" value={form.contactEmail || ''} onChange={(e) => set('contactEmail', e.target.value)} placeholder="transport@school.edu.in" />
+                    <Input data-text="email" type="email" value={form.contactEmail || ''} onChange={(e) => set('contactEmail', e.target.value)} placeholder="transport@school.edu.in" />
                   </Field>
                   <Field label="Contact Number">
                     <PhoneInput className="tr-input" value={form.contactPhone || ''} onChange={(e) => set('contactPhone', e.target.value)} placeholder="9876543210" />
@@ -252,7 +252,7 @@ export default function TransportSettings() {
                   </div>
                 </Field>
                 <Field label="Module Name" hint="How this module is named in the sidebar and headers">
-                  <Input value={form.moduleName || ''} onChange={(e) => set('moduleName', e.target.value)} />
+                  <Input data-text="title" value={form.moduleName || ''} onChange={(e) => set('moduleName', e.target.value)} />
                 </Field>
                 <div className="tr-formgrid__full">
                   <SwitchRow title="Show Transport in Main Menu" note="Display transport module to all users"
@@ -405,7 +405,7 @@ export default function TransportSettings() {
           <CardBody>
             <FormGrid>
               {numField('Invoice due day of month', 'invoiceDueDay', 'Used when generating without a date', { min: 1, max: 28 })}
-              <Field label="Invoice prefix"><Input value={form.invoicePrefix || ''} onChange={(e) => set('invoicePrefix', e.target.value)} /></Field>
+              <Field label="Invoice prefix"><Input data-text="code" value={form.invoicePrefix || ''} onChange={(e) => set('invoicePrefix', e.target.value)} /></Field>
               {numField('Late fee per day (₹)', 'lateFeePerDay', 'Applied when a plan has none of its own', { min: 0 })}
               {numField('Late fee grace (days)', 'lateFeeGraceDays', '', { min: 0, max: 60 })}
               {numField('Sibling discount (%)', 'siblingDiscountPct', '', { min: 0, max: 100 })}
@@ -465,7 +465,7 @@ export default function TransportSettings() {
               {numField('Tracking interval (seconds)', 'trackingIntervalSec', 'How often the live map refreshes and devices should push', { min: 5, max: 900 })}
               {numField('Location retention (days)', 'locationRetentionDays', 'How long a trail is kept', { min: 1, max: 3650 })}
               <Field label="GPS provider" hint="Free text — no vendor SDK is wired in this build">
-                <Input value={form.gpsProvider || ''} onChange={(e) => set('gpsProvider', e.target.value)} />
+                <Input data-text="title" value={form.gpsProvider || ''} onChange={(e) => set('gpsProvider', e.target.value)} />
               </Field>
               <Field label="Map basemap" hint="A street map is what makes a location pickable; the plain grid draws only your own marks and calls nothing.">
                 <Select value={form.mapProvider} onChange={(v) => set('mapProvider', v)}
@@ -475,7 +475,7 @@ export default function TransportSettings() {
               </Field>
               <Field label="Google Maps API key" full
                      hint="A browser key — it is sent to the page by design and is protected by referrer restrictions, not by secrecy.">
-                <Input value={form.mapApiKey || ''} onChange={(e) => set('mapApiKey', e.target.value)}
+                <Input data-text="token" value={form.mapApiKey || ''} onChange={(e) => set('mapApiKey', e.target.value)}
                        placeholder="AIza…  (only used when the provider above is Google)"
                        autoComplete="off" spellCheck="false" />
               </Field>
@@ -576,7 +576,7 @@ export default function TransportSettings() {
                   ))}
                 </div>
               </Field>
-              <Field label="Module Name"><Input value={form.moduleName || ''} onChange={(e) => set('moduleName', e.target.value)} /></Field>
+              <Field label="Module Name"><Input data-text="title" value={form.moduleName || ''} onChange={(e) => set('moduleName', e.target.value)} /></Field>
               <div className="tr-formgrid__full">
                 <SwitchRow title="Show Transport in Main Menu" note="Display transport module to all users"
                            checked={form.showInMainMenu} onChange={(v) => set('showInMainMenu', v)} />

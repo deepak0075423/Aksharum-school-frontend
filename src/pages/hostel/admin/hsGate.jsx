@@ -59,7 +59,7 @@ export function GateModal({ open, token: initial = '', onClose, onDone }) {
       submitIcon={action === 'out' ? 'logOut' : action === 'in' ? 'logIn' : 'search'}>
       <FormSection>
         <Fld label="Pass Token" required icon="qr" hint={found && !found.valid ? 'This pass is not usable.' : ''} hintTone="bad">
-          <input value={token} autoComplete="off" placeholder="Paste the QR token…" onChange={(e) => { setToken(e.target.value); setFound(null); }} />
+          <input data-text="token" value={token} autoComplete="off" placeholder="Paste the QR token…" onChange={(e) => { setToken(e.target.value); setFound(null); }} />
         </Fld>
         {found ? (
           <div className="hs-gatecard">

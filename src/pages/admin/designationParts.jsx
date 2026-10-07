@@ -278,7 +278,7 @@ export function DesignationEditor({ row, modules, disabledModules, onClose, onSa
         <div className="dform">
           <div className="form-group">
             <label className="form-label required">Name</label>
-            <input className="form-control" maxLength={60} required value={form.name}
+            <input data-text="title" className="form-control" maxLength={60} required value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <div className="form-hint">
               Every teacher holding it moves with the new name, so nobody loses their permissions.

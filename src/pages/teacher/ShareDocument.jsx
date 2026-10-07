@@ -237,7 +237,7 @@ export default function ShareDocument({
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="sh-subject">Subject</label>
-              <input id="sh-subject" className="form-control" maxLength={60} value={form.subject}
+              <input data-text="title" id="sh-subject" className="form-control" maxLength={60} value={form.subject}
                 placeholder="e.g. Mathematics" onChange={(e) => set({ subject: e.target.value })} />
             </div>
           </div>
@@ -267,7 +267,7 @@ export default function ShareDocument({
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="sh-marks">Out of</label>
-                  <input id="sh-marks" type="number" min="1"
+                  <input step="any" id="sh-marks" type="number" min="1"
                     className={`form-control${show('totalMarks') ? ' is-bad' : ''}`}
                     value={form.totalMarks} placeholder="e.g. 50"
                     onChange={(e) => set({ totalMarks: e.target.value })} />

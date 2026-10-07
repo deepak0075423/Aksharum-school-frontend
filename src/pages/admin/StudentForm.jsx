@@ -136,7 +136,7 @@ function HealthPanel({ value, onChange, errs }) {
         <label className="form-label">Allergies</label>
         {value.allergies.map((a, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr auto', gap: 8, marginBottom: 8 }}>
-            <input className="form-control" placeholder="e.g. Peanuts" value={a.allergen} onChange={(e) => setRow('allergies', i, { allergen: e.target.value })} maxLength={120} aria-label="Allergic to" />
+            <input data-text="title" className="form-control" placeholder="e.g. Peanuts" value={a.allergen} onChange={(e) => setRow('allergies', i, { allergen: e.target.value })} maxLength={120} aria-label="Allergic to" />
             <select className="form-control" value={a.category} onChange={(e) => setRow('allergies', i, { category: e.target.value })} aria-label="Kind">{opts(ALLERGY_CATEGORY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
             <select className="form-control" value={a.severity} onChange={(e) => setRow('allergies', i, { severity: e.target.value })} aria-label="How severe">{opts(ALLERGY_SEVERITY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
             <Button variant="secondary" onClick={() => drop('allergies', i)} aria-label="Remove this allergy">✕</Button>
@@ -149,7 +149,7 @@ function HealthPanel({ value, onChange, errs }) {
         <label className="form-label">Medical conditions</label>
         {value.conditions.map((c, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr auto', gap: 8, marginBottom: 8 }}>
-            <input className="form-control" placeholder="e.g. Asthma" value={c.condition} onChange={(e) => setRow('conditions', i, { condition: e.target.value })} maxLength={120} aria-label="Condition" />
+            <input data-text="title" className="form-control" placeholder="e.g. Asthma" value={c.condition} onChange={(e) => setRow('conditions', i, { condition: e.target.value })} maxLength={120} aria-label="Condition" />
             <select className="form-control" value={c.type} onChange={(e) => setRow('conditions', i, { type: e.target.value })} aria-label="Type">{opts(CONDITION_TYPE).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
             <select className="form-control" value={c.severity} onChange={(e) => setRow('conditions', i, { severity: e.target.value })} aria-label="Severity">{opts(CONDITION_SEVERITY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
             <Button variant="secondary" onClick={() => drop('conditions', i)} aria-label="Remove this condition">✕</Button>
@@ -408,19 +408,19 @@ function ParentPanel({ form, setForm, errs, setErrs, files, setFile, existingPar
                   {role === 'guardian' && text('relation', 'Relation with the Student', { required: true, full: true, placeholder: 'e.g. Uncle, Grandmother', text: 'letters' })}
                   <div className="form-group">
                     <label className={`form-label${isOwner ? ' required' : ''}`}>Email</label>
-                    <input type="email" className={`form-control${err('email') ? ' error' : ''}`}
+                    <input data-text="email" type="email" className={`form-control${err('email') ? ' error' : ''}`}
                       placeholder={isOwner ? 'name@email.com' : 'Optional'}
                       value={np[role].email} onChange={e => setBlock(role, 'email', e.target.value)} />
                     <Err msg={err('email')} />
                   </div>
                   {text('phone', 'Mobile Number', { required: true, phone: true, placeholder: '9876543210' })}
-                  {text('occupation', 'Occupation', { required: true, placeholder: 'e.g. Engineer' })}
-                  {text('organization', 'Organization', { placeholder: 'Company / employer' })}
-                  {text('designation', 'Designation', { placeholder: 'e.g. Manager' })}
-                  {text('qualification', 'Qualification', { placeholder: 'e.g. B.Com.' })}
-                  {text('annualIncome', 'Annual Income', { placeholder: 'e.g. 600000', inputMode: 'numeric' })}
-                  {text('aadhaarNumber', 'Aadhaar Card Number', { required: true, placeholder: '12 digits', inputMode: 'numeric' })}
-                  {text('panNumber', 'PAN Card Number', { placeholder: 'ABCDE1234F', upper: true })}
+                  {text('occupation', 'Occupation', { required: true, placeholder: 'e.g. Engineer', text: 'title' })}
+                  {text('organization', 'Organization', { placeholder: 'Company / employer', text: 'title' })}
+                  {text('designation', 'Designation', { placeholder: 'e.g. Manager', text: 'title' })}
+                  {text('qualification', 'Qualification', { placeholder: 'e.g. B.Com.', text: 'title' })}
+                  {text('annualIncome', 'Annual Income', { placeholder: 'e.g. 600000', inputMode: 'numeric', text: 'digits' })}
+                  {text('aadhaarNumber', 'Aadhaar Card Number', { required: true, placeholder: '12 digits', inputMode: 'numeric', text: 'aadhaar' })}
+                  {text('panNumber', 'PAN Card Number', { placeholder: 'ABCDE1234F', upper: true, text: 'pan' })}
                 </Row>
                 <Row>
                   <FileField label="Aadhaar — Front" hint="Optional"
@@ -785,7 +785,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
               <Row>
                 <div className="form-group">
                   <label className={`form-label${isEdit ? '' : ' required'}`}>Email Address</label>
-                  <input type="email" className={`form-control${errs.email ? ' error' : ''}`}
+                  <input data-text="email" type="email" className={`form-control${errs.email ? ' error' : ''}`}
                     placeholder="student@school.com" value={form.email} onChange={set('email')}
                     disabled={isEdit} style={isEdit ? { background: 'var(--bg)', cursor: 'not-allowed' } : undefined} />
                   <Err msg={errs.email} />
@@ -848,11 +848,11 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Religion</label>
-                  <input className="form-control" placeholder="Optional" value={form.religion} onChange={set('religion')} />
+                  <input data-text="letters" className="form-control" placeholder="Optional" value={form.religion} onChange={set('religion')} />
                 </div>
                 <div className="form-group">
                   <label className="form-label required">Nationality</label>
-                  <input className={`form-control${errs.nationality ? ' error' : ''}`}
+                  <input data-text="letters" className={`form-control${errs.nationality ? ' error' : ''}`}
                     placeholder="Indian" value={form.nationality} onChange={set('nationality')} />
                   <Err msg={errs.nationality} />
                 </div>
@@ -874,7 +874,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label required">Relation with the Student</label>
-                  <input className={`form-control${errs.emergencyContactRelation ? ' error' : ''}`}
+                  <input data-text="letters" className={`form-control${errs.emergencyContactRelation ? ' error' : ''}`}
                     placeholder="e.g. Uncle, Neighbour" value={form.emergencyContactRelation} onChange={set('emergencyContactRelation')} />
                   <Err msg={errs.emergencyContactRelation} />
                 </div>
@@ -928,7 +928,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 hint="Also used as the student's profile picture" />
               <div className="form-group">
                 <label className="form-label required">Aadhaar Card Number</label>
-                <input className={`form-control${errs.aadhaarNumber ? ' error' : ''}`} autoFocus
+                <input data-text="aadhaar" className={`form-control${errs.aadhaarNumber ? ' error' : ''}`} autoFocus
                   inputMode="numeric" placeholder="12 digits" value={form.aadhaarNumber}
                   onChange={e => { setErrs(x => ({ ...x, aadhaarNumber: undefined })); setForm(f => ({ ...f, aadhaarNumber: e.target.value.replace(/[^\d\s]/g, '') })); }} />
                 <Err msg={errs.aadhaarNumber} />
@@ -972,7 +972,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 <>
                   <div className="form-group">
                     <label className="form-label required">Previous School Name</label>
-                    <input className={`form-control${errs.previousSchoolName ? ' error' : ''}`} autoFocus
+                    <input data-text="title" className={`form-control${errs.previousSchoolName ? ' error' : ''}`} autoFocus
                       value={form.previousSchoolName} onChange={set('previousSchoolName')} />
                     <Err msg={errs.previousSchoolName} />
                   </div>
@@ -993,7 +993,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                     {form.previousSchoolBoard === 'State Board' && (
                       <div className="form-group">
                         <label className="form-label required">Name of the State Board</label>
-                        <input className={`form-control${errs.previousSchoolStateBoardName ? ' error' : ''}`}
+                        <input data-text="title" className={`form-control${errs.previousSchoolStateBoardName ? ' error' : ''}`}
                           placeholder="e.g. Maharashtra State Board of Secondary and Higher Secondary Education"
                           value={form.previousSchoolStateBoardName} onChange={set('previousSchoolStateBoardName')} />
                         <Err msg={errs.previousSchoolStateBoardName} />
@@ -1001,13 +1001,13 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                     )}
                     <div className="form-group">
                       <label className="form-label required">Previous Class</label>
-                      <input className={`form-control${errs.previousClass ? ' error' : ''}`}
+                      <input data-text="title" className={`form-control${errs.previousClass ? ' error' : ''}`}
                         placeholder="e.g. Class 5" value={form.previousClass} onChange={set('previousClass')} />
                       <Err msg={errs.previousClass} />
                     </div>
                     <div className="form-group">
                       <label className="form-label required">Previous Academic Year</label>
-                      <input className={`form-control${errs.previousAcademicYear ? ' error' : ''}`}
+                      <input data-text="code" className={`form-control${errs.previousAcademicYear ? ' error' : ''}`}
                         placeholder="e.g. 2025-26" value={form.previousAcademicYear} onChange={set('previousAcademicYear')} />
                       <Err msg={errs.previousAcademicYear} />
                     </div>
@@ -1030,7 +1030,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                   <Row>
                     <div className="form-group">
                       <label className="form-label required">TC Number</label>
-                      <input className={`form-control${errs.tcNumber ? ' error' : ''}`}
+                      <input data-text="code" className={`form-control${errs.tcNumber ? ' error' : ''}`}
                         value={form.tcNumber} onChange={set('tcNumber')} />
                       <Err msg={errs.tcNumber} />
                     </div>
@@ -1075,12 +1075,12 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Roll Number</label>
-                  <input className="form-control" placeholder="Assigned from the section later"
+                  <input data-text="code" className="form-control" placeholder="Assigned from the section later"
                     value={form.rollNumber} onChange={set('rollNumber')} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Admission Number</label>
-                  <input className="form-control" placeholder="Auto-generated if left blank"
+                  <input data-text="code" className="form-control" placeholder="Auto-generated if left blank"
                     value={form.admissionNumber} onChange={set('admissionNumber')} />
                 </div>
               </Row>

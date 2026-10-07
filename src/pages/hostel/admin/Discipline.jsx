@@ -318,7 +318,7 @@ export default function Discipline() {
           <Grid cols={2}>
             <Fld label="Date" required icon="calendar"><input type="date" max={today()} value={form.date} onChange={(e) => setF('date', e.target.value)} /></Fld>
             <Fld label="Fine Amount (₹)" required={isFine} optional={!isFine} icon="rupee" hint={isFine ? 'Billed as a hostel invoice' : 'Optional — billed if above zero'}>
-              <input type="number" min={isFine ? 1 : 0} value={form.fineAmount} onChange={(e) => setF('fineAmount', e.target.value)} />
+              <input step="0.01" type="number" min={isFine ? 1 : 0} value={form.fineAmount} onChange={(e) => setF('fineAmount', e.target.value)} />
             </Fld>
             {isSuspension ? (
               <>

@@ -159,10 +159,10 @@ export function RoomFormModal({ open, room, floor, hostels = [], floors = [], bu
       <FormSection step="basic" icon="oBed" title="Room Information" sub="Provide room details and type.">
         <Grid cols={3}>
           <Fld label="Room Number" required icon="oHash">
-            <input value={form.roomNumber} maxLength={20} placeholder="e.g. 101" onChange={(e) => set('roomNumber', e.target.value)} />
+            <input data-text="code" value={form.roomNumber} maxLength={20} placeholder="e.g. 101" onChange={(e) => set('roomNumber', e.target.value)} />
           </Fld>
           <Fld label="Room Code" icon="oTag" hint={editId ? '' : 'Leave blank to generate automatically'}>
-            <input value={form.code} maxLength={20} placeholder="Auto (RM-…)" onChange={(e) => set('code', e.target.value.toUpperCase())} />
+            <input data-text="code" value={form.code} maxLength={20} placeholder="Auto (RM-…)" onChange={(e) => set('code', e.target.value.toUpperCase())} />
           </Fld>
           <Fld label="Room Type" required icon="oRows">
             <select value={form.roomType} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, roomType: v, capacity: TYPE_CAPACITY[v] ? String(TYPE_CAPACITY[v]) : f.capacity })); }}>
@@ -272,7 +272,7 @@ export function BedFormModal({ open, room, bed, onClose, onSaved }) {
       <FormSection>
         <Grid cols={2}>
           <Fld label="Bed Number" required icon="oHash">
-            <input value={form.bedNumber} maxLength={10} placeholder="1, 2, A, Upper…" onChange={(e) => set('bedNumber', e.target.value)} />
+            <input data-text="code" value={form.bedNumber} maxLength={10} placeholder="1, 2, A, Upper…" onChange={(e) => set('bedNumber', e.target.value)} />
           </Fld>
           <Fld label="Type" icon="oBed">
             <select value={form.bedType} onChange={(e) => set('bedType', e.target.value)}>

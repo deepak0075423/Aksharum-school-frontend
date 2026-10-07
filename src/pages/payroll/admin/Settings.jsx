@@ -252,10 +252,10 @@ export default function PayrollSettings() {
               <div className="pr-cardbody">
                 <Row n={2}>
                   <Field label="Payslip prefix" hint="Slip numbers read PS/2026/0001.">
-                    <input className="pr-input" value={form.payslipPrefix} onChange={e => set('payslipPrefix')(e.target.value)} />
+                    <input data-text="code" className="pr-input" value={form.payslipPrefix} onChange={e => set('payslipPrefix')(e.target.value)} />
                   </Field>
                   <Field label="School bank account" hint="The debit account on the bank transfer file.">
-                    <input className="pr-input" value={form.bankAccountNumber} onChange={e => set('bankAccountNumber')(e.target.value)} />
+                    <input data-text="account" className="pr-input" value={form.bankAccountNumber} onChange={e => set('bankAccountNumber')(e.target.value)} />
                   </Field>
                 </Row>
                 <Field label="Payslip footer note">

@@ -872,7 +872,7 @@ export default function SectionDetail() {
         <form id="roll-form" onSubmit={handleSaveRoll}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Roll number for <strong>{rollEdit?.name}</strong></label>
-            <input className="form-control" autoFocus value={rollEdit?.value || ''}
+            <input data-text="code" className="form-control" autoFocus value={rollEdit?.value || ''}
               onChange={(e) => setRollEdit((r) => ({ ...r, value: e.target.value }))}
               placeholder="e.g. 12" />
             <div className="form-hint">

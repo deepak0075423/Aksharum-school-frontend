@@ -17,6 +17,7 @@ import {
   Completion, Crumbs, FactCard, PhotoCard, PhotoLightbox, ProfileHeader, ProfileTabs,
   QuickActions, SummaryTiles,
 } from './employeeProfileParts';
+import { experienceText } from '../../utils/validators';
 
 // The tabs a viewer sees are decided by the payload: a block the caller may not
 // read is not present in the response at all, so there is nothing to hide here.
@@ -390,7 +391,7 @@ function Employment({ data, id, onSaved, base }) {
         <KV label="Employee Type" value={e.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'} />
         <KV label="Employment Status" value={<Badge variant={STATUS_TONE[e.employmentStatus]}>{STATUS_LABEL[e.employmentStatus]}</Badge>} />
         {e.employmentType !== undefined && <KV label="Fresher / Experienced" value={e.employmentType ? (e.employmentType === 'fresher' ? 'Fresher' : 'Experienced') : ''} />}
-        {e.totalExperience !== undefined && <KV label="Total Experience" value={e.totalExperience} />}
+        {e.totalExperience !== undefined && <KV label="Total Experience" value={experienceText(e.totalExperience)} />}
         {e.previousSchool !== undefined && <KV label="Previous School" value={e.previousSchool} />}
         {e.lastDesignation !== undefined && <KV label="Previous Designation" value={e.lastDesignation} />}
         <KV label="Reporting Manager" value={e.reportingManager
@@ -405,7 +406,7 @@ function Employment({ data, id, onSaved, base }) {
         </>}>
         <div className="form-group">
           <label className="form-label">Department</label>
-          <input className="form-control" list="ed-departments" value={form.department}
+          <input data-text="title" className="form-control" list="ed-departments" value={form.department}
             onChange={(ev) => setForm((f) => ({ ...f, department: ev.target.value }))}
             placeholder="e.g. Mathematics" />
           <datalist id="ed-departments">
@@ -544,12 +545,12 @@ function Responsibilities({ list = [], id, isAdmin, onChanged }) {
         </Select>
         <div className="form-group">
           <label className="form-label">Custom title</label>
-          <input className="form-control" placeholder="Leave blank to use the responsibility name"
+          <input data-text="title" className="form-control" placeholder="Leave blank to use the responsibility name"
             value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
         </div>
         <div className="form-group">
           <label className="form-label">Department / scope</label>
-          <input className="form-control" placeholder="e.g. Science"
+          <input data-text="title" className="form-control" placeholder="e.g. Science"
             value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} />
         </div>
       </Modal>

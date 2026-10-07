@@ -578,7 +578,7 @@ function PayDialog({ open, kind, onClose, sym, months, otherDue, total, online, 
             </label>
             <label className="fe-field">
               <span className="fe-field__label">Reference / UTR number</span>
-              <input className="fe-input" value={form.transactionRef} onChange={e => setForm(f => ({ ...f, transactionRef: e.target.value }))}
+              <input data-text="code" className="fe-input" value={form.transactionRef} onChange={e => setForm(f => ({ ...f, transactionRef: e.target.value }))}
                 placeholder="So the office can match it against the bank" />
             </label>
             <label className="fe-field">

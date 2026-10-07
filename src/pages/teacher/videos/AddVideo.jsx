@@ -37,7 +37,7 @@ export default function TeacherAddVideo() {
       <Card title="➕ Add YouTube / Vimeo Video">
         <div style={{ display: 'grid', gap: 12 }}>
           <Input label="Title" required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-          <Input label="YouTube / Vimeo URL" required value={form.sourceUrl} onChange={e => setForm(f => ({ ...f, sourceUrl: e.target.value }))} placeholder="https://youtu.be/… or https://vimeo.com/…" />
+          <Input data-text="token" label="YouTube / Vimeo URL" required value={form.sourceUrl} onChange={e => setForm(f => ({ ...f, sourceUrl: e.target.value }))} placeholder="https://youtu.be/… or https://vimeo.com/…" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Select label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
               {(meta?.categories || ['concept_explanation', 'revision', 'practical', 'homework']).map(c => <option key={c} value={c}>{(c || '').replace(/_/g, ' ')}</option>)}

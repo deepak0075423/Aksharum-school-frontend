@@ -254,7 +254,7 @@ export default function LibraryPolicyEdit() {
                             {f.label}{f.unit ? ` (${f.unit})` : ''}
                           </label>
                           {f.type === 'text' ? (
-                            <input id={`pol-${f.key}`} className={`form-control${errors[f.key] ? ' error' : ''}`}
+                            <input data-text="code" id={`pol-${f.key}`} className={`form-control${errors[f.key] ? ' error' : ''}`}
                               value={form[f.key] ?? ''} maxLength={f.maxLength}
                               onChange={(e) => set(f.key, e.target.value.toUpperCase())} />
                           ) : (

@@ -323,7 +323,7 @@ export function MenuSchedule({ messes, slot, pickMess }) {
               <ChipSelect value={edit.items} onChange={(v) => setEdit((m) => ({ ...m, items: v }))} options={[]} label="Items" icon="cutlery" allowNew placeholder="e.g. Poha, Boiled egg, Tea" />
             </Fld>
             <Grid cols={2}>
-              <Fld label="Estimated Cost per Head (₹)" icon="rupee"><input type="number" min="0" value={edit.estimatedCost} onChange={(e) => setEdit((m) => ({ ...m, estimatedCost: e.target.value }))} /></Fld>
+              <Fld label="Estimated Cost per Head (₹)" icon="rupee"><input step="0.01" type="number" min="0" value={edit.estimatedCost} onChange={(e) => setEdit((m) => ({ ...m, estimatedCost: e.target.value }))} /></Fld>
               <Fld label="Special Occasion" optional icon="sparkle"><input value={edit.specialOccasion || ''} maxLength={60} placeholder="e.g. Diwali dinner" onChange={(e) => setEdit((m) => ({ ...m, specialOccasion: e.target.value }))} /></Fld>
             </Grid>
             <Fld label="Description" optional><input value={edit.description || ''} maxLength={200} onChange={(e) => setEdit((m) => ({ ...m, description: e.target.value }))} /></Fld>
@@ -544,8 +544,8 @@ export function Expenses({ messes, slot, pickMess, onChanged }) {
               </select>
             </Fld>
             <Fld label="Amount (₹)" required icon="rupee"><input type="number" min="1" step="any" value={form.amount} onChange={(e) => setF('amount', e.target.value)} /></Fld>
-            <Fld label="Vendor" optional icon="briefcase"><input value={form.vendorName} maxLength={80} onChange={(e) => setF('vendorName', e.target.value)} /></Fld>
-            <Fld label="Invoice No." optional icon="oHash"><input value={form.invoiceNumber} maxLength={40} onChange={(e) => setF('invoiceNumber', e.target.value)} /></Fld>
+            <Fld label="Vendor" optional icon="briefcase"><input data-text="title" value={form.vendorName} maxLength={80} onChange={(e) => setF('vendorName', e.target.value)} /></Fld>
+            <Fld label="Invoice No." optional icon="oHash"><input data-text="code" value={form.invoiceNumber} maxLength={40} onChange={(e) => setF('invoiceNumber', e.target.value)} /></Fld>
           </Grid>
           <Fld label="Description" optional count={[form.description.length, 200]}>
             <textarea rows={2} maxLength={200} value={form.description} onChange={(e) => setF('description', e.target.value)} />

@@ -285,9 +285,9 @@ export function VisitStatusDialog({ visit, open, onClose, onDone, meta }) {
       ) : null}
       {status === 'referred' ? (
         <div className="md-form__grid">
-          <Field label="Hospital / clinic" required><input className="md-input" value={ref.hospital || ''} onChange={(e) => setRef({ ...ref, hospital: e.target.value })} /></Field>
-          <Field label="Transport"><input className="md-input" value={ref.transport || ''} onChange={(e) => setRef({ ...ref, transport: e.target.value })} placeholder="Ambulance, parent, school vehicle" /></Field>
-          <Field label="Accompanied by"><input className="md-input" value={ref.accompaniedBy || ''} onChange={(e) => setRef({ ...ref, accompaniedBy: e.target.value })} /></Field>
+          <Field label="Hospital / clinic" required><input data-text="title" className="md-input" value={ref.hospital || ''} onChange={(e) => setRef({ ...ref, hospital: e.target.value })} /></Field>
+          <Field label="Transport"><input data-text="title" className="md-input" value={ref.transport || ''} onChange={(e) => setRef({ ...ref, transport: e.target.value })} placeholder="Ambulance, parent, school vehicle" /></Field>
+          <Field label="Accompanied by"><input data-text="name" className="md-input" value={ref.accompaniedBy || ''} onChange={(e) => setRef({ ...ref, accompaniedBy: e.target.value })} /></Field>
           <Field label="Reason"><input className="md-input" value={ref.reason || ''} onChange={(e) => setRef({ ...ref, reason: e.target.value })} /></Field>
         </div>
       ) : null}
@@ -381,12 +381,12 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
             { name: 'severity', label: 'Severity', type: 'seg', required: true, wide: true, options: seg(INCIDENT_SEVERITY) },
             { name: 'description', label: 'Description', type: 'textarea', required: true, wide: true, placeholder: 'What happened, in a few sentences' },
             { name: 'injury', label: 'Injury', placeholder: 'e.g. Grazed knee, swelling' },
-            { name: 'bodyPart', label: 'Part of the body', placeholder: 'e.g. Left knee' },
+            { name: 'bodyPart', label: 'Part of the body', text: 'title', placeholder: 'e.g. Left knee' },
             { name: 'witnesses', label: 'Witnesses / teacher present', wide: true },
           ] },
           { title: 'Care given', icon: 'firstAid', fields: [
             { name: 'firstAid', label: 'First aid provided', type: 'textarea', rows: 2, wide: true },
-            { name: 'medicineUsed', label: 'Medicine used', wide: true },
+            { name: 'medicineUsed', label: 'Medicine used', text: 'title', wide: true },
           ] },
           { title: 'Hospital referral', icon: 'ambulance', fields: referralFields('referral') },
           { title: 'Parents and follow-up', icon: 'phone', fields: [
@@ -416,7 +416,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
             { name: 'injury', label: 'Injury / symptoms', type: 'textarea', rows: 2, wide: true },
             { name: 'treatment', label: 'First aid provided', type: 'textarea', rows: 2, required: true, wide: true },
             { name: 'supplies', label: 'Supplies used', type: 'custom', wide: true, hint: 'Taken out of stock when you save.', render: ({ value, set }) => <SupplyLines value={value || []} onChange={set} items={meta?.supplies || []} /> },
-            { name: 'givenByName', label: 'Given by', placeholder: 'Leave blank for yourself' },
+            { name: 'givenByName', label: 'Given by', text: 'name', placeholder: 'Leave blank for yourself' },
             { name: 'remarks', label: 'Remarks', wide: true },
           ] },
         ].filter(Boolean)}
@@ -429,8 +429,8 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         initial={it ? { ...it, barcodes: (it.barcodes || []).join(', ') } : { unit: med ? 'tablet' : 'piece', form: med ? 'Tablet' : '', minStock: med ? 10 : 5, purchaseDate: todayStr() }}
         sections={[
           { title: med ? 'Medicine' : 'Supply', icon: med ? 'pill' : 'firstAid', fields: [
-            { name: 'name', label: 'Name', required: true, placeholder: med ? 'e.g. Paracetamol' : 'e.g. Crepe bandage 10 cm', autoFocus: true },
-            ...(med ? [{ name: 'genericName', label: 'Generic name', placeholder: 'e.g. Acetaminophen' }] : []),
+            { name: 'name', label: 'Name', text: 'title', required: true, placeholder: med ? 'e.g. Paracetamol' : 'e.g. Crepe bandage 10 cm', autoFocus: true },
+            ...(med ? [{ name: 'genericName', label: 'Generic name', text: 'title', placeholder: 'e.g. Acetaminophen' }] : []),
             { name: 'category', label: 'Category', type: 'select', options: (med ? s.medicineCategories : s.supplyCategories) || [] },
             ...(med ? [{ name: 'form', label: 'Form', type: 'select', options: FORMS_MED }, { name: 'strength', label: 'Strength', placeholder: 'e.g. 500 mg' }] : []),
             { name: 'unit', label: 'Counted in', type: 'select', required: true, placeholder: false, options: med ? UNITS_MED : UNITS_SUP },
@@ -448,7 +448,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           ] } : null,
           !it ? { title: 'Opening stock', icon: 'package', hint: 'Optional — you can receive stock later.', fields: [
             { name: 'quantity', label: 'Quantity', type: 'number', min: 0 },
-            { name: 'batchNumber', label: 'Batch number' },
+            { name: 'batchNumber', label: 'Batch number', text: 'code' },
             { name: 'expiryDate', label: 'Expiry date', type: 'date', min: todayStr(), validate: (val, v) => (med && Number(v.quantity) > 0 && !val ? 'A medicine batch needs its expiry date' : null) },
             { name: 'purchaseDate', label: 'Purchase date', type: 'date', max: todayStr() },
             { name: 'unitCost', label: 'Cost per unit', type: 'number', min: 0, unit: '₹' },
@@ -462,7 +462,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         initial={{ purchaseDate: todayStr(), supplier: it.supplier || '' }}
         sections={[{ fields: [
           { name: 'quantity', label: `Quantity (${it.unit})`, type: 'number', required: true, min: 0, autoFocus: true },
-          { name: 'batchNumber', label: 'Batch number' },
+          { name: 'batchNumber', label: 'Batch number', text: 'code' },
           { name: 'expiryDate', label: 'Expiry date', type: 'date', required: it.kind === 'medicine', min: todayStr() },
           { name: 'purchaseDate', label: 'Purchase date', type: 'date', max: todayStr() },
           { name: 'supplier', label: 'Supplier' },
@@ -512,8 +512,8 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           { title: 'Medicine', icon: 'pill', fields: [
             { name: 'source', label: 'Supplied by', type: 'seg', wide: true, options: [{ value: 'school', label: 'School stock' }, { value: 'parent', label: "The family (child's own)" }] },
             { name: 'item', label: 'Medicine', type: 'select', required: true, show: (x) => x.source === 'school', options: (meta?.medicines || []).map((m) => ({ value: m._id, label: `${m.name}${m.strength ? ` ${m.strength}` : ''} (${m.usable} ${m.unit})` })) },
-            { name: 'medicineName', label: 'Medicine name', required: true, show: (x) => x.source === 'parent', placeholder: 'As written on the pack' },
-            { name: 'dosage', label: 'Dosage', required: true, placeholder: 'e.g. 1 tablet (500 mg)' },
+            { name: 'medicineName', label: 'Medicine name', text: 'title', required: true, show: (x) => x.source === 'parent', placeholder: 'As written on the pack' },
+            { name: 'dosage', label: 'Dosage', text: 'title', required: true, placeholder: 'e.g. 1 tablet (500 mg)' },
             { name: 'quantityPerDose', label: 'Stock units per dose', type: 'number', min: 0, step: 0.5, show: (x) => x.source === 'school' },
             { name: 'supplyPerDose', label: 'Of the family’s supply per dose', type: 'number', min: 0, step: 0.5, show: (x) => x.source === 'parent', hint: 'Counts down what the family hands in; 0 for an inhaler or a bottle that is not counted.' },
             { name: 'route', label: 'Route', type: 'select', placeholder: false, options: ROUTES },
@@ -546,7 +546,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           days: pl.days || [], endDate: dayInput(pl.endDate), minHoursBetween: pl.minHoursBetween ?? '', maxPerDay: pl.maxPerDay ?? '' }}
         sections={[
           { title: 'Medicine', icon: 'pill', fields: [
-            { name: 'dosage', label: 'Dosage', required: true },
+            { name: 'dosage', label: 'Dosage', text: 'title', required: true },
             ...(pl.source === 'school' ? [{ name: 'quantityPerDose', label: 'Stock units per dose', type: 'number', min: 0, step: 0.5 }]
               : [{ name: 'supplyPerDose', label: 'Of the family’s supply per dose', type: 'number', min: 0, step: 0.5, hint: '0 when it is not counted.' }]),
             { name: 'reason', label: 'For' },
@@ -580,9 +580,9 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
             ...(!p.plan ? [
               { name: 'source', label: 'Supplied by', type: 'seg', wide: true, options: [{ value: 'school', label: 'School stock' }, { value: 'parent', label: "Family's own" }] },
               { name: 'item', label: 'Medicine', type: 'select', required: true, show: (x) => x.source === 'school', options: (meta?.medicines || []).filter((m) => !m.prescriptionOnly).map((m) => ({ value: m._id, label: `${m.name}${m.strength ? ` ${m.strength}` : ''} (${m.usable} ${m.unit})`, disabled: !(m.usable > 0) })) },
-              { name: 'medicineName', label: 'Medicine name', required: true, show: (x) => x.source === 'parent' },
+              { name: 'medicineName', label: 'Medicine name', text: 'title', required: true, show: (x) => x.source === 'parent' },
             ] : []),
-            { name: 'dosage', label: 'Dosage', required: true },
+            { name: 'dosage', label: 'Dosage', text: 'title', required: true },
             { name: 'quantity', label: 'Units from stock', type: 'number', min: 0, step: 0.5, show: (x) => p.plan ? p.plan.source === 'school' : x.source === 'school' },
             { name: 'note', label: 'Note', wide: true },
           ] },
@@ -593,13 +593,13 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
       return <FormDialog {...common} title={a ? `Edit allergy — ${a.allergen}` : 'Add an allergy'} width={640} submitLabel={a ? 'Save changes' : 'Add allergy'} success="Allergy saved"
         initial={a ? { ...a } : { category: 'food', severity: 'moderate', shareWithTeachers: true }}
         sections={[{ fields: [
-          { name: 'allergen', label: 'Allergic to', required: true, autoFocus: true, placeholder: 'e.g. Peanuts, Penicillin, Bee stings' },
+          { name: 'allergen', label: 'Allergic to', text: 'title', required: true, autoFocus: true, placeholder: 'e.g. Peanuts, Penicillin, Bee stings' },
           { name: 'category', label: 'Type', type: 'select', placeholder: false, options: opts(ALLERGY_CATEGORY) },
           { name: 'severity', label: 'Severity', type: 'seg', wide: true, options: seg(ALLERGY_SEVERITY) },
           { name: 'reaction', label: 'Symptoms / reaction', wide: true },
           { name: 'emergencyInstructions', label: 'Emergency instructions', type: 'textarea', rows: 2, wide: true, placeholder: 'What to do if exposed' },
-          { name: 'medication', label: 'Medication', placeholder: 'e.g. Adrenaline auto-injector' },
-          { name: 'doctor', label: 'Doctor' },
+          { name: 'medication', label: 'Medication', text: 'title', placeholder: 'e.g. Adrenaline auto-injector' },
+          { name: 'doctor', label: 'Doctor', text: 'name' },
           { name: 'parentNote', label: 'What the family told us', wide: true },
           { name: 'shareWithTeachers', type: 'switch', label: "Show to the student's teachers", hint: 'Teachers see the allergy, its severity and what to do — never the rest of the record.' },
           ...(a ? [{ name: 'status', label: 'Status', type: 'seg', options: [{ value: 'active', label: 'Active' }, { value: 'resolved', label: 'No longer applies' }] }] : []),
@@ -612,14 +612,14 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         initial={c ? { ...c, diagnosedOn: dayInput(c.diagnosedOn) } : { type: 'asthma', severity: 'moderate', status: 'active', condition: '' }}
         sections={[{ fields: [
           { name: 'type', label: 'Type', type: 'select', placeholder: false, options: opts(CONDITION_TYPE) },
-          { name: 'condition', label: 'Condition', placeholder: 'Defaults to the type, e.g. Asthma' },
+          { name: 'condition', label: 'Condition', text: 'title', placeholder: 'Defaults to the type, e.g. Asthma' },
           { name: 'severity', label: 'Severity', type: 'seg', wide: true, options: seg(CONDITION_SEVERITY) },
           { name: 'status', label: 'Status', type: 'seg', options: seg(CONDITION_STATUS) },
           { name: 'diagnosedOn', label: 'Diagnosed on', type: 'date', max: todayStr() },
           { name: 'chronic', type: 'switch', label: 'Chronic (long-term)' },
           { name: 'treatment', label: 'Treatment', wide: true },
-          { name: 'medication', label: 'Medication' },
-          { name: 'doctor', label: 'Doctor' },
+          { name: 'medication', label: 'Medication', text: 'title' },
+          { name: 'doctor', label: 'Doctor', text: 'name' },
           { name: 'emergencyInstructions', label: 'Emergency instructions', type: 'textarea', rows: 2, wide: true },
           { name: 'parentNote', label: 'What the family told us', wide: true },
           ...(c ? [{ name: 'shareWithTeachers', type: 'switch', label: "Show to the student's teachers", hint: 'Asthma, diabetes, epilepsy, heart, vision, hearing and severe conditions are shared by default.' }] : []),
@@ -632,14 +632,14 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         initial={x ? { ...x, given: x.givenOn ? 'given' : 'due', givenOn: dayInput(x.givenOn), dueOn: dayInput(x.dueOn), nextDueOn: dayInput(x.nextDueOn) } : { given: 'given', givenOn: todayStr() }}
         sections={[{ fields: [
           { name: 'vaccine', label: 'Vaccine', type: 'chips', required: true, wide: true, options: s.vaccines || [] },
-          { name: 'dose', label: 'Dose', placeholder: 'e.g. Dose 1, Booster' },
+          { name: 'dose', label: 'Dose', text: 'title', placeholder: 'e.g. Dose 1, Booster' },
           { name: 'given', label: 'Status', type: 'seg', options: [{ value: 'given', label: 'Given' }, { value: 'due', label: 'Due' }] },
           { name: 'givenOn', label: 'Given on', type: 'date', required: true, max: todayStr(), show: (v) => v.given === 'given' },
           { name: 'dueOn', label: 'Due on', type: 'date', required: true, show: (v) => v.given === 'due' },
           { name: 'nextDueOn', label: 'Next dose due', type: 'date', show: (v) => v.given === 'given', hint: 'The next dose is added as a pending record.' },
           { name: 'provider', label: 'Hospital / clinic' },
-          { name: 'doctor', label: 'Doctor' },
-          { name: 'lotNumber', label: 'Vaccine lot number' },
+          { name: 'doctor', label: 'Doctor', text: 'name' },
+          { name: 'lotNumber', label: 'Vaccine lot number', text: 'code' },
           { name: 'remarks', label: 'Remarks', wide: true },
         ] }]}
         onSubmit={(v) => {
@@ -653,8 +653,8 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         initial={{ givenOn: todayStr(), provider: p.vaccination.provider }} sections={[{ fields: [
           { name: 'givenOn', label: 'Given on', type: 'date', required: true, max: todayStr() },
           { name: 'provider', label: 'Hospital / clinic' },
-          { name: 'doctor', label: 'Doctor' },
-          { name: 'lotNumber', label: 'Lot number' },
+          { name: 'doctor', label: 'Doctor', text: 'name' },
+          { name: 'lotNumber', label: 'Lot number', text: 'code' },
           { name: 'nextDueOn', label: 'Next dose due', type: 'date' },
           { name: 'remarks', label: 'Remarks', wide: true },
         ] }]}
@@ -740,23 +740,23 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           ] },
           { title: 'Emergency medication', icon: 'syringe', fields: [
             { name: 'emergencyMedication.required', type: 'switch', label: 'Needs an emergency medication at hand', hint: 'e.g. an adrenaline auto-injector or a reliever inhaler. Shown as a critical alert.' },
-            { name: 'emergencyMedication.name', label: 'Medication', required: true, show: (v) => v.emergencyMedication?.required },
+            { name: 'emergencyMedication.name', label: 'Medication', text: 'title', required: true, show: (v) => v.emergencyMedication?.required },
             { name: 'emergencyMedication.location', label: 'Kept where', placeholder: 'e.g. In the school bag; spare in the Medical Room', show: (v) => v.emergencyMedication?.required },
             { name: 'emergencyMedication.instructions', label: 'How to give it', type: 'textarea', rows: 2, wide: true, show: (v) => v.emergencyMedication?.required },
           ] },
           { title: 'Emergency contacts', icon: 'phone', hint: 'Parents are taken from the admission record. Add who else to call.', fields: [
             { name: 'emergencyContact.name', label: 'Emergency contact', text: 'name' },
             { name: 'emergencyContact.phone', label: 'Phone', type: 'phone' },
-            { name: 'emergencyContact.relation', label: 'Relation' },
+            { name: 'emergencyContact.relation', label: 'Relation', text: 'letters' },
             { name: 'alternateContact.name', label: 'Alternate contact', text: 'name' },
             { name: 'alternateContact.phone', label: 'Phone', type: 'phone' },
-            { name: 'alternateContact.relation', label: 'Relation' },
+            { name: 'alternateContact.relation', label: 'Relation', text: 'letters' },
           ] },
           { title: 'Doctor and hospital', icon: 'hospital', fields: [
             { name: 'doctor.name', label: 'Family doctor', text: 'name' },
             { name: 'doctor.phone', label: 'Doctor’s phone', type: 'phone' },
-            { name: 'doctor.clinic', label: 'Clinic', wide: true },
-            { name: 'hospital.name', label: 'Preferred hospital' },
+            { name: 'doctor.clinic', label: 'Clinic', text: 'title', wide: true },
+            { name: 'hospital.name', label: 'Preferred hospital', text: 'title' },
             { name: 'hospital.phone', label: 'Hospital phone', type: 'phone' },
             { name: 'hospital.address', label: 'Hospital address', wide: true },
           ] },
@@ -772,7 +772,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
       return <FormDialog {...common} title={e ? `Edit — ${e.name}` : 'Add medical equipment'} width={700} submitLabel="Save" success="Equipment saved"
         initial={e ? { ...e, purchaseDate: dayInput(e.purchaseDate), warrantyUntil: dayInput(e.warrantyUntil), lastMaintenanceOn: dayInput(e.lastMaintenanceOn), nextMaintenanceOn: dayInput(e.nextMaintenanceOn) } : { type: 'thermometer', quantity: 1, condition: 'good', status: 'available' }}
         sections={[{ fields: [
-          { name: 'name', label: 'Name', required: true, autoFocus: true, placeholder: 'e.g. Digital thermometer' },
+          { name: 'name', label: 'Name', text: 'title', required: true, autoFocus: true, placeholder: 'e.g. Digital thermometer' },
           { name: 'type', label: 'Type', type: 'select', placeholder: false, options: opts(EQUIP_TYPE) },
           { name: 'serialNumber', label: 'Serial number' },
           { name: 'quantity', label: 'Quantity', type: 'number', min: 1, step: 1 },
@@ -802,7 +802,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
       const b = p.bed;
       return <FormDialog {...common} title={b ? `Edit — ${b.label}` : 'Add a bed or rest area'} width={520} submitLabel="Save" success="Saved"
         initial={b ? { ...b, location: b.location || '' } : { kind: 'bed', location: p.room || '' }} sections={[{ fields: [
-          { name: 'label', label: 'Name', required: true, autoFocus: true, placeholder: 'e.g. Bed 1, Rest area A' },
+          { name: 'label', label: 'Name', text: 'title', required: true, autoFocus: true, placeholder: 'e.g. Bed 1, Rest area A' },
           { name: 'kind', label: 'Kind', type: 'select', placeholder: false, options: opts(BED_KIND) },
           ...(b && b.status !== 'occupied' ? [{ name: 'status', label: 'Status', type: 'seg', wide: true, options: seg(BED_STATUS, ['available', 'cleaning', 'out_of_service']) }] : []),
           ...(rooms(meta).length > 1 ? [{ name: 'location', label: 'Room', type: 'select', placeholder: false, options: rooms(meta).map((r) => ({ value: r.isMain ? '' : r._id, label: r.name })) }] : []),
@@ -826,8 +826,8 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         initial={r ? { ...r, expiresOn: dayInput(r.expiresOn), locations: r.locations || [] } : { kind: 'auto_injector', quantity: 1, locations: [{ place: 'bag', note: '' }, { place: 'medical_room', note: '' }] }}
         sections={[{ fields: [
           { name: 'kind', label: 'Kind', type: 'select', placeholder: false, options: opts(RESCUE_KIND) },
-          { name: 'name', label: 'Medicine', required: true, placeholder: 'e.g. EpiPen Jr 0.15 mg', autoFocus: !r },
-          { name: 'dose', label: 'Dose', placeholder: 'e.g. 1 injection into the outer thigh' },
+          { name: 'name', label: 'Medicine', text: 'title', required: true, placeholder: 'e.g. EpiPen Jr 0.15 mg', autoFocus: !r },
+          { name: 'dose', label: 'Dose', text: 'title', placeholder: 'e.g. 1 injection into the outer thigh' },
           { name: 'quantity', label: 'How many', type: 'number', min: 0, step: 1 },
           { name: 'expiresOn', label: 'Expires on', type: 'date', hint: 'The family is told 30 days before it expires.' },
           { name: 'locations', label: 'Kept in', type: 'custom', wide: true, render: ({ value, set }) => <PlacesInput value={value || []} onChange={set} /> },
@@ -878,7 +878,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
             { name: 'afterCare', label: 'Afterwards', type: 'textarea', rows: 2, wide: true },
           ] },
           { title: 'Sign-off and review', icon: 'shieldCheck', fields: [
-            { name: 'doctorName', label: 'Doctor who signed it off' },
+            { name: 'doctorName', label: 'Doctor who signed it off', text: 'name' },
             { name: 'doctorPhone', label: 'Doctor’s phone', type: 'phone' },
             { name: 'doctorSignedOn', label: 'Signed on', type: 'date', max: todayStr() },
             { name: 'reviewDue', label: 'Review by', type: 'date' },
@@ -974,10 +974,10 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
         intro={!pl ? <Note tone="indigo" icon="info">A first-aid kit, the bus kit, the hostel cabinet, the lab, a second Medical Room. Move stock to it from the room; its expiry dates are watched with the rest.</Note> : null}
         initial={pl ? { ...pl } : { kind: p.kind || 'kit' }}
         sections={[{ fields: [
-          { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Bus 4 kit', autoFocus: true },
+          { name: 'name', label: 'Name', text: 'title', required: true, placeholder: 'e.g. Bus 4 kit', autoFocus: true },
           { name: 'kind', label: 'Kind', type: 'select', placeholder: false, options: Object.entries(PLACE_KIND).filter(([k]) => !pl?.isMain || k === 'room').map(([value, label]) => ({ value, label })) },
           { name: 'place', label: 'Where it is', placeholder: 'e.g. Bus 4, front seat' },
-          { name: 'keeper', label: 'Looked after by', placeholder: 'e.g. Bina (attendant)' },
+          { name: 'keeper', label: 'Looked after by', text: 'name', placeholder: 'e.g. Bina' },
           { name: 'note', label: 'Note', wide: true },
         ] }]}
         onSubmit={(v) => (pl ? api.updatePlace(pl._id, v) : api.addPlace(v))} />;
@@ -1022,7 +1022,7 @@ export function useMedForms({ meta, onDone, refreshMeta: refresh } = {}) {
           { name: 'action', label: 'What you did (when out of range)', type: 'textarea', rows: 2, wide: true,
             show: (v) => [v.current, v.min, v.max].some((x) => x !== '' && x != null && (Number(x) < 2 || Number(x) > 8)),
             required: true },
-          { name: 'fridge', label: 'Which fridge' },
+          { name: 'fridge', label: 'Which fridge', text: 'title' },
         ] }]}
         onSubmit={(v) => api.logFridge({ ...v, min: v.min === '' ? undefined : v.min, max: v.max === '' ? undefined : v.max })} />;
     case 'contactParent':
@@ -1154,7 +1154,7 @@ export function CollectorPick({ visitId, value = {}, onChange }) {
           <Note tone="amber" icon="alertTri">Only with a parent&rsquo;s permission — say who gave it. The parents are told at once.</Note>
           <div className="md-form__grid">
             <Field label="Name" required><input data-text="name" className="md-input" value={value.name || ''} onChange={(e) => set({ name: e.target.value })} maxLength={120} /></Field>
-            <Field label="Relation"><input className="md-input" value={value.relation || ''} onChange={(e) => set({ relation: e.target.value })} placeholder="e.g. Neighbour, driver" maxLength={60} /></Field>
+            <Field label="Relation"><input data-text="letters" className="md-input" value={value.relation || ''} onChange={(e) => set({ relation: e.target.value })} placeholder="e.g. Neighbour, driver" maxLength={60} /></Field>
             <Field label="Phone"><PhoneInput className="md-input" value={value.phone || ''} onChange={(e) => set({ phone: e.target.value })} /></Field>
             <Field label="Who allowed it" required><input className="md-input" value={value.note || ''} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. Mother, by phone at 11:40" maxLength={300} /></Field>
           </div>

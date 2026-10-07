@@ -198,7 +198,7 @@ export function ReferralDetail({ referral, onClose, onChanged }) {
       {mode === 'outcome' ? (
         <>
           <Field label="Seen on"><input className="md-input" type="date" max={todayStr()} value={v.seenOn} onChange={(e) => setV({ ...v, seenOn: e.target.value })} /></Field>
-          <Field label="Doctor / clinic" optional><input className="md-input" value={v.seenBy} onChange={(e) => setV({ ...v, seenBy: e.target.value })} maxLength={160} /></Field>
+          <Field label="Doctor / clinic" optional><input data-text="title" className="md-input" value={v.seenBy} onChange={(e) => setV({ ...v, seenBy: e.target.value })} maxLength={160} /></Field>
           <Field label="What was found" required><textarea className="md-textarea" rows={2} value={v.diagnosis} onChange={(e) => setV({ ...v, diagnosis: e.target.value })} maxLength={600} /></Field>
           <Field label="Advice / treatment" optional><textarea className="md-textarea" rows={2} value={v.advice} onChange={(e) => setV({ ...v, advice: e.target.value })} maxLength={1500} /></Field>
           {r.specialty === 'eye' ? <Field label="Glasses"><Segmented value={v.glasses} onChange={(x) => setV({ ...v, glasses: x })} label="Glasses" options={[{ value: 'yes', label: 'Needed' }, { value: 'no', label: 'Not needed' }, { value: '', label: 'Not said' }]} /></Field> : null}
@@ -235,13 +235,13 @@ export function FamilyReferralDialog({ referral, mode, onClose, onDone }) {
       {mode === 'booked' ? (
         <>
           <Field label="Date of the appointment" required><input className="md-input" type="date" min={todayStr()} value={v.appointmentOn} onChange={(e) => setV({ ...v, appointmentOn: e.target.value })} /></Field>
-          <Field label="With" optional><input className="md-input" value={v.appointmentWith} onChange={(e) => setV({ ...v, appointmentWith: e.target.value })} placeholder="Doctor or clinic" maxLength={160} /></Field>
+          <Field label="With" optional><input data-text="title" className="md-input" value={v.appointmentWith} onChange={(e) => setV({ ...v, appointmentWith: e.target.value })} placeholder="Doctor or clinic" maxLength={160} /></Field>
         </>
       ) : null}
       {mode === 'seen' ? (
         <>
           <Field label="Seen on"><input className="md-input" type="date" max={todayStr()} value={v.seenOn} onChange={(e) => setV({ ...v, seenOn: e.target.value })} /></Field>
-          <Field label="Doctor / clinic" optional><input className="md-input" value={v.seenBy} onChange={(e) => setV({ ...v, seenBy: e.target.value })} maxLength={160} /></Field>
+          <Field label="Doctor / clinic" optional><input data-text="title" className="md-input" value={v.seenBy} onChange={(e) => setV({ ...v, seenBy: e.target.value })} maxLength={160} /></Field>
           <Field label="What the doctor found" required><textarea className="md-textarea" rows={2} value={v.diagnosis} onChange={(e) => setV({ ...v, diagnosis: e.target.value })} maxLength={600} /></Field>
           <Field label="Advice or treatment" optional><textarea className="md-textarea" rows={2} value={v.advice} onChange={(e) => setV({ ...v, advice: e.target.value })} maxLength={1500} /></Field>
           {referral.specialty === 'eye' ? <Field label="Glasses"><Segmented value={v.glasses} onChange={(x) => setV({ ...v, glasses: x })} label="Glasses" options={[{ value: 'yes', label: 'Needed' }, { value: 'no', label: 'Not needed' }, { value: '', label: 'Not said' }]} /></Field> : null}

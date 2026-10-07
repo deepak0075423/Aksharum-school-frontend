@@ -385,7 +385,7 @@ export default function ResultSettings() {
               <tbody>
                 {d.bands.map((b) => (
                   <tr key={b.id}>
-                    <td><input className="rsf-in" value={b.grade} maxLength={6} placeholder="e.g. A1" aria-label="Grade" onChange={(e) => setBand(b.id, { grade: e.target.value })} /></td>
+                    <td><input data-text="code" className="rsf-in" value={b.grade} maxLength={6} placeholder="e.g. A1" aria-label="Grade" onChange={(e) => setBand(b.id, { grade: e.target.value })} /></td>
                     <td><input className="rsf-in" type="number" min="0" max="100" step="0.5" value={b.min} aria-label={`${b.grade || 'This grade'} starts at`} onChange={(e) => setBand(b.id, { min: e.target.value })} /></td>
                     <td><input className="rsf-in" type="number" min="0" max="10" step="0.5" value={b.point} placeholder="—" aria-label={`Grade point for ${b.grade || 'this grade'}`} onChange={(e) => setBand(b.id, { point: e.target.value })} /></td>
                     <td><label className="rs-set__pass"><input type="checkbox" className="rsf-box" checked={b.pass} onChange={(e) => setBand(b.id, { pass: e.target.checked })} />{b.pass ? 'Pass' : 'Fail'}</label></td>
@@ -441,7 +441,7 @@ export default function ResultSettings() {
           <div className="rs-set__lhead" aria-hidden><span>Name</span><span>Counts as</span><span>Offered</span><span /></div>
           {d.examTypes.map((t) => (
             <div key={t.id} className={`rs-set__lrow${t.active ? '' : ' is-off'}`}>
-              <input className="rsf-in" value={t.label} maxLength={40} placeholder="e.g. Half Yearly" aria-label="Exam type name" onChange={(e) => setType(t.id, { label: e.target.value })} />
+              <input data-text="title" className="rsf-in" value={t.label} maxLength={40} placeholder="e.g. Half Yearly" aria-label="Exam type name" onChange={(e) => setType(t.id, { label: e.target.value })} />
               {t.builtIn || t.key ? (
                 <span className="rs-set__kind" title={t.builtIn ? 'A built-in type' : 'Fixed once the type is saved'}>
                   {conf.kinds.find((k) => k.value === t.kind)?.label}{t.builtIn ? <small>Built in</small> : null}
@@ -475,7 +475,7 @@ export default function ResultSettings() {
           {d.terms.length ? <div className="rs-set__lhead rs-set__lhead--terms" aria-hidden><span>Name</span><span>Weight (%)</span><span /></div> : null}
           {d.terms.map((t) => (
             <div key={t.id} className="rs-set__lrow rs-set__lrow--terms">
-              <input className="rsf-in" value={t.label} maxLength={30} placeholder="e.g. Term 1" aria-label="Term name" onChange={(e) => setTerm(t.id, { label: e.target.value })} />
+              <input data-text="title" className="rsf-in" value={t.label} maxLength={30} placeholder="e.g. Term 1" aria-label="Term name" onChange={(e) => setTerm(t.id, { label: e.target.value })} />
               <input className="rsf-in" type="number" min="1" max="100" value={t.weight} placeholder="Equal" aria-label={`${t.label || 'This term'}'s weight`} onChange={(e) => setTerm(t.id, { weight: e.target.value })} />
               <IconBtn icon="trash" label={`Remove ${t.label || 'this term'}`} onClick={() => dropTerm(t.id)} />
             </div>
@@ -531,7 +531,7 @@ export default function ResultSettings() {
         {d.passRule === 'aggregate' ? (
           <div className="rs-set__days">
             <Field label="Pass percentage in each subject" error={errors.passPercent} hint="A subject's year percentage at or above this is a pass">
-              <input type="number" min="0" max="100" value={d.passPercent} onChange={(e) => { set({ passPercent: e.target.value }); clear('passPercent'); }} />
+              <input step="0.01" type="number" min="0" max="100" value={d.passPercent} onChange={(e) => { set({ passPercent: e.target.value }); clear('passPercent'); }} />
             </Field>
           </div>
         ) : null}
@@ -551,7 +551,7 @@ export default function ResultSettings() {
             <input type="number" min="0" max="60" value={d.recheckDays} onChange={(e) => { set({ recheckDays: e.target.value }); clear('recheckDays'); }} />
           </Field>
           <Field label="Distinction from" error={errors.distinctionPercent} hint="Percentage — counted under Analytics and on the merit list">
-            <input type="number" min="1" max="100" value={d.distinctionPercent} onChange={(e) => { set({ distinctionPercent: e.target.value }); clear('distinctionPercent'); }} />
+            <input step="0.01" type="number" min="1" max="100" value={d.distinctionPercent} onChange={(e) => { set({ distinctionPercent: e.target.value }); clear('distinctionPercent'); }} />
           </Field>
         </div>
         <Note>A student may still be promoted on condition, or kept back, one at a time — from the final exam's Promotion section once its results are published.</Note>
@@ -566,7 +566,7 @@ export default function ResultSettings() {
             <div className="rs-set__areas" data-bad={errors.areas ? 'true' : undefined}>
               {d.coScholastic.map((a) => (
                 <div key={a.id} className="rs-set__area">
-                  <input className="rsf-in" value={a.label} maxLength={40} placeholder="e.g. Art Education" aria-label="Area name" onChange={(e) => setArea(a.id, e.target.value)} />
+                  <input data-text="title" className="rsf-in" value={a.label} maxLength={40} placeholder="e.g. Art Education" aria-label="Area name" onChange={(e) => setArea(a.id, e.target.value)} />
                   <IconBtn icon="trash" label={`Remove ${a.label || 'this area'}`} onClick={() => dropArea(a.id)} />
                 </div>
               ))}
@@ -591,7 +591,7 @@ export default function ResultSettings() {
                 hint="The remark a subject teacher wrote beside a student's marks" />
             </div>
             <Field label="Signature title" error={errors.principalTitle} hint="Printed under the head of school's signature">
-              <input value={d.principalTitle} maxLength={40} onChange={(e) => { set({ principalTitle: e.target.value }); clear('principalTitle'); }} />
+              <input data-text="title" value={d.principalTitle} maxLength={40} onChange={(e) => { set({ principalTitle: e.target.value }); clear('principalTitle'); }} />
             </Field>
             <Field label="Footer" optional count={[d.footer.length, 300]}>
               <textarea rows={3} maxLength={300} value={d.footer} placeholder="e.g. School reopens on 2 April. Uniform is compulsory." onChange={(e) => set({ footer: e.target.value })} />

@@ -121,3 +121,9 @@ export function passwordError(pw) {
   if (!/[A-Za-z]/.test(v) || !/\d/.test(v)) return 'Password must contain both letters and numbers';
   return null;
 }
+
+/** Years of experience as a person reads them: "5" → "5 years"; anything older (typed as "5 years") as it was. */
+export function experienceText(v) {
+  const t = String(v ?? '').trim();
+  return /^\d+(\.\d+)?$/.test(t) ? `${t} ${Number(t) === 1 ? 'year' : 'years'}` : v;
+}

@@ -143,7 +143,7 @@ export default function Settings() {
           <Panel title="The school on the card" icon="school" tone="indigo">
             <div className="ics-grid2">
               <Field label="Name printed on cards" hint={`Empty: “${sch.name}”`}>
-                <input className="ic-input" value={form.displayName} onChange={text('displayName')} placeholder={sch.name} maxLength={90} />
+                <input data-text="title" className="ic-input" value={form.displayName} onChange={text('displayName')} placeholder={sch.name} maxLength={90} />
               </Field>
               <Field label="Tagline" hint="A line under the name — affiliation, motto">
                 <input className="ic-input" value={form.tagline} onChange={text('tagline')} placeholder="e.g. Affiliated to CBSE · No. 1130256" maxLength={120} />
@@ -159,15 +159,15 @@ export default function Settings() {
             </Field>
             <div className="ics-grid3">
               <Field label="Phone"><PhoneInput className="ic-input" value={form.phone} onChange={text('phone')} placeholder={phoneInputValue(sch.phone) || '9876543210'} /></Field>
-              <Field label="Email"><input className="ic-input" type="email" value={form.email} onChange={text('email')} placeholder={sch.email || 'office@school.edu'} maxLength={120} /></Field>
-              <Field label="Website"><input className="ic-input" value={form.website} onChange={text('website')} placeholder={sch.website || 'www.school.edu'} maxLength={120} /></Field>
+              <Field label="Email"><input data-text="email" className="ic-input" type="email" value={form.email} onChange={text('email')} placeholder={sch.email || 'office@school.edu'} maxLength={120} /></Field>
+              <Field label="Website"><input data-text="token" className="ic-input" value={form.website} onChange={text('website')} placeholder={sch.website || 'www.school.edu'} maxLength={120} /></Field>
             </div>
           </Panel>
 
           <Panel title="Signatory" sub="Who signs the cards" icon="pencil" tone="violet">
             <div className="ics-grid2">
-              <Field label="Name"><input data-text="name" className="ic-input" value={form.signatoryName} onChange={text('signatoryName')} placeholder="e.g. Dr. Meera Kulkarni" maxLength={80} /></Field>
-              <Field label="Title printed under the signature"><input className="ic-input" value={form.signatoryTitle} onChange={text('signatoryTitle')} placeholder="Principal" maxLength={60} /></Field>
+              <Field label="Name"><input data-text="name" className="ic-input" value={form.signatoryName} onChange={text('signatoryName')} placeholder="e.g. Meera Kulkarni" maxLength={80} /></Field>
+              <Field label="Title printed under the signature"><input data-text="title" className="ic-input" value={form.signatoryTitle} onChange={text('signatoryTitle')} placeholder="Principal" maxLength={60} /></Field>
             </div>
             <ImageSlot label="Signature" hint="A scan on a white or clear background (PNG works best). Without one, a line is printed to sign on." path={s.signature}
               busy={busy === 'signature'} onUpload={(f) => upload('signature', f)} onRemove={() => remove('signature')} />

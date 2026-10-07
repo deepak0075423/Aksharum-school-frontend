@@ -387,7 +387,7 @@ export default function Profile() {
         </div>
         <div className="form-group">
           <label className="form-label">Email Address</label>
-          <input className="form-control" value={user.email} disabled
+          <input data-text="email" className="form-control" value={user.email} disabled
             style={{ background: 'var(--bg)', cursor: 'not-allowed', opacity: .7 }} />
           <span className="form-hint">Email cannot be changed</span>
         </div>
@@ -505,12 +505,12 @@ export default function Profile() {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label">Highest Qualification</label>
-                <input className="form-control" placeholder="e.g. M.Sc."
+                <input data-text="title" className="form-control" placeholder="e.g. M.Sc."
                   value={empForm.qualification || ''} onChange={setEmpField('qualification')} />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Teaching Degree</label>
-                <input className="form-control" placeholder="e.g. B.Ed."
+                <input data-text="title" className="form-control" placeholder="e.g. B.Ed."
                   value={empForm.teachingDegree || ''} onChange={setEmpField('teachingDegree')} />
               </div>
             </div>

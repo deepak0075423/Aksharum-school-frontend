@@ -255,7 +255,7 @@ export default function FeeBook({ data, payerName, onRefresh, api }) {
             </div>
             <div className="form-group">
               <label className="form-label">Reference / UTR No.</label>
-              <input className="form-control" value={payForm.transactionRef}
+              <input data-text="code" className="form-control" value={payForm.transactionRef}
                 onChange={e => setPayForm(f => ({ ...f, transactionRef: e.target.value }))} />
             </div>
           </div>

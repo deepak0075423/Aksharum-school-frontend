@@ -192,7 +192,7 @@ export default function Movement() {
                 {['gate', 'medical', 'other'].map((x) => <option key={x} value={x}>{words(x)}</option>)}
               </select>
             </Fld>
-            <Fld label="Gate" icon="gateIn"><input value={form.gate} maxLength={40} placeholder="Main Gate" onChange={(e) => setForm((f) => ({ ...f, gate: e.target.value }))} /></Fld>
+            <Fld label="Gate" icon="gateIn"><input data-text="title" value={form.gate} maxLength={40} placeholder="Main Gate" onChange={(e) => setForm((f) => ({ ...f, gate: e.target.value }))} /></Fld>
           </Grid>
           <Fld label="Remarks" optional icon="fileDoc"><input value={form.remarks} maxLength={200} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} /></Fld>
           <InfoNote>A movement after curfew is flagged automatically and the warden is alerted.</InfoNote>

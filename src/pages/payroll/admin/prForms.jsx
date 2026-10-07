@@ -105,7 +105,7 @@ export function CreateRunDialog({ open, onClose, onDone, month, year, academicYe
         </Field>
       </Row>
       <Field label="Run name" hint="Leave blank to use the month's name.">
-        <input className="pr-input" value={form.runName} placeholder={defaultName}
+        <input data-text="title" className="pr-input" value={form.runName} placeholder={defaultName}
           onChange={e => setForm(f => ({ ...f, runName: e.target.value }))} />
       </Field>
       <Field label="Working days"
@@ -914,7 +914,7 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
         <div style={{ minWidth: 0 }}>
           <Row n={2}>
             <Field label="Structure name" required>
-              <input className="pr-input" value={form.name} placeholder="Teaching Staff"
+              <input data-text="title" className="pr-input" value={form.name} placeholder="Teaching Staff"
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </Field>
             <Field label="Type">
@@ -1015,7 +1015,7 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
                     <Icon name="arrowDown" size={13} />
                   </button>
                 </span>
-                <input className="pr-input" value={c.name} placeholder="Component name"
+                <input data-text="title" className="pr-input" value={c.name} placeholder="Component name"
                   onChange={e => setC(i, { name: e.target.value })} />
                 <Select value={c.type} onChange={v => setC(i, { type: v })}
                   options={Object.entries(COMPONENT_TYPE).map(([value, [, label]]) => ({ value, label }))} />
@@ -1050,7 +1050,7 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
                 <div className="pr-comp" style={{ borderTop: 0, paddingTop: 0 }}>
                   <span />
                   <div className="pr-compmore">
-                    <Field label="Code"><input className="pr-input" value={c.code} placeholder="HRA"
+                    <Field label="Code"><input data-text="code" className="pr-input" value={c.code} placeholder="HRA"
                       onChange={e => setC(i, { code: e.target.value })} /></Field>
                     <Field label="Wage ceiling" hint="Cap the base"><input className="pr-input" type="number" min="0" step="500" value={c.wageCeiling}
                       onChange={e => setC(i, { wageCeiling: num(e.target.value) })} /></Field>
@@ -1305,11 +1305,11 @@ export function SettingsDialog({ open, onClose, onDone }) {
           </Row>
           <Row n={2}>
             <Field label="Payslip prefix">
-              <input className="pr-input" value={form.payslipPrefix}
+              <input data-text="code" className="pr-input" value={form.payslipPrefix}
                 onChange={e => setForm(f => ({ ...f, payslipPrefix: e.target.value }))} />
             </Field>
             <Field label="School bank account" hint="Printed as the debit account on the bank transfer file.">
-              <input className="pr-input" value={form.bankAccountNumber}
+              <input data-text="account" className="pr-input" value={form.bankAccountNumber}
                 onChange={e => setForm(f => ({ ...f, bankAccountNumber: e.target.value }))} />
             </Field>
           </Row>

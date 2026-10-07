@@ -378,7 +378,7 @@ export default function LibraryBookDetail() {
               className="libbd-panel--flush"
               action={(
                 <div className="libbd-copyacts">
-                  <input className="form-control libbd-find" placeholder="Find a copy code…"
+                  <input data-text="code" className="form-control libbd-find" placeholder="Find a copy code…"
                     value={code} onChange={(e) => { setCode(e.target.value); setPage(1); }} />
                   <select className="form-control libbd-filter" value={status}
                     aria-label="Filter copies by status"
@@ -568,7 +568,7 @@ export default function LibraryBookDetail() {
             </div>
             <div className="form-group">
               <label className="form-label">Rack location</label>
-              <input className="form-control" placeholder="e.g. A-01" value={addForm.rackLocation}
+              <input data-text="title" className="form-control" placeholder="e.g. A-01" value={addForm.rackLocation}
                 onChange={(e) => setAddForm((f) => ({ ...f, rackLocation: e.target.value }))} />
             </div>
           </div>
@@ -582,12 +582,12 @@ export default function LibraryBookDetail() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Vendor</label>
-              <input className="form-control" placeholder="Who it was bought from" value={addForm.vendor}
+              <input data-text="title" className="form-control" placeholder="Who it was bought from" value={addForm.vendor}
                 onChange={(e) => setAddForm((f) => ({ ...f, vendor: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">Bill number</label>
-              <input className="form-control" placeholder="Invoice reference" value={addForm.billNumber}
+              <input data-text="code" className="form-control" placeholder="Invoice reference" value={addForm.billNumber}
                 onChange={(e) => setAddForm((f) => ({ ...f, billNumber: e.target.value }))} />
             </div>
           </div>
@@ -616,19 +616,19 @@ export default function LibraryBookDetail() {
             </div>
             <div className="form-group">
               <label className="form-label">Rack location</label>
-              <input className="form-control" placeholder="e.g. A-01" value={editForm.rackLocation}
+              <input data-text="title" className="form-control" placeholder="e.g. A-01" value={editForm.rackLocation}
                 onChange={(e) => setEditForm((f) => ({ ...f, rackLocation: e.target.value }))} />
             </div>
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Vendor</label>
-              <input className="form-control" value={editForm.vendor || ''}
+              <input data-text="title" className="form-control" value={editForm.vendor || ''}
                 onChange={(e) => setEditForm((f) => ({ ...f, vendor: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">Bill number</label>
-              <input className="form-control" value={editForm.billNumber || ''}
+              <input data-text="code" className="form-control" value={editForm.billNumber || ''}
                 onChange={(e) => setEditForm((f) => ({ ...f, billNumber: e.target.value }))} />
             </div>
           </div>

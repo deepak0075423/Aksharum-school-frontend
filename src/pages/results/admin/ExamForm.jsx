@@ -454,7 +454,7 @@ function Form({ exam, onClose, onSaved }) {
             </select>
           </Field>
           <Field label="Exam Code" optional error={err('code')}>
-            <input value={f.code} maxLength={20} placeholder="e.g. MT2026" autoComplete="off" spellCheck={false}
+            <input data-text="code" value={f.code} maxLength={20} placeholder="e.g. MT2026" autoComplete="off" spellCheck={false}
               onChange={(e) => set({ code: e.target.value.toUpperCase() })} />
           </Field>
           <Field label="Start Date" required icon="calendarBold" error={err('startDate')}>
@@ -620,8 +620,8 @@ function Form({ exam, onClose, onSaved }) {
                 <span>{subjectsFixed ? 'Set the time for every paper' : 'Set for every subject'}</span>
                 {subjectsFixed ? null : (
                   <>
-                    <label>Max <input type="number" min="1" max="1000" value={all.maxMarks} onChange={(e) => setAll((a) => ({ ...a, maxMarks: e.target.value }))} aria-label="Maximum marks for every subject" /></label>
-                    <label>Pass <input type="number" min="0" max="1000" value={all.passingMarks} onChange={(e) => setAll((a) => ({ ...a, passingMarks: e.target.value }))} aria-label="Pass marks for every subject" /></label>
+                    <label>Max <input step="any" type="number" min="1" max="1000" value={all.maxMarks} onChange={(e) => setAll((a) => ({ ...a, maxMarks: e.target.value }))} aria-label="Maximum marks for every subject" /></label>
+                    <label>Pass <input step="any" type="number" min="0" max="1000" value={all.passingMarks} onChange={(e) => setAll((a) => ({ ...a, passingMarks: e.target.value }))} aria-label="Pass marks for every subject" /></label>
                   </>
                 )}
                 <label>Time
@@ -669,9 +669,9 @@ function Form({ exam, onClose, onSaved }) {
                           </td>
                           <td>{s.gradeOnly ? <span className="rsf-marks__na" title="A graded paper is out of nothing — it counts in no total">—</span>
                             : s.components ? <span className="rsf-marks__sum" title="What its parts add up to">{maxOf(s)}</span>
-                              : <input type="number" min="1" max="1000" value={s.maxMarks} disabled={shapeFixed} title={hasMarks(s) ? 'Marks have been entered out of this maximum' : undefined} aria-label={`Maximum marks for ${s.name}`} onChange={(e) => setRow(s.subject, { maxMarks: e.target.value })} />}</td>
+                              : <input step="any" type="number" min="1" max="1000" value={s.maxMarks} disabled={shapeFixed} title={hasMarks(s) ? 'Marks have been entered out of this maximum' : undefined} aria-label={`Maximum marks for ${s.name}`} onChange={(e) => setRow(s.subject, { maxMarks: e.target.value })} />}</td>
                           <td>{s.gradeOnly ? <span className="rsf-marks__na">—</span>
-                            : <input type="number" min="0" max="1000" value={s.passingMarks} disabled={subjectsFixed} placeholder={s.components ? 'Parts' : undefined}
+                            : <input step="any" type="number" min="0" max="1000" value={s.passingMarks} disabled={subjectsFixed} placeholder={s.components ? 'Parts' : undefined}
                               title={s.components ? 'Left empty: the parts\' pass marks added up' : undefined} aria-label={`Pass marks for ${s.name}`} onChange={(e) => setRow(s.subject, { passingMarks: e.target.value })} />}</td>
                           <td><input type="date" className={s.examDate ? '' : 'is-empty'} value={s.examDate} min={f.startDate || undefined} max={f.endDate || undefined} aria-label={`Paper date for ${s.name}`} onChange={(e) => setRow(s.subject, { examDate: e.target.value })} /></td>
                           <td><input type="time" className={s.startTime ? '' : 'is-empty'} value={s.startTime} aria-label={`Start time for ${s.name}`} onChange={(e) => setRow(s.subject, { startTime: e.target.value })} /></td>
@@ -683,10 +683,10 @@ function Form({ exam, onClose, onSaved }) {
                               <div className="rsf-parts" role="group" aria-label={`${s.name}'s parts`}>
                                 {s.components.map((c, j) => (
                                   <span key={j} className="rsf-part">
-                                    <input value={c.label} maxLength={30} placeholder="Part" disabled={shapeFixed} aria-label={`Name of part ${j + 1} of ${s.name}`}
+                                    <input data-text="title" value={c.label} maxLength={30} placeholder="Part" disabled={shapeFixed} aria-label={`Name of part ${j + 1} of ${s.name}`}
                                       onChange={(e) => setPart(j, { label: e.target.value })} />
-                                    <label>out of <input type="number" min="1" max="1000" value={c.maxMarks} disabled={shapeFixed} aria-label={`${c.label || 'Part'} maximum`} onChange={(e) => setPart(j, { maxMarks: e.target.value })} /></label>
-                                    <label>pass <input type="number" min="0" max="1000" value={c.passingMarks} disabled={shapeFixed} placeholder="—" aria-label={`${c.label || 'Part'} pass mark`} onChange={(e) => setPart(j, { passingMarks: e.target.value })} /></label>
+                                    <label>out of <input step="any" type="number" min="1" max="1000" value={c.maxMarks} disabled={shapeFixed} aria-label={`${c.label || 'Part'} maximum`} onChange={(e) => setPart(j, { maxMarks: e.target.value })} /></label>
+                                    <label>pass <input step="any" type="number" min="0" max="1000" value={c.passingMarks} disabled={shapeFixed} placeholder="—" aria-label={`${c.label || 'Part'} pass mark`} onChange={(e) => setPart(j, { passingMarks: e.target.value })} /></label>
                                     {!shapeFixed && s.components.length > 2 ? (
                                       <button type="button" className="rsf-part__x" aria-label={`Take ${c.label || 'this part'} off`}
                                         onClick={() => setRow(s.subject, { components: s.components.filter((_, k) => k !== j) })}><Ico name="close" size={13} /></button>
@@ -729,7 +729,7 @@ function Form({ exam, onClose, onSaved }) {
           {f.allowGraceMarks ? (
             <div className="rsf-grace__nums">
               <Field label="Most grace in a subject" error={err('gracePer')}>
-                <input type="number" min={GRACE.per[0]} max={GRACE.per[1]} value={f.gracePer} onChange={(e) => set({ gracePer: e.target.value })} />
+                <input step="any" type="number" min={GRACE.per[0]} max={GRACE.per[1]} value={f.gracePer} onChange={(e) => set({ gracePer: e.target.value })} />
               </Field>
               <Field label="In at most" error={err('graceSubjects')}>
                 <input type="number" min={GRACE.subjects[0]} max={GRACE.subjects[1]} value={f.graceSubjects} onChange={(e) => set({ graceSubjects: e.target.value })} />

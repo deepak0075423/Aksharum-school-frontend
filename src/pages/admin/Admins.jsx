@@ -329,7 +329,7 @@ function InviteAdmin({ open, onClose, onCreated }) {
         </div>
         <div className="form-group">
           <label className="form-label required">Email</label>
-          <input type="email" className="form-control" required value={form.email}
+          <input data-text="email" type="email" className="form-control" required value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
         </div>
         <div className="form-group">
@@ -394,7 +394,7 @@ function EditAdmin({ admin, onClose, onSaved }) {
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">Email</label>
-          <input className="form-control" value={admin?.email || ''} disabled />
+          <input data-text="email" className="form-control" value={admin?.email || ''} disabled />
           <div className="form-hint">
             The email address is the account itself and cannot be changed here.
           </div>

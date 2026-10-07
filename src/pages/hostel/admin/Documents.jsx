@@ -371,7 +371,7 @@ export default function Documents() {
             </Fld>
           ) : null}
           <Grid cols={2}>
-            <Fld label="Name" required icon="doc"><input value={form.title} maxLength={120} onChange={(e) => setF('title', e.target.value)} /></Fld>
+            <Fld label="Name" required icon="doc"><input data-text="title" value={form.title} maxLength={120} onChange={(e) => setF('title', e.target.value)} /></Fld>
             <Fld label="Type" required icon="oTag">
               <select value={form.docType} onChange={(e) => setF('docType', e.target.value)}>
                 {Object.entries(TYPE).map(([v, [l]]) => <option key={v} value={v}>{l}</option>)}

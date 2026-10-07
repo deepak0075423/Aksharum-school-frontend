@@ -110,10 +110,10 @@ function Form({ test, options, onClose, onCreated }) {
             <input value={f.topic} maxLength={200} placeholder="e.g. Fractions" onChange={(e) => set({ topic: e.target.value })} />
           </Field>
           <Field label="Maximum marks" required error={errors.maxMarks}>
-            <input type="number" min="1" max="1000" value={f.maxMarks} onChange={(e) => set({ maxMarks: e.target.value })} />
+            <input step="any" type="number" min="1" max="1000" value={f.maxMarks} onChange={(e) => set({ maxMarks: e.target.value })} />
           </Field>
           <Field label="Pass marks" required error={errors.passingMarks}>
-            <input type="number" min="0" max="1000" value={f.passingMarks} onChange={(e) => set({ passingMarks: e.target.value })} />
+            <input step="any" type="number" min="0" max="1000" value={f.passingMarks} onChange={(e) => set({ passingMarks: e.target.value })} />
           </Field>
         </div>
       </form>

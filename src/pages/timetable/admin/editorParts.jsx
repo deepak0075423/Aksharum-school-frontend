@@ -140,7 +140,7 @@ export function PeriodStructure({
                 </td>
                 <td>
                   {p.isRecess
-                    ? <input className="form-control" value={p.recessName || 'Break'}
+                    ? <input data-text="title" className="form-control" value={p.recessName || 'Break'}
                         onChange={(e) => setPeriod(i, { recessName: e.target.value })} />
                     : <span className="tt-table__muted">Teaching period</span>}
                 </td>

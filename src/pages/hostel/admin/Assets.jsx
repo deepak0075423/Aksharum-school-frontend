@@ -275,8 +275,8 @@ export default function Assets() {
             </Fld>
           ) : null}
           <Grid cols={2}>
-            <Fld label="Name" required icon="cube"><input value={form.name} maxLength={80} placeholder="e.g. Study table" onChange={(e) => setF('name', e.target.value)} /></Fld>
-            <Fld label="Asset Code" icon="oTag" hint="What its label says"><input value={form.assetCode} maxLength={30} placeholder="e.g. AST-0001" onChange={(e) => setF('assetCode', e.target.value.toUpperCase())} /></Fld>
+            <Fld label="Name" required icon="cube"><input data-text="title" value={form.name} maxLength={80} placeholder="e.g. Study table" onChange={(e) => setF('name', e.target.value)} /></Fld>
+            <Fld label="Asset Code" icon="oTag" hint="What its label says"><input data-text="code" value={form.assetCode} maxLength={30} placeholder="e.g. AST-0001" onChange={(e) => setF('assetCode', e.target.value.toUpperCase())} /></Fld>
           </Grid>
           <Grid cols={3}>
             <Fld label="Category" required icon="oTag">
@@ -351,7 +351,7 @@ export default function Assets() {
             ) : null}
             {act.action === 'damage' ? (
               <Fld label="Damage Charge (₹)" icon="rupee" hint={act.row.issuedToName ? `A charge above zero is billed to ${act.row.issuedToName} as a hostel fine.` : 'Nobody holds this asset, so a charge cannot be billed to anyone.'}>
-                <input type="number" min="0" disabled={!act.row.issuedToName} value={actForm.damageCharge} onChange={(e) => setActForm((f) => ({ ...f, damageCharge: e.target.value }))} />
+                <input step="0.01" type="number" min="0" disabled={!act.row.issuedToName} value={actForm.damageCharge} onChange={(e) => setActForm((f) => ({ ...f, damageCharge: e.target.value }))} />
               </Fld>
             ) : null}
             {['replace', 'dispose'].includes(act.action) ? <InfoNote tone="amber">This retires the asset for good — it stays on record but can no longer be changed.</InfoNote> : null}
@@ -469,7 +469,7 @@ function ScanQr({ open, onClose, onFound }) {
       submitLabel="Find Asset" submitIcon="search">
       <FormSection>
         <Fld label="Asset Code" required icon="qr">
-          <input id="hs-scan" value={code} autoComplete="off" placeholder="AST-0001" onChange={(e) => setCode(e.target.value)} />
+          <input data-text="code" id="hs-scan" value={code} autoComplete="off" placeholder="AST-0001" onChange={(e) => setCode(e.target.value)} />
         </Fld>
       </FormSection>
     </FormModal>

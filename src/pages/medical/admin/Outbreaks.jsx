@@ -103,7 +103,7 @@ function OutbreakDialog({ id, onClose, onChanged }) {
       {mode === 'note' ? <Field label="Note" required><textarea className="md-textarea" rows={4} value={v.note} onChange={(e) => setV({ ...v, note: e.target.value })} maxLength={1500} autoFocus /></Field> : null}
       {mode === 'reported' ? (
         <div className="md-form__grid">
-          <Field label="Reported to" required><input className="md-input" value={v.to} onChange={(e) => setV({ ...v, to: e.target.value })} placeholder="e.g. District IDSP cell" maxLength={160} /></Field>
+          <Field label="Reported to" required><input data-text="title" className="md-input" value={v.to} onChange={(e) => setV({ ...v, to: e.target.value })} placeholder="e.g. District IDSP cell" maxLength={160} /></Field>
           <Field label="On"><input className="md-input" type="date" max={todayStr()} value={v.on} onChange={(e) => setV({ ...v, on: e.target.value })} /></Field>
           <Field label="Reference" optional><input className="md-input" value={v.reference} onChange={(e) => setV({ ...v, reference: e.target.value })} maxLength={120} /></Field>
         </div>

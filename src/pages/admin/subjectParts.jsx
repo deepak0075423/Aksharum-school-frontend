@@ -398,14 +398,14 @@ export function SubjectForm({
 
         <div className="form-group">
           <label className="form-label required">Subject name</label>
-          <input className="form-control" autoFocus maxLength={80} placeholder="Mathematics"
+          <input data-text="title" className="form-control" autoFocus maxLength={80} placeholder="Mathematics"
             value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </div>
 
         <div className="form-row form-row-2">
           <div className="form-group">
             <label className="form-label">Code</label>
-            <input className="form-control" maxLength={20} placeholder="MATH"
+            <input data-text="code" className="form-control" maxLength={20} placeholder="MATH"
               value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
             <div className="form-hint">Stored in capitals, and unique within the year.</div>
           </div>

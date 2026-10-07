@@ -356,7 +356,7 @@ export default function ShareDocument({
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="ad-subject">Subject</label>
-              <input id="ad-subject" className="form-control" maxLength={60} value={form.subject}
+              <input data-text="title" id="ad-subject" className="form-control" maxLength={60} value={form.subject}
                 placeholder="e.g. Mathematics" onChange={(e) => set({ subject: e.target.value })} />
             </div>
           </div>
@@ -393,7 +393,7 @@ export default function ShareDocument({
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="ad-marks">Out of</label>
-                  <input id="ad-marks" type="number" min="1"
+                  <input step="any" id="ad-marks" type="number" min="1"
                     className={`form-control${show('totalMarks') ? ' is-bad' : ''}`}
                     value={form.totalMarks} placeholder="e.g. 50"
                     onChange={(e) => set({ totalMarks: e.target.value })} />
@@ -421,10 +421,10 @@ export default function ShareDocument({
                     <ul className="shq__list">
                       {form.questions.map((q, i) => (
                         <li key={i}>
-                          <input className="form-control" maxLength={20} value={q.label}
+                          <input data-text="title" className="form-control" maxLength={20} value={q.label}
                             aria-label={`Question ${i + 1} name`} placeholder={`Q${i + 1}`}
                             onChange={(e) => setQuestion(i, { label: e.target.value })} />
-                          <input className="form-control" type="number" min="0" value={q.maxMarks}
+                          <input step="any" className="form-control" type="number" min="0" value={q.maxMarks}
                             aria-label={`Question ${i + 1} marks`} placeholder="Marks"
                             onChange={(e) => setQuestion(i, { maxMarks: e.target.value })} />
                           <button type="button" className="dvact" onClick={() => dropQuestion(i)}

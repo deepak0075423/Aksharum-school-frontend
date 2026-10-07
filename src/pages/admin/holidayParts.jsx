@@ -536,7 +536,7 @@ export const HolidayForm = ({
 
           <div className="form-group">
             <label className="form-label required" htmlFor="hol-name">Holiday name</label>
-            <input id="hol-name" className="form-control" required autoFocus maxLength={120}
+            <input data-text="title" id="hol-name" className="form-control" required autoFocus maxLength={120}
               value={form.name} onChange={(e) => set({ name: e.target.value })}
               placeholder="e.g. Diwali, Summer Break, Annual Day" />
           </div>
@@ -726,7 +726,7 @@ export const TypesDialog = ({ open, types, counts, saving, onClose, onSave }) =>
               {isEditing
                 ? (
                   <form onSubmit={rename} className="holtypelist__edit">
-                    <input className="form-control" autoFocus value={editing.to}
+                    <input data-text="title" className="form-control" autoFocus value={editing.to}
                       onChange={(e) => setEditing({ from: t, to: e.target.value })} />
                     <Button type="submit" size="sm" loading={saving}>Rename</Button>
                     <Button variant="secondary" size="sm" onClick={() => setEditing(null)}>Cancel</Button>

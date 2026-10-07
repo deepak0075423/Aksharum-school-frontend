@@ -429,7 +429,7 @@ export function YearForm({ open, year, years, saving, error, onClose, onSave }) 
 
         <div className="form-group">
           <label className="form-label required">Year name</label>
-          <input className="form-control" maxLength={40} placeholder="2027-2028" value={form.yearName}
+          <input data-text="title" className="form-control" maxLength={40} placeholder="2027-2028" value={form.yearName}
             onChange={(e) => { setNamed(true); setForm((f) => ({ ...f, yearName: e.target.value })); }} />
           <div className="form-hint">
             What staff will see everywhere this year is picked — on classes, attendance, results and fees.

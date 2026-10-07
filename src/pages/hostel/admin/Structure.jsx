@@ -333,10 +333,10 @@ export default function Structure() {
               </select>
             </Fld>
             <Fld label="Building Name" required icon="oBuilding">
-              <input value={form.name} maxLength={60} placeholder="Enter building name (e.g. Block A)" onChange={(e) => set('name', e.target.value)} />
+              <input data-text="title" value={form.name} maxLength={60} placeholder="Enter building name (e.g. Block A)" onChange={(e) => set('name', e.target.value)} />
             </Fld>
             <Fld label="Building Code" icon="oTag" hint={editId ? 'Codes are unique within the school' : 'Leave blank to generate automatically'}>
-              <input value={form.code} maxLength={20} placeholder="Auto-generate (e.g. BLD-001)" onChange={(e) => set('code', e.target.value.toUpperCase())} />
+              <input data-text="code" value={form.code} maxLength={20} placeholder="Auto-generate (e.g. BLD-001)" onChange={(e) => set('code', e.target.value.toUpperCase())} />
             </Fld>
             <StatusSelect value={form.status} onChange={(v) => set('status', v)} options={STATUSES}
               hint="Inactive buildings will not be available for allocations" />
@@ -404,7 +404,7 @@ export default function Structure() {
           </Grid>
           <Grid cols={3}>
             <Fld label="Floor Name" required icon="oBuilding">
-              <input value={form.name} maxLength={40} placeholder="e.g. Ground Floor, First Floor" onChange={(e) => set('name', e.target.value)} />
+              <input data-text="title" value={form.name} maxLength={40} placeholder="e.g. Ground Floor, First Floor" onChange={(e) => set('name', e.target.value)} />
             </Fld>
             <Fld label="Floor Number" required icon="oHash" hint="Unique floor number within the building">
               <input type="number" min="-5" max="60" value={form.floorNumber} placeholder="e.g. 0, 1, 2…" onChange={(e) => set('floorNumber', e.target.value)} />

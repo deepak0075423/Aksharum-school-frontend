@@ -646,7 +646,7 @@ export default function Allocations() {
                         ) : null}
                         {releaseForm.refundViaGateway ? null : (
                           <Fld label="Refund Reference" optional icon="oHash" hint="Cheque or transfer number">
-                            <input maxLength={60} value={releaseForm.refundReference} onChange={(e) => setReleaseForm((f) => ({ ...f, refundReference: e.target.value }))} />
+                            <input data-text="code" maxLength={60} value={releaseForm.refundReference} onChange={(e) => setReleaseForm((f) => ({ ...f, refundReference: e.target.value }))} />
                           </Fld>
                         )}
                       </>

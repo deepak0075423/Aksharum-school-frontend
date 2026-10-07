@@ -37,7 +37,7 @@ export default function ForgotPassword() {
 
       <form onSubmit={onSubmit} noValidate>
         <Field id="fp-email" label="Email Address" icon="mail" required>
-          <input
+          <input data-text="email"
             id="fp-email"
             type="email"
             className="form-control"

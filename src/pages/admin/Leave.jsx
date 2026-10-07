@@ -2045,12 +2045,12 @@ export default function AdminLeave() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label required">Name</label>
-              <input type="text" className="form-control" required value={typeForm.name}
+              <input data-text="title" type="text" className="form-control" required value={typeForm.name}
                 onChange={e => setTypeForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label required">Code</label>
-              <input type="text" className="form-control" required value={typeForm.code}
+              <input data-text="code" type="text" className="form-control" required value={typeForm.code}
                 onChange={e => setTypeForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. CL, SL" />
             </div>
           </div>

@@ -496,7 +496,7 @@ export function ReturnDialog({ open, preset, onClose, onDone, base }) {
                 <div className="form-group">
                   <label className="form-label">Copy code</label>
                   <div className="libx-find">
-                    <input className="form-control" autoFocus value={code}
+                    <input data-text="code" className="form-control" autoFocus value={code}
                       placeholder="Scan the spine label, or type LIB-COPY-000042"
                       onChange={(e) => setCode(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') findByCode(e); }} />

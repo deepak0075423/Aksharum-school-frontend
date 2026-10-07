@@ -74,7 +74,7 @@ function VisitDialog({ visit, onClose, onSaved, meta }) {
                 {medicines.map((x) => <option key={x._id} value={x._id} disabled={Number(x.usable) <= 0}>{x.name}{x.strength ? ` ${x.strength}` : ''} — {qty(x.usable)} {x.unit || ''} in date</option>)}
               </select>
               <input className="md-input" type="number" min="0" step="0.5" value={m.quantity} onChange={(e) => line(i, { quantity: e.target.value })} aria-label="How many" />
-              <input className="md-input" value={m.dosage} onChange={(e) => line(i, { dosage: e.target.value })} placeholder="Dose, e.g. 500 mg" aria-label="Dose" />
+              <input data-text="title" className="md-input" value={m.dosage} onChange={(e) => line(i, { dosage: e.target.value })} placeholder="Dose, e.g. 500 mg" aria-label="Dose" />
               <IconBtn icon="close" label="Remove this medicine" onClick={() => { setV((x) => ({ ...x, medicines: x.medicines.filter((_, j) => j !== i) })); setStop(null); }} />
             </div>
           ))}

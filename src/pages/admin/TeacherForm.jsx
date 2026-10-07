@@ -424,7 +424,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           </Row>
           <div className="form-group">
             <label className="form-label required">Email Address</label>
-            <input type="email" className={`form-control${errs.email ? ' error' : ''}`}
+            <input data-text="email" type="email" className={`form-control${errs.email ? ' error' : ''}`}
               placeholder="teacher@school.com" value={form.email} onChange={set('email')} />
             <Err msg={errs.email} />
           </div>
@@ -468,7 +468,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         <div>
           <div className="form-group">
             <label className="form-label required">Aadhaar Card Number</label>
-            <input className={`form-control${errs.aadhaarNumber ? ' error' : ''}`} autoFocus
+            <input data-text="aadhaar" className={`form-control${errs.aadhaarNumber ? ' error' : ''}`} autoFocus
               inputMode="numeric" placeholder="12 digits" value={form.aadhaarNumber}
               onChange={e => { setErrs(x => ({ ...x, aadhaarNumber: undefined })); setForm(f => ({ ...f, aadhaarNumber: e.target.value.replace(/[^\d\s]/g, '') })); }} />
             <Err msg={errs.aadhaarNumber} />
@@ -482,7 +482,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           <Row>
             <div className="form-group">
               <label className="form-label required">PAN Card Number</label>
-              <input className={`form-control${errs.panNumber ? ' error' : ''}`} placeholder="ABCDE1234F"
+              <input data-text="pan" className={`form-control${errs.panNumber ? ' error' : ''}`} placeholder="ABCDE1234F"
                 value={form.panNumber}
                 onChange={e => { setErrs(x => ({ ...x, panNumber: undefined })); setForm(f => ({ ...f, panNumber: e.target.value.toUpperCase() })); }} />
               <Err msg={errs.panNumber} />
@@ -492,7 +492,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           </Row>
           <div className="form-group">
             <label className="form-label">UAN / PF Account Number</label>
-            <input className="form-control" placeholder="Optional — from a previous job"
+            <input data-text="uan" className="form-control" placeholder="Optional — from a previous job"
               value={form.uanNumber} onChange={set('uanNumber')} />
           </div>
           <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', margin: 0 }}>
@@ -516,7 +516,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           {form.qualification === 'Other' && (
             <div className="form-group">
               <label className="form-label required">Other Qualification</label>
-              <input className={`form-control${errs.qualificationOther ? ' error' : ''}`} autoFocus
+              <input data-text="title" className={`form-control${errs.qualificationOther ? ' error' : ''}`} autoFocus
                 placeholder="Type the qualification" value={form.qualificationOther} onChange={set('qualificationOther')} />
               <Err msg={errs.qualificationOther} />
             </div>
@@ -531,7 +531,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           {form.teachingDegree === 'Other' && (
             <div className="form-group">
               <label className="form-label required">Other Teaching Degree</label>
-              <input className={`form-control${errs.teachingDegreeOther ? ' error' : ''}`} autoFocus
+              <input data-text="title" className={`form-control${errs.teachingDegreeOther ? ' error' : ''}`} autoFocus
                 placeholder="Type the degree" value={form.teachingDegreeOther} onChange={set('teachingDegreeOther')} />
               <Err msg={errs.teachingDegreeOther} />
             </div>
@@ -566,20 +566,20 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
               <Row>
                 <div className="form-group">
                   <label className="form-label required">Total Years of Experience</label>
-                  <input className={`form-control${errs.totalExperience ? ' error' : ''}`}
-                    placeholder="e.g. 5 years" value={form.totalExperience} onChange={set('totalExperience')} />
+                  <input data-text="decimal" className={`form-control${errs.totalExperience ? ' error' : ''}`}
+                    placeholder="e.g. 5" value={form.totalExperience} onChange={set('totalExperience')} />
                   <Err msg={errs.totalExperience} />
                 </div>
                 <div className="form-group">
                   <label className="form-label required">Last Job Designation / Post</label>
-                  <input className={`form-control${errs.lastDesignation ? ' error' : ''}`}
+                  <input data-text="title" className={`form-control${errs.lastDesignation ? ' error' : ''}`}
                     value={form.lastDesignation} onChange={set('lastDesignation')} />
                   <Err msg={errs.lastDesignation} />
                 </div>
               </Row>
               <div className="form-group">
                 <label className="form-label required">Name of Previous School</label>
-                <input className={`form-control${errs.previousSchool ? ' error' : ''}`}
+                <input data-text="title" className={`form-control${errs.previousSchool ? ' error' : ''}`}
                   value={form.previousSchool} onChange={set('previousSchool')} />
                 <Err msg={errs.previousSchool} />
               </div>
@@ -608,13 +608,13 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           <Row>
             <div className="form-group">
               <label className="form-label required">Bank Account Number</label>
-              <input className={`form-control${errs.bankAccountNumber ? ' error' : ''}`} inputMode="numeric"
+              <input data-text="account" className={`form-control${errs.bankAccountNumber ? ' error' : ''}`} inputMode="numeric"
                 value={form.bankAccountNumber} onChange={set('bankAccountNumber')} />
               <Err msg={errs.bankAccountNumber} />
             </div>
             <div className="form-group">
               <label className="form-label required">IFSC Code</label>
-              <input className={`form-control${errs.bankIfsc ? ' error' : ''}`} placeholder="HDFC0001234"
+              <input data-text="ifsc" className={`form-control${errs.bankIfsc ? ' error' : ''}`} placeholder="HDFC0001234"
                 value={form.bankIfsc}
                 onChange={e => { setErrs(x => ({ ...x, bankIfsc: undefined })); setForm(f => ({ ...f, bankIfsc: e.target.value.toUpperCase() })); }} />
               <Err msg={errs.bankIfsc} />
@@ -622,7 +622,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           </Row>
           <div className="form-group">
             <label className="form-label required">Bank Branch Name</label>
-            <input className={`form-control${errs.bankBranch ? ' error' : ''}`}
+            <input data-text="title" className={`form-control${errs.bankBranch ? ' error' : ''}`}
               value={form.bankBranch} onChange={set('bankBranch')} />
             <Err msg={errs.bankBranch} />
           </div>
@@ -649,7 +649,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           </Row>
           <div className="form-group">
             <label className="form-label">Department</label>
-            <input className="form-control" placeholder="e.g. Mathematics"
+            <input data-text="title" className="form-control" placeholder="e.g. Mathematics"
               value={form.department} onChange={set('department')} />
             <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
               Groups this employee in the Employee Directory.
@@ -657,7 +657,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
           </div>
           <div className="form-group">
             <label className="form-label">Employee ID / Teacher ID</label>
-            <input className="form-control" placeholder="Auto-generated if left blank"
+            <input data-text="code" className="form-control" placeholder="Auto-generated if left blank"
               value={form.employeeId} onChange={set('employeeId')} />
             <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
               Follows the Employee ID format set in School Settings.

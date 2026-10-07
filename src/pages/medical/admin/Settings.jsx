@@ -162,7 +162,7 @@ function Programmes({ s, set }) {
                       {own ? (
                         <>
                           <td><select className="md-input" value={e.vaccine} onChange={(x) => setEntry(i, { vaccine: x.target.value })} aria-label="Vaccine">{[...new Set([...(s.vaccines || []), e.vaccine].filter(Boolean))].map((v) => <option key={v} value={v}>{v}</option>)}</select></td>
-                          <td><input className="md-input" value={e.dose || ''} onChange={(x) => setEntry(i, { dose: x.target.value })} aria-label="Dose" maxLength={40} /></td>
+                          <td><input data-text="title" className="md-input" value={e.dose || ''} onChange={(x) => setEntry(i, { dose: x.target.value })} aria-label="Dose" maxLength={40} /></td>
                           {e.after || e.everyMonths ? <td colSpan={2}><em>{e.after ? `${e.afterMonths} months after ${e.after.replace(/_/g, ' ')}` : `every ${e.everyMonths} months, ${yearsOf(e.from)}–${yearsOf(e.to)} years`}</em></td> : (
                             <>
                               <td><input className="md-input" type="number" min={0} max={19} step={0.5} value={yearsOf(e.from)} onChange={(x) => setEntry(i, { from: monthsOf(x.target.value) })} aria-label="Due from (years)" style={{ maxWidth: 90 }} /></td>
@@ -302,7 +302,7 @@ export default function MedicalSettings() {
       {tab === 'room' ? (
         <Panel title="The room" icon="hospital" tone="rose">
           <div className="md-form__grid">
-            <Field label="Name" required><input className="md-input" value={s.roomName} onChange={(e) => set('roomName')(e.target.value)} maxLength={160} /></Field>
+            <Field label="Name" required><input data-text="title" className="md-input" value={s.roomName} onChange={(e) => set('roomName')(e.target.value)} maxLength={160} /></Field>
             <Field label="Where it is"><input className="md-input" value={s.roomLocation} onChange={(e) => set('roomLocation')(e.target.value)} placeholder="e.g. Ground floor, near the main office" /></Field>
             <Field label="Phone" hint="Shown on emergency cards and to families."><PhoneInput className="md-input" value={s.roomPhone} onChange={(e) => set('roomPhone')(e.target.value)} /></Field>
             <Field label="Opening hours"><input className="md-input" value={s.roomHours} onChange={(e) => set('roomHours')(e.target.value)} placeholder="e.g. 7:45 AM – 3:30 PM" /></Field>

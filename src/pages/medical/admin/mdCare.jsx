@@ -161,7 +161,7 @@ export function ReadingsSection({ visit, onAdd, onChanged, confirm }) {
 }
 
 const NUM = (label, k, v, set, props = {}) => (
-  <Field label={label}><input className="md-input" type="number" inputMode="decimal" value={v[k] ?? ''} onChange={(e) => set({ ...v, [k]: e.target.value })} {...props} /></Field>
+  <Field label={label}><input className="md-input" type="number" inputMode="decimal" step="any" value={v[k] ?? ''} onChange={(e) => set({ ...v, [k]: e.target.value })} {...props} /></Field>
 );
 
 /** Another set of readings. Head injury puts AVPU and pupils first. */

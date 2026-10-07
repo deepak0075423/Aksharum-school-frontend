@@ -58,7 +58,7 @@ function CheckupSheet({ sessionId, onClose, onDone }) {
           <>
             <div className="md-form__grid">
               <Field label="Checked on"><input className="md-input" type="date" max={todayStr()} value={head.checkedOn} onChange={(e) => setHead({ ...head, checkedOn: e.target.value })} /></Field>
-              <Field label="Checked by"><input className="md-input" value={head.professional} onChange={(e) => setHead({ ...head, professional: e.target.value })} /></Field>
+              <Field label="Checked by"><input data-text="name" className="md-input" value={head.professional} onChange={(e) => setHead({ ...head, professional: e.target.value })} /></Field>
             </div>
             <Note tone="indigo" icon="info">{labelOf(CHECKUP_TYPE, data.type)} · {data.rows.length} students. Fill in what was measured; leave a row empty (or mark absent) and it stays scheduled.</Note>
             <div className="md-tablewrap" style={{ border: '1px solid var(--md-line-2)', borderRadius: 12 }}>

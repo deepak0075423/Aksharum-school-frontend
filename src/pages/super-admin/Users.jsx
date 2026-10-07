@@ -361,7 +361,7 @@ export default function SAUsers() {
             </div>
             <div className="form-group">
               <label className="form-label required">Email</label>
-              <input type="email" className="form-control" required value={form.email}
+              <input data-text="email" type="email" className="form-control" required value={form.email}
                 disabled={!!editUser} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
           </div>

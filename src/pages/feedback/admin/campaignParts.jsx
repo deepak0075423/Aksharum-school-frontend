@@ -347,7 +347,7 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
           <FormSection title="About this campaign">
             <div className="fbfields fbfields--2">
               <FormField label="Campaign name" required error={errors.name} count={`${form.name.length} / 150`}>
-                <input className="fbinput" autoFocus maxLength={150} value={form.name}
+                <input data-text="title" className="fbinput" autoFocus maxLength={150} value={form.name}
                   placeholder="e.g. Term 1 Teacher Feedback"
                   onChange={(e) => { set('name', e.target.value); setErrors((x) => ({ ...x, name: '' })); }} />
               </FormField>

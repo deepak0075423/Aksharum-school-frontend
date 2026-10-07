@@ -262,8 +262,8 @@ export default function Mess() {
         ]}>
         <FormSection step="basic" icon="cutlery" title="Basic Details" sub="The mess and the hostels it feeds.">
           <Grid cols={3}>
-            <Fld label="Mess Name" required icon="cutlery"><input value={form.name} maxLength={60} placeholder="e.g. Main Mess" onChange={(e) => setF('name', e.target.value)} /></Fld>
-            <Fld label="Code" icon="oTag" hint="Leave blank to generate automatically"><input value={form.code} maxLength={20} placeholder="Auto (MS-…)" onChange={(e) => setF('code', e.target.value.toUpperCase())} /></Fld>
+            <Fld label="Mess Name" required icon="cutlery"><input data-text="title" value={form.name} maxLength={60} placeholder="e.g. Main Mess" onChange={(e) => setF('name', e.target.value)} /></Fld>
+            <Fld label="Code" icon="oTag" hint="Leave blank to generate automatically"><input data-text="code" value={form.code} maxLength={20} placeholder="Auto (MS-…)" onChange={(e) => setF('code', e.target.value.toUpperCase())} /></Fld>
             <Fld label="Type" required icon="oTag">
               <select value={form.messType} onChange={(e) => setF('messType', e.target.value)}>
                 {Object.entries(MESS_TYPE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -304,9 +304,9 @@ export default function Mess() {
         </FormSection>
         <FormSection step="vendor" icon="briefcase" title="Vendor & Contract" sub="Leave the vendor empty for an in-house mess.">
           <Grid cols={3}>
-            <Fld label="Vendor" icon="briefcase"><input value={form.vendorName} maxLength={80} placeholder="Blank = in-house" onChange={(e) => setF('vendorName', e.target.value)} /></Fld>
+            <Fld label="Vendor" icon="briefcase"><input data-text="title" value={form.vendorName} maxLength={80} placeholder="Blank = in-house" onChange={(e) => setF('vendorName', e.target.value)} /></Fld>
             <Fld label="Vendor Contact" icon="phone"><PhoneInput value={form.vendorContact} disabled={!form.vendorName} onChange={(e) => setF('vendorContact', e.target.value)} /></Fld>
-            <Fld label="Contract Amount (₹)" icon="rupee"><input type="number" min="0" value={form.contractAmount} disabled={!form.vendorName} onChange={(e) => setF('contractAmount', e.target.value)} /></Fld>
+            <Fld label="Contract Amount (₹)" icon="rupee"><input step="0.01" type="number" min="0" value={form.contractAmount} disabled={!form.vendorName} onChange={(e) => setF('contractAmount', e.target.value)} /></Fld>
             <Fld label="Contract From" icon="calendar"><input type="date" value={form.contractFrom} disabled={!form.vendorName} onChange={(e) => setF('contractFrom', e.target.value)} /></Fld>
             <Fld label="Contract To" icon="calendar"><input type="date" min={form.contractFrom || undefined} value={form.contractTo} disabled={!form.vendorName} onChange={(e) => setF('contractTo', e.target.value)} /></Fld>
           </Grid>

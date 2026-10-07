@@ -332,7 +332,7 @@ export default function TimetableVersions() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="tt-field">
               <label>Name</label>
-              <input className="form-control" value={notes.label} maxLength={80}
+              <input data-text="title" className="form-control" value={notes.label} maxLength={80}
                 onChange={(e) => setNotes((n) => ({ ...n, label: e.target.value }))} />
             </div>
             <div className="tt-field">

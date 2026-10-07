@@ -112,7 +112,7 @@ export default function Login() {
 
       <form onSubmit={onSubmit} noValidate>
         <Field id="login-email" label="Email Address" icon="mail" required>
-          <input
+          <input data-text="email"
             id="login-email"
             name="email"
             type="email"

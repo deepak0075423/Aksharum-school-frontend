@@ -295,7 +295,7 @@ export default function Maintenance() {
         </FormSection>
         <FormSection step="plan" icon="calendar" title="Schedule & Cost" sub="Leave the date empty to do it as soon as possible.">
           <Grid cols={3}>
-            <Fld label="Estimated Cost (₹)" icon="rupee"><input type="number" min="0" value={form.estimatedCost} placeholder="e.g. 1500" onChange={(e) => setF('estimatedCost', e.target.value)} /></Fld>
+            <Fld label="Estimated Cost (₹)" icon="rupee"><input step="0.01" type="number" min="0" value={form.estimatedCost} placeholder="e.g. 1500" onChange={(e) => setF('estimatedCost', e.target.value)} /></Fld>
             <Fld label="Due / Scheduled Date" icon="calendar" required={form.maintenanceType !== 'corrective'}
               hint={form.maintenanceType !== 'corrective' ? 'A scheduled job needs its date' : ''}>
               <input type="date" value={form.scheduledDate} onChange={(e) => setF('scheduledDate', e.target.value)} />
@@ -328,13 +328,13 @@ export default function Maintenance() {
           <FormSection>
             {act.action === 'assign' ? (
               <Grid cols={2}>
-                <Fld label="Technician" icon="user"><input value={actForm.technicianName} maxLength={80} onChange={(e) => setActForm((f) => ({ ...f, technicianName: e.target.value }))} /></Fld>
-                <Fld label="Vendor" icon="briefcase"><input value={actForm.vendorName} maxLength={80} onChange={(e) => setActForm((f) => ({ ...f, vendorName: e.target.value }))} /></Fld>
+                <Fld label="Technician" icon="user"><input data-text="name" value={actForm.technicianName} maxLength={80} onChange={(e) => setActForm((f) => ({ ...f, technicianName: e.target.value }))} /></Fld>
+                <Fld label="Vendor" icon="briefcase"><input data-text="title" value={actForm.vendorName} maxLength={80} onChange={(e) => setActForm((f) => ({ ...f, vendorName: e.target.value }))} /></Fld>
               </Grid>
             ) : null}
             {act.action === 'complete' ? (
               <>
-                <Fld label="Actual Cost (₹)" icon="rupee"><input type="number" min="0" value={actForm.cost} onChange={(e) => setActForm((f) => ({ ...f, cost: e.target.value }))} /></Fld>
+                <Fld label="Actual Cost (₹)" icon="rupee"><input step="0.01" type="number" min="0" value={actForm.cost} onChange={(e) => setActForm((f) => ({ ...f, cost: e.target.value }))} /></Fld>
                 <Fld label="Resolution" required hint="A linked complaint is resolved automatically" count={[actForm.resolution.length, 500]}>
                   <textarea rows={3} maxLength={500} value={actForm.resolution} onChange={(e) => setActForm((f) => ({ ...f, resolution: e.target.value }))} />
                 </Fld>

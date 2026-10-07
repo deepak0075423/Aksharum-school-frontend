@@ -178,12 +178,12 @@ export function ItemForm({ open, item, meta = {}, onClose, onDone }) {
       <Sec id="basic" n="1" title="Basic Information" sub="Provide the essential details about the item.">
         <FormGrid>
           <Field label="Item name" required error={f.err('name')}>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="e.g. A4 Sheet (White)" autoFocus />
           </Field>
           <Field label="Item code" required={false} hint={item?._id ? undefined : 'Leave blank to auto-generate'}>
             <div className="ivw-withbtn">
-              <Input value={f.values.itemCode} onChange={(e) => f.set('itemCode', e.target.value)} placeholder="PAP-001" />
+              <Input data-text="code" value={f.values.itemCode} onChange={(e) => f.set('itemCode', e.target.value)} placeholder="PAP-001" />
               <IconBtn icon="refresh" label="Suggest a code" onClick={suggestCode} />
             </div>
           </Field>
@@ -219,7 +219,7 @@ export function ItemForm({ open, item, meta = {}, onClose, onDone }) {
               onChange={(e) => f.set('reorderLevel', e.target.value)} placeholder="e.g. 10" />
           </Field>
           <Field label="HSN code">
-            <Input value={f.values.hsnCode} onChange={(e) => f.set('hsnCode', e.target.value)} placeholder="e.g. 4820" />
+            <Input data-text="hsn" value={f.values.hsnCode} onChange={(e) => f.set('hsnCode', e.target.value)} placeholder="e.g. 4820" />
           </Field>
         </FormGrid>
       </Sec>
@@ -232,9 +232,9 @@ export function ItemForm({ open, item, meta = {}, onClose, onDone }) {
                 options={opt(meta.warehouses)} placeholder="No default store" />
             </Affix>
           </Field>
-          <Field label="Rack"><Input value={f.values.rack} onChange={(e) => f.set('rack', e.target.value)} placeholder="e.g. R1" /></Field>
-          <Field label="Shelf"><Input value={f.values.shelf} onChange={(e) => f.set('shelf', e.target.value)} placeholder="e.g. S1" /></Field>
-          <Field label="Bin"><Input value={f.values.bin} onChange={(e) => f.set('bin', e.target.value)} placeholder="e.g. B1" /></Field>
+          <Field label="Rack"><Input data-text="title" value={f.values.rack} onChange={(e) => f.set('rack', e.target.value)} placeholder="e.g. R1" /></Field>
+          <Field label="Shelf"><Input data-text="title" value={f.values.shelf} onChange={(e) => f.set('shelf', e.target.value)} placeholder="e.g. S1" /></Field>
+          <Field label="Bin"><Input data-text="title" value={f.values.bin} onChange={(e) => f.set('bin', e.target.value)} placeholder="e.g. B1" /></Field>
         </FormGrid>
       </Sec>
 
@@ -256,10 +256,10 @@ export function ItemForm({ open, item, meta = {}, onClose, onDone }) {
 
       <Sec id="extra" n="5" title="Additional Information" sub="Brand, model and identification.">
         <FormGrid three>
-          <Field label="Brand"><Input value={f.values.brand} onChange={(e) => f.set('brand', e.target.value)} /></Field>
-          <Field label="Model"><Input value={f.values.model} onChange={(e) => f.set('model', e.target.value)} /></Field>
+          <Field label="Brand"><Input data-text="title" value={f.values.brand} onChange={(e) => f.set('brand', e.target.value)} /></Field>
+          <Field label="Model"><Input data-text="title" value={f.values.model} onChange={(e) => f.set('model', e.target.value)} /></Field>
           <Field label="Barcode">
-            <Input value={f.values.barcode} onChange={(e) => f.set('barcode', e.target.value)} />
+            <Input data-text="code" value={f.values.barcode} onChange={(e) => f.set('barcode', e.target.value)} />
           </Field>
         </FormGrid>
         {item?._id ? (
@@ -518,7 +518,7 @@ export function AdjustStockForm({ open, preset, meta = {}, onClose, onDone }) {
             </Field>
             <Field label="Batch Number">
               <Affix icon="listDots">
-                <Input value={f.values.batchNumber} onChange={(e) => f.set('batchNumber', e.target.value)}
+                <Input data-text="code" value={f.values.batchNumber} onChange={(e) => f.set('batchNumber', e.target.value)}
                   placeholder="e.g. BATCH-001" />
               </Affix>
             </Field>
@@ -540,7 +540,7 @@ export function AdjustStockForm({ open, preset, meta = {}, onClose, onDone }) {
           </Field>
           <Field label="Reference No. (Optional)">
             <Affix icon="fileDoc">
-              <Input value={f.values.reference} onChange={(e) => f.set('reference', e.target.value)}
+              <Input data-text="code" value={f.values.reference} onChange={(e) => f.set('reference', e.target.value)}
                 placeholder="e.g. PO-2026-012" />
             </Affix>
           </Field>
@@ -666,7 +666,7 @@ const LineItemCell = ({ line, meta, onPick, freeText, onName }) => {
             catalogue cannot contain it yet, so the line carries a name instead
             of an id and whoever approves it decides what to order. */}
         {freeText ? (
-          <Input value={line.itemName} onChange={(e) => onName?.(e.target.value)} style={{ marginTop: 6 }}
+          <Input data-text="title" value={line.itemName} onChange={(e) => onName?.(e.target.value)} style={{ marginTop: 6 }}
             placeholder="…or type something not in the list" />
         ) : null}
       </>
@@ -1254,7 +1254,7 @@ export function ReceiveForm({ open, order, onClose, onDone }) {
               },
               {
                 key: 'batch', label: 'Batch number', width: 150,
-                cell: (l, i) => <Input value={l.batchNumber} onChange={(e) => setLine(i, { batchNumber: e.target.value })} />,
+                cell: (l, i) => <Input data-text="code" value={l.batchNumber} onChange={(e) => setLine(i, { batchNumber: e.target.value })} />,
               },
               {
                 key: 'exp', label: 'Expiry date', width: 160,
@@ -1271,7 +1271,7 @@ export function ReceiveForm({ open, order, onClose, onDone }) {
         <FormGrid three>
           <Field label="Invoice number">
             <Affix icon="fileDoc">
-              <Input value={invoice.number} onChange={(e) => setInvoice(s => ({ ...s, number: e.target.value }))} />
+              <Input data-text="code" value={invoice.number} onChange={(e) => setInvoice(s => ({ ...s, number: e.target.value }))} />
             </Affix>
           </Field>
           <Field label="Invoice date">
@@ -1454,7 +1454,7 @@ export function IssueForm({ open, preset, meta = {}, onClose, onDone }) {
               <Stepper data-field="quantity" value={f.values.quantity} onChange={(v) => f.set('quantity', v)} min={1} />
             </Field>
             <Field label="Unit">
-              <Input value={item?.unit || ''} placeholder="Nos" readOnly disabled />
+              <Input data-text="title" value={item?.unit || ''} placeholder="Nos" readOnly disabled />
             </Field>
           </FormGrid>
         </div>
@@ -1482,7 +1482,7 @@ export function IssueForm({ open, preset, meta = {}, onClose, onDone }) {
           ) : f.values.recipientType === 'class' ? (
             <Field label="Class / section" required error={f.err('classLabel')}>
               <Affix icon="school">
-                <Input data-field="classLabel" value={f.values.classLabel}
+                <Input data-text="title" data-field="classLabel" value={f.values.classLabel}
                   onChange={(e) => f.set('classLabel', e.target.value)} placeholder="e.g. Class 5B" />
               </Affix>
             </Field>
@@ -1806,11 +1806,11 @@ export function AssetForm({ open, asset, meta = {}, onClose, onDone }) {
       <Sec id="basic" n="1" title="Basic Details" sub="Provide the asset name, category and identity information.">
         <FormGrid>
           <Field label="Asset name" required error={f.err('name')} span2>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="Computer (Dell OptiPlex)" autoFocus />
           </Field>
           <Field label="Asset code" required error={f.err('assetCode')} hint="Unique code for this asset">
-            <Input data-field="assetCode" value={f.values.assetCode} onChange={(e) => f.set('assetCode', e.target.value)} placeholder="IT-001" />
+            <Input data-text="code" data-field="assetCode" value={f.values.assetCode} onChange={(e) => f.set('assetCode', e.target.value)} placeholder="IT-001" />
           </Field>
           <Field label="Category" required error={f.err('category')}>
             <Affix icon="folder">
@@ -1819,7 +1819,7 @@ export function AssetForm({ open, asset, meta = {}, onClose, onDone }) {
             </Affix>
           </Field>
           <Field label="Serial number" hint="Manufacturer serial number (if available)">
-            <Input value={f.values.serialNumber} onChange={(e) => f.set('serialNumber', e.target.value)} placeholder="7X3K9F2" />
+            <Input data-text="code" value={f.values.serialNumber} onChange={(e) => f.set('serialNumber', e.target.value)} placeholder="7X3K9F2" />
           </Field>
           <Field label="Linked inventory item" hint="Link to an inventory item (optional)">
             <Select value={f.values.item} onChange={(v) => f.set('item', v)}
@@ -1856,7 +1856,7 @@ export function AssetForm({ open, asset, meta = {}, onClose, onDone }) {
           </Field>
           <Field label="Invoice / Reference No.">
             <Affix icon="fileDoc">
-              <Input value={f.values.invoiceRef} onChange={(e) => f.set('invoiceRef', e.target.value)} placeholder="INV-2026-118" />
+              <Input data-text="code" value={f.values.invoiceRef} onChange={(e) => f.set('invoiceRef', e.target.value)} placeholder="INV-2026-118" />
             </Affix>
           </Field>
         </FormGrid>
@@ -1911,7 +1911,7 @@ export function AssetForm({ open, asset, meta = {}, onClose, onDone }) {
           </Field>
           <Field label="Or a name">
             <Input data-text="name" value={f.values.assignedName} disabled={!!f.values.assignedTo}
-              onChange={(e) => f.set('assignedName', e.target.value)} placeholder="Driver (Ramesh)" />
+              onChange={(e) => f.set('assignedName', e.target.value)} placeholder="e.g. Ramesh Kumar" />
           </Field>
           <Field label="Status">
             <Select value={f.values.status} onChange={(v) => f.set('status', v)} options={ASSET_STATUSES} />
@@ -2108,18 +2108,18 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
       <Sec id="business" n="1" title="Business Details" sub="Basic information about the vendor and what they supply.">
         <FormGrid>
           <Field label="Company name" required error={f.err('name')}>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="e.g. S.K. Stationery" autoFocus />
           </Field>
           <Field label="Vendor code" hint="Unique code for this vendor (auto or manual)">
-            <Input value={f.values.code} onChange={(e) => f.set('code', e.target.value)} placeholder="VEN-001" />
+            <Input data-text="code" value={f.values.code} onChange={(e) => f.set('code', e.target.value)} placeholder="VEN-001" />
           </Field>
           <Field label="Business type">
             <Select value={f.values.businessType} onChange={(v) => f.set('businessType', v)} options={BUSINESS_TYPES} />
           </Field>
           <Field label="Category">
             <Affix icon="folder">
-              <Input value={f.values.vendorCategory} onChange={(e) => f.set('vendorCategory', e.target.value)}
+              <Input data-text="title" value={f.values.vendorCategory} onChange={(e) => f.set('vendorCategory', e.target.value)}
                 placeholder="Stationery" />
             </Affix>
           </Field>
@@ -2150,13 +2150,13 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
           </Field>
           <Field label="Email address" error={f.err('email')}>
             <Affix icon="mail">
-              <Input data-field="email" type="email" value={f.values.email}
+              <Input data-text="email" data-field="email" type="email" value={f.values.email}
                 onChange={(e) => f.set('email', e.target.value)} placeholder="vendor@example.com" />
             </Affix>
           </Field>
           <Field label="Website (Optional)">
             <Affix icon="externalLink">
-              <Input value={f.values.website} onChange={(e) => f.set('website', e.target.value)}
+              <Input data-text="token" value={f.values.website} onChange={(e) => f.set('website', e.target.value)}
                 placeholder="https://www.example.com" />
             </Affix>
           </Field>
@@ -2166,12 +2166,12 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
                 placeholder="Shop No. 12, Park Street, Kolkata" />
             </Affix>
           </Field>
-          <Field label="City"><Input value={f.values.city} onChange={(e) => f.set('city', e.target.value)} placeholder="Kolkata" /></Field>
+          <Field label="City"><Input data-text="place" value={f.values.city} onChange={(e) => f.set('city', e.target.value)} placeholder="Kolkata" /></Field>
           <Field label="State">
             <Select value={f.values.state} onChange={(v) => f.set('state', v)} options={STATES} placeholder="Choose a state…" />
           </Field>
           <Field label="PIN code" error={f.err('pincode')}>
-            <Input data-field="pincode" inputMode="numeric" value={f.values.pincode}
+            <Input data-text="pincode" data-field="pincode" inputMode="numeric" value={f.values.pincode}
               onChange={(e) => f.set('pincode', e.target.value)} placeholder="700016" />
           </Field>
         </FormGrid>
@@ -2180,26 +2180,26 @@ export function VendorForm({ open, vendor, meta = {}, onClose, onDone }) {
       <Sec id="tax" n="3" title="Tax & Payment" sub="Add tax registration and bank details for invoices and payments.">
         <FormGrid>
           <Field label="GST number" error={f.err('gstNumber')}>
-            <Input data-field="gstNumber" value={f.values.gstNumber}
+            <Input data-text="gstin" data-field="gstNumber" value={f.values.gstNumber}
               onChange={(e) => f.set('gstNumber', e.target.value.toUpperCase())} placeholder="19ABCDE1234F1Z5" />
           </Field>
           <Field label="PAN" error={f.err('pan')}>
-            <Input data-field="pan" value={f.values.pan}
+            <Input data-text="pan" data-field="pan" value={f.values.pan}
               onChange={(e) => f.set('pan', e.target.value.toUpperCase())} placeholder="ABCDE1234F" />
           </Field>
           <Field label="Bank name">
             <Affix icon="bank">
-              <Input value={f.values.bankName} onChange={(e) => f.set('bankName', e.target.value)} />
+              <Input data-text="title" value={f.values.bankName} onChange={(e) => f.set('bankName', e.target.value)} />
             </Affix>
           </Field>
           <Field label="Account name">
-            <Input data-text="name" value={f.values.accountName} onChange={(e) => f.set('accountName', e.target.value)} />
+            <Input data-text="title" value={f.values.accountName} onChange={(e) => f.set('accountName', e.target.value)} />
           </Field>
           <Field label="Account number">
-            <Input value={f.values.accountNumber} onChange={(e) => f.set('accountNumber', e.target.value)} />
+            <Input data-text="account" value={f.values.accountNumber} onChange={(e) => f.set('accountNumber', e.target.value)} />
           </Field>
           <Field label="IFSC">
-            <Input value={f.values.ifsc} onChange={(e) => f.set('ifsc', e.target.value.toUpperCase())} />
+            <Input data-text="ifsc" value={f.values.ifsc} onChange={(e) => f.set('ifsc', e.target.value.toUpperCase())} />
           </Field>
         </FormGrid>
       </Sec>
@@ -2305,7 +2305,7 @@ export function CategoryForm({ open, category, meta = {}, onClose, onDone }) {
       <Sec id="basic" n="1" title="Basic Details" sub="Name your category and choose how it appears.">
         <FormGrid one>
           <Field label="Category name" required error={f.err('name')}>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="e.g. Audio Visual" autoFocus />
           </Field>
           <Field label="Description">
@@ -2353,7 +2353,7 @@ export function CategoryForm({ open, category, meta = {}, onClose, onDone }) {
           </Field>
           <Field label="Default GST %" error={f.err('defaultGst')}>
             <Affix suffix="%">
-              <Input data-field="defaultGst" type="number" min="0" max="100" value={f.values.defaultGst}
+              <Input step="0.01" data-field="defaultGst" type="number" min="0" max="100" value={f.values.defaultGst}
                 onChange={(e) => f.set('defaultGst', e.target.value)} placeholder="0" />
             </Affix>
           </Field>
@@ -2362,7 +2362,7 @@ export function CategoryForm({ open, category, meta = {}, onClose, onDone }) {
               options={opt(meta.warehouses)} placeholder="No default store" />
           </Field>
           <Field label="Default HSN code" hint="Used for tax reporting.">
-            <Input value={f.values.defaultHsnCode} onChange={(e) => f.set('defaultHsnCode', e.target.value)} placeholder="e.g. 8504" />
+            <Input data-text="hsn" value={f.values.defaultHsnCode} onChange={(e) => f.set('defaultHsnCode', e.target.value)} placeholder="e.g. 8504" />
           </Field>
         </FormGrid>
       </Sec>
@@ -2471,11 +2471,11 @@ export function WarehouseForm({ open, warehouse, meta = {}, onClose, onDone }) {
       <Sec id="basic" n="1" title="Basic Details" sub="Essential information about the warehouse.">
         <FormGrid>
           <Field label="Store name" required error={f.err('name')}>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="e.g. Main Store" autoFocus />
           </Field>
           <Field label="Warehouse code" hint="Leave blank, one will be generated">
-            <Input value={f.values.code} onChange={(e) => f.set('code', e.target.value)} placeholder="e.g. WH-001" />
+            <Input data-text="code" value={f.values.code} onChange={(e) => f.set('code', e.target.value)} placeholder="e.g. WH-001" />
           </Field>
           <Field label="Warehouse type">
             <Affix icon="layers">
@@ -2497,7 +2497,7 @@ export function WarehouseForm({ open, warehouse, meta = {}, onClose, onDone }) {
         <FormGrid>
           <Field label="Campus">
             <Affix icon="building">
-              <Input value={f.values.campus} onChange={(e) => f.set('campus', e.target.value)} placeholder="Main Campus" />
+              <Input data-text="title" value={f.values.campus} onChange={(e) => f.set('campus', e.target.value)} placeholder="Main Campus" />
             </Affix>
           </Field>
           <Field label="Location / Address">
@@ -2583,7 +2583,7 @@ export function DepartmentForm({ open, department, onClose, onDone }) {
       <Sec id="basic" n="1" title="Department" sub="Who owns the spending. What they may spend is a budget, created on the Budgets screen.">
         <FormGrid one>
           <Field label="Department name" required error={f.err('name')}>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="Science" autoFocus />
           </Field>
           <Field label="Head of department">
@@ -2592,7 +2592,7 @@ export function DepartmentForm({ open, department, onClose, onDone }) {
             </Affix>
           </Field>
           <Field label="Financial year">
-            <Input value={f.values.financialYear} onChange={(e) => f.set('financialYear', e.target.value)} placeholder="2026-2027" />
+            <Input data-text="code" value={f.values.financialYear} onChange={(e) => f.set('financialYear', e.target.value)} placeholder="2026-2027" />
           </Field>
         </FormGrid>
         <div style={{ marginTop: 15 }}>
@@ -2727,11 +2727,11 @@ export function BudgetForm({ open, budget, meta = {}, onClose, onDone }) {
       <Sec id="details" n="1" title="Budget details" sub="Basic information about this budget.">
         <FormGrid>
           <Field label="Budget name" required error={f.err('name')}>
-            <Input data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
+            <Input data-text="title" data-field="name" value={f.values.name} onChange={(e) => f.set('name', e.target.value)}
               placeholder="Science Lab Budget" autoFocus />
           </Field>
           <Field label="Budget code" hint="Leave blank, one is generated automatically.">
-            <Input value={f.values.code} onChange={(e) => f.set('code', e.target.value)} placeholder="BUD-SCI-2026" />
+            <Input data-text="code" value={f.values.code} onChange={(e) => f.set('code', e.target.value)} placeholder="BUD-SCI-2026" />
           </Field>
           <Field label="Icon" span2>
             <IconPicker value={f.values.icon} onChange={(v) => f.set('icon', v)} options={BUDGET_ICONS} />
@@ -2878,7 +2878,7 @@ export function RepairForm({ open, asset, onClose, onDone }) {
           </Field>
           <Field label="Technician" hint="Leave blank to log it as reported but not yet assigned">
             <Affix icon="user">
-              <Input value={f.values.technician} onChange={(e) => f.set('technician', e.target.value)} />
+              <Input data-text="name" value={f.values.technician} onChange={(e) => f.set('technician', e.target.value)} />
             </Affix>
           </Field>
           <Field label="Note">
@@ -2934,7 +2934,7 @@ export function RepairUpdateForm({ open, asset, repair, onClose, onDone }) {
           </Field>
           <Field label="Technician" span2>
             <Affix icon="user">
-              <Input value={f.values.technician} onChange={(e) => f.set('technician', e.target.value)} />
+              <Input data-text="name" value={f.values.technician} onChange={(e) => f.set('technician', e.target.value)} />
             </Affix>
           </Field>
           <Field label="Note" span2>

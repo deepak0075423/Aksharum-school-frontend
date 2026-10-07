@@ -348,14 +348,14 @@ export default function SchoolSettings() {
 
             <div className="form-group">
               <label className="form-label">School name</label>
-              <input className="form-control" value={name} disabled />
+              <input data-text="title" className="form-control" value={name} disabled />
               <div className="form-hint">Only a super-admin can change the school name.</div>
             </div>
 
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label">School code</label>
-                <input className={`form-control${errors.code ? ' error' : ''}`} value={form.code}
+                <input data-text="code" className={`form-control${errors.code ? ' error' : ''}`} value={form.code}
                   onChange={(e) => set('code', e.target.value)} placeholder="SCH001" />
                 {err('code')}
                 <div className="form-hint">Used by the <span className="setmono">{'{CODE}'}</span> token in numbering.</div>
@@ -371,13 +371,13 @@ export default function SchoolSettings() {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label">Email</label>
-                <input type="email" className={`form-control${errors.email ? ' error' : ''}`} value={form.email}
+                <input data-text="email" type="email" className={`form-control${errors.email ? ' error' : ''}`} value={form.email}
                   onChange={(e) => set('email', e.target.value)} placeholder="school@example.com" />
                 {err('email')}
               </div>
               <div className="form-group">
                 <label className="form-label">Website</label>
-                <input type="url" className={`form-control${errors.website ? ' error' : ''}`} value={form.website}
+                <input data-text="token" type="url" className={`form-control${errors.website ? ' error' : ''}`} value={form.website}
                   onChange={(e) => set('website', e.target.value)} placeholder="https://www.school.edu" />
                 {err('website')}
               </div>
@@ -491,7 +491,7 @@ export default function SchoolSettings() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">SMTP host</label>
-              <input className="form-control" value={smtp.host}
+              <input data-text="token" className="form-control" value={smtp.host}
                 onChange={(e) => setSmtpF('host', e.target.value)} placeholder="smtp.gmail.com" />
             </div>
             <div className="form-group">
@@ -511,7 +511,7 @@ export default function SchoolSettings() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Username</label>
-              <input className="form-control" value={smtp.user} autoComplete="off"
+              <input data-text="token" className="form-control" value={smtp.user} autoComplete="off"
                 onChange={(e) => setSmtpF('user', e.target.value)} placeholder="mail@yourschool.edu" />
             </div>
             <div className="form-group">
@@ -527,12 +527,12 @@ export default function SchoolSettings() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">From name</label>
-              <input className="form-control" value={smtp.fromName}
+              <input data-text="title" className="form-control" value={smtp.fromName}
                 onChange={(e) => setSmtpF('fromName', e.target.value)} placeholder={name || 'School name'} />
             </div>
             <div className="form-group">
               <label className="form-label">From email</label>
-              <input type="email" className="form-control" value={smtp.fromEmail}
+              <input data-text="email" type="email" className="form-control" value={smtp.fromEmail}
                 onChange={(e) => setSmtpF('fromEmail', e.target.value)} placeholder="Defaults to the username" />
             </div>
           </div>

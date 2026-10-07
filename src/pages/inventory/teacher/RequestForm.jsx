@@ -63,7 +63,7 @@ function ItemPicker({ id, items, line, onPick, onName }) {
 
   return (
     <>
-      <Input
+      <Input data-text="title"
         list={id}
         value={line.itemName}
         onChange={(e) => take(e.target.value)}

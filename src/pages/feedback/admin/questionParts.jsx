@@ -367,7 +367,7 @@ export function CategoryForm({ open, form, setForm, categories = [], saving, err
           count={`${form.name.length} / 120`}>
           <div className="fbnamein">
             <span className="fbcatcell__i tint-purple"><Icon name={categoryIcon(form.name)} size={16} /></span>
-            <input className="fbinput" autoFocus maxLength={120} value={form.name}
+            <input data-text="title" className="fbinput" autoFocus maxLength={120} value={form.name}
               placeholder="e.g. Classroom Management"
               onChange={(e) => { set('name', e.target.value); setErr(''); }} />
           </div>
@@ -505,7 +505,7 @@ export function TemplateForm({ open, form, setForm, questions, categories, savin
       <FormSection title="Details">
         <div className="fbfields fbfields--2">
           <FormField label="Name" required count={`${form.name.length} / 150`}>
-            <input className="fbinput" autoFocus maxLength={150} value={form.name}
+            <input data-text="title" className="fbinput" autoFocus maxLength={150} value={form.name}
               placeholder="e.g. Standard Teacher Evaluation"
               onChange={(e) => { set('name', e.target.value); setErr(''); }} />
           </FormField>

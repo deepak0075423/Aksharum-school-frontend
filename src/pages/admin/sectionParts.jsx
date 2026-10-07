@@ -283,7 +283,7 @@ export function SectionForm({ open, sections, className, saving, error, onClose,
         <div className="form-row form-row-2">
           <div className="form-group">
             <label className="form-label required">Section name</label>
-            <input className="form-control" autoFocus maxLength={12} placeholder="A" value={form.name}
+            <input data-text="title" className="form-control" autoFocus maxLength={12} placeholder="A" value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <div className="form-hint">Stored in capitals — “a” and “A” are the same section.</div>
           </div>

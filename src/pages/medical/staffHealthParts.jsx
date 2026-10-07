@@ -85,7 +85,7 @@ export function StaffRecordDialog({ open, health, title, intro, onClose, save, o
         <div className="mdsh-rows">
           {v.allergies.map((a, i) => (
             <div key={i} className="mdsh-row">
-              <input className="md-input" value={a.allergen} onChange={(e) => al.set(i, { allergen: e.target.value })} placeholder="e.g. Penicillin" maxLength={80} aria-label="Allergy" />
+              <input data-text="title" className="md-input" value={a.allergen} onChange={(e) => al.set(i, { allergen: e.target.value })} placeholder="e.g. Penicillin" maxLength={80} aria-label="Allergy" />
               <select className="md-input" value={a.severity} onChange={(e) => al.set(i, { severity: e.target.value })} aria-label="Severity">
                 {Object.entries(SEVERITY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
@@ -100,7 +100,7 @@ export function StaffRecordDialog({ open, health, title, intro, onClose, save, o
         <div className="mdsh-rows">
           {v.conditions.map((c, i) => (
             <div key={i} className="mdsh-row is-two">
-              <input className="md-input" value={c.condition} onChange={(e) => co.set(i, { condition: e.target.value })} placeholder="e.g. Asthma" maxLength={120} aria-label="Condition" />
+              <input data-text="title" className="md-input" value={c.condition} onChange={(e) => co.set(i, { condition: e.target.value })} placeholder="e.g. Asthma" maxLength={120} aria-label="Condition" />
               <input className="md-input" value={c.notes} onChange={(e) => co.set(i, { notes: e.target.value })} placeholder="What helps, what to do" maxLength={300} aria-label="Notes" />
               <IconBtn icon="close" label="Remove this condition" onClick={() => co.remove(i)} />
             </div>
@@ -110,7 +110,7 @@ export function StaffRecordDialog({ open, health, title, intro, onClose, save, o
       </Field>
       <div className="md-form__grid md-form__grid--3">
         <Field label="Person to call"><input data-text="name" className="md-input" value={v.emergencyContact.name || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: e.target.value } })} maxLength={120} /></Field>
-        <Field label="Relation"><input className="md-input" value={v.emergencyContact.relation || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: e.target.value } })} maxLength={60} /></Field>
+        <Field label="Relation"><input data-text="letters" className="md-input" value={v.emergencyContact.relation || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: e.target.value } })} maxLength={60} /></Field>
         <Field label="Their phone"><PhoneInput className="md-input" value={v.emergencyContact.phone || ''} onChange={(e) => setV({ ...v, emergencyContact: { ...v.emergencyContact, phone: e.target.value } })} /></Field>
         <Field label="Doctor"><input data-text="name" className="md-input" value={v.doctor.name || ''} onChange={(e) => setV({ ...v, doctor: { ...v.doctor, name: e.target.value } })} maxLength={120} /></Field>
         <Field label="Doctor's phone"><PhoneInput className="md-input" value={v.doctor.phone || ''} onChange={(e) => setV({ ...v, doctor: { ...v.doctor, phone: e.target.value } })} /></Field>

@@ -785,7 +785,7 @@ export default function TimetableGenerate() {
                   </div>
                   <div style={{ marginTop: 14, maxWidth: 360 }}>
                     <Field label="Version name (optional)">
-                      <input className="form-control" value={label} maxLength={80}
+                      <input data-text="title" className="form-control" value={label} maxLength={80}
                         placeholder="e.g. Term 2 draft"
                         onChange={(e) => setLabel(e.target.value)} />
                     </Field>
@@ -827,7 +827,7 @@ export default function TimetableGenerate() {
                       </select>
                     </Field>
                     <Field label="Version name (optional)">
-                      <input className="form-control" value={label} maxLength={80}
+                      <input data-text="title" className="form-control" value={label} maxLength={80}
                         placeholder={run ? 'e.g. Term 2 — fewer Maths periods' : 'e.g. Term 2 draft'}
                         onChange={(e) => setLabel(e.target.value)} />
                     </Field>
@@ -1421,7 +1421,7 @@ export default function TimetableGenerate() {
         ) : <Button variant="secondary" onClick={() => setTemplates(null)}>Close</Button>}>
         {templates?.mode === 'save' ? (
           <Field label="Name it" hint="e.g. “Normal term”, “Exam term”">
-            <input className="form-control" value={templates.name} maxLength={60} autoFocus
+            <input data-text="title" className="form-control" value={templates.name} maxLength={60} autoFocus
               onChange={(e) => setTemplates((t) => ({ ...t, name: e.target.value }))} />
           </Field>
         ) : !templates?.list?.length ? (
@@ -1752,7 +1752,7 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, periodsPerD
           </div>
           <div className="ttg-field">
             <label className="ttg-label" htmlFor="rule-priority">Placement priority</label>
-            <input id="rule-priority" type="number" className="form-control" value={rule.priority}
+            <input min="-99" max="99" id="rule-priority" type="number" className="form-control" value={rule.priority}
               onChange={(e) => onChange({ priority: num(e.target.value, -99, 99, 0) })} />
             <span className="form-hint">Higher is placed earlier and gets the best slots.</span>
           </div>

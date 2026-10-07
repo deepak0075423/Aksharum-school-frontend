@@ -341,7 +341,7 @@ export default function Outpass() {
           <Grid cols={3}>
             <Fld label="Guardian Name" required><input data-text="name" value={form.guardianName} maxLength={80} placeholder="Enter guardian name" onChange={(e) => setF('guardianName', e.target.value)} /></Fld>
             <Fld label="Guardian Phone" required icon="phone"><PhoneInput value={form.guardianPhone} placeholder="Enter phone number" onChange={(e) => setF('guardianPhone', e.target.value)} /></Fld>
-            <Fld label="Relation" required icon="users"><input value={form.guardianRelation} maxLength={30} placeholder="e.g. Father, Mother, Uncle" onChange={(e) => setF('guardianRelation', e.target.value)} /></Fld>
+            <Fld label="Relation" required icon="users"><input data-text="letters" value={form.guardianRelation} maxLength={30} placeholder="e.g. Father, Mother, Uncle" onChange={(e) => setF('guardianRelation', e.target.value)} /></Fld>
           </Grid>
         </FormSection>
         <FormSection step="docs" icon="paperclip" title={<>Supporting Documents <small className="hsf-opt">(Optional)</small></>} sub="Upload any relevant documents (e.g., parent consent, medical note)">

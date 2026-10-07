@@ -64,14 +64,14 @@ export function CampaignDialog({ campaign, onClose, onSaved }) {
             {Object.entries(CAMPAIGN_KIND).map(([key, x]) => <option key={key} value={key}>{x.label}</option>)}
           </select>
         </Field>
-        <Field label="Name" required><input className="md-input" value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} placeholder={k.label === 'Other' ? 'e.g. Hand-washing week' : `e.g. ${k.label}, ${new Date().toLocaleString('en-IN', { month: 'long' })}`} maxLength={120} /></Field>
+        <Field label="Name" required><input data-text="title" className="md-input" value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} placeholder={k.label === 'Other' ? 'e.g. Hand-washing week' : `e.g. ${k.label}, ${new Date().toLocaleString('en-IN', { month: 'long' })}`} maxLength={120} /></Field>
         {v.kind === 'vaccination' ? (
           <>
             <Field label="Vaccine" required><select className="md-input" value={v.vaccine} onChange={(e) => setV({ ...v, vaccine: e.target.value })}><option value="">Choose…</option>{(meta?.settings?.vaccines || []).map((x) => <option key={x} value={x}>{x}</option>)}</select></Field>
-            <Field label="Dose" optional><input className="md-input" value={v.dose} onChange={(e) => setV({ ...v, dose: e.target.value })} placeholder="e.g. Booster" maxLength={40} /></Field>
-            <Field label="Lot / batch number" optional><input className="md-input" value={v.lotNumber} onChange={(e) => setV({ ...v, lotNumber: e.target.value })} maxLength={60} /></Field>
+            <Field label="Dose" optional><input data-text="title" className="md-input" value={v.dose} onChange={(e) => setV({ ...v, dose: e.target.value })} placeholder="e.g. Booster" maxLength={40} /></Field>
+            <Field label="Lot / batch number" optional><input data-text="code" className="md-input" value={v.lotNumber} onChange={(e) => setV({ ...v, lotNumber: e.target.value })} maxLength={60} /></Field>
           </>
-        ) : k.gives ? <Field label="What is given" required className="is-wide"><input className="md-input" value={v.medicine} onChange={(e) => setV({ ...v, medicine: e.target.value })} maxLength={160} /></Field> : null}
+        ) : k.gives ? <Field label="What is given" required className="is-wide"><input data-text="title" className="md-input" value={v.medicine} onChange={(e) => setV({ ...v, medicine: e.target.value })} maxLength={160} /></Field> : null}
         <Field label="Day" required><input className="md-input" type="date" value={v.startOn} onChange={(e) => setV({ ...v, startOn: e.target.value })} /></Field>
         <Field label="Last day" optional hint="For a campaign over several days"><input className="md-input" type="date" min={v.startOn} value={v.endOn} onChange={(e) => setV({ ...v, endOn: e.target.value })} /></Field>
         <Field label="Mop-up day" optional hint="For the children who were away"><input className="md-input" type="date" min={v.endOn || v.startOn} value={v.mopUpOn} onChange={(e) => setV({ ...v, mopUpOn: e.target.value })} /></Field>

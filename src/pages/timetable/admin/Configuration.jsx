@@ -652,7 +652,7 @@ export default function TimetableConfiguration() {
           }}>Save</Button>
         </>}>
         <Field label="Name it" hint="e.g. “Exam term”, “Normal term”, “Half-day Saturdays”">
-          <input className="form-control" value={template?.name || ''} maxLength={60} autoFocus
+          <input data-text="title" className="form-control" value={template?.name || ''} maxLength={60} autoFocus
             onChange={(e) => setTemplate({ name: e.target.value })} />
         </Field>
       </Modal>
@@ -740,7 +740,7 @@ function GridEditor({ title, hint, rows, cfg, set, onAuto, onChange, onRemove, o
                         {PERIOD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
                     </td>
-                    <td><input className="form-control" value={p.label || ''} placeholder={p.periodType}
+                    <td><input data-text="title" className="form-control" value={p.label || ''} placeholder={p.periodType}
                       onChange={(e) => onChange(i, { label: e.target.value })} /></td>
                     <td>
                       <button type="button" className="btn btn-danger btn-sm" onClick={() => onRemove(i)}

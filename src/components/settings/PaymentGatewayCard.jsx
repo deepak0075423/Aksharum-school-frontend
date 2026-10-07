@@ -111,7 +111,7 @@ export default function PaymentGatewayCard() {
                 <div className="form-group">
                   <label className="form-label">Currency</label>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input className="form-control" style={{ width: 100 }} value={form.currency}
+                    <input data-text="upper" className="form-control" style={{ width: 100 }} value={form.currency}
                       onChange={set('currency')} placeholder="INR" />
                     <input className="form-control" style={{ width: 70 }} value={form.currencySymbol}
                       onChange={set('currencySymbol')} placeholder="₹" />
@@ -123,7 +123,7 @@ export default function PaymentGatewayCard() {
                 <div className="form-row form-row-2">
                   <div className="form-group">
                     <label className="form-label required">Key ID</label>
-                    <input className="form-control" value={form.razorpayKeyId} onChange={set('razorpayKeyId')}
+                    <input data-text="token" className="form-control" value={form.razorpayKeyId} onChange={set('razorpayKeyId')}
                       placeholder="rzp_live_…" />
                   </div>
                   <div className="form-group">
@@ -140,7 +140,7 @@ export default function PaymentGatewayCard() {
                 <div className="form-row form-row-2">
                   <div className="form-group">
                     <label className="form-label required">Publishable key</label>
-                    <input className="form-control" value={form.stripePublishableKey}
+                    <input data-text="token" className="form-control" value={form.stripePublishableKey}
                       onChange={set('stripePublishableKey')} placeholder="pk_live_…" />
                   </div>
                   <div className="form-group">

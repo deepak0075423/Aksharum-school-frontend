@@ -426,11 +426,11 @@ function RoomForm({ form, setForm, sections, subjects, saving, onSave, onClose }
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <Field label="Room name" required>
-            <input className="form-control" value={form.roomName} placeholder="Computer Lab"
+            <input data-text="title" className="form-control" value={form.roomName} placeholder="Computer Lab"
               onChange={(e) => set('roomName', e.target.value)} />
           </Field>
           <Field label="Room number">
-            <input className="form-control" value={form.roomNumber} placeholder="L-101"
+            <input data-text="code" className="form-control" value={form.roomNumber} placeholder="L-101"
               onChange={(e) => set('roomNumber', e.target.value)} />
           </Field>
           <Field label="Room type">
@@ -443,7 +443,7 @@ function RoomForm({ form, setForm, sections, subjects, saving, onSave, onClose }
               onChange={(e) => set('capacity', e.target.value)} />
           </Field>
           <Field label="Building / Block">
-            <input className="form-control" value={form.building} placeholder="Main Block"
+            <input data-text="title" className="form-control" value={form.building} placeholder="Main Block"
               onChange={(e) => set('building', e.target.value)} />
           </Field>
           <Field label="Home class" hint="A section that always sits here">

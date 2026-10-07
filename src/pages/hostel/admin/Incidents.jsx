@@ -346,7 +346,7 @@ export default function Incidents() {
                   {MEDICAL_CATS.map((c) => <option key={c} value={c}>{words(c)}</option>)}
                 </select>
               </Fld>
-              <Fld label="Hospital" icon="oBuilding"><input value={form.hospitalName} maxLength={80} onChange={(e) => setF('hospitalName', e.target.value)} /></Fld>
+              <Fld label="Hospital" icon="oBuilding"><input data-text="title" value={form.hospitalName} maxLength={80} onChange={(e) => setF('hospitalName', e.target.value)} /></Fld>
               <Fld label="Doctor" icon="user"><input data-text="name" value={form.doctorName} maxLength={80} onChange={(e) => setF('doctorName', e.target.value)} /></Fld>
             </Grid>
             <Fld label="Treatment Given" optional count={[form.treatmentGiven.length, 500]}>

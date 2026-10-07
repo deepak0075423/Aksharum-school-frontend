@@ -66,7 +66,7 @@ function Rename({ r, onClose, onDone }) {
         </label>
         <label className="rs-ask__reason">
           <span>Exam code <i>optional</i></span>
-          <input value={f.code} maxLength={20} autoComplete="off" spellCheck={false} onChange={(e) => set({ code: e.target.value.toUpperCase() })} />
+          <input data-text="code" value={f.code} maxLength={20} autoComplete="off" spellCheck={false} onChange={(e) => set({ code: e.target.value.toUpperCase() })} />
         </label>
         <label className="rs-ask__reason">
           <span>Description <i>optional</i></span>

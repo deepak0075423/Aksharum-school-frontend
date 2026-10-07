@@ -243,7 +243,7 @@ export default function Fees() {
         ]}>
         <FormSection step="plan" icon="wallet" title="Plan Details" sub="What the plan charges for, and when.">
           <Grid cols={2}>
-            <Fld label="Plan Name" required icon="wallet"><input value={form.name} maxLength={80} placeholder="e.g. Monthly hostel fee" onChange={(e) => setF('name', e.target.value)} /></Fld>
+            <Fld label="Plan Name" required icon="wallet"><input data-text="title" value={form.name} maxLength={80} placeholder="e.g. Monthly hostel fee" onChange={(e) => setF('name', e.target.value)} /></Fld>
             <Fld label="Hostel" icon="oBuilding">
               <select value={form.hostel} onChange={(e) => setF('hostel', e.target.value)}>
                 <option value="">All hostels</option>
@@ -276,7 +276,7 @@ export default function Fees() {
           <Grid cols={2}>
             <Fld label={form.basis === 'room_type' ? 'Fallback Amount (₹)' : 'Amount (₹)'} required icon="rupee"
               hint={form.basis === 'room_type' ? 'Charged for a room type left blank below' : ''}>
-              <input type="number" min="0" value={form.amount} onChange={(e) => setF('amount', e.target.value)} />
+              <input step="0.01" type="number" min="0" value={form.amount} onChange={(e) => setF('amount', e.target.value)} />
             </Fld>
           </Grid>
           {form.basis === 'room_type' ? (
@@ -285,7 +285,7 @@ export default function Fees() {
                 const band = (form.roomTypeRates || []).find((z) => z.roomType === rt);
                 return (
                   <Fld key={rt} label={`${name} Room (₹)`} icon="oBed">
-                    <input type="number" min="0" placeholder={form.amount ? `${form.amount} (fallback)` : ''} value={band?.amount ?? ''}
+                    <input step="0.01" type="number" min="0" placeholder={form.amount ? `${form.amount} (fallback)` : ''} value={band?.amount ?? ''}
                       onChange={(e) => {
                         const rest = (form.roomTypeRates || []).filter((z) => z.roomType !== rt);
                         setF('roomTypeRates', e.target.value === '' ? rest : [...rest, { roomType: rt, amount: e.target.value }]);
@@ -383,7 +383,7 @@ export default function Fees() {
               </Fld>
             </Grid>
             <Fld label="Reference" required={payForm.mode !== 'cash'} optional={payForm.mode === 'cash'} icon="oHash">
-              <input value={payForm.reference} maxLength={60} placeholder="Cheque / UPI / transaction reference" onChange={(e) => setPayForm((f) => ({ ...f, reference: e.target.value }))} />
+              <input data-text="code" value={payForm.reference} maxLength={60} placeholder="Cheque / UPI / transaction reference" onChange={(e) => setPayForm((f) => ({ ...f, reference: e.target.value }))} />
             </Fld>
             <Fld label="Note" optional icon="fileDoc"><input value={payForm.note} maxLength={200} onChange={(e) => setPayForm((f) => ({ ...f, note: e.target.value }))} /></Fld>
             <InfoNote>For money taken at the hostel office. A receipt opens once it is saved. Online payments are not entered here — they are recorded automatically when the resident or a parent pays from their own Hostel page.</InfoNote>
@@ -397,7 +397,7 @@ export default function Fees() {
         {target ? (
           <FormSection>
             <Fld label="Concession / Scholarship / Waiver (₹)" required icon="rupee" hint={`Up to ${rupees(target.amount)}`}>
-              <input type="number" min="0" max={target.amount} value={discForm.discount} onChange={(e) => setDiscForm((f) => ({ ...f, discount: e.target.value }))} />
+              <input step="0.01" type="number" min="0" max={target.amount} value={discForm.discount} onChange={(e) => setDiscForm((f) => ({ ...f, discount: e.target.value }))} />
             </Fld>
             <Fld label="Reason" required hint="Every fee change is audited with its before and after amount" count={[discForm.reason.length, 300]}>
               <textarea rows={2} maxLength={300} value={discForm.reason} onChange={(e) => setDiscForm((f) => ({ ...f, reason: e.target.value }))} />
@@ -421,7 +421,7 @@ export default function Fees() {
               <input type="number" min="1" max={target.paidAmount - (target.refundedAmount || 0)} step="any" required value={refundForm.amount} onChange={(e) => setRefundForm((f) => ({ ...f, amount: e.target.value }))} />
             </Fld>
             {refundForm.how === 'gateway' ? null : (
-              <Fld label="Reference" optional icon="oHash" hint="Cheque or transfer number"><input value={refundForm.reference} maxLength={60} onChange={(e) => setRefundForm((f) => ({ ...f, reference: e.target.value }))} /></Fld>
+              <Fld label="Reference" optional icon="oHash" hint="Cheque or transfer number"><input data-text="code" value={refundForm.reference} maxLength={60} onChange={(e) => setRefundForm((f) => ({ ...f, reference: e.target.value }))} /></Fld>
             )}
             <Fld label="Reason" required icon="fileDoc"><input value={refundForm.reason} maxLength={200} required placeholder="Security deposit return" onChange={(e) => setRefundForm((f) => ({ ...f, reason: e.target.value }))} /></Fld>
             <InfoNote>{refundForm.how === 'gateway'

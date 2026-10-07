@@ -51,8 +51,8 @@ function validate(form) {
   }
   if (!errors.pincode && !isPincode(form.pincode)) errors.pincode = 'PIN code must be 6 digits';
   if (!errors.state && !STATES_AND_UTS.includes(form.state)) errors.state = 'Select a valid state or union territory';
-  if (!errors.city) { const e = textError(form.city, 'City', 'name'); if (e) errors.city = e; }
-  if (!errors.name) { const e = textError(form.name, 'School name'); if (e) errors.name = e; }
+  if (!errors.city) { const e = textError(form.city, 'City', 'place'); if (e) errors.city = e; }
+  if (!errors.name) { const e = textError(form.name, 'School name', 'title'); if (e) errors.name = e; }
   if (!errors.name && form.name.trim().length < 3) errors.name = 'School name must be at least 3 characters';
   if (!errors.code && !/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim())) errors.code = 'Code must be 2-20 letters, numbers, hyphens or underscores';
   if (!errors.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Please enter a valid email address';
@@ -220,8 +220,8 @@ export default function SchoolForm() {
             Basic Information
           </div>
           <div className="form-row form-row-2">
-            {inp('name', 'School Name', 'text', 'St. Xavier\'s School')}
-            {inp('code', 'School Code', 'text', 'SXS001')}
+            {inp('name', 'School Name', 'text', 'St. Xavier\'s School', true, 'title')}
+            {inp('code', 'School Code', 'text', 'SXS001', true, 'code')}
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
@@ -269,7 +269,7 @@ export default function SchoolForm() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Website <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
-              <input name="website" type="url" className={`form-control${errors.website ? ' is-invalid' : ''}`}
+              <input data-text="token" name="website" type="url" className={`form-control${errors.website ? ' is-invalid' : ''}`}
                 value={form.website} onChange={onChange}
                 placeholder="https://www.schoolname.edu.in"
                 style={errors.website ? { borderColor: 'var(--danger)' } : {}} />

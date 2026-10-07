@@ -19,6 +19,7 @@ import {
   Who, Stack, Chips, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
   HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate,
 } from './listParts';
+import { experienceText } from '../../utils/validators';
 
 const SORTS = [
   { value: 'name',   label: 'Name (A–Z)' },
@@ -458,7 +459,7 @@ function TeacherDrawer({ row, onClose, onEdit, directoryPath }) {
         <DrawerSection title="Qualifications" fields={[
           ['Qualification', row.qualification],
           ['Teaching degree', p.teachingDegree],
-          ['Total experience', p.totalExperience],
+          ['Total experience', experienceText(p.totalExperience)],
           ['Previous school', p.previousSchool],
         ]} />
 

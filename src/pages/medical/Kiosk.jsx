@@ -83,7 +83,7 @@ export default function MedicalKiosk() {
         <div className="mdk-card">
           <h1>Start the kiosk</h1>
           <p>The tablet will show only the check-in screen. Choose a four-digit PIN — it is needed to leave the kiosk.</p>
-          <input className="mdk-input" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))} placeholder="PIN" aria-label="Exit PIN" />
+          <input data-text="digits" className="mdk-input" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))} placeholder="PIN" aria-label="Exit PIN" />
           <div className="mdk-row">
             <Btn onClick={() => nav('/admin/medical/dashboard')}>Cancel</Btn>
             <Btn kind="primary" disabled={newPin.length !== 4} onClick={() => { try { sessionStorage.setItem(PIN_KEY, newPin); } catch { /* this tab only */ } setPin(newPin); reset(); }}>Start the kiosk</Btn>
@@ -128,7 +128,7 @@ export default function MedicalKiosk() {
       {exiting ? (
         <div className="mdk-exitbox" onClick={(e) => e.stopPropagation()}>
           <p>Staff PIN to leave the kiosk</p>
-          <input className="mdk-input" inputMode="numeric" maxLength={4} autoFocus value={exitPin} onChange={(e) => setExitPin(e.target.value.replace(/\D/g, ''))} aria-label="Staff PIN" />
+          <input data-text="digits" className="mdk-input" inputMode="numeric" maxLength={4} autoFocus value={exitPin} onChange={(e) => setExitPin(e.target.value.replace(/\D/g, ''))} aria-label="Staff PIN" />
           <div className="mdk-row">
             <Btn onClick={() => setExiting(false)}>Cancel</Btn>
             <Btn kind="primary" disabled={exitPin.length !== 4} onClick={() => {
