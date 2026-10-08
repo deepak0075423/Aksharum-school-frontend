@@ -9,7 +9,7 @@
  * with three tables dropped into it.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/feedback.api';
 import Icon from '../../../components/ui/icons';
@@ -17,7 +17,7 @@ import { Spinner } from '../../../components/ui/index';
 import {
   Acts, Crumbs, Dash, EmptyState, Foot, Hero, IconBtn, Menu, MenuItem, MenuSep,
   NoteBar, Pick, Search, SelectionBar, SortBy, Spacer, Stat, Stats, Table, Tag,
-  TextBtn, TipCard, Toolbar, ViewToggle, fmtDate, toneAt, useSelection,
+  TextBtn, TileList, TipCard, Toolbar, ViewToggle, fmtDate, toneAt, useSelection,
 } from './fbUI';
 import {
   OnOff, QUESTION_TYPES, STATUS_OPTIONS, categoryIcon, homeFor, minutesFor, typeShort, useFeedbackBase,
@@ -66,6 +66,8 @@ const HERO = {
 
 export default function Questions() {
   const base = useFeedbackBase();
+  const navigate = useNavigate();
+  const [reuseOpen, setReuseOpen] = useState(false);   // "Times Reused", opened up
   const [params, setParams] = useSearchParams();
   const view = VIEWS.includes(params.get('view')) ? params.get('view') : 'bank';
 
@@ -480,8 +482,10 @@ export default function Questions() {
           <Stat icon="package" tone="amber" value={counts.tInactive}
             label={`Inactive Template${counts.tInactive === 1 ? '' : 's'}`} caption="Not in use"
             onClick={() => pickStatus('inactive')} on={status === 'inactive'} />
+          {/* Counts campaigns built from templates, not templates — so it opens
+              each template's uses, and a template opens the campaigns it made. */}
           <Stat icon="repeat" tone="blue" value={counts.reused} label="Times Reused"
-            caption="Across all campaigns" />
+            caption="Across all campaigns" popup onClick={() => setReuseOpen(true)} />
         </Stats>
       )}
 
@@ -666,6 +670,18 @@ export default function Questions() {
         onClose={() => setDelC(null)} onConfirm={removeCategory} />
       <DeleteTemplateDialog template={delT} deleting={deleting}
         onClose={() => setDelT(null)} onConfirm={removeTemplate} />
+
+      <TileList open={reuseOpen} onClose={() => setReuseOpen(false)} title="Times Reused"
+        note="How many campaigns were built from each template, archived ones included. Choose one to see them. Campaigns made before templates were recorded are not counted."
+        rows={templates.filter((t) => (t.timesUsed || 0) > 0)
+          .sort((a, b) => b.timesUsed - a.timesUsed || a.name.localeCompare(b.name))
+          .map((t) => ({
+            key: t._id, icon: 'clipboard', tone: 'purple', name: t.name,
+            sub: `${t.questionCount ?? (t.questions || []).length} questions${t.isDefault ? ' · default template' : ''}`,
+            count: `${t.timesUsed} campaign${t.timesUsed === 1 ? '' : 's'}`,
+          }))}
+        empty="No campaign has been built from a template yet."
+        onPick={(r) => { setReuseOpen(false); navigate(`${base}/campaigns?template=${r.key}`); }} />
     </div>
   );
 }

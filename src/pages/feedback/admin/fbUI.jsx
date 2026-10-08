@@ -26,7 +26,8 @@ import {
   Bar as RBar,
 } from 'recharts';
 import Icon from '../../../components/ui/icons';
-import { Spinner } from '../../../components/ui/index';
+import { Button, Modal, Spinner } from '../../../components/ui/index';
+import { Breakdown } from '../../admin/listParts';
 
 export { fmtDate, daysLeft, RATING_LABELS } from '../shared/kit';
 import { RATING_LABELS } from '../shared/kit';
@@ -102,7 +103,7 @@ export const Stats = ({ children, cols }) => (
  * and its unit — "↑ 14%" not a green arrow. `onClick` makes the tile the
  * fastest way to narrow the list beneath it; `on` marks the one in force.
  */
-export const Stat = ({ icon, tone = 'purple', value, label, caption, delta, deltaDir = 'up', onClick, on }) => {
+export const Stat = ({ icon, tone = 'purple', value, label, caption, delta, deltaDir = 'up', onClick, on, popup }) => {
   const body = (
     <>
       <span className={`fbstat__icon tint-${tone}`}><Icon name={icon} size={26} /></span>
@@ -121,8 +122,13 @@ export const Stat = ({ icon, tone = 'purple', value, label, caption, delta, delt
     </>
   );
   const cls = `fbstat fbstat--${tone}${on ? ' is-on' : ''}`;
+  // `popup`: the tile opens a list of its own (TileList) rather than toggling
+  // a filter, so it has no pressed state.
   return onClick
-    ? <button type="button" className={cls} onClick={onClick} aria-pressed={!!on}>{body}</button>
+    ? (
+      <button type="button" className={cls} onClick={onClick}
+        aria-pressed={popup ? undefined : !!on} aria-haspopup={popup ? 'dialog' : undefined}>{body}</button>
+    )
     : <div className={cls}>{body}</div>;
 };
 
@@ -131,8 +137,13 @@ export const Stat = ({ icon, tone = 'purple', value, label, caption, delta, delt
  * sits under it naming what it is measured against. Used where every tile on
  * the row is "this period vs last".
  */
-export const StatVs = ({ icon, tone = 'purple', label, value, unit, delta, deltaDir = 'up', vs }) => (
-  <div className={`fbstat fbstat--${tone} fbstat--vs`}>
+export const StatVs = ({ icon, tone = 'purple', label, value, unit, delta, deltaDir = 'up', vs, onClick, popup }) => {
+  const El = onClick ? 'button' : 'div';
+  const press = onClick
+    ? { type: 'button', onClick, 'aria-haspopup': popup ? 'dialog' : undefined }
+    : {};
+  return (
+  <El className={`fbstat fbstat--${tone} fbstat--vs`} {...press}>
     <span className={`fbstat__icon tint-${tone}`}><Icon name={icon} size={22} /></span>
     <span className="fbstat__body">
       <span className="fbstat__label">{label}</span>
@@ -150,7 +161,21 @@ export const StatVs = ({ icon, tone = 'purple', label, value, unit, delta, delta
         </span>
       )}
     </span>
-  </div>
+  </El>
+  );
+};
+
+/**
+ * What a tile counts, opened up — for a figure that is not a filter of the
+ * table under it (responses spread over campaigns, uses of each template).
+ * One row per part, each a button; the rows add up to the tile.
+ */
+export const TileList = ({ open, title, note, rows, empty, onPick, onClose }) => (
+  <Modal open={open} onClose={onClose} title={title} maxWidth={600}
+    footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+    {note ? <p className="lbreak__note">{note}</p> : null}
+    <Breakdown rows={rows} onPick={onPick} empty={empty} />
+  </Modal>
 );
 
 // ── Panels ───────────────────────────────────────────────────────────────────

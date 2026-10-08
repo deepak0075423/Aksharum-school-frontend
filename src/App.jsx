@@ -709,7 +709,7 @@ export default function App() {
               <Route path="teachers"    element={<Navigate to="../insights" replace />} />
               <Route path="departments" element={<Navigate to="../insights?view=departments" replace />} />
               <Route path="trends"      element={<Navigate to="../insights?view=trends" replace />} />
-              <Route path="reports"     element={<Navigate to="../insights?view=sources" replace />} />
+              <Route path="reports"     element={<Navigate to="../insights?view=reports" replace />} />
               <Route path="categories"  element={<Navigate to="../questions?view=categories" replace />} />
               <Route path="templates"   element={<Navigate to="../questions?view=templates" replace />} />
             </Route>
@@ -803,7 +803,7 @@ export default function App() {
               <Route path="teachers"     element={<Navigate to="../insights" replace />} />
               <Route path="departments"  element={<Navigate to="../insights?view=departments" replace />} />
               <Route path="trends"       element={<Navigate to="../insights?view=trends" replace />} />
-              <Route path="reports"      element={<Navigate to="../insights?view=sources" replace />} />
+              <Route path="reports"      element={<Navigate to="../insights?view=reports" replace />} />
             </Route>
             <Route path="holidays"         element={<THolidays />} />
             <Route path="notifications"    element={<SharedNotifications />} />

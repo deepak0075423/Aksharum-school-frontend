@@ -13,7 +13,7 @@
  *   • Trends and Reports come from the report endpoint — the same call the
  *     export buttons make, so what is on screen is exactly what downloads.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
@@ -24,7 +24,7 @@ import {
   Acts, Bar, CatBars, Columns, Crumbs, Dash, Donut, EmptyState, Field,
   Foot, Hero, IconBtn, Insights as InsightList, Locked, Menu, MenuItem, Muted,
   NoteBar, PALETTE, Panel, Pick, Rating, RatingSpread, Row, Search, SortBy,
-  Spacer, Stack, Stat, StatVs, Stats, Table, Tag, TextBtn, Toolbar, TrendArea,
+  Spacer, Stack, Stat, StatVs, Stats, Table, Tag, TextBtn, TileList, Toolbar, TrendArea,
   TipCard, ViewToggle, Who, ratingWord, toneAt,
 } from './fbUI';
 import { TeacherState, departmentIcon, homeFor, useFeedbackBase } from './feedbackParts';
@@ -86,7 +86,15 @@ export default function Insights() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const view = VIEWS.includes(params.get('view')) ? params.get('view') : 'teachers';
-  const setView = (v) => setParams(v === 'teachers' ? {} : { view: v }, { replace: true });
+  // Switching views clears the filters (the effect below) — but a tile that
+  // switches view to SHOW something ("Teachers Evaluated" → the teachers who
+  // answered) hands the filter it wants through `keep`, which the effect
+  // applies instead of wiping it. Back/forward still lands clean.
+  const keepRef = useRef(null);
+  const setView = (v, keep = null) => {
+    keepRef.current = keep;
+    setParams(v === 'teachers' ? {} : { view: v }, { replace: true });
+  };
 
   const [campaignId, setCampaignId] = useState('');
   const [search, setSearch] = useState('');
@@ -98,7 +106,14 @@ export default function Insights() {
   const [layout, setLayout] = useState('table');
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
+  // Reports' own order: '' is the server's, or the column a tile asked for.
+  const [reportSort, setReportSort] = useState('');
   const limit = 10;
+  // The table card on whichever view is showing — the tiles above it are
+  // summaries of it, so a press brings it into view in the order they asked.
+  const tableRef = useRef(null);
+  const toTable = () => requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  const clearSearch = () => { setSearch(''); setTerm(''); setPage(1); };
 
   // Reports keeps its own filter set — it is a form you fill in and submit,
   // not a set of live filters, so `draft` is what is typed and `applied` is
@@ -134,8 +149,12 @@ export default function Insights() {
   }, [search]);
 
   useEffect(() => {
-    setPage(1); setSearch(''); setTerm(''); setDept(''); setSubject(''); setState('');
-    setSort(view === 'departments' ? 'rating' : 'rating');
+    const keep = keepRef.current || {};
+    keepRef.current = null;
+    setPage(1); setSearch(''); setTerm(''); setDept(''); setSubject('');
+    setState(keep.state || '');
+    setSort(keep.sort || 'rating');
+    setReportSort('');
   }, [view]);
 
   useEffect(() => { setOpen(null); }, [campaignId, term, view]);
@@ -160,6 +179,8 @@ export default function Insights() {
       if (dept && (t.department || 'Unassigned') !== dept) return false;
       if (subject && !(t.subjects || []).includes(subject)) return false;
       if (state === 'rated' && t.rating == null) return false;
+      // Anyone with at least one answer — what "Teachers Evaluated" counts.
+      if (state === 'responded' && !(t.responses > 0)) return false;
       if (state === 'locked' && t.rating != null) return false;
       if (state === 'good' && t.status !== 'good') return false;
       if (state === 'attention' && t.status !== 'attention') return false;
@@ -206,10 +227,19 @@ export default function Insights() {
       _rowIndex: i,
       _id: r._id || `${r.class || r.subject || r.section || r.campaign || r.department || 'row'}-${i}`,
     }));
-    if (!term) return src;
-    return src.filter((r) => Object.values(r)
-      .some((v) => String(v ?? '').toLowerCase().includes(term)));
-  }, [report.data, term]);
+    const kept = term
+      ? src.filter((r) => Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(term)))
+      : src;
+    if (!reportSort) return kept;
+    // Highest first; a row with no figure (withheld below the floor) goes last.
+    return [...kept].sort((a, b) => {
+      const x = a[reportSort]; const y = b[reportSort];
+      if (x == null && y == null) return a._rowIndex - b._rowIndex;
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return y - x || a._rowIndex - b._rowIndex;
+    });
+  }, [report.data, term, reportSort]);
 
   const rows = view === 'teachers' ? teacherRows
     : view === 'departments' ? deptRows
@@ -314,12 +344,16 @@ export default function Insights() {
             <Stat icon="clock" tone="amber" value={teachers.filter((t) => t.status === 'attention').length}
               label="Needs Attention" caption="(< 3.0 average)"
               onClick={() => setState(state === 'attention' ? '' : 'attention')} on={state === 'attention'} />
+            {/* An average has no list of its own: it opens the teachers whose
+                ratings show, best first — what the figure is made of. */}
             <Stat icon="star" tone="purple"
               value={cards?.averageRating == null ? '0.0' : cards.averageRating.toFixed(1)}
-              label="Overall Average Rating" caption="Across all teachers" />
+              label="Overall Average Rating" caption="Across all teachers"
+              on={state === 'rated'}
+              onClick={() => { setState(state === 'rated' ? '' : 'rated'); setSort('rating'); clearSearch(); toTable(); }} />
           </Stats>
 
-          <div className="fbcard">
+          <div className="fbcard" ref={tableRef}>
             <Toolbar>
               <Search value={search} onChange={setSearch} placeholder="Search teacher by name…" />
               <Pick value={dept} onChange={(v) => { setDept(v); setPage(1); }} all="All departments"
@@ -331,6 +365,7 @@ export default function Insights() {
                   { value: 'good', label: 'Well rated (≥ 4.0)' },
                   { value: 'attention', label: 'Needs attention (< 3.0)' },
                   { value: 'rated', label: 'Rating showing' },
+                  { value: 'responded', label: 'Has responses' },
                   { value: 'locked', label: 'Below the floor' },
                 ]} />
               <Spacer />
@@ -466,16 +501,22 @@ export default function Insights() {
       {view === 'departments' && (
         <>
           <Stats>
+            {/* The departments table below is what these add up: each press
+                brings it into view, ordered by what the tile counts. Teachers
+                are listed on their own view. */}
             <Stat icon="building" tone="purple" value={deptRows.length} label="Total Departments"
-              caption="Across your school" />
+              caption="Across your school"
+              onClick={() => { clearSearch(); setSort('name'); toTable(); }} />
             <Stat icon="users" tone="green" value={teachers.length} label="Total Teachers"
-              caption="In selected period" />
+              caption="In selected period" onClick={() => setView('teachers')} />
             <Stat icon="chat" tone="blue" value={deptRows.reduce((n, d) => n + d.responses, 0)}
-              label="Total Responses" caption="From all departments" />
+              label="Total Responses" caption="From all departments"
+              onClick={() => { clearSearch(); setSort('responses'); toTable(); }} />
             <Stat icon="star" tone="amber"
               value={cards?.averageRating == null ? '—' : <>{cards.averageRating.toFixed(1)}<em>/ 5</em></>}
               label="Overall Rating"
-              caption={`Based on ${deptRows.reduce((n, d) => n + d.responses, 0)} responses`} />
+              caption={`Based on ${deptRows.reduce((n, d) => n + d.responses, 0)} responses`}
+              onClick={() => { clearSearch(); setSort('rating'); toTable(); }} />
           </Stats>
 
           <Row split="2">
@@ -499,7 +540,7 @@ export default function Insights() {
             </Panel>
           </Row>
 
-          <div className="fbcard">
+          <div className="fbcard" ref={tableRef}>
             <Toolbar>
               <div className="fbtools__title">
                 <b>Departments</b>
@@ -573,22 +614,28 @@ export default function Insights() {
       {view === 'trends' && <TrendsView
         report={report} meta={meta} campaigns={campaigns} dash={dash}
         campaignId={campaignId} setCampaignId={setCampaignId}
-        draft={draft} setDraft={setDraft} base={base} setView={setView} />}
+        draft={draft} setDraft={setDraft} base={base} setView={setView} navigate={navigate} />}
 
       {/* ── Reports ──────────────────────────────────────────────────────────── */}
       {view === 'reports' && (
         <>
           <Stats>
+            {/* Summaries of the report table: each press shows every row of it
+                (no search), ordered by what the tile measures. */}
             <Stat icon="users" tone="blue" value={report.data?.rows?.length ?? 0}
-              label={reportType === 'teacher' ? 'Total Teachers' : 'Rows'} caption="In selected filters" />
+              label={reportType === 'teacher' ? 'Total Teachers' : 'Rows'} caption="In selected filters"
+              on={!reportSort} onClick={() => { clearSearch(); setReportSort(''); toTable(); }} />
             <Stat icon="chat" tone="green"
               value={(report.data?.rows || []).reduce((n, r) => n + (r.responses || 0), 0)}
               label="Total Responses"
-              caption={`From ${report.data?.meta?.campaigns ?? 0} campaign(s)`} />
+              caption={`From ${report.data?.meta?.campaigns ?? 0} campaign(s)`}
+              on={reportSort === 'responses'} onClick={() => { clearSearch(); setReportSort('responses'); toTable(); }} />
             <Stat icon="star" tone="amber" value={avgOf(report.data?.rows)} label="Average Rating"
-              caption="Across all responses" />
+              caption="Across all responses"
+              on={reportSort === 'avgRating'} onClick={() => { clearSearch(); setReportSort('avgRating'); toTable(); }} />
             <Stat icon="target" tone="pink" value={`${rateOf(report.data?.rows)}%`} label="Response Rate"
-              caption={`${(report.data?.rows || []).filter((r) => r.responses > 0).length} of ${report.data?.rows?.length ?? 0} responded`} />
+              caption={`${(report.data?.rows || []).filter((r) => r.responses > 0).length} of ${report.data?.rows?.length ?? 0} responded`}
+              on={reportSort === 'responseRate'} onClick={() => { clearSearch(); setReportSort('responseRate'); toTable(); }} />
           </Stats>
 
           <Panel icon="filter" tone="purple" title="Report Filters"
@@ -688,7 +735,7 @@ export default function Insights() {
             </div>
           </Panel>
 
-          <div className="fbcard">
+          <div className="fbcard" ref={tableRef}>
             <Toolbar>
               <div className="fbtools__title">
                 <b>{report.data?.title || 'Report'}</b>
@@ -729,7 +776,8 @@ export default function Insights() {
 
 // ── Trends ───────────────────────────────────────────────────────────────────
 
-const TrendsView = ({ report, meta, campaigns, dash, campaignId, setCampaignId, draft, setDraft, base, setView }) => {
+const TrendsView = ({ report, meta, campaigns, dash, campaignId, setCampaignId, draft, setDraft, base, setView, navigate }) => {
+  const [respOpen, setRespOpen] = useState(false);   // "Total Responses", by campaign
   const rows = report.data?.rows || [];
   const points = rows.filter((r) => r.avgRating != null);
   const latest = points[points.length - 1];
@@ -750,19 +798,39 @@ const TrendsView = ({ report, meta, campaigns, dash, campaignId, setCampaignId, 
 
   return (
     <>
+      {/* The rating and the rate are the latest campaign's, so they open it;
+          the responses are every campaign's, so they open them by campaign;
+          "Teachers Evaluated" opens the teachers who were answered about. */}
       <Stats>
         <StatVs icon="star" tone="purple" label="Overall Average Rating"
           value={latest?.avgRating == null ? '—' : latest.avgRating.toFixed(1)} unit="/ 5"
-          delta={rating?.text} deltaDir={rating?.dir} vs="vs last campaign" />
+          delta={rating?.text} deltaDir={rating?.dir} vs="vs last campaign"
+          onClick={latest?.campaignId ? () => navigate(`${base}/campaigns/${latest.campaignId}`) : undefined} />
         <StatVs icon="users" tone="green" label="Response Rate"
           value={`${latest?.responseRate ?? 0}%`}
-          delta={rate?.text} deltaDir={rate?.dir} vs="vs last campaign" />
+          delta={rate?.text} deltaDir={rate?.dir} vs="vs last campaign"
+          onClick={latest?.campaignId ? () => navigate(`${base}/campaigns/${latest.campaignId}`) : undefined} />
         <StatVs icon="fileDoc" tone="blue" label="Total Responses"
           value={rows.reduce((n, r) => n + (r.responses || 0), 0)}
-          delta={resp?.text} deltaDir={resp?.dir} vs="vs last campaign" />
+          delta={resp?.text} deltaDir={resp?.dir} vs="vs last campaign"
+          popup onClick={() => setRespOpen(true)} />
         <StatVs icon="teacher" tone="amber" label="Teachers Evaluated"
-          value={dash.data?.cards?.teachersEvaluated ?? 0} vs="in this campaign" />
+          value={dash.data?.cards?.teachersEvaluated ?? 0} vs="in this campaign"
+          onClick={() => setView('teachers', { state: 'responded' })} />
       </Stats>
+
+      <TileList open={respOpen} onClose={() => setRespOpen(false)} title="Total Responses"
+        note="Responses in each campaign on this trend, with the filters above applied. Choose one to open it."
+        rows={rows.filter((r) => (r.responses || 0) > 0)
+          .map((r) => ({
+            key: r.campaignId || r.campaign, icon: 'megaphone', tone: 'blue',
+            name: r.term ? `${r.campaign} · ${r.term}` : r.campaign,
+            sub: [r.period, `${r.responseRate ?? 0}% responded`].filter(Boolean).join(' · '),
+            count: `${r.responses} response${r.responses === 1 ? '' : 's'}`,
+            campaignId: r.campaignId,
+          }))}
+        empty="No campaign on this trend has any responses yet."
+        onPick={(r) => { setRespOpen(false); if (r.campaignId) navigate(`${base}/campaigns/${r.campaignId}`); }} />
 
       {!points.length ? (
         <div className="fbcard">

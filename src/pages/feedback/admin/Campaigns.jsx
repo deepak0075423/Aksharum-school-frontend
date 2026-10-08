@@ -8,7 +8,7 @@
  * offering "Close" to a draft would be offering nothing.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/feedback.api';
 import Icon from '../../../components/ui/icons';
@@ -16,7 +16,7 @@ import { Spinner } from '../../../components/ui/index';
 import {
   Acts, Bar, Crumbs, EmptyState, Foot, Hero, IconBtn, Menu, MenuItem,
   MenuSep, NoteBar, Pick, Rating, Search, SortBy, Spacer, Stack, Stat, Stats,
-  Table, Tag, TextBtn, Toolbar, daysLeft, fmtDate,
+  Table, Tag, TextBtn, TileList, Toolbar, daysLeft, fmtDate,
 } from './fbUI';
 import { CampaignPill, homeFor, useFeedbackBase } from './feedbackParts';
 import { CampaignConfirm, CampaignForm, blankCampaign, toCampaignForm } from './campaignParts';
@@ -51,6 +51,11 @@ export default function Campaigns() {
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
   const [status, setStatus] = useState('');
+  // ?template= arrives from the Templates screen's "Times Reused": the
+  // campaigns that were built from that one template.
+  const [urlParams] = useSearchParams();
+  const [tpl, setTpl] = useState(() => urlParams.get('template') || '');
+  const [respOpen, setRespOpen] = useState(false);   // "Responses Collected", opened up
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
   const limit = 10;
@@ -105,8 +110,11 @@ export default function Campaigns() {
     // admin deliberately put away; leaving them in the default list would undo
     // the only thing archiving does.
     const out = rows.filter((r) => {
+      if (tpl && String(r.template || '') !== tpl) return false;
       if (status) { if (r.status !== status) return false; }
-      else if (r.status === 'archived') return false;
+      // A template's uses include archived drives (they still ran it), so the
+      // template filter keeps them — the list then matches "Times Reused".
+      else if (r.status === 'archived' && !tpl) return false;
       if (term && !`${r.name} ${r.term || ''} ${r.description || ''}`.toLowerCase().includes(term)) return false;
       return true;
     });
@@ -119,13 +127,25 @@ export default function Campaigns() {
         default:       return new Date(b.startDate) - new Date(a.startDate);
       }
     });
-  }, [rows, status, term, sort]);
+  }, [rows, status, term, sort, tpl]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / limit));
   const start = (Math.min(page, pages) - 1) * limit;
   const shown = filtered.slice(start, start + limit);
-  const anyFilter = !!term || !!status;
-  const clear = () => { setSearch(''); setTerm(''); setStatus(''); setPage(1); };
+  const anyFilter = !!term || !!status || !!tpl;
+  const clear = () => { setSearch(''); setTerm(''); setStatus(''); setTpl(''); setPage(1); };
+  const tplName = tpl ? ((meta?.templates || []).find((t) => String(t._id) === tpl)?.name || 'that') : '';
+
+  // Every campaign that asked anyone, with what came back — the parts the
+  // "Responses Collected" tile adds up.
+  const responseRows = rows.filter((r) => (r.assigned || 0) > 0)
+    .sort((a, b) => (b.submitted || 0) - (a.submitted || 0) || a.name.localeCompare(b.name))
+    .map((r) => ({
+      key: r._id, icon: 'megaphone', tone: 'blue',
+      name: r.term ? `${r.name} · ${r.term}` : r.name,
+      sub: `${Math.round(((r.submitted || 0) / r.assigned) * 100)}% of ${r.assigned} asked · ${r.status}`,
+      count: `${r.submitted || 0} response${r.submitted === 1 ? '' : 's'}`,
+    }));
   const pick = (v) => { setStatus(status === v ? '' : v); setPage(1); };
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -214,8 +234,10 @@ export default function Campaigns() {
         <Stat icon="clipboard" tone="amber" value={counts.draft} label="Drafts"
           caption="Built but not started"
           onClick={() => pick('draft')} on={status === 'draft'} />
+        {/* Counts answers, not campaigns, so it opens them by campaign. */}
         <Stat icon="chat" tone="blue" value={counts.responses} label="Responses Collected"
-          caption={counts.asked ? `${Math.round((counts.responses / counts.asked) * 100)}% of everyone asked` : 'Nothing asked yet'} />
+          caption={counts.asked ? `${Math.round((counts.responses / counts.asked) * 100)}% of everyone asked` : 'Nothing asked yet'}
+          popup onClick={() => setRespOpen(true)} />
       </Stats>
 
       {error && <NoteBar tone="red" icon="alert">{error}</NoteBar>}
@@ -241,6 +263,13 @@ export default function Campaigns() {
               {closingSoon[0].assigned - closingSoon[0].submitted} student(s) have not answered.</>
             : <>{closingSoon.length} campaigns close within three days and still have outstanding responses.
               A reminder is in each row&rsquo;s menu.</>}
+        </NoteBar>
+      )}
+
+      {tpl && (
+        <NoteBar tone="blue" icon="clipboard"
+          action={<TextBtn onClick={() => { setTpl(''); setPage(1); }}>Show every campaign</TextBtn>}>
+          Showing the campaigns built from the <b>{tplName}</b> template, archived ones included.
         </NoteBar>
       )}
 
@@ -401,6 +430,11 @@ export default function Campaigns() {
       <CampaignForm open={!!form} form={form} setForm={setForm} meta={meta}
         saving={saving} error={formErr}
         onClose={() => { setForm(null); setFormErr(''); }} onSave={save} />
+
+      <TileList open={respOpen} onClose={() => setRespOpen(false)} title="Responses Collected"
+        note="Every campaign that has asked anyone, and how many answered. Choose one to open it."
+        rows={responseRows} empty="No campaign has asked anyone yet."
+        onPick={(r) => { setRespOpen(false); navigate(`${base}/campaigns/${r.key}`); }} />
 
       <CampaignConfirm action={pending?.action} campaign={pending?.row} busy={!!busy}
         onClose={() => setPending(null)} onConfirm={run} />
