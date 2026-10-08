@@ -13,6 +13,7 @@
  * without a frontend change.
  */
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import Tabs from '../../components/ui/Tabs';
 
@@ -100,16 +101,22 @@ export const Cell = ({ value }) => (
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 
-export const Tile = ({ icon, tone, value, label, caption, captionTone }) => (
-  <div className="edl-stat">
-    <span className={`edl-stat__icon tint-${tone}`}><Icon name={icon} size={22} /></span>
-    <span className="edl-stat__body">
-      <span className="edl-stat__value">{value ?? 0}</span>
-      <span className="edl-stat__label">{label}</span>
-      {caption ? <span className={`edl-stat__cap${captionTone ? ` is-${captionTone}` : ''}`}>{caption}</span> : null}
-    </span>
-  </div>
-);
+export const Tile = ({ icon, tone, value, label, caption, captionTone, to }) => {
+  const body = (
+    <>
+      <span className={`edl-stat__icon tint-${tone}`}><Icon name={icon} size={22} /></span>
+      <span className="edl-stat__body">
+        <span className="edl-stat__value">{value ?? 0}</span>
+        <span className="edl-stat__label">{label}</span>
+        {caption ? <span className={`edl-stat__cap${captionTone ? ` is-${captionTone}` : ''}`}>{caption}</span> : null}
+      </span>
+    </>
+  );
+  // `to`: the employee list, filtered to the people the figure counts.
+  return to
+    ? <Link to={to} className="edl-stat edl-stat--btn">{body}</Link>
+    : <div className="edl-stat">{body}</div>;
+};
 
 /**
  * What the export will contain.

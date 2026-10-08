@@ -36,6 +36,8 @@ const EMPTY = {
   search: '', department: '', designation: '', staffType: '', employmentType: '',
   status: '', subject: '', classId: '', sectionId: '', joiningYear: '',
   reportingManager: '', verification: '', completion: '',
+  // 'year' = joined since the academic year began (the Reports "New joiners" tile).
+  joined: '',
   // Active by default. 'all' and 'inactive' are one pick away, and Clear returns
   // here rather than to "everyone", so the list keeps its meaning.
   accountStatus: 'active',
@@ -149,7 +151,7 @@ export default function Employees() {
     employmentType: 'Employment', status: 'Status', subject: 'Subject',
     classId: 'Class', sectionId: 'Section', joiningYear: 'Joined',
     reportingManager: 'Reports to', verification: 'Verification', completion: 'Profile',
-    accountStatus: 'Account',
+    accountStatus: 'Account', joined: 'Joined',
   };
   const valueFor = (k, v) => {
     if (k === 'classId')   return (opts.classes  || []).find((c) => c._id === v)?.label || v;
@@ -157,6 +159,7 @@ export default function Employees() {
     if (k === 'subject')   return (opts.subjects || []).find((s) => s._id === v)?.label || v;
     if (k === 'reportingManager') return (opts.managers || []).find((m) => m._id === v)?.label || v;
     if (k === 'staffType') return v === 'teaching' ? 'Teaching' : 'Non-Teaching';
+    if (k === 'joined') return 'This academic year';
     return String(v).replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
   };
   const chips = Object.entries(filters)

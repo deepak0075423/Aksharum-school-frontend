@@ -41,7 +41,7 @@ export const PageTop = ({ title, subtitle, children }) => (
  * and pressing it should answer it rather than leave the reader to rebuild the
  * same filter by hand. `on` marks the one currently in force.
  */
-export const StatTile = ({ icon, tone, value, label, caption, captionTone, on, onClick }) => {
+export const StatTile = ({ icon, tone, value, label, caption, captionTone, on, onClick, to }) => {
   const body = (
     <>
       <span className={`edl-stat__icon tint-${tone}`}>{icon}</span>
@@ -52,6 +52,8 @@ export const StatTile = ({ icon, tone, value, label, caption, captionTone, on, o
       </span>
     </>
   );
+  // `to`: what the figure counts is listed on another screen, so it goes there.
+  if (to) return <Link to={to} className="edl-stat edl-stat--btn">{body}</Link>;
   if (!onClick) return <div className="edl-stat">{body}</div>;
   return (
     <button type="button" className={`edl-stat edl-stat--btn${on ? ' is-on' : ''}`}

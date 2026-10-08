@@ -10,7 +10,7 @@
  * designation are all set on an employee's Employment tab, and this is the view
  * of what they add up to.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
@@ -35,6 +35,13 @@ export default function OrgStructure() {
   const [search, setSearch] = useState('');
   const [open,   setOpen]   = useState('');
   const [exporting, setExporting] = useState(false);
+  // "Reporting coverage" is a share, not a list anyone could be filtered to —
+  // it opens the reporting lines it measures, on this page.
+  const structureRef = useRef(null);
+  const showReporting = () => {
+    setView('reporting');
+    structureRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const tree  = useMemo(() => data?.tree || [], [data]);
   const byDep = useMemo(() => data?.byDepartment || [], [data]);
@@ -126,18 +133,22 @@ export default function OrgStructure() {
       </PageTop>
 
       <div className="edl-stats">
+        {/* Each opens the list it counts: everyone (inactive included), the
+            departments with staff, and the designations somebody holds. */}
         <StatTile icon={<Icon name="users" size={22} />} tone="indigo" value={people.length}
-          label="Employees" caption="On the books today" />
+          label="Employees" caption="On the books today" to={`${base}/employees?accountStatus=all`} />
         <StatTile icon={<Icon name="building" size={22} />} tone="blue" value={withStaff.length}
-          label="Departments" caption={`${byDep.length - withStaff.length ? 'Plus the unassigned' : 'All staff placed'}`} />
+          label="Departments" caption={`${byDep.length - withStaff.length ? 'Plus the unassigned' : 'All staff placed'}`}
+          to={`${base}/departments`} />
         <StatTile icon={<Icon name="badge" size={22} />} tone="purple" value={heldDesignations(byDep)}
-          label="Designations" caption="Held across the school" />
+          label="Designations" caption="Held across the school" to={`${base}/designations?state=held`} />
         <StatTile icon={<Icon name="activity" size={22} />} tone={coverage.pct ? 'green' : 'amber'}
           value={`${coverage.pct}%`} label="Reporting coverage"
           captionTone={coverage.pct ? undefined : 'down'}
           caption={coverage.pct
             ? `${coverage.mapped} of ${coverage.total} report to someone`
-            : 'No reporting lines set yet'} />
+            : 'No reporting lines set yet'}
+          on={view === 'reporting'} onClick={showReporting} />
       </div>
 
       {!data?.hasReportingLines && (
@@ -147,7 +158,7 @@ export default function OrgStructure() {
         </Alert>
       )}
 
-      <div className="orggrid">
+      <div className="orggrid" ref={structureRef}>
         <section className="card edl-card-wrap">
           <div className="orgtabs">
             <button type="button" className={`orgtab${view === 'chart' ? ' is-on' : ''}`}

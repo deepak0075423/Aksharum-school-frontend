@@ -13,7 +13,7 @@
  * viewing this page has no master list at all and simply sees the headcounts.
  */
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
 import { getDesignations } from '../../api/employeeDirectory.api';
 import { getDesignationMatrix } from '../../api/admin.api';
@@ -61,7 +61,13 @@ export default function Designations() {
   );
 
   const [search, setSearch] = useState('');
-  const [state,  setState]  = useState('');
+  // ?state= arrives from Organization Structure's "Designations" tile, which
+  // counts the ones somebody holds — 'held' here.
+  const [urlParams] = useSearchParams();
+  const [state,  setState]  = useState(() => {
+    const v = urlParams.get('state') || '';
+    return STATES.some((x) => x.value === v) ? v : '';
+  });
   const [sort,   setSort]   = useState('size');
   const [view,   setView]   = useState(readView);
   const [page,   setPage]   = useState(1);
@@ -165,7 +171,8 @@ export default function Designations() {
           caption={isDirectoryAdmin ? `${stats.defined} on the master list` : 'Held across the school'}
           on={!state} onClick={() => { setState(''); setPage(1); }} />
         <StatTile icon={<Icon name="users" size={22} />} tone="green" value={stats.employees}
-          label="Employees" caption={`${stats.active} of them active`} />
+          label="Employees" caption={`${stats.active} of them active`}
+          to={`${base}/employees?accountStatus=all`} />
         <StatTile icon={<Icon name="userPlus" size={22} />} tone="blue" value={stats.unused}
           label="Nobody holds it" caption="Defined but unused"
           on={state === 'unused'} onClick={() => pickState('unused')} />
@@ -177,7 +184,10 @@ export default function Designations() {
             ? 'Held by staff, never defined'
             : `${stats.unassigned} employee${stats.unassigned === 1 ? '' : 's'} with no designation`}
           on={state === 'undefined_'}
-          onClick={stats.undefined_ ? () => pickState('undefined_') : undefined} />
+          onClick={stats.undefined_ ? () => pickState('undefined_') : undefined}
+          // "Without one" counts people, not designations — the bucket the
+          // employee list already filters by as designation "Unassigned".
+          to={stats.undefined_ ? undefined : `${base}/employees?designation=Unassigned&accountStatus=all`} />
       </div>
 
       <section className="card edl-card-wrap">

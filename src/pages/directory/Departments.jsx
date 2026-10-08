@@ -155,11 +155,14 @@ export default function Departments() {
         <StatTile icon={<Icon name="badge" size={22} />} tone="teal" value={stats.support}
           label="Non-teaching" caption="Only support staff in them"
           on={type === 'support'} onClick={() => pick('support')} />
+        {/* Everyone the departments add up to, inactive included — the list
+            is told so, or it would open on active staff only. */}
         <StatTile icon={<Icon name="users" size={22} />} tone="amber" value={stats.employees}
           label="Employees" captionTone={stats.unassigned ? 'down' : undefined}
           caption={stats.unassigned
             ? `${stats.unassigned} without a department`
-            : 'Every one of them placed'} />
+            : 'Every one of them placed'}
+          to={`${base}/employees?accountStatus=all`} />
       </div>
 
       <section className="card edl-card-wrap">

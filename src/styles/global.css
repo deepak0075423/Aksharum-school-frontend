@@ -1758,13 +1758,14 @@ select.form-control {
 .dropdown-divider { border-top: 1px solid var(--border); margin: 4px 0; }
 
 /* ── Alert ─────────────────────────────────────────────────────────────────── */
+/* A block, not a flex row: an alert is a sentence, and in a flex row every run
+   of text and every <b>, <Link> or <ul> inside it became its own column
+   ("…on an employee's | Employment | tab and…"). No alert lays an icon beside
+   its text, which is the only thing the row was for. */
 .alert {
   padding:       12px 16px;
   border-radius: var(--radius);
   font-size:     0.9rem;
-  display:       flex;
-  align-items:   flex-start;
-  gap:           10px;
   margin-bottom: 16px;
 }
 .alert-info    { background: #dbeafe; color: #1e40af; }
@@ -4415,6 +4416,8 @@ button.lstat:hover, a.lstat:hover {
 }
 .edl-stat--btn { cursor: pointer; }
 .edl-stat--btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
+/* A tile that is a link keeps the tile's own colours, not the global a/a:hover. */
+a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
 .edl-stat.is-on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
 .edl-stat__icon {
   width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;

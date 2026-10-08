@@ -131,20 +131,31 @@ export default function Reports() {
         </button>
       </PageTop>
 
-      {/* The school as a whole, whatever the report below is filtered to. */}
+      {/* The school as a whole, whatever the report below is filtered to — and
+          each tile opens the employee list filtered to exactly the people it
+          counts. accountStatus=all because that list shows active staff only
+          until told otherwise. */}
       <div className="edl-stats no-print">
         <Tile icon="users" tone="indigo" value={totals.employees} label="Employees"
           caption={dash?.growthPct ? `↑ ${dash.growthPct}% joined this year` : 'On the books today'}
-          captionTone={dash?.growthPct ? 'up' : undefined} />
+          captionTone={dash?.growthPct ? 'up' : undefined}
+          to={`${base}/employees?accountStatus=all`} />
+        {/* Working today: not deactivated and not on leave (employment status). */}
         <Tile icon="userCircle" tone="green" value={totals.active} label="Active"
-          caption={totals.employees ? `${Math.round((totals.active / totals.employees) * 100)}% of the school` : '—'} />
+          caption={totals.employees ? `${Math.round((totals.active / totals.employees) * 100)}% of the school` : '—'}
+          to={`${base}/employees?status=active&accountStatus=all`} />
         <Tile icon="power" tone="pink" value={totals.inactive} label="Inactive"
-          caption={totals.onLeave ? `${totals.onLeave} on leave as well` : 'Nobody deactivated'} />
-        <Tile icon="userPlus" tone="blue" value={totals.newJoiners} label="New joiners"
-          caption={dash?.academicYear ? `In ${dash.academicYear}` : 'This academic year'} />
+          caption={totals.onLeave ? `${totals.onLeave} on leave as well` : 'Nobody deactivated'}
+          to={`${base}/employees?accountStatus=inactive`} />
+        {/* newThisYear, not newJoiners: the caption names the academic year, and
+            newJoiners counts a rolling three months — the two disagreed. */}
+        <Tile icon="userPlus" tone="blue" value={totals.newThisYear} label="New joiners"
+          caption={dash?.academicYear ? `In ${dash.academicYear}` : 'This academic year'}
+          to={`${base}/employees?joined=year&accountStatus=all`} />
         <Tile icon="checkCircle" tone="amber" value={totals.pendingVerification} label="Pending verification"
           captionTone={totals.pendingVerification ? 'down' : undefined}
-          caption={totals.pendingVerification ? 'Still to be signed off' : 'All signed off'} />
+          caption={totals.pendingVerification ? 'Still to be signed off' : 'All signed off'}
+          to={`${base}/employees?verification=pending&accountStatus=all`} />
       </div>
 
       <ReportTabs reports={reports} active={active}
