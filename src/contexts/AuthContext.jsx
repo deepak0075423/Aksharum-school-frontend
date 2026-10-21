@@ -29,9 +29,11 @@ export const AuthProvider = ({ children }) => {
 
   // Private uploads open with a file token while someone is signed in (utils/fileAccess).
   useEffect(() => {
-    if (user?._id) startFileAccess();
+    // An applicant (guest) has no private ERP files to open — their documents
+    // stream through the admission portal's own authorised routes.
+    if (user?._id && user.role !== 'guest') startFileAccess();
     else if (!loading) stopFileAccess();
-  }, [user?._id, loading]);
+  }, [user?._id, user?.role, loading]);
 
   // Browser tab follows the signed-in user's school branding. Re-runs when the
   // admin uploads a new logo, since reload() refreshes user.school; before

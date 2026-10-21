@@ -23,6 +23,7 @@ import {
 } from '../../api/admin.api';
 import PaymentGatewayCard from '../../components/settings/PaymentGatewayCard';
 import ReceiptDesignCard from '../../components/settings/ReceiptDesignCard';
+import CookiePolicyCard from '../../components/settings/CookiePolicyCard';
 import { useModules } from '../../contexts/ModulesContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Spinner } from '../../components/ui/index';
@@ -288,13 +289,14 @@ export default function SchoolSettings() {
 
   // ── Sections ───────────────────────────────────────────────────────────────
   // Payments and receipts only exist for a school that charges for something.
-  const money = modulesReady && (isEnabled('fees') || isEnabled('library') || isEnabled('hostel'));
+  const money = modulesReady && (isEnabled('fees') || isEnabled('library') || isEnabled('hostel') || isEnabled('admission'));
 
   const tabs = useMemo(() => [
     { key: 'general',  label: 'General',      icon: 'building' },
     { key: 'identity', label: 'Numbering',    icon: 'idCard' },
     { key: 'days',     label: 'Working Days', icon: 'calendarDays' },
     { key: 'mail',     label: 'Email',        icon: 'mail' },
+    { key: 'privacy',  label: 'Privacy & cookies', icon: 'shield' },
     ...(money ? [
       { key: 'payments', label: 'Payments', icon: 'creditCard' },
       { key: 'receipts', label: 'Receipts', icon: 'files' },
@@ -550,6 +552,15 @@ export default function SchoolSettings() {
         </Panel>
       </div>
 
+      {/* The school's cookie policy: the admission portal's consent banner, the
+          policy page, and the answers visitors gave. Its own record and Save. */}
+      <div className="setgrid" hidden={hide('privacy')}>
+        <SelfSaveNote>
+          The cookie policy is its own record and is saved from the button under it.
+        </SelfSaveNote>
+        <CookiePolicyCard />
+      </div>
+
       {/* Both live here rather than inside a module: fees and library fines
           charge through the same merchant account, and a school configures it
           once. Each card hides itself when no module needs it. */}
@@ -566,7 +577,7 @@ export default function SchoolSettings() {
             <SelfSaveNote>
               Each receipt design is saved from inside the panel, per module.
             </SelfSaveNote>
-            <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library'), hostel: isEnabled('hostel') }} />
+            <ReceiptDesignCard availableModules={{ fees: isEnabled('fees'), library: isEnabled('library'), hostel: isEnabled('hostel'), admission: isEnabled('admission') }} />
           </div>
         </>
       )}

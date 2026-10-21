@@ -447,11 +447,6 @@ export default function TransportSettings() {
             <CardBody>
               <SwitchRow title="In-app notifications" checked={form.channels?.push} onChange={(v) => setIn('channels', 'push', v)} />
               <SwitchRow title="Email" checked={form.channels?.email} onChange={(v) => setIn('channels', 'email', v)} />
-              <SwitchRow title="SMS" checked={form.channels?.sms} onChange={(v) => setIn('channels', 'sms', v)} />
-              <SwitchRow title="WhatsApp" checked={form.channels?.whatsapp} onChange={(v) => setIn('channels', 'whatsapp', v)} />
-              <Note tone="warn" title="SMS and WhatsApp have no gateway wired">
-                Turning them on records the preference; messages still go out in-app and by email only.
-              </Note>
             </CardBody>
           </Card>
         </div>

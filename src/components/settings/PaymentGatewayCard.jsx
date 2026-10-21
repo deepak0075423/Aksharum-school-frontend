@@ -4,7 +4,7 @@ import { getPaymentGateway, updatePaymentGateway } from '../../api/admin.api';
 import { Button, Spinner, Alert } from '../ui/index';
 
 // The school's merchant account, configured once here rather than inside each
-// module. Fees, library fines and hostel fees all charge through it, and `modules` decides
+// module. Fees, library fines, hostel and admission fees all charge through it, and `modules` decides
 // which of them is allowed to — a school can take fee payments online without
 // also opening library fines to card payments.
 
@@ -12,6 +12,7 @@ const MODULE_LABEL = {
   fees:    { name: 'Fees', hint: 'Students and parents pay term fees online' },
   library: { name: 'Library fines', hint: 'Members settle overdue and damage charges online' },
   hostel:  { name: 'Hostel fees', hint: 'Residents — students, their parents, and teachers who live in — pay hostel bills online' },
+  admission: { name: 'Admission fees', hint: 'Applicants pay application and admission fees on the admission portal' },
 };
 
 export default function PaymentGatewayCard() {

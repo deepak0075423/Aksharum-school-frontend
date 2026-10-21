@@ -12,6 +12,8 @@ export const roleHome = {
   teacher:      '/teacher/dashboard',
   student:      '/student/dashboard',
   parent:       '/parent/dashboard',
+  // An admission applicant: /applicant forwards to their school's portal.
+  guest:        '/applicant',
 };
 
 export const ROLE_LABEL = {
@@ -20,6 +22,7 @@ export const ROLE_LABEL = {
   teacher:      'Teacher',
   student:      'Student',
   parent:       'Parent',
+  guest:        'Applicant',
 };
 
 export const ROLE_ICON = {
@@ -28,4 +31,5 @@ export const ROLE_ICON = {
   teacher:      'users',
   student:      'gradCap',
   parent:       'user',
+  guest:        'clipboard',
 };

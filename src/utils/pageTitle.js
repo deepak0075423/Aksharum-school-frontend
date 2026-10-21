@@ -83,6 +83,11 @@ const MODULE_HEADERS = {
   'teacher/medical': 'Medical Room',
   'student/medical': 'My Health',
   'parent/medical': 'Medical Information',
+  // Admissions is twelve tabs of one module, and its detail pages sit under
+  // words other modules use ("exams", "documents", "payments") — the bar names
+  // the module, never "Aptitude Exams" over an entrance exam.
+  'admin/admissions': 'Admissions',
+  'teacher/admissions': 'Admission Duties',
 };
 
 /** The header title for a pathname. Falls back to the app name at the root. */

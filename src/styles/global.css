@@ -914,6 +914,8 @@ select.form-control {
   max-height:     calc(100vh - 48px);
   max-height:     calc(100dvh - 48px);
 }
+/* Focus is moved to the dialog itself when it opens (components/ui Modal); no ring for that. */
+.modal:focus { outline: none; }
 .modal-header {
   padding:         20px 24px;
   border-bottom:   1px solid var(--border);

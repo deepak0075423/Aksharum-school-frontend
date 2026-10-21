@@ -367,6 +367,9 @@ export default function Header({ onMenuClick, onCollapseClick }) {
               <Link to="/profile" className="dropdown-item" onClick={() => setDropOpen(false)}>
                 <Icon name="user" size={17} /> Profile
               </Link>
+              <Link to="/cookie-policy" className="dropdown-item" onClick={() => setDropOpen(false)}>
+                <Icon name="shield" size={17} /> Privacy &amp; cookies
+              </Link>
               {/* Only drawn when this sign-in holds more than one post. */}
               <AccountSwitcher onDone={() => setDropOpen(false)} />
               <div className="dropdown-divider" />

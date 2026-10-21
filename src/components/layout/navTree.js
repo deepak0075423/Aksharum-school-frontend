@@ -21,6 +21,7 @@ import {
   LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, INVENTORY_ADMIN_TABS, TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS,
   HOSTEL_ADMIN_TABS, VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS, FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS,
   FEEDBACK_PRINCIPAL_TABS, TIMETABLE_ADMIN_TABS, DIRECTORY_TABS, IDCARD_ADMIN_TABS, MEDICAL_ADMIN_TABS,
+  ADMISSION_ADMIN_TABS,
 } from './ModuleNav';
 
 /**
@@ -43,6 +44,7 @@ export const SUPER_ADMIN_NAV = [
   { to: '/super-admin/users',       icon: 'users', label: 'Users' },
   { to: '/super-admin/videos',      icon: 'video', label: 'Video Library' },
   { to: '/super-admin/permissions', icon: 'key', label: 'Permissions' },
+  { to: '/super-admin/admission-groups', icon: 'layers', label: 'Admission groups' },
   { section: 'System' },
   { to: '/super-admin/notifications', icon: 'bell', label: 'Notifications' },
   { to: '/profile',                   icon: 'user', label: 'Profile' },
@@ -88,6 +90,8 @@ export const ADMIN_NAV = [
     children: sub(IDCARD_ADMIN_TABS) },
   { to: '/admin/medical/dashboard', match: '/admin/medical', icon: 'medical', label: 'Medical Room', module: 'medical',
     children: sub(MEDICAL_ADMIN_TABS) },
+  { to: '/admin/admissions/dashboard', match: '/admin/admissions', icon: 'gradCap', label: 'Admissions', module: 'admission',
+    children: sub(ADMISSION_ADMIN_TABS) },
   { to: '/admin/videos/browse', match: '/admin/videos',     icon: 'video', label: 'Video Learning', module: 'videoLibrary',
     children: sub(VIDEO_ADMIN_TABS) },
   { to: '/admin/feedback/overview', match: '/admin/feedback', icon: 'star', label: 'Teacher Feedback', module: 'feedback',
@@ -126,6 +130,9 @@ export const TEACHER_NAV = [
   { section: 'Modules' },
   { to: '/teacher/leave',           icon: 'umbrella', label: 'My Leave',      module: 'leave' },
   { to: '/teacher/medical',         icon: 'medical', label: 'Medical Room',  module: 'medical' },
+  // Exams to mark, applications assigned and documents to check — the
+  // module's administrators reach the office screens through "Manage".
+  { to: '/teacher/admissions', match: '/teacher/admissions', icon: 'gradCap', label: 'Admission Duties', module: 'admission' },
   { to: '/teacher/documents',       icon: 'files', label: 'Documents',     module: 'document' },
   // A teacher sees Transport when they ride the bus themselves or crew one.
   { to: '/teacher/transport',       icon: 'bus', label: 'Transport',     module: 'transport', requires: 'transportEnrolled' },
@@ -216,6 +223,7 @@ export const HOME_BY_ROLE = {
   teacher:      '/teacher/dashboard',
   student:      '/student/dashboard',
   parent:       '/parent/dashboard',
+  guest:        '/applicant',
 };
 export const homeFor = (role) => HOME_BY_ROLE[role] || '/';
 

@@ -219,7 +219,7 @@ export const ModulesProvider = ({ children }) => {
   // back from /modules like any other answer. A named handler, because the
   // header takes its own listeners off this same socket by event name.
   useEffect(() => {
-    if (!role || firstLogin) return undefined;
+    if (!role || role === 'guest' || firstLogin) return undefined;
     const sock = connectSocket();
     if (!sock) return undefined;
     const onChanged = () => { refresh(0); };

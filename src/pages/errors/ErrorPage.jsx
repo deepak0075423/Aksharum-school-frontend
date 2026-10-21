@@ -31,6 +31,7 @@ const HOME = {
   teacher: '/teacher/dashboard',
   student: '/student/dashboard',
   parent: '/parent/dashboard',
+  guest: '/applicant',
 };
 
 /**

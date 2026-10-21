@@ -68,7 +68,7 @@ export const EMPTY_STUDENT = {
   permanentAddress: '', permanentCity: '', permanentState: '', permanentPincode: '', permanentCountry: 'India',
   sameAsCurrent: true,
   // 4. Documents
-  aadhaarNumber: '',
+  aadhaarNumber: '', penNumber: '', apaarId: '',
   // 5. Previous school
   isTransferStudent: false,
   previousSchoolName: '', previousSchoolContact: '',
@@ -77,7 +77,7 @@ export const EMPTY_STUDENT = {
   previousSchoolMedium: '', previousSchoolMediumOther: '',
   previousSchoolBoard: '', previousSchoolBoardOther: '', previousSchoolStateBoardName: '',
   previousClass: '', previousAcademicYear: '', previousSchoolLeavingDate: '',
-  tcNumber: '', tcDate: '',
+  tcNumber: '', tcDate: '', previousSchoolUdise: '',
   // 6. Enrolment
   classId: '', currentSection: '', rollNumber: '', admissionNumber: '',
   // 7. Parent / guardian
@@ -521,7 +521,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
         permanentState: p.permanentState || '', permanentPincode: p.permanentPincode || '',
         permanentCountry: p.permanentCountry || 'India',
         sameAsCurrent: !!p.sameAsCurrent,
-        aadhaarNumber: p.aadhaarNumber || '',
+        aadhaarNumber: p.aadhaarNumber || '', penNumber: p.penNumber || '', apaarId: p.apaarId || '',
         isTransferStudent: !!p.isTransferStudent,
         previousSchoolName: p.previousSchoolName || '', previousSchoolContact: p.previousSchoolContact || '',
         previousSchoolAddress: p.previousSchoolAddress || '', previousSchoolCity: p.previousSchoolCity || '',
@@ -533,6 +533,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
         previousClass: p.previousClass || '', previousAcademicYear: p.previousAcademicYear || '',
         previousSchoolLeavingDate: p.previousSchoolLeavingDate ? String(p.previousSchoolLeavingDate).slice(0, 10) : '',
         tcNumber: p.tcNumber || '', tcDate: p.tcDate ? String(p.tcDate).slice(0, 10) : '',
+        previousSchoolUdise: p.previousSchoolUdise || '',
         classId: p.currentSection?.class?._id || p.currentClass || '',
         currentSection: p.currentSection?._id || '',
         rollNumber: p.rollNumber || '', admissionNumber: p.admissionNumber || '',
@@ -598,6 +599,8 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       need('aadhaarNumber', 'Aadhaar number is required');
       if (form.aadhaarNumber && !AADHAAR_RE.test(form.aadhaarNumber.replace(/\s/g, '')))
         e.aadhaarNumber = 'Aadhaar number must be 12 digits';
+      if (form.penNumber && !/^\d{11}$/.test(form.penNumber)) e.penNumber = 'PEN must be 11 digits';
+      if (form.apaarId && !/^\d{12}$/.test(form.apaarId)) e.apaarId = 'APAAR ID must be 12 digits';
       if (!files.aadhaarFront     && !docs?.aadhaarFrontFile)     e.aadhaarFront     = 'Aadhaar front image is required';
       if (!files.aadhaarBack      && !docs?.aadhaarBackFile)      e.aadhaarBack      = 'Aadhaar back image is required';
       if (!files.birthCertificate && !docs?.birthCertificateFile) e.birthCertificate = 'Birth certificate is required';
@@ -620,6 +623,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       phone('previousSchoolContact', 'Previous school contact');
       need('tcNumber', 'TC number is required');
       need('tcDate', 'TC date is required');
+      if (form.previousSchoolUdise && !/^\d{11}$/.test(form.previousSchoolUdise)) e.previousSchoolUdise = 'The UDISE+ code is 11 digits';
       if (!files.tc && !docs?.tcFile) e.tc = 'Transfer Certificate upload is required';
     }
     if (n === 6) need('classId', 'Class is required');
@@ -701,7 +705,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       permanentState: form.permanentState, permanentPincode: form.permanentPincode,
       permanentCountry: form.permanentCountry || 'India',
       sameAsCurrent: form.sameAsCurrent,
-      aadhaarNumber: form.aadhaarNumber,
+      aadhaarNumber: form.aadhaarNumber, penNumber: form.penNumber, apaarId: form.apaarId,
       isTransferStudent: form.isTransferStudent,
       previousSchoolName: form.previousSchoolName,
       previousSchoolAddress: form.previousSchoolAddress,
@@ -717,6 +721,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       previousAcademicYear: form.previousAcademicYear,
       previousSchoolLeavingDate: form.previousSchoolLeavingDate,
       tcNumber: form.tcNumber, tcDate: form.tcDate,
+      previousSchoolUdise: form.isTransferStudent ? form.previousSchoolUdise : '',
       currentClass: form.classId,
       currentSection: form.currentSection || '',
       rollNumber: form.rollNumber, admissionNumber: form.admissionNumber,
@@ -934,6 +939,20 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 <Err msg={errs.aadhaarNumber} />
               </div>
               <Row>
+                <div className="form-group">
+                  <label className="form-label">PEN (Permanent Education Number)</label>
+                  <input data-text="digits" maxLength={11} inputMode="numeric" placeholder="11 digits — optional"
+                    className={`form-control${errs.penNumber ? ' error' : ''}`} value={form.penNumber} onChange={set('penNumber')} />
+                  <Err msg={errs.penNumber} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">APAAR ID</label>
+                  <input data-text="digits" maxLength={12} inputMode="numeric" placeholder="12 digits — optional"
+                    className={`form-control${errs.apaarId ? ' error' : ''}`} value={form.apaarId} onChange={set('apaarId')} />
+                  <Err msg={errs.apaarId} />
+                </div>
+              </Row>
+              <Row>
                 <FileField label="Aadhaar — Front" required value={files.aadhaarFront}
                   existing={docs?.aadhaarFrontFile} onChange={setFile('aadhaarFront')} error={errs.aadhaarFront} />
                 <FileField label="Aadhaar — Back" required value={files.aadhaarBack}
@@ -1040,6 +1059,15 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                         value={form.tcDate} onChange={set('tcDate')} />
                       <Err msg={errs.tcDate} />
                     </div>
+                  </Row>
+                  <Row>
+                    <div className="form-group">
+                      <label className="form-label">Previous School UDISE+ Code</label>
+                      <input data-text="digits" maxLength={11} inputMode="numeric" placeholder="11 digits — on the TC"
+                        className={`form-control${errs.previousSchoolUdise ? ' error' : ''}`} value={form.previousSchoolUdise} onChange={set('previousSchoolUdise')} />
+                      <Err msg={errs.previousSchoolUdise} />
+                    </div>
+                    <div />
                   </Row>
                   <Row>
                     <FileField label="Transfer Certificate (TC)" required value={files.tc}

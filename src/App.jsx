@@ -96,6 +96,54 @@ const MdActivity     = lazy(() => import('./pages/medical/admin/Activity'));
 const MdTeacher      = lazy(() => import('./pages/medical/teacher/TeacherMedical'));
 const MdFamily       = lazy(() => import('./pages/medical/family/FamilyMedical'));
 
+// ── Admissions: a school's public portal and the applicant's pages ─────────────
+const PortalShell      = lazy(() => import('./pages/admission/portal/PortalShell'));
+const PortalLanding    = lazy(() => import('./pages/admission/portal/Landing'));
+const PortalLogin      = lazy(() => import('./pages/admission/portal/Auth').then((m) => ({ default: m.PortalLogin })));
+const PortalRegister   = lazy(() => import('./pages/admission/portal/Auth').then((m) => ({ default: m.PortalRegister })));
+const PortalForgot     = lazy(() => import('./pages/admission/portal/Auth').then((m) => ({ default: m.PortalForgot })));
+const ApplicantOnly    = lazy(() => import('./pages/admission/portal/PortalShell').then((m) => ({ default: m.ApplicantOnly })));
+const GuestDashboard   = lazy(() => import('./pages/admission/portal/GuestDashboard'));
+const ApplicationPage  = lazy(() => import('./pages/admission/portal/ApplicationPage'));
+const ExamRoom         = lazy(() => import('./pages/admission/portal/ExamRoom'));
+const ApplicantRedirect = lazy(() => import('./pages/admission/portal/ApplicantRedirect'));
+const PortalCookies    = lazy(() => import('./pages/admission/portal/CookiesPage'));
+const PortalLottery    = lazy(() => import('./pages/admission/portal/LotteryPage'));
+const PortalYourData   = lazy(() => import('./pages/admission/portal/YourData'));
+const PortalPay        = lazy(() => import('./pages/admission/portal/PayPage'));
+const PortalVisits     = lazy(() => import('./pages/admission/portal/VisitsPage'));
+const GroupPage        = lazy(() => import('./pages/admission/portal/GroupPage'));
+const SAAdmissionGroups = lazy(() => import('./pages/super-admin/AdmissionGroups'));
+const CookiePolicyPage = lazy(() => import('./pages/legal/CookiePolicyPage'));
+// ── Admissions: the office ────────────────────────────────────────────────────
+const AdmAdmin         = lazy(() => import('./pages/admission/admin/AdmissionAdmin'));
+const AdmDashboard     = lazy(() => import('./pages/admission/admin/Dashboard'));
+const AdmApplications  = lazy(() => import('./pages/admission/admin/Applications'));
+const AdmApplication   = lazy(() => import('./pages/admission/admin/ApplicationDetail'));
+const AdmDocuments     = lazy(() => import('./pages/admission/admin/Documents'));
+const AdmExams         = lazy(() => import('./pages/admission/admin/Exams'));
+const AdmExam          = lazy(() => import('./pages/admission/admin/ExamDetail'));
+const AdmSelection     = lazy(() => import('./pages/admission/admin/Selection'));
+const AdmList          = lazy(() => import('./pages/admission/admin/ListDetail'));
+const AdmPayments      = lazy(() => import('./pages/admission/admin/Payments'));
+const AdmEnquiries     = lazy(() => import('./pages/admission/admin/Enquiries'));
+const AdmRounds        = lazy(() => import('./pages/admission/admin/Rounds'));
+const AdmForms         = lazy(() => import('./pages/admission/admin/Forms'));
+const AdmFormBuilder   = lazy(() => import('./pages/admission/admin/FormBuilder'));
+const AdmEmails        = lazy(() => import('./pages/admission/admin/Emails'));
+const AdmSettings      = lazy(() => import('./pages/admission/admin/Settings'));
+const AdmActivity      = lazy(() => import('./pages/admission/admin/Activity'));
+const AdmPrivacy       = lazy(() => import('./pages/admission/admin/Privacy'));
+const AdmRte           = lazy(() => import('./pages/admission/admin/Rte'));
+const AdmVisits        = lazy(() => import('./pages/admission/admin/Visits'));
+const AdmAppeals       = lazy(() => import('./pages/admission/admin/Appeals'));
+const AdmBranches      = lazy(() => import('./pages/admission/admin/Branches'));
+const AdmEnrolment     = lazy(() => import('./pages/admission/admin/Enrolment'));
+// ── Admissions: teachers' duties ──────────────────────────────────────────────
+const AdmDuties        = lazy(() => import('./pages/admission/staff/Duties'));
+const AdmStaffApp      = lazy(() => import('./pages/admission/staff/StaffApplication'));
+const AdmMarkExam      = lazy(() => import('./pages/admission/staff/MarkExam'));
+
 // ── Super Admin ───────────────────────────────────────────────────────────────
 const SADashboard      = lazy(() => import('./pages/super-admin/Dashboard'));
 const SASchools        = lazy(() => import('./pages/super-admin/Schools'));
@@ -445,6 +493,7 @@ export default function App() {
             <Route path="permissions"   element={<SAPermissions />} />
             <Route path="videos"        element={<SAVideoLibrary />} />
             <Route path="notifications" element={<SANotifications />} />
+            <Route path="admission-groups" element={<SAAdmissionGroups />} />
           </Route>
 
           {/* Admin — school admins everywhere, plus teachers whose designation
@@ -655,6 +704,33 @@ export default function App() {
               <Route path="settings"      element={<MdSettings />} />
               <Route path="activity"      element={<MdActivity />} />
             </Route>
+            {/* Admissions */}
+            <Route path="admissions" element={<AdmAdmin />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard"        element={<AdmDashboard />} />
+              <Route path="applications"     element={<AdmApplications />} />
+              <Route path="applications/:id" element={<AdmApplication />} />
+              <Route path="documents"        element={<AdmDocuments />} />
+              <Route path="exams"            element={<AdmExams />} />
+              <Route path="exams/:id"        element={<AdmExam />} />
+              <Route path="selection"        element={<AdmSelection />} />
+              <Route path="selection/:id"    element={<AdmList />} />
+              <Route path="payments"         element={<AdmPayments />} />
+              <Route path="enquiries"        element={<AdmEnquiries />} />
+              <Route path="rounds"           element={<AdmRounds />} />
+              <Route path="forms"            element={<AdmForms />} />
+              <Route path="forms/:id"        element={<AdmFormBuilder />} />
+              <Route path="emails"           element={<AdmEmails />} />
+              <Route path="settings"         element={<AdmSettings />} />
+              <Route path="activity"         element={<AdmActivity />} />
+              <Route path="privacy"          element={<AdmPrivacy />} />
+              <Route path="rte"              element={<AdmRte />} />
+              <Route path="visits"           element={<AdmVisits />} />
+              <Route path="appeals"          element={<AdmAppeals />} />
+              <Route path="branches"         element={<AdmBranches />} />
+              <Route path="enrolment"        element={<AdmEnrolment />} />
+              <Route path="*"                element={<NotFoundRoute />} />
+            </Route>
             {/* Hostel */}
             <Route path="hostel" element={<HostelNav />}>
               <Route index element={<Navigate to="dashboard" replace />} />
@@ -726,6 +802,12 @@ export default function App() {
             <Route path="dashboard"    element={<TDashboard />} />
             <Route path="id-card"      element={<MyIdCard role="teacher" />} />
             <Route path="medical"      element={<MdTeacher />} />
+            {/* Admission duties: exams to mark, applications assigned, documents to check. */}
+            <Route path="admissions" element={<ModuleGuard module="admission" label="Admissions"><Outlet /></ModuleGuard>}>
+              <Route index                   element={<AdmDuties />} />
+              <Route path="applications/:id" element={<AdmStaffApp />} />
+              <Route path="exams/:id"        element={<AdmMarkExam />} />
+            </Route>
             {/* Class teachers and vice class teachers only — a subject teacher
                 typing the URL is sent back to the dashboard. */}
             <Route path="my-section"   element={<MySectionGuard><TMySection /></MySectionGuard>} />
@@ -906,6 +988,35 @@ export default function App() {
           }>
             <Route index element={<Profile />} />
             <Route path="*" element={<NotFoundRoute />} />
+          </Route>
+
+          {/* Admissions. An applicant (guest) account lands on /applicant, which
+              forwards to their school's portal. The online exam is full screen. */}
+          <Route path="/applicant" element={<ApplicantRedirect />} />
+          {/* The signed-in person's school's cookie policy, or the platform's own. */}
+          <Route path="/cookie-policy" element={<CookiePolicyPage />} />
+          {/* A group of schools on one page — "g" is never a school's portal address (RESERVED_SLUGS). */}
+          <Route path="/g/:slug" element={<GroupPage />} />
+          <Route path="/:slug/applications/:id/exam/:attemptId" element={<PortalShell bare />}>
+            <Route index element={<ApplicantOnly skipConsent><ExamRoom /></ApplicantOnly>} />
+          </Route>
+          {/* A school's admission portal — app.aksharum.com/<slug>. Every static
+              path above ranks before this one, so it can never shadow an app
+              page; and the server keeps those words out of the slugs a school
+              may choose (services/admission/settings RESERVED_SLUGS). */}
+          <Route path="/:slug" element={<PortalShell />}>
+            <Route index                   element={<PortalLanding />} />
+            <Route path="login"            element={<PortalLogin />} />
+            <Route path="register"         element={<PortalRegister />} />
+            <Route path="forgot-password"  element={<PortalForgot />} />
+            <Route path="cookies"          element={<PortalCookies />} />
+            <Route path="lottery/:listId"  element={<PortalLottery />} />
+            <Route path="privacy"          element={<PortalYourData />} />
+            <Route path="pay/:token"       element={<PortalPay />} />
+            <Route path="visit"            element={<PortalVisits />} />
+            <Route path="dashboard"        element={<ApplicantOnly><GuestDashboard /></ApplicantOnly>} />
+            <Route path="applications/:id" element={<ApplicantOnly><ApplicationPage /></ApplicantOnly>} />
+            <Route path="*"                element={<NotFoundRoute />} />
           </Route>
 
           {/* Anything that matches nothing. This was <Navigate to="/" />, which

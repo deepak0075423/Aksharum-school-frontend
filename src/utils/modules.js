@@ -30,6 +30,7 @@ export const MODULES = [
   { key: 'employeeDirectory', label: 'Employee Directory', icon: 'folder', adminBase: '/admin/employee-directory', adminHome: '/admin/employee-directory/dashboard' },
   { key: 'idCard',       label: 'ID Cards',         icon: 'idCard', adminBase: '/admin/id-cards',    adminHome: '/admin/id-cards/dashboard' },
   { key: 'medical',      label: 'Medical Room',     icon: 'medical', adminBase: '/admin/medical',    adminHome: '/admin/medical/dashboard' },
+  { key: 'admission',    label: 'Admissions',       icon: 'gradCap', adminBase: '/admin/admissions', adminHome: '/admin/admissions/dashboard' },
   { key: 'chat',         label: 'Chat',             icon: 'chat' },   // no administrative surface
 ];
 

@@ -12,6 +12,7 @@ const MODULES = [
   ['fees',    'Fee receipts'],
   ['library', 'Library fine receipts'],
   ['hostel',  'Hostel fee receipts'],
+  ['admission', 'Admission fee receipts'],
 ];
 
 const TOGGLES = [

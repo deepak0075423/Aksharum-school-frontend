@@ -269,6 +269,30 @@ export const IDCARD_ADMIN_TABS = [
   { to: '/admin/id-cards/settings',     label: '⚙️ Settings',         icon: 'settings' },
 ];
 
+// Admissions (Oct 2026) — the office's twelve sections. An application, an
+// exam, a merit list and a form each open on a page of their own beneath
+// their section (pages/admission/admin).
+export const ADMISSION_ADMIN_TABS = [
+  { to: '/admin/admissions/dashboard',    label: '🏠 Dashboard' },
+  { to: '/admin/admissions/applications', label: '📋 Applications' },
+  { to: '/admin/admissions/documents',    label: '📎 Documents' },
+  { to: '/admin/admissions/exams',        label: '📝 Exams' },
+  { to: '/admin/admissions/visits',       label: '🗓️ Visits' },
+  { to: '/admin/admissions/selection',    label: '🏆 Selection' },
+  { to: '/admin/admissions/appeals',      label: '⚖️ Appeals' },
+  { to: '/admin/admissions/enrolment',    label: '🎓 Enrolment' },
+  { to: '/admin/admissions/payments',     label: '💳 Payments' },
+  { to: '/admin/admissions/enquiries',    label: '💬 Enquiries' },
+  { to: '/admin/admissions/rounds',       label: '📅 Rounds' },
+  { to: '/admin/admissions/rte',          label: '🏫 RTE seats' },
+  { to: '/admin/admissions/branches',     label: '🏘️ Branches' },
+  { to: '/admin/admissions/forms',        label: '🧩 Forms' },
+  { to: '/admin/admissions/emails',       label: '✉️ Emails' },
+  { to: '/admin/admissions/settings',     label: '⚙️ Settings' },
+  { to: '/admin/admissions/privacy',      label: '🛡️ Privacy' },
+  { to: '/admin/admissions/activity',     label: '🕘 Activity' },
+];
+
 // The Medical Room (Oct 2026). Student Health and Medicines are groups with a
 // second row of their own (pages/medical/admin/Health.jsx).
 export const MEDICAL_ADMIN_TABS = [

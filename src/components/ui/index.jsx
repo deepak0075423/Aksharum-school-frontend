@@ -173,7 +173,26 @@ export const Badge = ({ children, variant = 'primary' }) => (
 let openModalCount = 0;
 let overflowBeforeFirstModal = '';
 
+// Open modals, innermost last: only the top one answers Escape and keeps Tab.
+const modalStack = [];
+let modalSeq = 0;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+// Escape inside a field is the field's (closing a suggestion list, clearing a
+// search) — never a reason to throw away a half-filled form.
+const isTyping = (el) => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
+  || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color'].includes(el.type)));
+
+/**
+ * A dialog: announced as one (role, aria-modal, its title as its name), focus
+ * moved into it on opening and kept there with Tab, Escape to close (outside a
+ * text field), and focus handed back to what opened it when it closes.
+ */
 export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }) => {
+  const boxRef = React.useRef(null);
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
+  const [id] = React.useState(() => `modal-${++modalSeq}`);
+
   // Hold the background still while a modal is up, so closing it doesn't leave
   // the page scrolled somewhere the user never went.
   React.useEffect(() => {
@@ -189,6 +208,45 @@ export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }
     };
   }, [open]);
 
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const opener = document.activeElement;
+    modalStack.push(id);
+    const top = () => modalStack[modalStack.length - 1] === id;
+    // Into the dialog — unless a field in it already took focus (autoFocus).
+    const raf = requestAnimationFrame(() => {
+      const box = boxRef.current;
+      if (box && !box.contains(document.activeElement)) box.focus({ preventScroll: true });
+    });
+    const onKey = (e) => {
+      const box = boxRef.current;
+      if (!box || !top()) return;
+      if (e.key === 'Escape' && !e.defaultPrevented && !isTyping(e.target)) {
+        e.stopPropagation();
+        closeRef.current?.();
+        return;
+      }
+      if (e.key !== 'Tab' || !box.contains(document.activeElement)) return;
+      const items = [...box.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (!items.length) { e.preventDefault(); box.focus(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === box)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('keydown', onKey);
+      const at = modalStack.lastIndexOf(id);
+      if (at >= 0) modalStack.splice(at, 1);
+      // Back to what opened it, if it is still on the page.
+      if (opener && opener.isConnected && typeof opener.focus === 'function') {
+        try { opener.focus({ preventScroll: true }); } catch { /* gone */ }
+      }
+    };
+  }, [open, id]);
+
   if (!open) return null;
 
   // Portalled to <body> on purpose. Rendered in place it sits inside .app-main,
@@ -198,13 +256,13 @@ export const Modal = ({ open, onClose, title, children, footer, maxWidth = 560 }
   // The overlay deliberately does NOT close on click. These modals hold long
   // forms — the seven-step teacher and student intakes, bulk import — and a
   // stray click beside the card used to throw the whole thing away. Closing is
-  // an explicit act: the ✕, Cancel, or whatever the footer offers.
+  // an explicit act: the ✕, Cancel, Escape, or whatever the footer offers.
   return createPortal(
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth }}>
+      <div className="modal" style={{ maxWidth }} role="dialog" aria-modal="true" aria-labelledby={title ? `${id}-title` : undefined} tabIndex={-1} ref={boxRef}>
         <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="btn-icon" onClick={onClose} style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>✕</button>
+          <h3 id={`${id}-title`}>{title}</h3>
+          <button type="button" className="btn-icon" onClick={onClose} aria-label="Close" style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>✕</button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}

@@ -25,6 +25,7 @@ const MODULES = [
   { key: 'employeeDirectory', label: 'Employee Directory', icon: '🗂️' },
   { key: 'idCard',       label: 'ID Cards',       icon: '🪪' },
   { key: 'medical',      label: 'Medical Room',   icon: '🩺' },
+  { key: 'admission',    label: 'Admissions',     icon: '🎓' },
   { key: 'chat',         label: 'Chat',           icon: '💬' },
 ].sort((a, b) => natural(a.label, b.label));   // A–Z by name
 

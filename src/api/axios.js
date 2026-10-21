@@ -16,6 +16,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * A lapsed session signs in again where it signed in: an applicant on their
+ * school's admission portal (/<slug>/…) goes back to that portal's sign-in,
+ * everyone else to /login. The portal address survives the clear.
+ */
+function endSession() {
+  let to = '/login';
+  let slug = '';
+  try {
+    slug = localStorage.getItem('portalSlug') || '';
+    const first = window.location.pathname.split('/')[1] || '';
+    if (slug && (first === slug || first === 'applicant')) to = `/${slug}/login`;
+  } catch { /* storage off */ }
+  localStorage.clear();
+  if (slug) { try { localStorage.setItem('portalSlug', slug); } catch { /* storage off */ } }
+  window.location.href = to;
+}
+
 // One "confirm it is you" at a time, however many requests were turned away.
 let stepUpWait = null;
 
@@ -39,12 +57,10 @@ api.interceptors.response.use(
             err.config.headers.Authorization = `Bearer ${data.data.token}`;
             return api(err.config);
           } catch {
-            localStorage.clear();
-            window.location.href = '/login';
+            endSession();
           }
         } else {
-          localStorage.clear();
-          window.location.href = '/login';
+          endSession();
         }
       }
     }
