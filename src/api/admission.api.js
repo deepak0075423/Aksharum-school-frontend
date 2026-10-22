@@ -234,7 +234,8 @@ export const admin = {
   bank:          (params) => api.get(`${AD}/question-bank${qs(params)}`),
   addToBank:     (data) => api.post(`${AD}/question-bank`, data),
   eligible:      (id) => api.get(`${AD}/exams/${id}/eligible`),
-  assign:        (id, applicationIds) => api.post(`${AD}/exams/${id}/candidates`, { applicationIds }),
+  // Scheduling candidates for an exam (not `assign`, which gives an application to a colleague).
+  assignCandidates: (id, applicationIds) => api.post(`${AD}/exams/${id}/candidates`, { applicationIds }),
   updateCandidate:(id, cid, data) => api.patch(`${AD}/exams/${id}/candidates/${cid}`, data),
   removeCandidate:(id, cid) => api.delete(`${AD}/exams/${id}/candidates/${cid}`),
   attendance:    (id, cid, present) => api.post(`${AD}/exams/${id}/candidates/${cid}/attendance`, { present }),

@@ -179,7 +179,7 @@ function Candidates({ exam, reload: reloadExam }) {
   const reload = () => { board.reload(); eligible.reload(); reloadExam(); };
   const add = async (which) => {
     setBusy(which === 'all' ? 'all' : 'some');
-    try { const r = await admin.assign(exam._id, which === 'all' ? 'all' : [...sel.ids]); toast.success(`${r.data.added} scheduled — families are told`); sel.clear(); reload(); } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
+    try { const r = await admin.assignCandidates(exam._id, which === 'all' ? 'all' : [...sel.ids]); toast.success(`${r.data.added} scheduled — families are told`); sel.clear(); reload(); } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
   };
   const attend = async (cid, present) => {
     try { await admin.attendance(exam._id, cid, present); reload(); } catch (e) { toast.error(errMsg(e)); }
