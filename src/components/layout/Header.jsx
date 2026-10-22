@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { logout } from '../../api/auth.api';
-import { getInbox, markAllRead, markOneRead, clearAll } from '../../api/notifications.api';
-import { connectSocket, disconnectSocket } from '../../socket';
+import { getInbox, markAllRead, markOneRead, clearAll, getUnreadCount } from '../../api/notifications.api';
+import { connectSocket, disconnectSocket, onSocketState, socketState } from '../../socket';
 import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
 import { notificationIconUrl } from '../../utils/branding';
@@ -65,6 +65,7 @@ export default function Header({ onMenuClick, onCollapseClick }) {
   const dropRef    = useRef(null);
   const bellRef    = useRef(null);
   const prevUnread = useRef(0);
+  const lastPushAt = useRef(0);   // when the gateway last pushed the count
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -76,6 +77,40 @@ export default function Header({ onMenuClick, onCollapseClick }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // The badge's own reading from the server. While the socket is connected the
+  // gateway pushes every change (`notification:unread_count`, below); this
+  // covers the rest — the moment the page opens, a tab coming back into view,
+  // and a socket that cannot connect (the gateway down, or unreachable from
+  // this page), when the count used to change only on opening the bell.
+  const refreshCount = useCallback(async () => {
+    const askedAt = Date.now();
+    try {
+      const res = await getUnreadCount();
+      // A count pushed while this was on its way is newer than the answer.
+      if (lastPushAt.current > askedAt) return;
+      const n = Number(res?.count);
+      if (Number.isFinite(n)) { prevUnread.current = n; setUnreadCount(n); }
+    } catch { /* the badge keeps its last value */ }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    refreshCount();
+    // Every 30 seconds — but only while live delivery is down and the tab is
+    // in view; once the socket connects, the gateway's pushes take over.
+    let timer = null;
+    const sync = () => {
+      clearInterval(timer);
+      timer = null;
+      if (socketState() !== 'connected' && !document.hidden) timer = setInterval(refreshCount, 30000);
+    };
+    const onVisible = () => { if (!document.hidden) refreshCount(); sync(); };
+    const stopWatching = onSocketState(sync);
+    document.addEventListener('visibilitychange', onVisible);
+    sync();
+    return () => { stopWatching(); clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [user, refreshCount]);
+
   // Connect to WebSocket Gateway — push-based unread count, no polling
   useEffect(() => {
     if (!user) return;
@@ -86,6 +121,7 @@ export default function Header({ onMenuClick, onCollapseClick }) {
     const sock = connectSocket(token);
 
     sock.on('notification:unread_count', ({ count }) => {
+      lastPushAt.current = Date.now();
       prevUnread.current = count;
       setUnreadCount(count);
     });
@@ -143,8 +179,9 @@ export default function Header({ onMenuClick, onCollapseClick }) {
       const res = await getInbox();
       const items = (res.data || res || []).slice(0, 10);
       setNotifs(items);
-      // Sync unread count with actual items
-      const count = items.filter(n => !n.isRead).length;
+      // The inbox answers with the true unread total; counting the ten rows
+      // shown here put the badge at 10 for someone with 25 unread.
+      const count = Number.isFinite(Number(res?.unread)) ? Number(res.unread) : items.filter(n => !n.isRead).length;
       prevUnread.current = count;
       setUnreadCount(count);
     } catch {}
