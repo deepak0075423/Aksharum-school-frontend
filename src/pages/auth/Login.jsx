@@ -11,6 +11,57 @@ import { loadGoogle, googleReady, requestGoogleCode } from '../../utils/googleSi
 import AuthShell, { Brand, Field, GoogleMark } from './authShell';
 import { roleHome } from './roleHome';
 
+/** "2:15 pm tomorrow" — when a lock lifts, in this browser's own clock. */
+function opensAt(iso) {
+  const at = new Date(iso);
+  if (!iso || Number.isNaN(at.getTime())) return null;
+  const time = at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const day  = new Date(); day.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - day) / 86400000);
+  if (days === 0) return `${time} today`;
+  if (days === 1) return `${time} tomorrow`;
+  return `${time} on ${at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+}
+
+/**
+ * Five wrong passwords lock an account for a day (school-backend
+ * services/loginLockout). After each wrong one this says how many tries are
+ * left; once locked, when it opens again and how to unlock it sooner.
+ */
+function AttemptNotice({ failed, max, left, lockHours, locked, until, email }) {
+  if (locked) {
+    const when = opensAt(until);
+    return (
+      <div className="au-alert au-alert--locked" role="alert">
+        <Icon name="lock" size={20} className="au-alert__icon" />
+        <div>
+          <strong>Account locked for {lockHours} hours</strong>
+          <p>
+            The password was entered wrong {max} times.
+            {when ? <> You can sign in again after <b>{when}</b>.</> : null}
+          </p>
+          <Link to="/forgot-password" state={{ email }}>Reset your password to unlock it now</Link>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="au-alert" role="alert">
+      <Icon name="alert" size={20} className="au-alert__icon" />
+      <div>
+        <strong>Wrong email or password</strong>
+        <p>
+          Attempt {failed} of {max} — <b>{left} {left === 1 ? 'attempt' : 'attempts'} left</b> before
+          the account is locked for {lockHours} hours.
+        </p>
+        <span className="au-alert__pips" aria-hidden="true">
+          {Array.from({ length: max }, (_, i) => <i key={i} className={i < failed ? 'is-used' : ''} />)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function Login() {
   // A session ended by its school being deactivated leaves the reason behind so
   // the login screen can explain it, rather than showing a bare form.
@@ -23,8 +74,16 @@ export default function Login() {
   const navigate     = useNavigate();
   const [form, setForm]       = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  // What the server said about the last wrong password for this address: how
+  // many tries are left, or that it is locked and until when. It belongs to the
+  // address typed, so a different address clears it.
+  const [guard, setGuard]     = useState(null);
 
-  const onChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+    if (name === 'email') setGuard(null);
+  };
 
   /** The same landing whichever way the person signed in. */
   const finish = (res) => {
@@ -60,7 +119,12 @@ export default function Login() {
     try {
       finish(await login(form));
     } catch (err) {
-      toast.error(err.message || 'Login failed');
+      const d = err.data || {};
+      if (d.attempts && (d.code === 'INVALID_CREDENTIALS' || d.code === 'ACCOUNT_LOCKED')) {
+        setGuard({ ...d.attempts, locked: d.code === 'ACCOUNT_LOCKED', until: d.lockedUntil || null });
+      } else {
+        toast.error(err.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -109,6 +173,8 @@ export default function Login() {
         <h2>Welcome Back</h2>
         <p>Sign in to your account to continue</p>
       </header>
+
+      {guard && <AttemptNotice {...guard} email={form.email} />}
 
       <form onSubmit={onSubmit} noValidate>
         <Field id="login-email" label="Email Address" icon="mail" required>

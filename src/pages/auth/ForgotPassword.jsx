@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { forgotPassword } from '../../api/auth.api';
 import { isEmail } from '../../utils/validators';
@@ -8,7 +8,9 @@ import AuthShell, { Badge, Field } from './authShell';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const [email, setEmail]     = useState('');
+  const location = useLocation();
+  // Sent here from a locked sign-in, the address is already known.
+  const [email, setEmail]     = useState(location.state?.email || '');
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e) => {

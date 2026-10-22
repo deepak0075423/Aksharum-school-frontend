@@ -45,8 +45,10 @@ api.interceptors.response.use(
 
     if (status === 401) {
       const url = err.config?.url || '';
-      // Auth endpoints return 401 for bad credentials — don't treat as session expiry
-      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/google');
+      // Auth endpoints return 401 for bad credentials — don't treat as session expiry.
+      // An admission portal's sign-in (/admission/public/portals/<slug>/login) is one too.
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/google')
+        || /\/public\/portals\/[^/]+\/login$/.test(url);
       if (!isAuthEndpoint) {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken && !err.config._retry) {

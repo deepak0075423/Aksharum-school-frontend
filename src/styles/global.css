@@ -1250,6 +1250,27 @@ select.form-control {
 }
 .au-note p { font-size: .92rem; line-height: 1.5; color: #1e3a8a; }
 
+/* A refused sign-in: tries left out of five, or the day-long lock (pages/auth/Login) */
+.au-alert {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin: -8px 0 20px; padding: 12px 16px;
+  border: 1px solid #f9d9a9; border-radius: 10px; background: #fff8ec;
+  text-align: left;
+}
+.au-alert__icon { flex-shrink: 0; margin-top: 1px; color: #d97706; }
+.au-alert strong { display: block; font-size: .95rem; font-weight: 700; color: #7c2d12; }
+.au-alert p { margin-top: 3px; font-size: .9rem; line-height: 1.45; color: #78350f; }
+.au-alert b { font-weight: 600; }
+.au-alert a { display: inline-block; margin-top: 6px; font-size: .9rem; font-weight: 600; color: #b91c1c; }
+.au-alert a:hover { text-decoration: underline; }
+.au-alert__pips { display: flex; gap: 6px; margin-top: 9px; }
+.au-alert__pips i { width: 28px; height: 5px; border-radius: 3px; background: #f5dfc0; }
+.au-alert__pips i.is-used { background: #ea580c; }
+.au-alert--locked { border-color: #fbcaca; background: #fef2f2; }
+.au-alert--locked .au-alert__icon { color: #dc2626; }
+.au-alert--locked strong { color: #991b1b; }
+.au-alert--locked p { color: #7f1d1d; }
+
 .au-field { margin-bottom: 18px; }
 .au-label { display: block; margin-bottom: 8px; font-size: .93rem; font-weight: 500; color: #1f2937; }
 .au-label.required::after { content: ' *'; color: #ef4444; }
@@ -1419,6 +1440,7 @@ select.form-control {
   .au-badge { width: 64px; height: 64px; }
   .au-badge svg { width: 28px; height: 28px; }
   .au-note { padding: 10px 18px; margin-bottom: 14px; }
+  .au-alert { margin: -6px 0 14px; padding: 10px 14px; }
   .au-field { margin-bottom: 14px; }
   .au .form-control { height: 46px; }
   .au-label { margin-bottom: 6px; }
@@ -1476,6 +1498,9 @@ select.form-control {
   .au-brand--stack .au-brand__text strong { font-size: 18px; }
   .au-brand--stack .au-brand__text span { font-size: 10.5px; }
   .au-head { margin: 18px 0 18px; }
+  .au-alert { margin: -4px 0 14px; padding: 10px 12px; gap: 10px; }
+  .au-alert strong { font-size: 14.5px; }
+  .au-alert p, .au-alert a { font-size: 13.5px; }
   .au-head h2 { font-size: 25px; }
   .au-head p { margin-top: 6px; font-size: 14.5px; line-height: 1.5; }
   .au-label { margin-bottom: 6px; font-size: 14px; }
