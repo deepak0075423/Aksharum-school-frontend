@@ -11,10 +11,14 @@ import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Modal, Spinner } from '../../components/ui/index';
 import { getTeacherSection } from '../../api/teacher.api';
+import { levelOf, shortOf } from '../../utils/classLevels';
 
-/** "Class 7" → "C7". The chip is an identifier, not a label — keep it short. */
+/** "Class 7" → "C7", LKG → "LKG". The chip is an identifier, not a label — keep it short. */
 export function chipFor(row) {
-  if (row?.classNumber != null) return `C${row.classNumber}`;
+  const n = Number(row?.classNumber);
+  if (row?.classNumber != null && Number.isInteger(n) && n >= 1) return `C${n}`;
+  // Pre-primary sits at 0 and below (utils/classLevels) — its short name, never "C-1".
+  if (row?.classNumber != null && levelOf(n)) return shortOf(row).slice(0, 3).toUpperCase();
   const digits = String(row?.className || '').match(/\d+/);
   if (digits) return `C${digits[0]}`;
   const word = String(row?.className || row?.sectionName || '?').trim();

@@ -419,7 +419,7 @@ export default function Classes() {
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={filtered.length}
-          limit={limit} count={shown.length} noun="class"
+          limit={limit} count={shown.length} noun="class" plural="classes"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
         />
       </section>
@@ -438,6 +438,8 @@ export default function Classes() {
         cls={editing === 'new' ? null : editing}
         years={years}
         defaultYear={year}
+        existing={rows}
+        existingYear={year}
         saving={saving}
         error={formErr}
         onClose={() => { setEditing(null); setFormErr(''); }}

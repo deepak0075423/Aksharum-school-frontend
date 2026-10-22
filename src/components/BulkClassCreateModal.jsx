@@ -2,12 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as api from '../api/admin.api';
 import { Modal, Button, Spinner } from './ui/index';
+import { ClassLevelSelect, ClassNameChoice } from './ClassLevelPicker';
+import { PRE_PRIMARY } from '../utils/classLevels';
 
 /**
- * Build a whole grade range and its sections in one go.
+ * Build a whole range of classes and their sections in one go.
  *
  * Setting a school up by hand is twelve class forms and then forty-eight section
- * forms. This asks for a range and a section count instead.
+ * forms. This asks for a range of the standard classes (utils/classLevels —
+ * Playgroup / Pre-Nursery up to Class 12) and a section count instead, and
+ * which name each two-name pre-primary class in the range goes by.
  *
  * The run is additive and never destructive — a class already in the year keeps
  * its name, number and students, and only its MISSING sections are added. That
@@ -17,7 +21,7 @@ import { Modal, Button, Spinner } from './ui/index';
  * by the same code that does the work.
  */
 export default function BulkClassCreateModal({ open, academicYear, onClose, onCreated }) {
-  const [form, setForm] = useState({ fromClass: '1', toClass: '12', sectionsPerClass: '4', capacity: '40' });
+  const [form, setForm] = useState(FRESH);
   const [plan, setPlan]       = useState(null);
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,7 +30,7 @@ export default function BulkClassCreateModal({ open, academicYear, onClose, onCr
 
   useEffect(() => {
     if (!open) return;
-    setForm({ fromClass: '1', toClass: '12', sectionsPerClass: '4', capacity: '40' });
+    setForm(FRESH);
     setPlan(null); setError('');
   }, [open]);
 
@@ -46,6 +50,13 @@ export default function BulkClassCreateModal({ open, academicYear, onClose, onCr
   }, [open, form, academicYear]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setLevel = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  // The two-name pre-primary classes inside the range — each needs its name
+  // picked, unless the year already has it (it keeps the name it has).
+  const lo = Math.min(Number(form.fromClass), Number(form.toClass));
+  const hi = Math.max(Number(form.fromClass), Number(form.toClass));
+  const there = new Set((plan?.plan || []).filter((r) => r.classExists).map((r) => Number(r.classNumber)));
+  const twoNames = PRE_PRIMARY.filter((l) => l.names.length > 1 && l.number >= lo && l.number <= hi && !there.has(l.number));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -84,12 +95,12 @@ export default function BulkClassCreateModal({ open, academicYear, onClose, onCr
           columnGap: 14, alignItems: 'end',
         }}>
           <div className="form-group">
-            <label className="form-label required">From class</label>
-            <input type="number" min="0" className="form-control" value={form.fromClass} onChange={set('fromClass')} />
+            <label className="form-label required" htmlFor="bulk-from">From class</label>
+            <ClassLevelSelect id="bulk-from" value={form.fromClass} onChange={setLevel('fromClass')} placeholder={null} />
           </div>
           <div className="form-group">
-            <label className="form-label required">To class</label>
-            <input type="number" min="0" className="form-control" value={form.toClass} onChange={set('toClass')} />
+            <label className="form-label required" htmlFor="bulk-to">To class</label>
+            <ClassLevelSelect id="bulk-to" value={form.toClass} onChange={setLevel('toClass')} placeholder={null} />
           </div>
           <div className="form-group">
             <label className="form-label required">Sections per class</label>
@@ -100,6 +111,16 @@ export default function BulkClassCreateModal({ open, academicYear, onClose, onCr
             <input type="number" min="1" className="form-control" value={form.capacity} onChange={set('capacity')} />
           </div>
         </div>
+
+        {twoNames.length > 0 && (
+          <div className="clvl-bulknames">
+            {twoNames.map((l) => (
+              <ClassNameChoice key={l.number} number={l.number} label={l.label}
+                value={form.names[l.number]}
+                onChange={(n) => setForm((f) => ({ ...f, names: { ...f.names, [l.number]: n } }))} />
+            ))}
+          </div>
+        )}
 
         <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.7 }}>
           Sections are named A, B, C… in order. Classes already in this academic year keep their name,
@@ -171,6 +192,8 @@ function Tile({ n, label, tone }) {
   );
 }
 
+const FRESH = { fromClass: '1', toClass: '12', sectionsPerClass: '4', capacity: '40', names: {} };
+
 /** Numbers, not the strings the inputs hold — the server validates types. */
 function payload(form, academicYear) {
   return {
@@ -178,6 +201,7 @@ function payload(form, academicYear) {
     toClass: Number(form.toClass),
     sectionsPerClass: Number(form.sectionsPerClass),
     capacity: Number(form.capacity),
+    names: form.names,
     ...(academicYear ? { academicYear } : {}),
   };
 }

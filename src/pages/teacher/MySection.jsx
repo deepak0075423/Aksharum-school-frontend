@@ -33,6 +33,7 @@ import {
   Tile, Panel, Fact, SectionRow, SectionActions, SectionBlock, RoleRow, AnnouncementRow,
   NoRows, SectionDrawer, HeroArt, chipFor, classLabel, secLabel, plural, YearTag,
 } from './sectionParts';
+import { levelOf, shortOf } from '../../utils/classLevels';
 
 const SHOWN = 3;   // rows a card shows before "View All" opens the rest
 
@@ -79,7 +80,10 @@ export default function MySection() {
   const subjectSummary = useMemo(() => {
     const bySubject = new Map();
     subjectClasses.forEach((s) => {
-      const where = s.classNumber != null ? `${s.classNumber}${s.sectionName}` : secLabel(s);
+      // "4A" for Class 4, "LKG A" for a pre-primary class (its number is 0 or below).
+      const n = Number(s.classNumber);
+      const where = s.classNumber != null && Number.isInteger(n) && n >= 1 ? `${n}${s.sectionName}`
+        : s.classNumber != null && levelOf(n) ? `${shortOf(s)} ${s.sectionName}` : secLabel(s);
       if (!bySubject.has(s.subject)) bySubject.set(s.subject, []);
       bySubject.get(s.subject).push(where);
     });

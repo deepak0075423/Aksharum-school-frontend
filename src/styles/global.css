@@ -1056,6 +1056,20 @@ select.form-control {
   background:      var(--bg);
 }
 
+/* ── Picking a standard class (components/ClassLevelPicker) ─────────────────
+   Which name a two-name pre-primary class goes by: Playgroup or Pre-Nursery,
+   LKG or KG1, UKG or KG2 — in Add Class and in Bulk Create. */
+.clvl-names { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.clvl-names__label { font-size: .82rem; color: var(--text-muted); margin-right: 2px; min-width: 9.5em; }
+.clvl-names__opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-card); font-size: .85rem; font-weight: 500; cursor: pointer;
+}
+.clvl-names__opt input { margin: 0; accent-color: var(--primary); }
+.clvl-names__opt.is-on { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--bg-card)); }
+.clvl-bulknames { display: grid; gap: 8px; margin: 0 0 14px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
+
 /* ── Auth pages — sign in and every password step ───────────────────────────
    Prefixed `au-`. Two faces of one frame (pages/auth/authShell.jsx): the
    welcome panel beside the sign-in card, the secure panel beside the password

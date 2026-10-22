@@ -15,13 +15,17 @@ import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Alert, Badge, Button, Modal } from '../../components/ui/index';
 import { MenuItem, MenuSep, RowMenu } from './listParts';
+import { ClassLevelSelect, ClassNameChoice, takenBy } from '../../components/ClassLevelPicker';
+import { levelOf, shortOf } from '../../utils/classLevels';
 
 // ── Reading a class ──────────────────────────────────────────────────────────
 
-/** The grade printed on the card's chip — the number, or the class's initial. */
+/** The grade printed on the card's chip — the number, a pre-primary class's short name (LKG, NUR), or the class's initial. */
 export const gradeOf = (cls) => {
   const n = Number(cls?.classNumber);
   if (Number.isFinite(n) && n > 0) return String(n);
+  const name = String(cls?.className ?? '').trim().toLowerCase();
+  if (levelOf(n)?.names.some((x) => x.toLowerCase() === name)) return shortOf(cls);
   const word = String(cls?.className || '').match(/\d+/);
   if (word) return word[0];
   return String(cls?.className || '?').trim().charAt(0).toUpperCase() || '?';
@@ -260,13 +264,16 @@ const BLANK = { name: '', classNumber: '', academicYear: '', status: 'active' };
 /**
  * Add or edit a class.
  *
- * The grade is its own field rather than something guessed from the name. The
- * server derives it from the digits in the name when it is left blank, and then
- * refuses the save if that number is taken — which is a confusing way to find
- * out, so the number is shown and can be set here.
+ * Adding picks one of the standard classes (utils/classLevels) — Playgroup /
+ * Pre-Nursery, Nursery, LKG / KG1, UKG / KG2, then Class 1 to Class 12 — and,
+ * for the three that go by two names, which name this school uses. The class
+ * decides the number it is ordered and promoted by; the classes the year
+ * already has (`existing`, for `existingYear`) cannot be picked again.
+ * Editing changes the name and the status only.
  */
-export function ClassForm({ open, cls, years, defaultYear, saving, error, onClose, onSave }) {
+export function ClassForm({ open, cls, years, defaultYear, existing, existingYear, saving, error, onClose, onSave }) {
   const [form, setForm] = useState(BLANK);
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -278,24 +285,28 @@ export function ClassForm({ open, cls, years, defaultYear, saving, error, onClos
         status: cls.status || 'active',
       }
       : { ...BLANK, academicYear: defaultYear || '' });
+    setMissing(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cls?._id]);
 
-  const year = (years || []).find((y) => String(y._id) === String(form.academicYear));
-  const derived = String(form.name).match(/\d+/)?.[0] || '';
+  const year  = (years || []).find((y) => String(y._id) === String(form.academicYear));
+  const level = levelOf(form.classNumber);
+  // What this year already has — only known for the year the page is showing.
+  const taken = String(form.academicYear || '') === String(existingYear || '') ? takenBy(existing) : null;
 
   const submit = (e) => {
     e.preventDefault();
-    const name = form.name.trim();
-    if (!name) return;
     if (cls) {
+      const name = form.name.trim();
+      if (!name) return;
       // Only the name and the status are editable — a class cannot change grade
       // or year without invalidating everything hanging off it.
       onSave({ name, status: form.status });
     } else {
+      if (!level) { setMissing(true); return; }
       onSave({
-        name,
-        ...(form.classNumber === '' ? {} : { classNumber: Number(form.classNumber) }),
+        name: form.name || level.names[0],
+        classNumber: level.number,
         ...(form.academicYear ? { academicYear: form.academicYear } : {}),
       });
     }
@@ -310,27 +321,35 @@ export function ClassForm({ open, cls, years, defaultYear, saving, error, onClos
       <form id="class-form" onSubmit={submit} noValidate>
         {error && <div style={{ marginBottom: 14 }}><Alert variant="danger">{error}</Alert></div>}
 
-        <div className="form-group">
-          <label className="form-label required">Class name</label>
-          <input data-text="title" className="form-control" autoFocus maxLength={60} placeholder="Class 10" value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-          <div className="form-hint">What staff and parents see everywhere this class appears.</div>
-        </div>
+        {cls ? (
+          <div className="form-group">
+            <label className="form-label required">Class name</label>
+            <input data-text="title" className="form-control" autoFocus maxLength={60} placeholder="Class 10" value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <div className="form-hint">What staff and parents see everywhere this class appears.</div>
+          </div>
+        ) : (
+          <div className="form-group">
+            <label className="form-label required" htmlFor="class-level">Class</label>
+            <ClassLevelSelect id="class-level" value={String(form.classNumber)} taken={taken}
+              onChange={(v) => { setMissing(false); setForm((f) => ({ ...f, classNumber: v, name: levelOf(v)?.names[0] || '' })); }} />
+            {level && level.names.length > 1 && (
+              <div style={{ marginTop: 10 }}>
+                <ClassNameChoice number={level.number} value={form.name} label="Name it"
+                  onChange={(n) => setForm((f) => ({ ...f, name: n }))} />
+              </div>
+            )}
+            <div className="form-hint" style={missing ? { color: 'var(--danger)' } : undefined}>
+              {missing
+                ? 'Pick the class to add.'
+                : 'Pre-primary first, then Class 1 to 12 — classes are listed and promoted in this order. A class the year already has cannot be added twice.'}
+            </div>
+          </div>
+        )}
 
         {!cls && (
           <>
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label className="form-label">Grade / level</label>
-                <input type="number" className="form-control" min={0} max={20}
-                  placeholder={derived || 'auto'} value={form.classNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, classNumber: e.target.value }))} />
-                <div className="form-hint">
-                  {derived
-                    ? `Left blank, ${derived} is taken from the name. Two classes in a year cannot share a grade.`
-                    : 'Sorts the class and must be unique within the year. Left blank, the next free number is used.'}
-                </div>
-              </div>
+            <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Academic year</label>
                 <select className="form-control" value={form.academicYear}
