@@ -1266,10 +1266,10 @@ select.form-control {
 .au-alert__pips { display: flex; gap: 6px; margin-top: 9px; }
 .au-alert__pips i { width: 28px; height: 5px; border-radius: 3px; background: #f5dfc0; }
 .au-alert__pips i.is-used { background: #ea580c; }
-.au-alert--locked { border-color: #fbcaca; background: #fef2f2; }
-.au-alert--locked .au-alert__icon { color: #dc2626; }
-.au-alert--locked strong { color: #991b1b; }
-.au-alert--locked p { color: #7f1d1d; }
+.au-alert--locked, .au-alert--error { border-color: #fbcaca; background: #fef2f2; }
+.au-alert--locked .au-alert__icon, .au-alert--error .au-alert__icon { color: #dc2626; }
+.au-alert--locked strong, .au-alert--error strong { color: #991b1b; }
+.au-alert--locked p, .au-alert--error p { color: #7f1d1d; }
 
 .au-field { margin-bottom: 18px; }
 .au-label { display: block; margin-bottom: 8px; font-size: .93rem; font-weight: 500; color: #1f2937; }
@@ -1329,6 +1329,13 @@ select.form-control {
 }
 .au-linkbtn:hover:not(:disabled) { text-decoration: underline; }
 .au-linkbtn:disabled { opacity: .55; cursor: not-allowed; }
+/* The code page's resend line: a countdown, then the button; how many codes are left under it (pages/auth/VerifyOtp) */
+.au-resend p + p { margin-top: 4px; }
+.au-resend b { font-weight: 600; color: #1e1b4b; }
+.au-resend__clock { font-variant-numeric: tabular-nums; }
+.au-resend__left { font-size: .82rem; color: #8b93a7; }
+/* "5:29 pm tomorrow" is one thing — never broken between the time and its am/pm */
+.au-when { white-space: nowrap; }
 
 /* ── Choosing a school / role at sign-in ──────────────────────────────────── */
 .au-pick { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 12px; }

@@ -41,6 +41,18 @@ export function Brand({ layout = 'row', className = '' }) {
   );
 }
 
+/** "2:15 pm tomorrow" — when a wait ends (a sign-in lock, the next reset code), in this browser's own clock. */
+export function opensAt(iso) {
+  const at = new Date(iso);
+  if (!iso || Number.isNaN(at.getTime())) return null;
+  const time = at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const day  = new Date(); day.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - day) / 86400000);
+  if (days === 0) return `${time} today`;
+  if (days === 1) return `${time} tomorrow`;
+  return `${time} on ${at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+}
+
 // ── Pieces of a card ─────────────────────────────────────────────────────────
 /** Label + input with an icon inside its leading edge. `children` is the input. */
 export const Field = ({ id, label, icon, required, children, after }) => (

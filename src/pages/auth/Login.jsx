@@ -8,20 +8,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PasswordInput } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { loadGoogle, googleReady, requestGoogleCode } from '../../utils/googleSignIn';
-import AuthShell, { Brand, Field, GoogleMark } from './authShell';
+import AuthShell, { Brand, Field, GoogleMark, opensAt } from './authShell';
 import { roleHome } from './roleHome';
-
-/** "2:15 pm tomorrow" — when a lock lifts, in this browser's own clock. */
-function opensAt(iso) {
-  const at = new Date(iso);
-  if (!iso || Number.isNaN(at.getTime())) return null;
-  const time = at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-  const day  = new Date(); day.setHours(0, 0, 0, 0);
-  const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - day) / 86400000);
-  if (days === 0) return `${time} today`;
-  if (days === 1) return `${time} tomorrow`;
-  return `${time} on ${at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}`;
-}
 
 /**
  * Five wrong passwords lock an account for a day (school-backend
@@ -38,7 +26,7 @@ function AttemptNotice({ failed, max, left, lockHours, locked, until, email }) {
           <strong>Account locked for {lockHours} hours</strong>
           <p>
             The password was entered wrong {max} times.
-            {when ? <> You can sign in again after <b>{when}</b>.</> : null}
+            {when ? <> You can sign in again after <b className="au-when">{when}</b>.</> : null}
           </p>
           <Link to="/forgot-password" state={{ email }}>Reset your password to unlock it now</Link>
         </div>
