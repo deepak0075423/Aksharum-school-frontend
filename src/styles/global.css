@@ -2850,6 +2850,16 @@ a.stile:hover {
 .shl__link:hover { color: var(--primary-dark); }
 
 /* ── Quick access tiles ────────────────────────────────────────────────────── */
+/* Quick Access with every shortcut taken off (components/dashboard/quickAccess) — spans the tile grid */
+.qa-empty {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 16px; border: 1px dashed var(--border); border-radius: var(--radius);
+  color: var(--text-muted); font-size: .88rem;
+}
+.qa-empty__icon { display: inline-flex; color: var(--text-muted); }
+.qa-empty__text { margin-right: auto; }
+
 .sqt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));

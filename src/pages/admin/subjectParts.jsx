@@ -9,11 +9,11 @@
  *
  * Same file convention as sectionParts.jsx and classParts.jsx.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Alert, Badge, Button, Empty, Modal, Spinner } from '../../components/ui/index';
-import { Blank, Drawer, DrawerFoot, fmtDate } from './listParts';
+import { Blank, Breakdown, Drawer, DrawerFoot, fmtDate } from './listParts';
 
 export const TYPES = [
   { value: 'theory',    label: 'Theory',    tone: 'indigo', icon: 'book' },
@@ -330,6 +330,12 @@ const BLANK = { name: '', code: '', type: 'theory', description: '', teachers: [
  * to pick the right person — two schools out of three have a second "Priya
  * Sharma" — so the picker shows department and designation, which is what
  * actually separates them.
+ *
+ * What is wrong is said beside the field it is about, and that field is brought
+ * into view: the teacher list makes this a long dialog, and a message at its
+ * top or bottom was out of sight of the Create button — the save looked like it
+ * did nothing. `error` is the server's refusal: a string, or { message, field }
+ * when it names the field (subject.controller fieldErr).
  */
 export function SubjectForm({
   open, subject, yearName, teachers, teachersLoading, saving, error, onClose, onSave,
@@ -337,6 +343,12 @@ export function SubjectForm({
   const [form, setForm]   = useState(BLANK);
   const [query, setQuery] = useState('');
   const [touched, setTouched] = useState(false);
+  // The server's refusal stops showing once its field is edited.
+  const [settled, setSettled] = useState(false);
+  const nameRef  = useRef(null);
+  const codeRef  = useRef(null);
+  const topRef   = useRef(null);
+  const poolRef  = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -372,11 +384,37 @@ export function SubjectForm({
   const problem = !form.name.trim() ? 'Give the subject a name.'
     : !form.code.trim() ? 'Give the subject a code.'
       : '';
+  const problemField = !form.name.trim() ? 'name' : !form.code.trim() ? 'code' : null;
+
+  const server = !error || settled ? null
+    : typeof error === 'string' ? { message: error, field: null } : error;
+  const fieldError = (field) => (touched && problemField === field ? problem
+    : server?.field === field ? server.message : '');
+  const general = server && !['name', 'code', 'teachers'].includes(server.field) ? server.message : '';
+
+  // A new refusal from the server: show it, and bring it — or its field — into view.
+  useEffect(() => {
+    setSettled(false);
+    if (!error) return;
+    const field = typeof error === 'object' ? error.field : null;
+    const target = field === 'name' ? nameRef.current : field === 'code' ? codeRef.current : null;
+    if (target) target.focus();
+    else (field === 'teachers' ? poolRef.current : topRef.current)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [error]);
+
+  const edit = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    if (server?.field === key) setSettled(true);
+  };
 
   const submit = (e) => {
     e.preventDefault();
     setTouched(true);
-    if (problem) return;
+    if (problem) {
+      // Focusing the field scrolls the dialog to it, message and all.
+      (problemField === 'name' ? nameRef : codeRef).current?.focus();
+      return;
+    }
     onSave({
       name: form.name.trim(),
       code: form.code.trim(),
@@ -396,19 +434,27 @@ export function SubjectForm({
         </Button>
       </>}>
       <form id="subject-form" onSubmit={submit} noValidate>
-        {error && <div style={{ marginBottom: 14 }}><Alert variant="danger">{error}</Alert></div>}
+        <div ref={topRef}>
+          {general && <div style={{ marginBottom: 14 }}><Alert variant="danger">{general}</Alert></div>}
+        </div>
 
         <div className="form-group">
-          <label className="form-label required">Subject name</label>
-          <input data-text="title" className="form-control" autoFocus maxLength={80} placeholder="Mathematics"
-            value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          <label className="form-label required" htmlFor="subject-name">Subject name</label>
+          <input data-text="title" id="subject-name" ref={nameRef}
+            className={`form-control${fieldError('name') ? ' error' : ''}`} autoFocus maxLength={80} placeholder="Mathematics"
+            aria-invalid={!!fieldError('name')} aria-describedby={fieldError('name') ? 'subject-name-err' : undefined}
+            value={form.name} onChange={(e) => edit('name', e.target.value)} />
+          {fieldError('name') && <div className="form-error" id="subject-name-err" role="alert">{fieldError('name')}</div>}
         </div>
 
         <div className="form-row form-row-2">
           <div className="form-group">
-            <label className="form-label required">Code</label>
-            <input data-text="code" className="form-control" maxLength={20} placeholder="MATH"
-              value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} />
+            <label className="form-label required" htmlFor="subject-code">Code</label>
+            <input data-text="code" id="subject-code" ref={codeRef}
+              className={`form-control${fieldError('code') ? ' error' : ''}`} maxLength={20} placeholder="MATH"
+              aria-invalid={!!fieldError('code')} aria-describedby={fieldError('code') ? 'subject-code-err' : undefined}
+              value={form.code} onChange={(e) => edit('code', e.target.value.toUpperCase())} />
+            {fieldError('code') && <div className="form-error" id="subject-code-err" role="alert">{fieldError('code')}</div>}
             <div className="form-hint">
               No two subjects in your school&rsquo;s year can share one. Another school, or
               another year, can use the same code.
@@ -430,8 +476,9 @@ export function SubjectForm({
             value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0 }}>
+        <div className="form-group" style={{ marginBottom: 0 }} ref={poolRef}>
           <label className="form-label">Teachers who can take it</label>
+          {fieldError('teachers') && <div className="form-error" role="alert" style={{ marginBottom: 6 }}>{fieldError('teachers')}</div>}
           <div className="form-hint" style={{ marginBottom: 8 }}>
             The pool a section picks from when assigning this subject. It does not put anyone in front
             of a class on its own.
@@ -453,7 +500,7 @@ export function SubjectForm({
                         const on = form.teachers.includes(t._id);
                         return (
                           <label key={t._id} className={`subpool__row${on ? ' is-picked' : ''}`}>
-                            <input type="checkbox" checked={on} onChange={() => toggle(t._id)} />
+                            <input type="checkbox" checked={on} onChange={() => { toggle(t._id); if (server?.field === 'teachers') setSettled(true); }} />
                             <div style={{ minWidth: 0 }}>
                               <div className="subpool__name">
                                 {t.name}
@@ -480,13 +527,55 @@ export function SubjectForm({
               )}
         </div>
 
-        {problem && touched && <div style={{ marginTop: 14 }}><Alert variant="warning">{problem}</Alert></div>}
       </form>
     </Modal>
   );
 }
 
 // ── Dialogs ──────────────────────────────────────────────────────────────────
+
+/**
+ * Everyone the year's catalogue names against a subject, with the subjects
+ * each can take — `teachers` as built by catalogueTeachers(). Grouped by
+ * person: a teacher listed on three subjects is one teacher here, as the
+ * "Subject Teachers" tile counts them.
+ */
+export const catalogueTeachers = (subjects = []) => {
+  const by = new Map();
+  subjects.forEach((s) => (s.teachers || []).forEach((t) => {
+    const id = String(t._id || t);
+    if (!by.has(id)) by.set(id, { id, name: t.name || 'Unnamed teacher', about: [t.department, t.designation].filter(Boolean).join(' · '), subjects: [] });
+    by.get(id).subjects.push(s.subjectName);
+  }));
+  return [...by.values()].sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+};
+
+/**
+ * What "Subject Teachers" counts, opened up: one row per teacher, naming the
+ * subjects they can take. Choosing one narrows the list to those subjects.
+ */
+export function SubjectTeachersDialog({ open, teachers = [], yearName, onClose, onPick }) {
+  const rows = teachers.map((t) => {
+    const n = t.subjects.length;
+    const list = t.subjects.slice(0, 3).join(', ') + (n > 3 ? ` and ${n - 3} more` : '');
+    return {
+      key: t.id, id: t.id, icon: 'teacher', tone: 'blue', name: t.name,
+      sub: t.about ? `${list} · ${t.about}` : list,
+      count: `${n} subject${n === 1 ? '' : 's'}`,
+    };
+  });
+  return (
+    <Modal open={open} onClose={onClose} title="Subject Teachers" maxWidth={600}
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+      <p className="lbreak__note">
+        Everyone listed against a subject in {yearName || 'this year'}&rsquo;s catalogue — the pool a
+        section picks from. Choose a teacher to see the subjects they can take.
+      </p>
+      <Breakdown rows={rows} onPick={(r) => onPick(r.id)}
+        empty="No subject names a teacher yet. Edit a subject to choose who can take it." />
+    </Modal>
+  );
+}
 
 /**
  * Why a delete was refused.

@@ -8,7 +8,7 @@ import Icon from '../../components/ui/icons';
 import {
   Panel, PanelLink, StatTile, AttendanceOverview, RowLink, QuickTile, Note,
 } from './dashboardParts';
-import { useQuickAccess, CustomizeButton, QuickAccessPicker } from '../../components/dashboard/quickAccess';
+import { useQuickAccess, CustomizeButton, QuickAccessPicker, QuickAccessEmpty } from '../../components/dashboard/quickAccess';
 
 /**
  * Every module the school can switch on, with the tile it gets under Quick
@@ -212,6 +212,7 @@ export default function AdminDashboard() {
               bodyClass="qgrid"
               action={<CustomizeButton onClick={quick.open} />}
             >
+              {quick.tiles.length === 0 && <QuickAccessEmpty onCustomize={quick.open} />}
               {quick.tiles.map(m => (
                 <QuickTile key={m.to} to={m.to} icon={m.icon} tone={m.tone}
                   label={m.label} sub={m.sub} />

@@ -11,7 +11,7 @@ import { useModules } from '../../contexts/ModulesContext';
 import Icon, { SchoolScene } from '../../components/ui/icons';
 import ClockCard from '../../components/attendance/ClockCard';
 import { Panel, PanelLink, RowLink, Note } from '../../components/dashboard/parts';
-import { useQuickAccess, CustomizeButton, QuickAccessPicker } from '../../components/dashboard/quickAccess';
+import { useQuickAccess, CustomizeButton, QuickAccessPicker, QuickAccessEmpty } from '../../components/dashboard/quickAccess';
 import { Highlight, QuickTile, EventRow } from '../../components/dashboard/studentParts';
 import { TodaySchedule, SectionCard, ClassPerformance } from './dashboardParts';
 
@@ -330,6 +330,7 @@ export default function TeacherDashboard() {
               bodyClass="sqt-grid"
               action={<CustomizeButton onClick={quick.open} />}
             >
+              {quick.tiles.length === 0 && <QuickAccessEmpty onCustomize={quick.open} />}
               {quick.tiles.map(l => (
                 <QuickTile key={l.key} to={l.to} icon={l.icon} tone={l.tone}
                   label={l.label} sub={l.sub} />

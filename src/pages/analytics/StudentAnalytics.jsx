@@ -115,7 +115,11 @@ export default function StudentAnalytics() {
     sections.forEach((s) => { if (!map.has(s.classId)) map.set(s.classId, s.className); });
     return [...map].map(([id, name]) => ({ id, name }));
   }, [sections]);
-  const sectionChoices = classId ? sections.filter((s) => s.classId === classId) : sections;
+  // Sections follow the class: none to choose until a class is picked, then
+  // only that class's. (Every section of every class in one list was long and,
+  // with a name like "A" in five classes, hard to read.)
+  const sectionChoices = classId ? sections.filter((s) => s.classId === classId) : [];
+  const pickedClass = classes.find((c) => c.id === classId);
 
   const resetFilters = () => {
     setClassId(''); setSectionId(''); setSearch(''); setTerm('');
@@ -185,17 +189,18 @@ export default function StudentAnalytics() {
             {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
-          <select className="form-control ansel" value={sectionId} aria-label="Section"
+          <select className="form-control ansel" value={sectionId} aria-label="Section" disabled={!classId}
+            title={classId ? undefined : 'Pick a class first'}
             onChange={(e) => { setSectionId(e.target.value); setPage(1); }}>
-            <option value="">All sections</option>
+            <option value="">{pickedClass ? `All sections of ${pickedClass.name}` : 'Pick a class first'}</option>
             {sectionChoices.map((s) => (
-              <option key={s._id} value={s._id}>{s.className} — {s.sectionName}</option>
+              <option key={s._id} value={s._id}>Section {s.sectionName}</option>
             ))}
           </select>
 
           <div className="ansearch">
             <Icon name="search" size={16} />
-            <input className="form-control" value={search} placeholder="Search by name, admission or roll number…"
+            <input className="form-control" value={search} placeholder="Search by name or admission number…"
               onChange={(e) => setSearch(e.target.value)} aria-label="Search students" />
             {search && (
               <button type="button" onClick={() => setSearch('')} aria-label="Clear search">

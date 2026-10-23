@@ -103,6 +103,13 @@ export default function Sidebar({ onLinkClick, collapsed }) {
     navWithManage = [...navResolved.slice(0, cut), { section: 'Module Admin' }, ...manageNav, ...navResolved.slice(cut)];
   }
 
+  // A heading stays only while a link follows it before the next heading: when
+  // every link under "Academics" or "Modules" is for a module this school (or
+  // this person's designation) does not have, the heading goes with them
+  // instead of standing over nothing.
+  const navShown = navWithManage.filter((item, i) => !item.section
+    || (i + 1 < navWithManage.length && !navWithManage[i + 1].section));
+
   const settingsTo = SETTINGS_TO[user?.role] || '/profile';
 
   /**
@@ -151,7 +158,7 @@ export default function Sidebar({ onLinkClick, collapsed }) {
         ref={navRef}
         onScroll={e => { navScrollTop = e.currentTarget.scrollTop; }}
       >
-        {navWithManage.map((item, i) => {
+        {navShown.map((item, i) => {
           if (item.section) {
             return collapsed ? null : (
               <div key={i} className="sidebar__section-title">{item.section}</div>

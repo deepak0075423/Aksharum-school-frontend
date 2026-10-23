@@ -48,11 +48,13 @@ export function useQuickAccess({ scope, userId, available }) {
 
   // A saved preference is intersected with what is available, so a module the
   // school later switches off cannot leave a dead tile behind — and one it
-  // switches on simply is not shown until it is added.
+  // switches on simply is not shown until it is added. Never customised, it is
+  // everything; customised down to nothing, it is nothing (the panel keeps its
+  // Customize button and says so — see QuickAccessEmpty). It used to put every
+  // tile back, so "unselect all" could not be done.
   const tiles = useMemo(() => {
     if (!chosen) return available;
-    const keep = available.filter(t => chosen.includes(t.key));
-    return keep.length ? keep : available;
+    return available.filter(t => chosen.includes(t.key));
   }, [available, chosen]);
 
   const open = useCallback(() => {
@@ -65,18 +67,31 @@ export function useQuickAccess({ scope, userId, available }) {
     d.includes(key) ? d.filter(k => k !== key) : [...d, key]
   )), []);
   const selectAll = useCallback(() => setDraft(available.map(t => t.key)), [available]);
+  const clearAll  = useCallback(() => setDraft([]), []);
 
+  // Saved as chosen — an empty list included.
   const save = useCallback(() => {
-    // An empty selection would leave the panel blank with no way back to the
-    // picker, so it falls back to showing everything.
-    const keys = draft.length ? draft : available.map(t => t.key);
-    setChosen(keys);
-    writePrefs(scope, userId, keys);
+    setChosen(draft);
+    writePrefs(scope, userId, draft);
     setPickerOn(false);
-  }, [draft, available, scope, userId]);
+  }, [draft, scope, userId]);
 
-  return { tiles, pickerOn, draft, open, close, toggle, selectAll, save };
+  return { tiles, pickerOn, draft, open, close, toggle, selectAll, clearAll, save };
 }
+
+/**
+ * The panel's body when every shortcut has been taken off: what happened, and
+ * the way back. Spans the tile grid it sits in.
+ */
+export const QuickAccessEmpty = ({ onCustomize }) => (
+  <div className="qa-empty">
+    <span className="qa-empty__icon"><Icon name="sliders" size={18} /></span>
+    <span className="qa-empty__text">No shortcuts chosen.</span>
+    <button type="button" className="dpanel__link dpanel__link--btn" onClick={onCustomize}>
+      Choose shortcuts
+    </button>
+  </div>
+);
 
 /** The header affordance that opens the picker. */
 export const CustomizeButton = ({ onClick }) => (
@@ -87,7 +102,7 @@ export const CustomizeButton = ({ onClick }) => (
 
 /** The dialog itself. Driven entirely by what useQuickAccess returns. */
 export function QuickAccessPicker({ state, available, note }) {
-  const { pickerOn, draft, close, toggle, selectAll, save } = state;
+  const { pickerOn, draft, close, toggle, selectAll, clearAll, save } = state;
   return (
     <Modal
       open={pickerOn}
@@ -95,13 +110,14 @@ export function QuickAccessPicker({ state, available, note }) {
       title="Customize Quick Access"
       footer={(
         <>
-          <Button variant="secondary" onClick={selectAll}>Select all</Button>
+          <Button variant="secondary" onClick={clearAll} disabled={!draft.length}>Clear all</Button>
+          <Button variant="secondary" onClick={selectAll} disabled={draft.length === available.length}>Select all</Button>
           <Button onClick={save}>Save</Button>
         </>
       )}
     >
       <p className="text-muted text-sm mb-16">
-        {note || 'Choose the shortcuts you want on your dashboard. This is saved on this device.'}
+        {note || 'Choose the shortcuts you want on your dashboard — or none at all. This is saved on this device.'}
       </p>
       <div className="sqt-picker">
         {available.map(t => {

@@ -38,9 +38,11 @@ const ROLE_LABEL = {
   teacher: 'Teacher', student: 'Student', parent: 'Parent',
 };
 
+const BLANK_PW = { currentPassword: '', newPassword: '', confirm: '' };
+
 export default function Profile() {
   const { user, reload } = useAuth();
-  const { isEnabled } = useModules();
+  const { isEnabled, ready: modulesReady, modules } = useModules();
 
   const [emp, setEmp]         = useState(null);   // directory record, when there is one
   const [empLoading, setEmpL] = useState(true);
@@ -57,16 +59,27 @@ export default function Profile() {
   // employee ID, joining date, government IDs, bank details and every uploaded
   // document stay with the administrator.
   const [empForm, setEmpForm] = useState(null);
-  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [pwForm, setPwForm] = useState(BLANK_PW);
+  // The dialog always opens empty, and every way of leaving it — ✕, Cancel,
+  // Escape — forgets what was typed: passwords must not sit in a closed dialog
+  // and greet whoever opens it next.
+  const openPw  = () => { setPwForm(BLANK_PW); setPwOpen(true); };
+  const closePw = () => { setPwOpen(false); setPwForm(BLANK_PW); };
 
   // Only staff have an employee record, and only when the school runs the module.
   const isStaff = user?.role === 'teacher' || user?.role === 'school_admin';
+  // Asked only once the school's modules are actually known: until they load,
+  // isEnabled() says yes to everything, so a reload of this page asked the
+  // directory of a school that does not run it and got "This module is not
+  // enabled for your school" (the same reading as ChatNotifyContext).
+  const directoryOn = modulesReady && !!modules && isEnabled('employeeDirectory');
   // Login returns the account as `id`; /auth/me returns the raw row as `_id`.
   // A reloaded tab hits the second shape, so accept either.
   const userId = user?.id || user?._id || '';
   useEffect(() => {
     let alive = true;
-    if (!userId || !isStaff || !isEnabled('employeeDirectory')) { setEmpL(false); return; }
+    if (!modulesReady) return undefined;   // the answer is on its way
+    if (!userId || !isStaff || !directoryOn) { setEmpL(false); return undefined; }
     getEmployee(userId)
       .then((res) => { if (alive) setEmp(res?.data ?? res); })
       // A missing or forbidden record is not an error here — the account half
@@ -74,7 +87,7 @@ export default function Profile() {
       .catch(() => {})
       .finally(() => { if (alive) setEmpL(false); });
     return () => { alive = false; };
-  }, [userId, isStaff, isEnabled]);
+  }, [userId, isStaff, directoryOn, modulesReady]);
 
   const openEdit = async () => {
     setForm({ name: user.name || '', phone: user.phone || '' });
@@ -120,7 +133,7 @@ export default function Profile() {
       setEdit(false);
       reload();
       // Re-read the employee half so the page shows what was just saved.
-      if (userId && isStaff && isEnabled('employeeDirectory')) {
+      if (userId && isStaff && directoryOn) {
         getEmployee(userId).then((r) => setEmp(r?.data ?? r)).catch(() => {});
       }
     } catch (err) { toast.error(err.message || 'Could not save'); }
@@ -147,8 +160,7 @@ export default function Profile() {
         currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword,
       });
       toast.success('Password changed');
-      setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
-      setPwOpen(false);
+      closePw();
     } catch (err) { toast.error(err.message || 'Could not change password'); }
     finally { setPwSav(false); }
   };
@@ -172,7 +184,7 @@ export default function Profile() {
           <p className="text-muted">Your account and employment record</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="secondary" onClick={() => setPwOpen(true)}>🔒 Change Password</Button>
+          <Button variant="secondary" onClick={openPw}>🔒 Change Password</Button>
           <Button onClick={openEdit}>✏️ Edit Profile</Button>
         </div>
       </div>
@@ -519,9 +531,9 @@ export default function Profile() {
       </Modal>
 
       {/* ── Password ─────────────────────────────────────────────────────── */}
-      <Modal open={pwOpen} onClose={() => setPwOpen(false)} title="Change password" maxWidth={440}
+      <Modal open={pwOpen} onClose={closePw} title="Change password" maxWidth={440}
         footer={<>
-          <Button variant="secondary" onClick={() => setPwOpen(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closePw}>Cancel</Button>
           <Button loading={pwSaving} disabled={!pwReady} onClick={changePassword}>Change password</Button>
         </>}>
         <div className="form-group">

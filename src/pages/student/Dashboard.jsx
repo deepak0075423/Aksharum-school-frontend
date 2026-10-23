@@ -7,7 +7,7 @@ import { getInbox } from '../../api/notifications.api';
 import { Spinner, MiniCalendar } from '../../components/ui/index';
 import Icon, { SchoolScene } from '../../components/ui/icons';
 import { Panel, PanelLink, Note } from '../../components/dashboard/parts';
-import { useQuickAccess, CustomizeButton, QuickAccessPicker } from '../../components/dashboard/quickAccess';
+import { useQuickAccess, CustomizeButton, QuickAccessPicker, QuickAccessEmpty } from '../../components/dashboard/quickAccess';
 import {
   Highlight, QuickTile, PerformanceOverview, SubjectMarks, ResultHighlight, EventRow,
 } from '../../components/dashboard/studentParts';
@@ -211,6 +211,7 @@ export default function StudentDashboard() {
               bodyClass="sqt-grid"
               action={<CustomizeButton onClick={quick.open} />}
             >
+              {quick.tiles.length === 0 && <QuickAccessEmpty onCustomize={quick.open} />}
               {quick.tiles.map(l => (
                 <QuickTile key={l.key} to={l.to} icon={l.icon} tone={l.tone} label={l.label} />
               ))}

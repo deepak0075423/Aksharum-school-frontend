@@ -26,7 +26,7 @@ import {
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
 import {
   DeleteDialog, InUseDialog, NextStepsPanel, StatusCell, SubjectCell, SubjectDrawer,
-  SubjectForm, TeacherChips, TypeBadge, TYPES, UsageCell, teacherCount,
+  SubjectForm, SubjectTeachersDialog, TeacherChips, TypeBadge, TYPES, UsageCell, catalogueTeachers, teacherCount,
 } from './subjectParts';
 
 const SORTS = [
@@ -72,6 +72,8 @@ export default function Subjects() {
   const [search, setSearch] = useState('');
   const [term,   setTerm]   = useState('');
   const [type,   setType]   = useState('');
+  const [teacher, setTeacher] = useState('');            // only the subjects this teacher can take
+  const [teachersOpen, setTeachersOpen] = useState(false);   // the "Subject Teachers" breakdown
   const [sort,   setSort]   = useState('name');
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(10);
@@ -131,12 +133,20 @@ export default function Subjects() {
     teachers: teacherCount(rows),
   }), [rows]);
 
+  // Everyone the catalogue names, with their subjects — the tile's breakdown
+  // and the Teacher filter. A teacher no longer named drops the filter.
+  const namedTeachers = useMemo(() => catalogueTeachers(rows), [rows]);
+  useEffect(() => {
+    if (teacher && !namedTeachers.some((t) => t.id === teacher)) setTeacher('');
+  }, [namedTeachers, teacher]);
+
   // ── The visible list ───────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const out = rows.filter((s) => {
       if (tab === 'inUse'  && !s.usage?.inUse) return false;
       if (tab === 'unused' && s.usage?.inUse)  return false;
       if (type && (s.type || 'theory') !== type) return false;
+      if (teacher && !(s.teachers || []).some((t) => String(t._id || t) === teacher)) return false;
       if (term && !`${s.subjectName} ${s.subjectCode || ''} ${s.description || ''}`.toLowerCase().includes(term)) return false;
       return true;
     });
@@ -150,13 +160,15 @@ export default function Subjects() {
         default:         return byName(a, b);
       }
     });
-  }, [rows, tab, term, type, sort]);
+  }, [rows, tab, term, type, teacher, sort]);
 
   const pages     = Math.max(1, Math.ceil(filtered.length / limit));
   const start     = (Math.min(page, pages) - 1) * limit;
   const shown     = filtered.slice(start, start + limit);
-  const anyFilter = !!term || !!type || tab !== 'all';
-  const clearAll  = () => { setSearch(''); setTerm(''); setType(''); setTab('all'); setPage(1); };
+  const anyFilter = !!term || !!type || !!teacher || tab !== 'all';
+  const clearAll  = () => { setSearch(''); setTerm(''); setType(''); setTeacher(''); setTab('all'); setPage(1); };
+  // A teacher picked from the tile's breakdown: their subjects, on every tab.
+  const showTeacher = (id) => { setTeacher(id); setTab('all'); setPage(1); setTeachersOpen(false); };
   const pick      = (v) => { setTab(v); setPage(1); };
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -173,7 +185,11 @@ export default function Subjects() {
       }
       setEditing(null);
       refetch();
-    } catch (e) { setFormErr(e.message); }
+    } catch (e) {
+      // The server names the field when the refusal is about one (code taken,
+      // a teacher switched off) — the form shows it there.
+      setFormErr(e.data?.field ? { message: e.message, field: e.data.field } : e.message);
+    }
     finally { setSaving(false); }
   };
 
@@ -273,8 +289,10 @@ export default function Subjects() {
         <ListStat icon="alert" tone="amber" value={counts.unused} label="Not Used"
           caption="Not carried by any class yet"
           on={tab === 'unused'} onClick={() => pick('unused')} />
+        {/* Counts teachers, not subjects, so it opens the teachers rather than
+            filtering — each one then narrows the list to the subjects they take. */}
         <ListStat icon="users" tone="blue" value={counts.teachers} label="Subject Teachers"
-          caption="Named across all subjects" />
+          caption="Named across all subjects" on={!!teacher} popup onClick={() => setTeachersOpen(true)} />
       </ListStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -299,7 +317,7 @@ export default function Subjects() {
           <SearchField value={search} onChange={setSearch} placeholder="Search subjects by name or code…" />
 
           <select className="form-control lsel" value={year}
-            onChange={(e) => { setYear(e.target.value); setPage(1); }} aria-label="Academic year">
+            onChange={(e) => { setYear(e.target.value); setTeacher(''); setPage(1); }} aria-label="Academic year">
             {(years || []).map((y) => (
               <option key={y._id} value={y._id}>
                 {y.yearName}{y.status === 'active' ? ' (active)' : ''}
@@ -312,6 +330,14 @@ export default function Subjects() {
             <option value="">All types</option>
             {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
+
+          {namedTeachers.length > 0 && (
+            <select className={`form-control lsel${teacher ? ' lfsel--on' : ''}`} value={teacher}
+              onChange={(e) => { setTeacher(e.target.value); setPage(1); }} aria-label="Teacher">
+              <option value="">All teachers</option>
+              {namedTeachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          )}
 
           <select className={`form-control lsel${sort !== 'name' ? ' lfsel--on' : ''}`} value={sort}
             onChange={(e) => { setSort(e.target.value); setPage(1); }} aria-label="Sort subjects">
@@ -373,6 +399,14 @@ export default function Subjects() {
       <PageFoot schoolName={me?.school?.name} />
 
       {/* ── Overlays ─────────────────────────────────────────────────────────── */}
+      <SubjectTeachersDialog
+        open={teachersOpen}
+        teachers={namedTeachers}
+        yearName={yearName}
+        onClose={() => setTeachersOpen(false)}
+        onPick={showTeacher}
+      />
+
       <SubjectForm
         open={!!editing}
         subject={editing === 'new' ? null : editing}
