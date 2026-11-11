@@ -6991,6 +6991,149 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   EMPLOYEE DIRECTORY — EMPLOYEE DOCUMENTS
+   ───────────────────────────────────────────────────────────────────────────
+   The office's per-document review and reminders (Verification → Documents,
+   Reminders) and the employee's own My Documents page. Prefixed `edoc`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* The two document tabs drop the section rail and take the full width. */
+.orggrid--solo { grid-template-columns: minmax(0, 1fr); }
+
+.edoc-pill {
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  border-radius: 99px; padding: 3px 9px; font-size: .72rem; font-weight: 600;
+}
+.edoc-pill--slate { background: #f1f5f9; color: #475569; }
+.edoc-pill--amber { background: #fef3c7; color: #92400e; }
+.edoc-pill--blue  { background: #dbeafe; color: #1e40af; }
+.edoc-pill--green { background: #dcfce7; color: #166534; }
+.edoc-pill--red   { background: #fee2e2; color: #991b1b; }
+
+.edoc-acts { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.edoc-acts .btn-sm { padding: 5px 10px; gap: 4px; }
+.edoc-done, .edoc-wait { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.edoc-done { color: #15803d; }
+.edoc-wait { color: var(--text-muted); }
+.edoc-link {
+  padding: 0; border: none; background: none; cursor: pointer;
+  font-size: .78rem; font-weight: 600; color: var(--primary); white-space: nowrap;
+}
+.edoc-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.edoc-muted { font-size: .82rem; color: var(--text-light); }
+
+/* Filter chips over both office tabs. */
+.edoc-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.edoc-filter {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--bg-card);
+  font-size: .8rem; font-weight: 600; color: var(--text-muted);
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.edoc-filter em { font-style: normal; font-size: .72rem; background: var(--bg); border-radius: 99px; padding: 1px 7px; }
+.edoc-filter:hover { border-color: #c7d2fe; color: var(--text); }
+.edoc-filter.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.edoc-filter.is-on em { background: rgba(255,255,255,.22); color: #fff; }
+.edoc-filter.is-alert:not(.is-on) em { background: #fee2e2; color: #991b1b; }
+
+.edoc-queue, .edoc-remind { display: flex; flex-direction: column; gap: 12px; }
+.edoc-table td { vertical-align: middle; }
+.edoc-who { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; min-width: 0; }
+.edoc-who b { display: block; font-size: .86rem; font-weight: 600; }
+.edoc-who small { display: block; font-size: .74rem; color: var(--text-muted); }
+.edoc-who:hover b { color: var(--primary); }
+.edoc-file {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0; border: none; background: none;
+  font: inherit; font-size: .85rem; font-weight: 600; color: var(--primary); cursor: pointer; text-align: left;
+}
+.edoc-file:hover { text-decoration: underline; text-underline-offset: 2px; }
+.edoc-file.is-none { color: var(--text); cursor: default; }
+.edoc-opt { display: block; font-size: .7rem; color: var(--text-light); margin-top: 2px; }
+.edoc-notes { font-size: .8rem; color: var(--text-muted); max-width: 320px; }
+.edoc-notes i { font-style: normal; color: var(--text); }
+
+/* Reminders. */
+.edoc-remind__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.edoc-remind__acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.edoc-remind__hint { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--text-muted); margin: 0; }
+.edoc-tick { width: 36px; }
+.edoc-tick input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+.edoc-owed { display: flex; flex-wrap: wrap; gap: 5px; }
+.edoc-chip { border-radius: 6px; padding: 2px 8px; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+.edoc-chip--missing  { background: #f1f5f9; color: #475569; }
+.edoc-chip--rejected { background: #fee2e2; color: #991b1b; }
+.edoc-last b { display: block; font-size: .82rem; font-weight: 600; }
+.edoc-last small { display: block; font-size: .72rem; color: var(--text-muted); }
+.edoc-history-row td { background: var(--bg); }
+.edoc-history { list-style: none; margin: 0; padding: 4px 0; display: flex; flex-direction: column; gap: 8px; }
+.edoc-history li { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: start; font-size: .8rem; }
+.edoc-history__when { color: var(--text-muted); font-weight: 600; }
+.edoc-history__what small { display: block; color: var(--text-muted); margin-top: 2px; }
+
+/* The reject popup and the reminder popup. */
+.edoc-reject__what { font-size: .88rem; margin: 0 0 12px; }
+.edoc-reject textarea { resize: vertical; }
+.edoc-err { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: .78rem; font-weight: 500; color: var(--danger); }
+.edoc-reject__warn {
+  display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0; padding: 10px 12px;
+  background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); font-size: .8rem; line-height: 1.5; color: #9a3412;
+}
+.edoc-reject__warn svg { flex-shrink: 0; margin-top: 2px; }
+.edoc-rdlg__lead { font-size: .86rem; color: var(--text-muted); margin: 0 0 12px; }
+.edoc-rdlg__list { list-style: none; margin: 0 0 14px; padding: 0; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.edoc-rdlg__list li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
+.edoc-rdlg__list b { display: block; font-size: .85rem; margin-bottom: 4px; }
+.edoc-check { display: flex; gap: 9px; align-items: flex-start; margin-top: 12px; cursor: pointer; font-size: .85rem; }
+.edoc-check input { margin-top: 3px; accent-color: var(--primary); }
+.edoc-check small { display: block; font-size: .75rem; color: var(--text-muted); }
+
+/* A decision under each scan, inside the per-employee review. */
+.verdocs__one { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.verdocs__decide { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.verdocs__decide .edoc-acts { margin-left: auto; }
+.verdocs__why { flex-basis: 100%; margin: 0; font-size: .76rem; color: var(--text-muted); }
+.verrow__gate { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: .78rem; color: var(--text-muted); }
+
+/* My Documents — the employee's own page. */
+.edoc-ask {
+  display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; padding: 14px 16px;
+  background: #eef2ff; border: 1px solid #c7d2fe; border-radius: var(--radius-lg); color: #3730a3;
+}
+.edoc-ask svg { flex-shrink: 0; margin-top: 1px; }
+.edoc-ask b { display: block; font-size: .9rem; }
+.edoc-ask p { margin: 3px 0 0; font-size: .82rem; color: #4338ca; }
+.edoc-summary {
+  display: flex; align-items: center; gap: 9px; margin-bottom: 16px; padding: 11px 14px;
+  border-radius: var(--radius-lg); font-size: .86rem; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
+}
+.edoc-summary.is-owing { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.edoc-summary svg { flex-shrink: 0; }
+.edoc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.edoc-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.edoc-card--rejected { border-color: #fca5a5; box-shadow: 0 0 0 3px rgba(239, 68, 68, .07); }
+.edoc-card--missing  { border-style: dashed; }
+.edoc-card__head { display: flex; align-items: center; gap: 11px; }
+.edoc-card__mark { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; padding: 0; }
+.edoc-card__id { flex: 1; min-width: 0; }
+.edoc-card__id h3 { font-size: .95rem; font-weight: 700; margin: 0; }
+.edoc-card__id small { font-size: .74rem; color: var(--text-muted); }
+.edoc-card__next { margin: 0; font-size: .83rem; color: var(--text-muted); line-height: 1.5; }
+.edoc-card__why { padding: 10px 12px; border-radius: var(--radius); background: #fef2f2; border: 1px solid #fecaca; }
+.edoc-card__why b { display: flex; align-items: center; gap: 5px; font-size: .78rem; color: #991b1b; }
+.edoc-card__why p { margin: 4px 0 0; font-size: .85rem; color: var(--text); }
+.edoc-card__why small { display: block; margin-top: 4px; font-size: .72rem; color: var(--text-muted); }
+.edoc-card__foot { display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+.edoc-foot { display: flex; align-items: center; gap: 6px; margin-top: 16px; font-size: .78rem; color: var(--text-muted); }
+
+@media (max-width: 760px) {
+  .edoc-history li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .edoc-remind__acts { width: 100%; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    EMPLOYEE DIRECTORY — ONE EMPLOYEE, ADMINISTRATIVELY
    ───────────────────────────────────────────────────────────────────────────
    The tabbed profile a school admin — or a teacher whose designation grants

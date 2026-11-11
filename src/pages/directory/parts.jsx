@@ -24,7 +24,7 @@ export const fmtDate = (d) => {
 
 export const STATUS_TONE = { active: 'success', on_leave: 'warning', inactive: 'muted' };
 export const STATUS_LABEL = { active: 'Active', on_leave: 'On Leave', inactive: 'Inactive' };
-export const VERIFY_TONE = { verified: 'success', pending: 'warning', rejected: 'danger' };
+export const VERIFY_TONE = { verified: 'success', pending: 'warning', rejected: 'danger', resubmitted: 'info' };
 
 export const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
 // Private folders get the reader's file token on the address (utils/fileAccess).

@@ -216,11 +216,11 @@ export default function Employees() {
         <StatTile icon={<Icon name="teacher" size={22} />} tone="blue" value={stats.teaching}
           label="Teaching Staff" caption={share(stats.teaching ?? 0)}
           on={filters.staffType === 'teaching'}
-          onClick={isDirectoryAdmin ? () => toggleStaff('teaching') : undefined} />
+          onClick={() => toggleStaff('teaching')} />
         <StatTile icon={<Icon name="badge" size={22} />} tone="amber" value={stats.nonTeaching}
           label="Non-Teaching Staff" caption={share(stats.nonTeaching ?? 0)}
           on={filters.staffType === 'non_teaching'}
-          onClick={isDirectoryAdmin ? () => toggleStaff('non_teaching') : undefined} />
+          onClick={() => toggleStaff('non_teaching')} />
       </div>
 
       <section className="card edl-card-wrap">
@@ -455,12 +455,6 @@ export default function Employees() {
         )}
       </section>
 
-      {anyFilter && !noMatches && !noneAtAll && (
-        <p className="edl-hint">
-          Showing a filtered list.{' '}
-          <button type="button" className="edl-hint__btn" onClick={clearAll}>Clear every filter</button>
-        </p>
-      )}
     </div>
   );
 }

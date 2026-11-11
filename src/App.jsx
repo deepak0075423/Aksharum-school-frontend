@@ -202,6 +202,7 @@ const EdDesignations = lazy(() => import('./pages/directory/Designations'));
 const EdOrgStructure = lazy(() => import('./pages/directory/OrgStructure'));
 const EdVerification = lazy(() => import('./pages/directory/Verification'));
 const EdReports      = lazy(() => import('./pages/directory/Reports'));
+const EdMyDocuments  = lazy(() => import('./pages/directory/MyDocuments'));
 
 // One route subtree, mounted under /admin and /teacher. `isAdmin` only decides
 // which tabs are drawn — every endpoint behind them is guarded server-side.
@@ -801,6 +802,9 @@ export default function App() {
             <Route path="*" element={<NotFoundRoute />} />
             <Route path="dashboard"    element={<TDashboard />} />
             <Route path="id-card"      element={<MyIdCard role="teacher" />} />
+            {/* A member of staff's own documents — open whatever their designation
+                grants of the directory; the endpoint checks the school uses it. */}
+            <Route path="my-documents" element={<EdMyDocuments />} />
             <Route path="medical"      element={<MdTeacher />} />
             {/* Admission duties: exams to mark, applications assigned, documents to check. */}
             <Route path="admissions" element={<ModuleGuard module="admission" label="Admissions"><Outlet /></ModuleGuard>}>

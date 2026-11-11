@@ -28,6 +28,7 @@ import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Badge, Button, Spinner } from '../../components/ui/index';
 import { Avatar, VERIFY_TONE, fileUrl } from './parts';
+import { DocActions, DocState } from './documentParts';
 import { VIZ } from '../analytics/palette';
 import { withFileToken } from '../../utils/fileAccess';
 import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
@@ -356,7 +357,7 @@ export function Lightbox({ doc, onClose }) {
 }
 
 /** The recorded values and the scans, side by side, for one section. */
-export const Evidence = ({ section: s, detail, loading, revealed, onOpenDoc }) => {
+export const Evidence = ({ section: s, detail, loading, revealed, onOpenDoc, employee, docBusy, onVerifyDoc, onRejectDoc }) => {
   const fields = fieldsFor(s.section, detail, revealed);
   const filled = fields.filter(([, v]) => v);
 
@@ -385,7 +386,26 @@ export const Evidence = ({ section: s, detail, loading, revealed, onOpenDoc }) =
 
       {s.documents.length > 0 && (
         <div className="verdocs">
-          {s.documents.map((d) => <DocPreview key={d.key} doc={d} onOpen={onOpenDoc} />)}
+          {s.documents.map((d) => (
+            <div key={d.key} className="verdocs__one">
+              <DocPreview doc={d} onOpen={onOpenDoc} />
+              {/* Each scan is accepted or turned down on its own — the back of
+                  a card can be unreadable while the front is fine. */}
+              {onVerifyDoc && (
+                <div className="verdocs__decide">
+                  <DocState state={d.state} />
+                  <DocActions compact busyKey={docBusy}
+                    doc={{ ...d, employee: employee._id, employeeName: employee.name }}
+                    onVerify={onVerifyDoc} onReject={onRejectDoc} />
+                  {(d.state === 'rejected' || d.state === 'resubmitted') && d.comment && (
+                    <p className="verdocs__why">
+                      {d.state === 'resubmitted' ? 'Rejected before: ' : 'Reason: '}&ldquo;{d.comment}&rdquo;
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -406,11 +426,14 @@ export const Evidence = ({ section: s, detail, loading, revealed, onOpenDoc }) =
  * Opening the panel IS the review — it puts the values and the scans on the
  * screen — so that is what unlocks Verify. Nothing on this row navigates.
  */
-export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, revealed, onOpenDoc, seen, onSeen, busy, onVerify }) => {
+export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, revealed, onOpenDoc, seen, onSeen, busy, onVerify, docBusy, onVerifyDoc, onRejectDoc }) => {
   const key     = `${e._id}:${s.section}`;
   const opened  = seen.has(key);
   const blocked = s.missingDocuments;
   const done    = s.status === 'verified';
+  // A document-backed section is signed off once each of its documents has
+  // been accepted on its own (the server holds the same rule).
+  const undecided = s.documents.filter((d) => d.state && d.state !== 'verified');
 
   return (
     <div className={`verrow${blocked ? ' verrow--blocked' : ''}${opened ? ' verrow--open' : ''}`}>
@@ -446,13 +469,14 @@ export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, 
             ? <span className="verrow__done"><Icon name="checkCircle" size={14} /> Signed off</span>
             : (
               <Button size="sm" variant="success"
-                disabled={blocked || !opened}
+                disabled={blocked || !opened || undecided.length > 0}
                 loading={busy === key}
                 title={blocked
                   ? 'Nothing has been uploaded for this section yet'
-                  : !opened ? 'Show the evidence first' : undefined}
+                  : !opened ? 'Show the evidence first'
+                    : undecided.length ? `Verify each document first (${undecided.map((d) => d.label).join(', ')})` : undefined}
                 onClick={() => onVerify(e._id, s.section)}>
-                Verify
+                {s.documents.length ? 'Verify section' : 'Verify'}
               </Button>
             )}
         </div>
@@ -460,13 +484,19 @@ export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, 
 
       {opened && !blocked && (
         <Evidence section={s} detail={detail} loading={loadingDetail}
-          revealed={revealed} onOpenDoc={onOpenDoc} />
+          revealed={revealed} onOpenDoc={onOpenDoc}
+          employee={e} docBusy={docBusy} onVerifyDoc={onVerifyDoc} onRejectDoc={onRejectDoc} />
+      )}
+      {opened && !blocked && !done && undecided.length > 0 && (
+        <p className="verrow__gate">
+          <Icon name="info" size={13} /> Verify or reject each document above; the section can be signed off once all of them are accepted.
+        </p>
       )}
     </div>
   );
 };
 
-export const Reviewer = ({ employee: e, detail, loadingDetail, revealed, onOpenDoc, seen, onSeen, busy, onVerify }) => (
+export const Reviewer = ({ employee: e, detail, loadingDetail, revealed, onOpenDoc, seen, onSeen, busy, onVerify, docBusy, onVerifyDoc, onRejectDoc }) => (
   <div className="verreview">
     <p className="verreview__hint">
       <Icon name="eye" size={14} />
@@ -476,7 +506,8 @@ export const Reviewer = ({ employee: e, detail, loadingDetail, revealed, onOpenD
     {e.sections.map((s) => (
       <ReviewSection key={s.section} employee={e} section={s} detail={detail} loadingDetail={loadingDetail}
         revealed={revealed} onOpenDoc={onOpenDoc}
-        seen={seen} onSeen={onSeen} busy={busy} onVerify={onVerify} />
+        seen={seen} onSeen={onSeen} busy={busy} onVerify={onVerify}
+        docBusy={docBusy} onVerifyDoc={onVerifyDoc} onRejectDoc={onRejectDoc} />
     ))}
   </div>
 );

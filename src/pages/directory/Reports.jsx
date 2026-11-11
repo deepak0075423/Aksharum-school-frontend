@@ -126,9 +126,6 @@ export default function Reports() {
         <button type="button" className="btn btn-secondary" onClick={() => grab('xlsx')} disabled={!!busy}>
           <Icon name="download" size={16} /> Excel
         </button>
-        <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
-          <Icon name="files" size={16} /> Print
-        </button>
       </PageTop>
 
       {/* The school as a whole, whatever the report below is filtered to — and
@@ -247,8 +244,6 @@ export default function Reports() {
         )}
       </section>
 
-      {/* Printing should give the report, not the application around it. */}
-      <style>{'@media print{.no-print,.sidebar,.header,.breadcrumb,.edl-foot{display:none!important}.page{padding:0}.card{border:none}}'}</style>
     </div>
   );
 }

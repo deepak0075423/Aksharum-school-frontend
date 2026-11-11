@@ -26,6 +26,19 @@ export const getDesignations  = () => api.get(`${base}/designations`);
 export const getOrgStructure  = () => api.get(`${base}/org-structure`);
 export const getVerificationQueue = () => api.get(`${base}/verification`);
 
+// Employee documents — the office reviews each one and chases what is owed.
+export const getDocumentDesk        = ()                => api.get(`${base}/document-desk`);
+export const reviewEmployeeDocument = (id, key, body)   => api.put(`${base}/employees/${id}/documents/${key}/review`, body);
+export const sendDocumentReminders  = (body)            => api.post(`${base}/document-reminders`, body);
+
+// My Documents — a member of staff's own paperwork.
+export const getMyDocuments    = ()           => api.get(`${base}/me/documents`);
+export const uploadMyDocument  = (key, file)  => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post(`${base}/me/documents/${key}`, fd);
+};
+
 export const getResponsibilities   = (params) => api.get(`${base}/responsibilities`, { params });
 export const createResponsibility  = (body)   => api.post(`${base}/responsibilities`, body);
 export const removeResponsibility  = (id)     => api.delete(`${base}/responsibilities/${id}`);

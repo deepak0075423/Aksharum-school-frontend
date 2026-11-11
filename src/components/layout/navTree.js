@@ -112,6 +112,9 @@ export const TEACHER_NAV = [
   { section: 'Overview' },
   { to: '/teacher/dashboard',       icon: 'home', label: 'Dashboard' },
   { to: '/teacher/id-card',         icon: 'idCard', label: 'My ID Card',    module: 'idCard' },
+  // Their own staff paperwork — whenever the school collects it through the
+  // Employee Directory, whatever their designation grants of the directory.
+  { to: '/teacher/my-documents',    icon: 'files', label: 'My Documents',  requires: 'myDocuments' },
   { section: 'My Class' },
   { to: '/teacher/my-section',      icon: 'building', label: 'My Section',    requires: 'hasMySection' },
   { to: '/teacher/attendance',      icon: 'checkSquare', label: 'Attendance',    module: 'attendance' },

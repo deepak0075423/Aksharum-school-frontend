@@ -254,11 +254,6 @@ export const AboutPanel = ({ isAdmin, undefinedCount, unassigned, base }) => (
         )}
       </p>
       <div className="dsgabout__acts">
-        {isAdmin && (
-          <Link to="/admin/designations" className="btn btn-secondary">
-            Manage designations &amp; access <Icon name="arrowRight" size={15} />
-          </Link>
-        )}
         {unassigned > 0 && (
           <Link to={`${base}/employees?designation=Unassigned`} className="btn btn-secondary">
             {unassigned} without a designation <Icon name="arrowRight" size={15} />

@@ -653,7 +653,7 @@ function LeaveTab({ id }) {
     <>
       <Section
         title="Leave Summary"
-        subtitle="Summary only — applications and approvals live in the Leave module"
+        subtitle={`${data.balanceYear ? `Balances for ${data.balanceYear}. ` : ''}Summary only — applications and approvals live in the Leave module`}
         action={<Link className="btn btn-secondary btn-sm" to="/admin/leave">View Leave Details</Link>}
       >
         <div className="stat-grid" style={{ marginBottom: 16 }}>
@@ -717,7 +717,14 @@ const Documents = ({ docs = [] }) => {
                       {d.label}{d.sensitive && <span className="badge badge-warning" style={{ marginLeft: 6 }}>Sensitive</span>}
                     </td>
                     <td className="text-muted">{fmtDate(d.uploadedAt)}</td>
-                    <td><Badge variant={VERIFY_TONE[d.verificationStatus]}>{d.verificationStatus}</Badge></td>
+                    <td>
+                      <Badge variant={VERIFY_TONE[d.verificationStatus]}>{d.verificationStatus === 'resubmitted' ? 're-submitted' : d.verificationStatus}</Badge>
+                      {d.rejectionComment && (d.verificationStatus === 'rejected' || d.verificationStatus === 'resubmitted') && (
+                        <div className="text-muted text-sm" style={{ marginTop: 4 }}>
+                          {d.verificationStatus === 'resubmitted' ? 'Rejected before: ' : 'Reason: '}&ldquo;{d.rejectionComment}&rdquo;
+                        </div>
+                      )}
+                    </td>
                     <td className="text-muted">{d.verifiedBy || '—'}</td>
                     <td className="text-muted">{d.expiresAt ? fmtDate(d.expiresAt) : '—'}</td>
                     <td>{d.url
@@ -742,6 +749,10 @@ function RevealField({ label, masked, field, id, canReveal }) {
   const [value, setValue] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // Hiding needs no request: the value was only ever held in this screen.
+  // Revealing again asks the server again, and is logged again.
+  const hide = () => setValue(null);
+
   const reveal = async () => {
     setBusy(true);
     try {
@@ -761,7 +772,12 @@ function RevealField({ label, masked, field, id, canReveal }) {
       {masked && canReveal && value == null && (
         <Button size="sm" variant="secondary" loading={busy} onClick={reveal}>👁 Reveal</Button>
       )}
-      {value != null && <span className="badge badge-warning">Logged</span>}
+      {value != null && (
+        <>
+          <span className="badge badge-warning">Logged</span>
+          <Button size="sm" variant="secondary" onClick={hide}>🙈 Hide</Button>
+        </>
+      )}
     </div>
   );
 }

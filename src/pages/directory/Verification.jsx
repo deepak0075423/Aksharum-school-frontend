@@ -10,6 +10,10 @@
  * Three ways through the same queue: by employee (the default), by section —
  * for working one kind of paperwork at a time — and the employees who are
  * blocked because nothing has been uploaded for them yet.
+ *
+ * Two more tabs work on the documents themselves (documentParts.jsx): every
+ * upload waiting for a decision — Verify, or Reject with a reason the employee
+ * is shown — and the reminders that chase what is still owed.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -17,6 +21,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
   getVerificationQueue, setVerification, downloadReport, getEmployee, revealField,
+  getDocumentDesk, reviewEmployeeDocument, sendDocumentReminders,
 } from '../../api/employeeDirectory.api';
 import { Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -26,6 +31,7 @@ import {
   BySection, EmployeeCell, Lightbox, MissingDocuments, ProgressCell, REVEALS, Reviewer,
   SectionProgress, StateBadge, VerificationRing, stateOf, summarise,
 } from './verificationParts';
+import { DocumentQueue, RejectDialog, ReminderBoard, ReminderDialog } from './documentParts';
 
 const PAGE_SIZES = [12, 24, 48, 96];
 
@@ -45,11 +51,16 @@ const SORTS = [
 export default function Verification() {
   const { base } = useDirectoryBase();
   const { data, loading, error, refetch } = useFetch(getVerificationQueue, []);
+  const desk = useFetch(getDocumentDesk, []);
 
   // ?employee=<id> opens that reviewer straight away, so the dashboard's
-  // "pending verification" tile can link to one person.
-  const [params] = useSearchParams();
-  const [open, setOpen] = useState(() => params.get('employee') || '');
+  // "pending verification" tile can link to one person. With ?tab=documents
+  // (a "document re-submitted" notification) it narrows the document queue to
+  // that person instead.
+  const [params, setParams] = useSearchParams();
+  const startTab = ['documents', 'reminders', 'sections', 'missing'].includes(params.get('tab')) ? params.get('tab') : 'employees';
+  const [open, setOpen] = useState(() => (startTab === 'employees' ? params.get('employee') || '' : ''));
+  const [focus, setFocus] = useState(() => (startTab === 'documents' ? params.get('employee') || '' : ''));
   const [seen, setSeen] = useState(() => new Set());
   const [busy, setBusy] = useState('');
   // The record behind the open row. The queue carries the documents and the
@@ -63,7 +74,13 @@ export default function Verification() {
   const [revealed, setRevealed] = useState({});
   const [doc, setDoc] = useState(null);   // the document opened over the page
 
-  const [tab,    setTab]    = useState('employees');
+  const [tab,    setTab]    = useState(startTab);
+  const [docFilter, setDocFilter] = useState(() => (startTab === 'documents' && params.get('employee') ? 'all' : 'todo'));
+  const [remindFilter, setRemindFilter] = useState('owing');
+  const [docBusy, setDocBusy] = useState('');
+  const [rejecting, setRejecting] = useState(null);   // the document being rejected
+  const [reminding, setReminding] = useState(null);   // [employees] a reminder is being written for
+  const [sending, setSending] = useState(false);
   const [search, setSearch] = useState('');
   const [state,  setState]  = useState('');
   const [section, setSection] = useState('');   // set from the rail
@@ -118,6 +135,49 @@ export default function Verification() {
       refetch();
     } catch (err) { toast.error(err.message || 'Could not update'); }
     finally { setBusy(''); }
+  };
+
+  // Keep the tab in the address, so a reload or a shared link lands back here.
+  const pickTab = (t) => {
+    setTab(t);
+    const next = new URLSearchParams(params);
+    if (t === 'employees') next.delete('tab'); else next.set('tab', t);
+    if (t !== 'documents') { next.delete('employee'); setFocus(''); }
+    setParams(next, { replace: true });
+  };
+
+  const deskEmployees = useMemo(() => desk.data?.employees || [], [desk.data]);
+  const deskCounts = desk.data?.counts || {};
+  const focusName = focus ? deskEmployees.find((x) => x._id === focus)?.name : '';
+
+  // One document's decision. Both lists are read again afterwards: the queue
+  // carries each section's documents, the desk carries what is owed.
+  const decide = async (doc, status, comment = '') => {
+    setDocBusy(`${doc.employee}:${doc.key}:${status}`);
+    try {
+      await reviewEmployeeDocument(doc.employee, doc.key, { status, comment, fileName: doc.fileName });
+      toast.success(status === 'verified'
+        ? `${doc.label} verified`
+        : `${doc.label} rejected — ${doc.employeeName || 'the employee'} has been asked to upload it again`);
+      setRejecting(null);
+      refetch();
+      desk.refetch();
+    } catch (err) { toast.error(err.message || 'Could not save that'); }
+    finally { setDocBusy(''); }
+  };
+
+  const remind = async ({ message, email }) => {
+    setSending(true);
+    try {
+      const res = await sendDocumentReminders({ employeeIds: reminding.map((x) => x._id), message, email });
+      const out = res?.data ?? res;
+      const n = out.sent?.length || 0;
+      if (n) toast.success(n === 1 ? `Reminder sent to ${out.sent[0].name}` : `${n} reminders sent`);
+      if (out.skipped?.length) toast(`${out.skipped.length} skipped — nothing outstanding`, { icon: 'ℹ️' });
+      setReminding(null);
+      desk.refetch();
+    } catch (err) { toast.error(err.message || 'Could not send the reminders'); }
+    finally { setSending(false); }
   };
 
   const exportQueue = async () => {
@@ -226,19 +286,31 @@ export default function Verification() {
           on={state === 'blocked'} onClick={() => { setState(state === 'blocked' ? '' : 'blocked'); setPage(1); }} />
       </div>
 
-      <div className="orggrid">
+      {/* The rail describes sections; the two document tabs work on documents
+          and people, and need the width for their tables. */}
+      <div className={`orggrid${tab === 'documents' || tab === 'reminders' ? ' orggrid--solo' : ''}`}>
         <section className="card edl-card-wrap">
           <div className="orgtabs">
             <button type="button" className={`orgtab${tab === 'employees' ? ' is-on' : ''}`}
-              aria-pressed={tab === 'employees'} onClick={() => setTab('employees')}>
+              aria-pressed={tab === 'employees'} onClick={() => pickTab('employees')}>
               <Icon name="users" size={16} /> By employee
             </button>
+            <button type="button" className={`orgtab${tab === 'documents' ? ' is-on' : ''}`}
+              aria-pressed={tab === 'documents'} onClick={() => pickTab('documents')}>
+              <Icon name="fileCheck" size={16} /> Documents
+              {deskCounts.awaitingReview > 0 && <em>{deskCounts.awaitingReview}</em>}
+            </button>
+            <button type="button" className={`orgtab${tab === 'reminders' ? ' is-on' : ''}`}
+              aria-pressed={tab === 'reminders'} onClick={() => pickTab('reminders')}>
+              <Icon name="bell" size={16} /> Reminders
+              {deskCounts.followUpDue > 0 && <em>{deskCounts.followUpDue}</em>}
+            </button>
             <button type="button" className={`orgtab${tab === 'sections' ? ' is-on' : ''}`}
-              aria-pressed={tab === 'sections'} onClick={() => setTab('sections')}>
+              aria-pressed={tab === 'sections'} onClick={() => pickTab('sections')}>
               <Icon name="checkSquare" size={16} /> By section
             </button>
             <button type="button" className={`orgtab${tab === 'missing' ? ' is-on' : ''}`}
-              aria-pressed={tab === 'missing'} onClick={() => setTab('missing')}>
+              aria-pressed={tab === 'missing'} onClick={() => pickTab('missing')}>
               <Icon name="files" size={16} /> Waiting on uploads
               {stats.blocked > 0 && <em>{stats.blocked}</em>}
             </button>
@@ -303,7 +375,10 @@ export default function Verification() {
                                     <Reviewer employee={e} detail={details[e._id]}
                                       loadingDetail={loadingDetail && !details[e._id]}
                                       revealed={revealed[e._id]} onOpenDoc={setDoc}
-                                      seen={seen} onSeen={mark} busy={busy} onVerify={verify} />
+                                      seen={seen} onSeen={mark} busy={busy} onVerify={verify}
+                                      docBusy={docBusy}
+                                      onVerifyDoc={(d) => decide(d, 'verified')}
+                                      onRejectDoc={setRejecting} />
                                   </td>
                                 </tr>
                               )}
@@ -323,6 +398,41 @@ export default function Verification() {
             </>
           )}
 
+          {(tab === 'documents' || tab === 'reminders') && (
+            <>
+              <div className="edl-bar">
+                <SearchBox value={search} onChange={setSearch}
+                  placeholder={tab === 'documents' ? 'Search by employee or document…' : 'Search by name, employee ID or designation…'} />
+              </div>
+              {tab === 'documents' && focus && (
+                <div className="edl-results">
+                  <span className="edl-results__count">Showing {focusName || 'one employee'}&rsquo;s documents</span>
+                  <div className="edl-results__right">
+                    <button type="button" className="edl-hint__btn" onClick={() => {
+                      setFocus('');
+                      const next = new URLSearchParams(params); next.delete('employee'); setParams(next, { replace: true });
+                    }}>Show everyone</button>
+                  </div>
+                </div>
+              )}
+              <div className="edl-body">
+                {desk.loading && !desk.data ? <SkeletonRows rows={6} cols={4} />
+                  : desk.error ? <ErrorState error={desk.error} onRetry={desk.refetch} />
+                    : tab === 'documents'
+                      ? (
+                        <DocumentQueue employees={deskEmployees} focus={focus} filter={docFilter} onFilter={setDocFilter}
+                          search={search} busyKey={docBusy} base={base} onOpen={setDoc}
+                          onVerify={(d) => decide(d, 'verified')} onReject={setRejecting} />
+                      )
+                      : (
+                        <ReminderBoard employees={deskEmployees} followUpAfterDays={desk.data?.followUpAfterDays || 3}
+                          filter={remindFilter} onFilter={setRemindFilter} search={search} base={base}
+                          onRemind={setReminding} />
+                      )}
+              </div>
+            </>
+          )}
+
           {tab === 'sections' && (
             <div className="edl-body">
               <BySection totals={totals} employees={employees} base={base}
@@ -337,6 +447,7 @@ export default function Verification() {
           )}
         </section>
 
+        {tab !== 'documents' && tab !== 'reminders' && (
         <aside className="card orgrail">
           <header className="orgrail__head">
             <h2>Where the school stands</h2>
@@ -349,12 +460,16 @@ export default function Verification() {
               {totals.length} per employee. Pick one to see who it is still waiting on.
             </p>
             <SectionProgress totals={totals} picked={section}
-              onPick={(s) => { setSection(s); setTab('employees'); setPage(1); }} />
+              onPick={(s) => { setSection(s); pickTab('employees'); setPage(1); }} />
           </div>
         </aside>
+        )}
       </div>
 
       <Lightbox doc={doc} onClose={() => setDoc(null)} />
+      <RejectDialog target={rejecting} busy={!!docBusy} onClose={() => setRejecting(null)}
+        onConfirm={(comment) => decide(rejecting, 'rejected', comment)} />
+      <ReminderDialog employees={reminding} busy={sending} onClose={() => setReminding(null)} onSend={remind} />
     </div>
   );
 }
