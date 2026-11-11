@@ -265,6 +265,8 @@ export const getDocuments    = (params)     => api.get('/admin/documents', { par
 // The four tiles, the tab counts and the options behind every filter dropdown.
 export const getDocumentOverview = ()       => api.get('/admin/documents/overview');
 export const getDocument     = (id)         => api.get(`/admin/documents/${id}`);
+// Every teacher with their department, designation and subjects — the picker behind "Specific teachers".
+export const getDocumentTeachers = ()       => api.get('/admin/documents/teachers');
 export const uploadDocument  = (data)       => api.post('/admin/documents', data);
 export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`, data);
 export const deleteDocument  = (id)         => api.delete(`/admin/documents/${id}`);

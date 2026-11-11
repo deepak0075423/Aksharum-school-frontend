@@ -16,14 +16,16 @@
  * file marks and type registry come from the admin list so a PDF looks the same
  * to a parent as it does to the office.
  */
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
 import {
   FileMark, fileUrl, fmtSize, fmtDate, typeOf, DOC_TYPES,
 } from '../admin/documentParts';
 import Tabs from '../../components/ui/Tabs';
+import { useFileViewer } from './FileViewer';
 
 export { FileMark, fileUrl, fmtSize, fmtDate, typeOf, DOC_TYPES };
 
@@ -39,9 +41,16 @@ export const TABS = [
 export const SORTS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'oldest', label: 'Oldest first' },
-  { value: 'due',    label: 'Due soonest' },
+  // Only assignments have a due date, so only the Assignments tab offers this.
+  { value: 'due',    label: 'Due soonest', only: 'assignments' },
   { value: 'title',  label: 'Title (A–Z)' },
 ];
+
+/** The sort choices one tab offers. */
+export const sortsFor = (tab) => SORTS.filter((s) => !s.only || s.only === tab);
+
+/** The sort to use on a tab: what was picked, unless that tab does not offer it. */
+export const sortOn = (tab, sort) => (sortsFor(tab).some((s) => s.value === sort) ? sort : 'newest');
 
 /** Where a piece of set work stands. */
 export const STATES = {
@@ -223,13 +232,20 @@ export function DocCard({ doc, onOpen, badges, actions, dense }) {
   // Both slots take a node or a function of the row — a parent's child chips
   // differ per document, a teacher's "mark 3" button does too.
   const slot = (v) => (typeof v === 'function' ? v(doc) : v);
+  // `isRead` is only ever false for something shared WITH the reader that they
+  // have not opened. Their own uploads, and lists that do not track it, carry
+  // no mark at all.
+  const unread = doc.isRead === false;
   return (
-    <article className={`dvcard${dense ? ' dvcard--dense' : ''}`} data-focus-id={doc._id}>
+    <article className={`dvcard${dense ? ' dvcard--dense' : ''}${unread ? ' is-unread' : ''}`} data-focus-id={doc._id}>
       <button type="button" className="dvcard__open" onClick={() => onOpen(doc)}
-        aria-label={`Open ${doc.title}`}>
+        aria-label={unread ? `Open ${doc.title} (unread)` : `Open ${doc.title}`}>
         <FileMark file={doc.files?.[0]} size={44} />
         <span className="dvcard__main">
-          <span className="dvcard__title">{doc.title}</span>
+          <span className="dvcard__title">
+            {unread ? <span className="dvnew">New</span> : null}
+            {doc.title}
+          </span>
           {doc.description ? <span className="dvcard__sub">{doc.description}</span> : null}
           <span className="dvcard__meta">
             <span className={`dvpill dvpill--${type.tone}`}>{type.label}</span>
@@ -311,23 +327,81 @@ export const Field = ({ label, children }) => (
   <div className="dvfield"><dt>{label}</dt><dd>{children}</dd></div>
 );
 
-export const FileRows = ({ files, empty = 'No files attached' }) => (
-  files?.length
-    ? (
-      <ul className="dvfiles">
-        {files.map((f, i) => (
-          <li key={`${f.storedName || f.originalName}-${i}`}>
-            <FileMark file={f} size={32} />
-            <span className="dvfiles__name" title={f.originalName}>{f.originalName}</span>
-            <span className="dvfiles__size">{fmtSize(f.fileSize)}</span>
-            <a className="dvact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-              title="Open file" aria-label={`Open ${f.originalName}`}><Icon name="download" size={15} /></a>
-          </li>
-        ))}
-      </ul>
-    )
-    : <p className="dvnone">{empty}</p>
-);
+/**
+ * How a file in the drawer gets opened: `(files, index, caption)`.
+ *
+ * Context rather than a prop, because the rows that need it are drawn by
+ * different hands — the document's own files by the drawer, a student's
+ * submission by the student page, a comment's attachments by the thread — and
+ * each would otherwise carry its own viewer. Outside a drawer there is none,
+ * and a row falls back to a plain link.
+ */
+const ViewFile = createContext(null);
+
+/**
+ * A list of files: each opens on this screen, and can still be downloaded.
+ *
+ * `compact` swaps the labelled View button for the eye alone — a comment's
+ * bubble is too narrow for both the word and the file's name.
+ */
+export const FileRows = ({ files, empty = 'No files attached', caption, compact }) => {
+  const view = useContext(ViewFile);
+  if (!files?.length) return <p className="dvnone">{empty}</p>;
+  return (
+    <ul className="dvfiles">
+      {files.map((f, i) => (
+        <li key={`${f.storedName || f.originalName}-${i}`}>
+          <FileMark file={f} size={32} />
+          {view
+            ? (
+              <button type="button" className="dvfiles__name dvfiles__open" title={`View ${f.originalName}`}
+                onClick={() => view(files, i, caption)}>{f.originalName}</button>
+            )
+            : <span className="dvfiles__name" title={f.originalName}>{f.originalName}</span>}
+          <span className="dvfiles__size">{fmtSize(f.fileSize)}</span>
+          {view && (compact
+            ? (
+              <button type="button" className="dvact" onClick={() => view(files, i, caption)}
+                title="View file" aria-label={`View ${f.originalName}`}><Icon name="eye" size={15} /></button>
+            )
+            : (
+              <button type="button" className="btn btn-secondary btn-sm dvfiles__view"
+                onClick={() => view(files, i, caption)} aria-label={`View ${f.originalName}`}>
+                <Icon name="eye" size={14} /> View
+              </button>
+            ))}
+          <a className="dvact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
+            title="Download" aria-label={`Download ${f.originalName}`}><Icon name="download" size={15} /></a>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+/**
+ * The drawer's own "open it" button, for a page's `foot`.
+ *
+ * It used to be a link that opened the first file in a new tab — or, for
+ * anything the browser cannot draw, downloaded it. It opens the viewer now,
+ * with the rest of the document's files one arrow away.
+ */
+export const OpenFile = ({ files, caption }) => {
+  const view = useContext(ViewFile);
+  if (!files?.length) return null;
+  const label = files.length > 1 ? `View files (${files.length})` : 'View the file';
+  if (!view) {
+    return (
+      <a className="btn btn-secondary" href={fileUrl(files[0].filePath)} target="_blank" rel="noreferrer">
+        <Icon name="eye" size={15} /> {label}
+      </a>
+    );
+  }
+  return (
+    <button type="button" className="btn btn-secondary" onClick={() => view(files, 0, caption)}>
+      <Icon name="eye" size={15} /> {label}
+    </button>
+  );
+};
 
 /**
  * The document, opened.
@@ -336,11 +410,17 @@ export const FileRows = ({ files, empty = 'No files attached' }) => (
  * parent's per-child strip, a teacher's link into the marking screen.
  */
 export function DocDrawer({ doc, onClose, extra, foot }) {
+  // Every file in here — the document's, a submission's, a comment's — opens
+  // over the drawer instead of in a new tab. Called before the early return:
+  // a hook runs on every render, drawer open or not.
+  const viewer = useFileViewer();
   if (!doc) return null;
   const type = typeOf(doc.docType);
   const due  = doc.isAssignment ? dueLine(doc.dueDate, doc.state) : null;
   return (
+    <>
     <Drawer open={!!doc} onClose={onClose}>
+      <ViewFile.Provider value={viewer.open}>
       <header className="dvdrawer__head">
         <FileMark file={doc.files?.[0]} size={46} />
         <div className="dvdrawer__id">
@@ -379,14 +459,17 @@ export function DocDrawer({ doc, onClose, extra, foot }) {
 
         <section className="dvdrawer__sec">
           <h4>Files ({doc.files?.length || 0})</h4>
-          <FileRows files={doc.files} />
+          <FileRows files={doc.files} caption={doc.title} />
         </section>
 
         {extra}
       </div>
 
       {foot ? <div className="dvdrawer__foot">{foot}</div> : null}
+      </ViewFile.Provider>
     </Drawer>
+    {viewer.node}
+    </>
   );
 }
 
@@ -403,17 +486,42 @@ export function DocDrawer({ doc, onClose, extra, foot }) {
  * "choose 3 files" and "choose 1 file, then 2 more" are the same intention and
  * only one of them used to work.
  */
+
+/**
+ * The files already on a document that is being edited.
+ *
+ * Each one stays unless it is taken off here, and whatever is picked in the
+ * dropzone is added to them. `onRemove` gets the file's place in the list.
+ */
+export const KeptFiles = ({ files, onRemove }) => (
+  files?.length ? (
+    <div className="shkept">
+      <p><Icon name="files" size={14} /> Already attached ({files.length}) — kept unless you remove them</p>
+      <ul>
+        {files.map((f, i) => (
+          <li key={`${f.storedName || f.originalName}-${i}`}>
+            <FileMark file={f} size={28} />
+            <span className="dvfiles__name" title={f.originalName}>{f.originalName}</span>
+            <span className="dvfiles__size">{fmtSize(f.fileSize)}</span>
+            <button type="button" className="dvact" title={`Remove ${f.originalName}`}
+              aria-label={`Remove ${f.originalName}`} onClick={() => onRemove(i)}>
+              <Icon name="close" size={14} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : null
+);
 export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
   const [over, setOver] = useState(false);
 
-  const add = (picked) => {
-    const list = [...files];
-    for (const f of picked) {
-      // Same name and size twice is the same file picked twice, not two files.
-      if (!list.some((x) => x.name === f.name && x.size === f.size)) list.push(f);
-    }
-    onChange(list.slice(0, max));
-  };
+  // Everything picked is added, including a second file with the same name as
+  // one already listed. Matching name and size used to be treated as "the same
+  // file picked twice" and dropped without a word — which also dropped a real
+  // second document that happened to be called the same thing. A file added by
+  // mistake has its own × beside it.
+  const add = (picked) => onChange([...files, ...picked].slice(0, max));
 
   const total = files.reduce((n, f) => n + f.size, 0);
 
@@ -438,26 +546,203 @@ export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
       {files.length > 0 && (
         <>
           <ul className="dvdrop__list">
-            {files.map((f) => (
-              <li key={`${f.name}-${f.size}`}>
+            {files.map((f, i) => (
+              <li key={`${f.name}-${f.size}-${i}`}>
                 <FileMark file={{ originalName: f.name, mimeType: f.type }} size={30} />
                 <span className="dvfiles__name" title={f.name}>{f.name}</span>
                 <span className="dvfiles__size">{fmtSize(f.size)}</span>
                 <button type="button" className="dvact" title={`Remove ${f.name}`}
                   aria-label={`Remove ${f.name}`}
-                  onClick={() => onChange(files.filter((x) => !(x.name === f.name && x.size === f.size)))}>
+                  onClick={() => onChange(files.filter((_, x) => x !== i))}>
                   <Icon name="close" size={14} />
                 </button>
               </li>
             ))}
           </ul>
-          <p className="dvdrop__sum">
-            {files.length} file{files.length === 1 ? '' : 's'} · {fmtSize(total)}
-            <button type="button" onClick={() => onChange([])}>Remove all</button>
-          </p>
+          {/* With one file its own × is the whole job; "Remove all" only
+              earns its place once there is more than one to remove. */}
+          {files.length > 1 && (
+            <p className="dvdrop__sum">
+              {files.length} files · {fmtSize(total)}
+              <button type="button" onClick={() => onChange([])}>Remove all</button>
+            </p>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+// ── Read and unread ──────────────────────────────────────────────────────────
+
+/**
+ * Which documents the reader has opened.
+ *
+ * The server says what was read before this visit (`isRead`); this keeps what
+ * has been opened since, so a card loses its mark the moment it is opened
+ * rather than after a reload — and without refetching the whole shelf, which
+ * would blank the list under the drawer that just opened.
+ */
+export function useReadMarks(docs, { one, many }) {
+  const [seen, setSeen] = useState(() => new Set());
+
+  const marked = useMemo(
+    () => docs.map((d) => (d.isRead === false && seen.has(d._id) ? { ...d, isRead: true } : d)),
+    [docs, seen],
+  );
+
+  const read = useCallback((doc) => {
+    if (!doc || doc.isRead !== false || seen.has(doc._id)) return;
+    setSeen((s) => new Set(s).add(doc._id));
+    // Quietly: if this fails the card is simply unread again next visit.
+    one(doc._id).catch(() => {});
+  }, [seen, one]);
+
+  const readAll = useCallback(async (list) => {
+    const ids = list.filter((d) => d.isRead === false).map((d) => d._id);
+    if (!ids.length) return;
+    try {
+      await many(ids);
+      setSeen((s) => new Set([...s, ...ids]));
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    }
+  }, [many]);
+
+  return { docs: marked, read, readAll };
+}
+
+/** "3 unread · Mark all as read" — only there while something is unread. */
+export const UnreadNote = ({ docs, onClear }) => {
+  const n = docs.filter((d) => d.isRead === false).length;
+  if (!n) return null;
+  return (
+    <span className="dvunread">
+      <span className="dvunread__dot" aria-hidden />
+      {n} unread
+      <button type="button" onClick={onClear}>Mark all as read</button>
+    </span>
+  );
+};
+
+// ── The discussion, for the people the document was shared with ──────────────
+
+const ROLE_LABEL = { school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' };
+
+const fmtWhen = (d) => {
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return '';
+  return `${fmtDate(d)}, ${x.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}`;
+};
+
+const CommentRow = ({ c, onReply, reply }) => (
+  <li className={`dvcom${reply ? ' dvcom--reply' : ''}`}>
+    <Avatar name={c.author?.name} src={c.author?.photo} size={reply ? 26 : 30} />
+    <div className="dvcom__body">
+      <header>
+        <b>{c.mine ? 'You' : c.author?.name}</b>
+        <span className={`dvcom__role dvcom__role--${c.author?.role}`}>{ROLE_LABEL[c.author?.role] || c.author?.role}</span>
+        {c.isPinned ? <span className="dvpill dvpill--indigo"><Icon name="star" size={11} /> Pinned</span> : null}
+        <time>{fmtWhen(c.createdAt)}</time>
+      </header>
+      {c.body ? <p>{c.body}</p> : null}
+      {c.files?.length > 0 && <FileRows files={c.files} caption={c.author?.name} compact />}
+      {onReply && (
+        <button type="button" className="dvcom__reply" onClick={() => onReply(c)}>
+          <Icon name="repeat" size={12} /> Reply
+        </button>
+      )}
+    </div>
+  </li>
+);
+
+/**
+ * The comments under one document, in the drawer.
+ *
+ * Teachers and the office have been able to write here all along; the people
+ * the document was shared with could not see a word of it. They read what was
+ * marked for everyone — a staff-only note never leaves the server — and can
+ * ask a question back or answer one.
+ */
+export function DocComments({ docId, load, post }) {
+  const [threads, setThreads] = useState(null);
+  const [failed,  setFailed]  = useState('');
+  const [draft,   setDraft]   = useState('');
+  const [replyTo, setReplyTo] = useState(null);
+  const [posting, setPosting] = useState(false);
+
+  const fetchThreads = useCallback(async () => {
+    try {
+      const res = await load(docId);
+      setThreads((res?.data ?? res)?.threads || []);
+      setFailed('');
+    } catch (err) {
+      setFailed(err?.response?.data?.message || err.message || 'The comments could not be loaded');
+    }
+  }, [docId, load]);
+
+  useEffect(() => {
+    setThreads(null); setDraft(''); setReplyTo(null);
+    fetchThreads();
+  }, [fetchThreads]);
+
+  const send = async (e) => {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    setPosting(true);
+    try {
+      await post(docId, { body: draft.trim(), parent: replyTo?._id });
+      setDraft(''); setReplyTo(null);
+      await fetchThreads();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const total = (threads || []).reduce((n, c) => n + 1 + (c.replies?.length || 0), 0);
+  const reply = post ? (c) => { setReplyTo(c); document.getElementById('dv-comment')?.focus(); } : null;
+
+  return (
+    <section className="dvdrawer__sec">
+      <h4>Comments{threads ? ` (${total})` : ''}</h4>
+
+      {failed ? <p className="dvnone">{failed}</p> : null}
+      {!threads && !failed ? <Loading /> : null}
+      {threads && !threads.length ? (
+        <p className="dvnone">No comments yet{post ? ' — ask a question below if something is unclear.' : '.'}</p>
+      ) : null}
+
+      {threads?.length > 0 && (
+        <ul className="dvcoms">
+          {threads.map((c) => (
+            <React.Fragment key={c._id}>
+              <CommentRow c={c} onReply={reply} />
+              {(c.replies || []).map((r) => <CommentRow key={r._id} c={r} reply onReply={reply && (() => reply(c))} />)}
+            </React.Fragment>
+          ))}
+        </ul>
+      )}
+
+      {post && (
+        <form className="dvcomform" onSubmit={send}>
+          {replyTo && (
+            <p className="dvcomform__to">
+              Replying to <b>{replyTo.mine ? 'your comment' : replyTo.author?.name}</b>
+              <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+                <Icon name="close" size={13} />
+              </button>
+            </p>
+          )}
+          <textarea id="dv-comment" className="form-control" rows={2} maxLength={2000} value={draft}
+            placeholder="Write a comment or ask a question…" onChange={(e) => setDraft(e.target.value)} />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={posting || !draft.trim()}>
+            {posting ? 'Posting…' : 'Post comment'}
+          </button>
+        </form>
+      )}
+    </section>
   );
 }
 

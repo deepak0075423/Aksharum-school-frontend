@@ -105,19 +105,37 @@ export const DetailHero = ({ doc, actions }) => (
   </header>
 );
 
-/** The facts strip under the title. Cells with nothing to say are left out. */
+/**
+ * The facts strip under the title. Cells with nothing to say are left out.
+ *
+ * The cells share the row between them, so six facts or seven reach both edges
+ * of the card. Each is its label over its value, with the icon small and in
+ * the label's own line: in a 34px tile beside the text it cost every fact
+ * 44px, and seven of them — a real assignment has marks and a subject with a
+ * name — no longer fitted on one line of a laptop screen.
+ *
+ * A cell given an `onClick` is a button — the attachments open from theirs —
+ * and says so in its `sub` line.
+ */
 export const MetaStrip = ({ items }) => (
   <div className="admeta">
-    {items.filter((i) => i && i.value).map((i) => (
-      <div className="admeta__cell" key={i.label}>
-        <span className="admeta__icon"><Icon name={i.icon} size={17} /></span>
-        <span className="admeta__body">
-          <span className="admeta__label">{i.label}</span>
-          <span className="admeta__value">{i.value}</span>
-          {i.sub ? <span className="admeta__sub">{i.sub}</span> : null}
-        </span>
-      </div>
-    ))}
+    <div className="admeta__row">
+      {items.filter((i) => i && i.value).map((i) => {
+        const body = (
+          <>
+            <span className="admeta__label"><Icon name={i.icon} size={13} />{i.label}</span>
+            <span className="admeta__value">{i.value}</span>
+            {i.sub ? <span className="admeta__sub">{i.sub}</span> : null}
+          </>
+        );
+        return i.onClick
+          ? (
+            <button type="button" className="admeta__cell admeta__cell--btn" key={i.label}
+              onClick={i.onClick} title={i.hint}>{body}</button>
+          )
+          : <div className="admeta__cell" key={i.label}>{body}</div>;
+      })}
+    </div>
   </div>
 );
 
@@ -141,7 +159,11 @@ export const StatTiles = ({ counts, percent, active, onPick }) => {
     { key: 'missed',    icon: 'closeCircle', tone: 'red',    label: 'Not Submitted', value: counts.missed,    pct: percent.missed,    bar: VIZ.bad  },
     { key: '',          icon: 'users',       tone: 'indigo', label: 'Total Students', value: counts.total,    pct: percent.total,     bar: VIZ.accent },
   ];
+  // The outer box is only there to be measured: how many tiles go across is
+  // decided by the room the row actually has (a container query), which the
+  // window's width cannot say — the sidebar may be open, collapsed or gone.
   return (
+    <div className="adtiles-box">
     <div className="adtiles">
       {tiles.map((t) => {
         const body = (
@@ -169,6 +191,7 @@ export const StatTiles = ({ counts, percent, active, onPick }) => {
           </button>
         );
       })}
+    </div>
     </div>
   );
 };
@@ -230,13 +253,21 @@ export const SubmissionDonut = ({ counts, percent, centerLabel = 'Submitted' }) 
   ];
   const any = data.some((d) => d.value > 0);
 
+  // The ring and its legend sit side by side when the panel is wide enough and
+  // stack when it is not — decided by the panel's own width (a container query
+  // on .addonut), not the window's, because the same chart is drawn in a wide
+  // column on one tab and a third of the row on another.
   return (
     <div className="addonut">
+      <div className="addonut__in">
       <div className="addonut__ring">
         {any ? (
           <ResponsiveContainer width="100%" height={188}>
             <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={58} outerRadius={86}
+              {/* Radii as shares of the box, not pixels: beside the legend the
+                  ring's box is narrower than it is tall, and a fixed 86px would
+                  be cut off at the sides. */}
+              <Pie data={data} dataKey="value" nameKey="name" innerRadius="65%" outerRadius="96%"
                 startAngle={90} endAngle={-270} paddingAngle={1} isAnimationActive={false}>
                 {/* A 2px ring in the surface colour between slices, so two
                     adjacent fills never touch. */}
@@ -260,6 +291,7 @@ export const SubmissionDonut = ({ counts, percent, centerLabel = 'Submitted' }) 
           </li>
         ))}
       </ul>
+      </div>
     </div>
   );
 };
@@ -508,41 +540,6 @@ export const Pager = ({ page, pages, onPage }) => {
   );
 };
 
-// ── Left rail on the Submissions tab ─────────────────────────────────────────
-
-export const RailGroup = ({ title, items, value, onPick }) => (
-  <section className="adrail__group">
-    <h3>{title}</h3>
-    <ul>
-      {items.map((it) => (
-        <li key={it.value}>
-          <button type="button" className={`adrail__row${value === it.value ? ' is-on' : ''}`}
-            onClick={() => onPick(it.value)} aria-pressed={value === it.value}>
-            {it.icon ? <Icon name={it.icon} size={16} /> : <span className="adrail__dot" style={{ background: it.color }} />}
-            <span>{it.label}</span>
-            <b>{it.count}</b>
-          </button>
-        </li>
-      ))}
-    </ul>
-  </section>
-);
-
-export const RailActions = ({ items }) => (
-  <section className="adrail__group">
-    <h3>Quick Actions</h3>
-    <ul>
-      {items.map((it) => (
-        <li key={it.label}>
-          <button type="button" className="adrail__act" onClick={it.onClick} disabled={it.disabled}>
-            <Icon name={it.icon} size={16} /> {it.label}
-          </button>
-        </li>
-      ))}
-    </ul>
-  </section>
-);
-
 // ── The submission panel ─────────────────────────────────────────────────────
 
 /**
@@ -553,7 +550,7 @@ export const RailActions = ({ items }) => (
  * things at once — a total, per-question scores and the feedback the student
  * reads — and half-saving any of them would be worse than not saving at all.
  */
-export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemind }) {
+export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemind, onView }) {
   const [face, setFace]   = useState('work');
   const [marks, setMarks] = useState('');
   const [scores, setScores] = useState({});
@@ -585,15 +582,9 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
     return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
   }, [byQuestion, questions, scores]);
 
-  if (!student) {
-    return (
-      <aside className="adpanel adside adside--empty">
-        <Icon name="clipboard" size={30} />
-        <h3>No student selected</h3>
-        <p>Pick a row to see what they handed in, mark it and write feedback.</p>
-      </aside>
-    );
-  }
+  // Nobody picked, nothing to show: the list keeps the whole width rather than
+  // sharing it with a box that says "No student selected".
+  if (!student) return null;
 
   const handedIn = student.state === 'submitted' || student.state === 'late';
   const span = fmtSpan(doc.assignedOn, student.submittedAt);
@@ -652,9 +643,9 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
               <div className="adside__filehead">
                 <h4>Submitted Files ({student.files.length})</h4>
                 {student.files.length > 0 && (
-                  <a className="adlinkbtn" href={fileUrl(student.files[0].filePath)} target="_blank" rel="noreferrer">
-                    <Icon name="download" size={14} /> Open first
-                  </a>
+                  <button type="button" className="adlinkbtn" onClick={() => onView(student.files, 0, student.name)}>
+                    <Icon name="eye" size={14} /> {student.files.length > 1 ? 'View all' : 'View'}
+                  </button>
                 )}
               </div>
               {student.files.length ? (
@@ -662,10 +653,15 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                   {student.files.map((f, i) => (
                     <li key={`${f.storedName || f.originalName}-${i}`}>
                       <FileMark file={f} size={34} />
-                      <span className="adfiles__name" title={f.originalName}>{f.originalName}</span>
+                      {/* The name opens it here, on this screen — marking should
+                          not mean a download per student. */}
+                      <button type="button" className="adfiles__name adfiles__open" title={`View ${f.originalName}`}
+                        onClick={() => onView(student.files, i, student.name)}>{f.originalName}</button>
                       <span className="adfiles__size">{fmtSize(f.fileSize)}</span>
-                      <a className="adact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-                        title="Open file" aria-label={`Open ${f.originalName}`}><Icon name="eye" size={15} /></a>
+                      <button type="button" className="adact" onClick={() => onView(student.files, i, student.name)}
+                        title="View file" aria-label={`View ${f.originalName}`}><Icon name="eye" size={15} /></button>
+                      <a className="adact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
+                        title="Download" aria-label={`Download ${f.originalName}`}><Icon name="download" size={15} /></a>
                     </li>
                   ))}
                 </ul>
@@ -778,7 +774,7 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
 
 const ROLE_LABEL = { school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' };
 
-export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, depth = 0 }) {
+export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onView, depth = 0 }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(c.body);
@@ -846,8 +842,11 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, depth
                 <FileMark file={f} size={32} />
                 <span className="adfiles__name" title={f.originalName}>{f.originalName}</span>
                 <span className="adfiles__size">{fmtSize(f.fileSize)}</span>
-                <a className="adact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-                  title="Open attachment" aria-label={`Open ${f.originalName}`}><Icon name="eye" size={15} /></a>
+                {onView
+                  ? <button type="button" className="adact" onClick={() => onView(c.files, i, c.author.name)}
+                      title="View attachment" aria-label={`View ${f.originalName}`}><Icon name="eye" size={15} /></button>
+                  : <a className="adact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
+                      title="Open attachment" aria-label={`Open ${f.originalName}`}><Icon name="eye" size={15} /></a>}
               </li>
             ))}
           </ul>
@@ -865,7 +864,7 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, depth
         {c.replies?.length > 0 && (
           <div className="adcomment__replies">
             {c.replies.map((r) => (
-              <CommentCard key={r._id} c={r} depth={depth + 1}
+              <CommentCard key={r._id} c={r} depth={depth + 1} onView={onView}
                 onReply={onReply} onLike={onLike} onPin={onPin} onDelete={onDelete} onEdit={onEdit} />
             ))}
           </div>

@@ -13623,7 +13623,9 @@ button.docstat:hover {
 }
 .docdrawer {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 1001;
-  width: min(470px, 100%);
+  /* Wide enough for its four footer buttons on one line — at 470px the last
+     one, Edit, dropped onto a row of its own. */
+  width: min(520px, 100%);
   background: var(--bg-card);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
@@ -13650,6 +13652,7 @@ button.docstat:hover {
   display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
   padding: 14px 22px; border-top: 1px solid var(--border); background: var(--bg);
 }
+.docdrawer__foot .btn { padding: 9px 13px; font-size: .85rem; }
 .docfield { display: flex; gap: 14px; padding: 8px 0; font-size: .85rem; }
 .docfield + .docfield { border-top: 1px dashed var(--border); }
 .docfield dt { color: var(--text-muted); flex: 0 0 40%; }
@@ -13666,6 +13669,13 @@ button.docstat:hover {
 }
 .docfiles__size { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
 .docfiles--compact { margin-top: 4px; }
+/* A file's name is the way in to it; the View button beside it says so. */
+.docfiles__open {
+  padding: 0; font: inherit; font-size: .84rem; font-weight: 500;
+  color: inherit; text-align: left;
+}
+.docfiles__open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.docfiles__view { flex-shrink: 0; padding: 6px 10px; gap: 5px; }
 
 /* ── Upload / edit form ────────────────────────────────────────────────────── */
 .docform__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -13751,7 +13761,8 @@ button.docstat:hover {
    ───────────────────────────────────────────────────────────────────────────
    Admin → Documents → :id. A header that stays put across four tabs, then a
    different shape under each: figures and charts on Overview and Analytics, a
-   three-column workbench on Submissions, a thread and a rail on Comments.
+   list with a student's work beside it on Submissions, a thread and a rail on
+   Comments.
 
    Prefixed `ad` so nothing here reaches another page. It borrows .card, .table,
    .btn, .form-control and the .tint-* icon tints, and the `doc*` file marks
@@ -13772,10 +13783,11 @@ button.docstat:hover {
 }
 
 .adhero {
-  display:     flex;
-  align-items: flex-start;
-  gap:         16px;
-  padding:     20px 22px 16px;
+  display:       flex;
+  align-items:   flex-start;
+  gap:           16px;
+  padding:       20px 22px 16px;
+  border-bottom: 1px solid var(--border);
 }
 .adhero__text { flex: 1; min-width: 0; }
 .adhero__text h1 {
@@ -13786,33 +13798,63 @@ button.docstat:hover {
 .adhero__acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 .adhero__acts .btn { padding: 8px 14px; font-size: .85rem; }
 
-/* The facts strip. Cells wrap onto a second line rather than scrolling — a
-   date the reader has to scroll sideways to see is a date they will not see. */
-.admeta {
-  display:    flex;
-  flex-wrap:  wrap;
-  gap:        0;
-  padding:    0 22px 4px;
-  border-top: 1px solid var(--border);
-}
+/* The facts strip. The cells share the row between them — each takes what its
+   own words need plus an equal part of whatever is left — so six facts or
+   seven reach both edges of the card, instead of bunching at the left with a
+   blank run after the last one. They wrap onto a second line rather than
+   scrolling: a date the reader has to scroll sideways to see is a date they
+   will not see.
+
+   The dividers are each cell's LEFT and TOP edge, with the row pulled one
+   divider up and to the left and the strip clipping it. The first cell of
+   every line and the whole first line lose theirs however the cells happen to
+   wrap — a right-hand border cannot know which cell ends a line. */
+.admeta      { margin: 0 22px; overflow: hidden; }
+.admeta__row { display: flex; flex-wrap: wrap; margin: -1px 0 0 -17px; }
+/* Label, value, and a third line where there is one — stacked from the top, so
+   every label in the row sits on one line and every value on the next. Centred
+   on a tile beside them, a two-line fact and a three-line one put their labels
+   at different heights. */
 .admeta__cell {
-  display:     flex;
-  align-items: center;
-  gap:         10px;
-  padding:     14px 22px 14px 0;
-  margin-right: 22px;
-  border-right: 1px solid var(--border);
+  flex:           1 1 auto;
+  display:        flex;
+  flex-direction: column;
+  align-items:    flex-start;
+  gap:            2px;
+  padding:        12px 16px 13px;
+  border-left:    1px solid var(--border);
+  border-top:     1px solid var(--border);
+  text-align:     left;
+  color:          inherit;
+  /* Stated, because one of these cells is a <button>, and a button does not
+     inherit the page's line height — its three lines sat tighter and two
+     pixels higher than its neighbours'. */
+  line-height:    1.5;
 }
-.admeta__cell:last-child { border-right: none; margin-right: 0; }
-.admeta__icon {
-  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg); color: var(--text-muted);
+.admeta__label {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light);
 }
-.admeta__body  { display: flex; flex-direction: column; min-width: 0; }
-.admeta__label { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
+.admeta__label svg { flex-shrink: 0; }
 .admeta__value { font-size: .88rem; font-weight: 600; line-height: 1.35; }
 .admeta__sub   { font-size: .72rem; color: var(--text-muted); }
+/* A fact that opens something — the attachments. */
+.admeta__cell--btn { transition: background var(--transition); }
+.admeta__cell--btn:hover { background: var(--bg); }
+.admeta__cell--btn:hover .admeta__label { color: var(--primary); }
+.admeta__cell--btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.admeta__cell--btn .admeta__sub { color: var(--primary); font-weight: 600; }
+
+/* The tab strip is the card's bottom edge: nothing under it, a rule above it
+   to close the facts, and its own rule handed over to the card's border (kept
+   as a transparent pixel, so the active tab's underline still has somewhere
+   to sit). */
+.adhead .uitabs--line {
+  margin-bottom: 0;
+  padding: 0 8px;
+  border-top: 1px solid var(--border);
+  border-bottom-color: transparent;
+}
 
 /* ── Pills ─────────────────────────────────────────────────────────────────── */
 .adpill {
@@ -13826,7 +13868,12 @@ button.docstat:hover {
 .adpill--slate  { background: #f1f5f9; color: #475569; }
 .adpill--indigo { background: #eef2ff; color: #4338ca; }
 
-/* ── The four tiles ────────────────────────────────────────────────────────── */
+/* ── The four tiles ──────────────────────────────────────────────────────────
+   Four across wherever the row has room for them — measured on the row itself
+   (.adtiles-box is the container), not on the window. They used to drop to two
+   rows of two below a 1500px WINDOW, which is every laptop: each tile then ran
+   570px wide around a single number and the roster left the first screen. */
+.adtiles-box { container: adtiles / inline-size; }
 .adtiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .adtile {
   display: flex; align-items: flex-start; gap: 13px;
@@ -13848,6 +13895,9 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adtile__pct   { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
 .adtile__label { display: block; font-size: .85rem; font-weight: 600; margin-top: 1px; }
 .adtile__sub   { display: block; font-size: .72rem; color: var(--text-light); margin-top: 1px; }
+/* Four across on a laptop leaves each tile about 200px of words: one line each,
+   cut short rather than folded onto a second. */
+.adtile__label, .adtile__sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The bar is the same ratio as the percentage beside it — the four tiles read
    as one split rather than four unrelated counts. */
 .adtile__bar {
@@ -13855,12 +13905,30 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   background: #eef2f7; margin-top: 9px; overflow: hidden;
 }
 .adtile__bar > span { display: block; height: 100%; border-radius: 99px; }
+/* After the tile's own rules, not before them: equal selectors, so whichever
+   comes last wins, and a query placed above would be silently overruled. */
+@container adtiles (max-width: 1060px) {
+  /* Still four across; the tiles give up a little padding to stay that way. */
+  .adtiles { gap: 12px; }
+  .adtile  { padding: 14px; gap: 11px; }
+  .adtile__icon  { width: 40px; height: 40px; border-radius: 12px; }
+  .adtile__value { font-size: 1.45rem; }
+}
+@container adtiles (max-width: 860px) { .adtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container adtiles (max-width: 440px) { .adtiles { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Panels & rows ─────────────────────────────────────────────────────────── */
 .adrow { display: grid; gap: 16px; align-items: stretch; }
 .adrow--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .adrow--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .adrow--split { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
+/* The first row under the tiles is NOT three equal columns. The ring wants its
+   legend beside it, the chart wants room for its bars and the scores want very
+   little — in thirds the ring's panel stood half as tall again as the other
+   two and left them hollow. `--lead-mid` is the same row with the narrow
+   column in the middle (Analytics). */
+.adrow--lead     { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.15fr) minmax(0, .8fr); }
+.adrow--lead-mid { grid-template-columns: minmax(0, 1.35fr) minmax(0, .8fr) minmax(0, 1.15fr); }
 
 .adpanel {
   background: var(--bg-card);
@@ -13880,6 +13948,9 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adpanel__head h2 small { font-size: .82rem; font-weight: 500; color: var(--text-muted); }
 
 .adblank { font-size: .84rem; color: var(--text-muted); text-align: center; padding: 22px 8px; line-height: 1.6; }
+/* A panel with nothing in it yet says so in its middle, not in one line under
+   the title with the rest of the box hanging empty below. */
+.adpanel > .adblank { margin-top: auto; margin-bottom: auto; }
 .adloading { display: flex; justify-content: center; padding: 56px; }
 .adnone { color: var(--text-light); }
 .admono { font-size: .84rem; color: var(--text-muted); white-space: nowrap; }
@@ -13895,8 +13966,19 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adtip__row span { width: 9px; height: 9px; border-radius: 3px; }
 .adtip__row b { color: var(--text); }
 
-.addonut { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+/* Ring over legend in a narrow panel, ring beside legend in a wide one. It is
+   the PANEL's width that decides — the same chart sits in a wide column on one
+   tab and a narrow one on another at the same window size — so .addonut is a
+   container and the layout inside it answers to that. (The element being
+   queried cannot restyle itself, hence the inner wrapper.) */
+.addonut     { container: addonut / inline-size; display: flex; flex: 1; }
+.addonut__in { display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 0; }
 .addonut__ring  { position: relative; }
+@container addonut (min-width: 372px) {
+  .addonut__in   { flex-direction: row; align-items: center; gap: 16px; }
+  .addonut__ring { flex: 0 0 168px; }
+  .addonut__in > .adlegend { flex: 1; min-width: 0; margin-top: 0; gap: 12px; }
+}
 .addonut__empty { display: flex; align-items: center; justify-content: center; }
 /* The centred figure is a div, not SVG text: it re-flows with the container and
    keeps the app's own type rather than recharts' defaults. */
@@ -13913,8 +13995,8 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adlegend { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
 .adlegend li { display: flex; align-items: center; gap: 9px; font-size: .84rem; }
 .adlegend__dot  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-.adlegend__name { color: var(--text-muted); }
-.adlegend__val  { margin-left: auto; font-weight: 700; }
+.adlegend__name { color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adlegend__val  { margin-left: auto; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .adlegend__val em { font-style: normal; font-weight: 500; color: var(--text-muted); margin-left: 5px; }
 
 .adrank { list-style: none; display: flex; flex-direction: column; gap: 13px; }
@@ -13925,7 +14007,11 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adrank__val   { flex: 0 0 42px; text-align: right; font-weight: 700; }
 
 /* ── Score cards ───────────────────────────────────────────────────────────── */
-.adscores { gap: 14px; justify-content: center; }
+/* Three scores, each taking a third of the panel's height with a rule between
+   them — bands, rather than three rows adrift in the middle of a tall box. */
+.adscores { gap: 0; padding-top: 4px; padding-bottom: 4px; }
+.adscores > .adscore { flex: 1 1 0; min-height: 60px; }
+.adscores > .adscore + .adscore { border-top: 1px solid var(--border); }
 .adscore { display: flex; align-items: center; gap: 12px; }
 .adscore__icon {
   width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
@@ -13948,6 +14034,8 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adavg__hero strong small { font-size: 1rem; font-weight: 500; color: var(--text-muted); }
 .adavg__hero > div > small { display: block; font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
 .adavg__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* In the row's narrow column two faces side by side leave 40px for a name. */
+.adrow--lead-mid .adavg__pair { grid-template-columns: 1fr; }
 .adface {
   display: flex; align-items: center; gap: 10px;
   border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 11px;
@@ -13972,15 +14060,28 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adpanel__head > .adtools { flex: 1 0 auto; justify-content: flex-end; }
 .adtools--bar { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
 .adtools__sep { flex: 1 1 auto; }
+/* The actions on everything in the list. One flex item, pushed right: when the
+   bar runs out of room they move to the next line as a group, right-aligned,
+   instead of the last button dropping off alone. */
+.adtools__group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+/* In a panel head the whole toolbar is already packed to the right. */
+.adpanel__head > .adtools .adtools__group { margin-left: 0; }
 .adtools .btn { padding: 8px 13px; font-size: .84rem; white-space: nowrap; }
 
-.adsearch { position: relative; flex: 0 1 220px; min-width: 160px; }
+/* `width` as well as the flex-basis. A browser sizes a wrapping toolbar by its
+   items' own widths, and without one the search counted as its bare <input>
+   (about 170px) while it was laid out at its basis — so a panel head decided
+   the toolbar fitted beside the title, then found it did not, and dropped the
+   last button onto a line by itself. */
+.adsearch { position: relative; flex: 0 1 200px; width: 200px; min-width: 160px; }
+/* In the bar the search takes what the dropdowns and the buttons leave. */
+.adtools--bar .adsearch { flex: 1 1 170px; width: 170px; max-width: 340px; }
 .adsearch > svg {
   position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
   color: var(--text-light); pointer-events: none;
 }
 .adsearch input { padding-left: 34px; font-size: .84rem; }
-.adsel { width: auto; flex-shrink: 0; max-width: 190px; font-size: .84rem; padding: 8px 28px 8px 11px; cursor: pointer; }
+.adsel { width: auto; flex-shrink: 0; max-width: 176px; font-size: .84rem; padding: 8px 28px 8px 11px; cursor: pointer; }
 
 /* ── The roster table ──────────────────────────────────────────────────────── */
 .adtable td { padding: 11px 14px; }
@@ -14021,6 +14122,9 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; padding: 10px 0; font-size: .82rem; color: var(--text-muted);
 }
+/* Over the Submissions list: how many, then in what order and which page. */
+.adfoot__end { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+.adfoot--head .adsel { padding-top: 6px; padding-bottom: 6px; }
 .adpager { display: flex; align-items: center; gap: 5px; }
 .adpage {
   min-width: 32px; height: 32px; padding: 0 8px;
@@ -14033,75 +14137,57 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adpage:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ── The Submissions workbench ─────────────────────────────────────────────
-   Rail, list and panel. Three columns because the three questions are asked
-   together: narrow it down, find the student, look at their work. */
+   The list, and — once a student is picked — their work beside it. Until then
+   the list has the whole width: a panel saying "No student selected" used to
+   hold a third of the row for nothing. Narrowing the list down is the bar
+   above it; a side rail used to repeat every control in that too. */
 .adwork {
   display: grid;
-  grid-template-columns: 186px minmax(0, 1fr) minmax(286px, 322px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
-/* Names stay on one line here — the middle column is the narrowest place a
-   roster is read, and a wrapped name doubles every row's height. */
+/* The panel takes three tenths of the row, within limits — not a flat 360px.
+   On a 1366px laptop that difference is the list keeping its Marks column in
+   view instead of sliding it under the pinned actions. */
+.adwork--split { grid-template-columns: minmax(0, 1fr) clamp(300px, 30%, 360px); }
+/* Where the page scrolls to when the panel opens under the list (a narrow
+   window) — clear of the app's own header. */
+.adwork__side { min-width: 0; scroll-margin-top: calc(var(--header-height) + 14px); }
+
+/* Names stay on one line here — a wrapped name doubles every row's height. */
 .adwork .adwho__name,
 .adwork .adwho__sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The rows keep one height whether or not the panel is open, so opening it
+   moves nothing up or down; only the room between columns gives. */
 .adwork .adtable td,
-.adwork .adtable th   { padding: 9px 8px; }
-.adwork .adtable__num { width: 36px; }
+.adwork .adtable th   { padding-top: 9px; padding-bottom: 9px; }
+.adwork--split .adtable td,
+.adwork--split .adtable th   { padding-left: 6px; padding-right: 6px; }
+.adwork--split .adtable__num { width: 36px; }
 
-/* Between a rail and a panel there is not always room for seven columns, and
+/* Beside the panel there is not always room for seven columns, and
    the one that would fall off the edge is the one holding the buttons. It is
    pinned to the right instead, so the table scrolls under it rather than past
    it. */
-.adwork .adtable__acts {
+.adwork--split .adtable__acts {
   position: sticky; right: 0; z-index: 1;
   background: var(--bg-card);
   box-shadow: -8px 0 8px -8px rgba(15, 23, 42, .18);
 }
-.adwork .adtable thead .adtable__acts { background: var(--bg); }
-.adwork .adtable tr:hover .adtable__acts,
-.adwork .adtable tr.is-picked .adtable__acts { background: inherit; }
+.adwork--split .adtable thead .adtable__acts { background: var(--bg); }
+/* Opaque, in the row's own colour. They used to `inherit` — from a <tr> that
+   has no background — which made the pinned cell see-through on exactly the
+   rows being pointed at or picked, with the columns scrolled beneath it
+   showing between the buttons. */
+.adwork--split .adtable tr:hover .adtable__acts     { background: var(--bg); }
+.adwork--split .adtable tr.is-picked .adtable__acts { background: #f5f3ff; }
 .adworkbench { padding: 18px; }
-
-.adrail { display: flex; flex-direction: column; gap: 18px; }
-.adrail__group h3 {
-  font-size: .72rem; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
-}
-.adrail__group ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
-.adrail__row {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  padding: 8px 10px; border-radius: 9px;
-  font-size: .84rem; color: var(--text); text-align: left;
-  transition: background var(--transition), color var(--transition);
-}
-.adrail__row svg { color: var(--text-light); flex-shrink: 0; }
-.adrail__row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.adrail__row b { font-weight: 700; color: var(--text-muted); }
-.adrail__row:hover { background: var(--bg); }
-.adrail__row.is-on { background: #eef2ff; color: var(--primary); font-weight: 600; }
-.adrail__row.is-on svg, .adrail__row.is-on b { color: var(--primary); }
-.adrail__act {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px;
-  font-size: .82rem; color: var(--text); text-align: left; background: var(--bg-card);
-  transition: border-color var(--transition), color var(--transition);
-}
-.adrail__act:hover { border-color: #c7d2fe; color: var(--primary); }
-.adrail__act svg   { color: var(--text-muted); flex-shrink: 0; }
-.adrail__act:hover svg { color: var(--primary); }
 
 .adlist { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0 14px; }
 
 /* ── The submission panel ──────────────────────────────────────────────────── */
 .adside { padding: 0; overflow: hidden; }
-.adside--empty {
-  align-items: center; justify-content: center; text-align: center;
-  gap: 8px; padding: 40px 22px; color: var(--text-muted); min-height: 260px;
-}
-.adside--empty svg { color: var(--text-light); }
-.adside--empty h3  { font-size: .95rem; font-weight: 700; color: var(--text); }
-.adside--empty p   { font-size: .82rem; line-height: 1.55; max-width: 240px; }
 
 .adside__head {
   display: flex; align-items: center; justify-content: space-between;
@@ -14115,6 +14201,10 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adside__who strong { display: block; font-size: .9rem; font-weight: 700; }
 .adside__who small  { display: block; font-size: .75rem; color: var(--text-muted); }
 .adside__who > div  { flex: 1; min-width: 0; }
+/* The panel's three faces, as one control: set in from the panel's edges, each
+   face a third of it. Flush against the borders it read as a stray box. */
+.adside > .uitabs--solid { margin: 12px 16px 0; }
+.adside > .uitabs--solid .uitab { flex: 1 1 0; justify-content: center; }
 .adside__body { padding: 16px; max-height: 620px; overflow-y: auto; }
 .adside__none {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
@@ -14140,7 +14230,17 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   gap: 10px; margin: 20px 0 8px;
 }
 .adside__filehead h4 { font-size: .82rem; font-weight: 700; }
-.adlinkbtn { display: inline-flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 600; }
+.adlinkbtn {
+  display: inline-flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 600;
+  padding: 0; background: none; border: none; color: var(--primary); cursor: pointer;
+}
+.adlinkbtn:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* A file's name is the way in to it. */
+.adfiles__open {
+  padding: 0; background: none; border: none; font: inherit; font-size: .82rem; font-weight: 500;
+  color: inherit; text-align: left; cursor: pointer;
+}
+.adfiles__open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 
 .adfiles { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .adfiles li {
@@ -14279,6 +14379,22 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .adattach:hover { border-color: #c7d2fe; color: var(--primary); }
 .adattach input { display: none; }
+/* The files riding on the comment being written: each named, each with its own
+   Replace and Remove. */
+.adattached { list-style: none; display: flex; flex-direction: column; gap: 6px; padding-left: 47px; }
+.adattached li {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 9px;
+}
+.adattached input[type="file"] { display: none; }
+.adattached__btn {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--bg-card);
+  padding: 4px 9px; font-size: .75rem; font-weight: 600; color: var(--text-muted);
+  transition: border-color var(--transition), color var(--transition);
+}
+.adattached__btn:hover { border-color: #c7d2fe; color: var(--primary); }
+.adattached__btn.is-danger:hover { border-color: #fecaca; color: var(--danger); }
 .adnote { font-size: .78rem; color: var(--text-muted); }
 
 .adminis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -14329,24 +14445,36 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adsheet__cancel { justify-content: center; color: var(--text-muted) !important; margin-top: 4px; }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 1500px) {
-  .adtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 @media (max-width: 1400px) {
-  /* The panel drops under the list before the rail does — the rail is 186px and
-     the panel needs 292, so squeezing three columns starves the table first. */
-  .adwork { grid-template-columns: 186px minmax(0, 1fr); }
-  .adwork > .adside { grid-column: 1 / -1; }
   .adrow--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adrow--3 > .adpanel:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
+@media (max-width: 1345px) {
+  /* Seven facts need about 970px on one line; a 1280px window has 940. A
+     little less room either side of each is the difference. */
+  .admeta__row  { margin-left: -13px; }
+  .admeta__cell { padding-left: 12px; padding-right: 12px; }
+
+  /* The lead row: two panels side by side, the third across the row under
+     them. On the Overview that third is the scores, which then sit in a line. */
+  .adrow--lead, .adrow--lead-mid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adrow--lead > .adpanel:last-child { grid-column: 1 / -1; }
+  .adrow--lead > .adscores { flex-direction: row; }
+  .adrow--lead > .adscores > .adscore { padding: 6px 0; }
+  .adrow--lead > .adscores > .adscore + .adscore {
+    border-top: none; border-left: 1px solid var(--border); padding-left: 18px;
+  }
+  .adrow--lead-mid .adavg__pair { grid-template-columns: 1fr 1fr; }
+}
 @media (max-width: 1100px) {
   .adrow--split { grid-template-columns: 1fr; }
+  /* The panel opens under the list once the two cannot sit side by side. */
+  .adwork--split { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
-  .adrow--2, .adrow--3 { grid-template-columns: 1fr; }
-  .adrow--3 > .adpanel:last-child:nth-child(odd) { grid-column: auto; }
-  .adwork { grid-template-columns: 1fr; }
+  .adrow--2, .adrow--3, .adrow--lead, .adrow--lead-mid { grid-template-columns: 1fr; }
+  .adrow--3 > .adpanel:last-child:nth-child(odd),
+  .adrow--lead > .adpanel:last-child { grid-column: auto; }
   .adminis { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 768px) {
@@ -14355,16 +14483,24 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .adhero__text h1 { font-size: 1.2rem; }
   .adhero__acts { width: 100%; }
   .adhero__acts .btn { flex: 1; justify-content: center; }
-  .admeta { padding: 0 16px; }
-  .admeta__cell { border-right: none; margin-right: 0; padding: 11px 16px 11px 0; }
-  .adtiles { grid-template-columns: 1fr; gap: 12px; }
+  .admeta { margin: 0 16px; }
   .adpanel { padding: 14px; }
   .adtools { width: 100%; }
-  .adsearch { flex: 1 1 100%; }
+  .adsearch, .adtools--bar .adsearch { flex: 1 1 100%; max-width: none; }
   .adsel { flex: 1 1 140px; max-width: none; }
+  .adtools__group { width: 100%; margin-left: 0; }
+  .adtools__group .btn { flex: 1 1 auto; justify-content: center; }
+  .adfoot--head .adsel { flex: 0 1 auto; }
   .adlist { padding: 0 10px; }
-  .adcomposer__foot { padding-left: 0; }
-  .adavg__pair { grid-template-columns: 1fr; }
+  .adcomposer__foot, .adattached { padding-left: 0; }
+  .adavg__pair, .adrow--lead-mid .adavg__pair { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  /* On a phone the scores go back to one above the other. */
+  .adrow--lead > .adscores { flex-direction: column; }
+  .adrow--lead > .adscores > .adscore + .adscore {
+    border-left: none; border-top: 1px solid var(--border); padding-left: 0;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -14498,6 +14634,30 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .dvcard + .dvcard { border-top: 1px solid var(--border); }
 .dvcard:hover { background: #fafbff; }
+
+/* Not opened yet. Three signals, so it does not rest on colour alone: a bar
+   down the edge, a heavier title and the word "New" in front of it. Read cards
+   are the plain ones — most of a shelf is read, and the eye should land on
+   what is not. */
+.dvcard.is-unread { background: #f5f7ff; box-shadow: inset 3px 0 0 var(--primary); }
+.dvcard.is-unread:hover { background: #eef2ff; }
+.dvcard.is-unread .dvcard__title { font-weight: 800; }
+.dvnew {
+  display: inline-block; vertical-align: 1px; margin-right: 7px;
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--primary); color: #fff;
+  font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.dvunread {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: .8rem; font-weight: 600; color: var(--text);
+}
+.dvunread__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.dvunread button {
+  padding: 0; background: none; border: none; cursor: pointer;
+  font-size: .78rem; font-weight: 600; color: var(--primary);
+  text-decoration: underline; text-underline-offset: 2px;
+}
 
 /* The whole left side is the "open it" target — a card you have to aim at is a
    card a phone user misses. */
@@ -14638,6 +14798,12 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .dvfiles__name { flex: 1; min-width: 0; font-size: .83rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dvfiles__size { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
+.dvfiles__open {
+  padding: 0; font: inherit; font-size: .83rem; font-weight: 500;
+  color: inherit; text-align: left;
+}
+.dvfiles__open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.dvfiles__view { flex-shrink: 0; padding: 6px 10px; gap: 5px; }
 
 .dvfeedback {
   margin-top: 14px; padding: 12px;
@@ -14651,6 +14817,46 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   display: flex; flex-direction: column; gap: 9px; align-items: flex-start;
 }
 .dvsubmit .form-label { margin: 0; }
+.dvsubmit .dvdrop { align-self: stretch; }
+
+/* ── The discussion under a document ───────────────────────────────────────── */
+.dvcoms { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.dvcom  { display: flex; align-items: flex-start; gap: 10px; }
+.dvcom--reply { margin-left: 40px; }
+.dvcom__body {
+  flex: 1; min-width: 0;
+  background: var(--bg); border-radius: var(--radius-lg); padding: 9px 12px;
+}
+.dvcom__body header { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.dvcom__body header b { font-size: .83rem; font-weight: 700; }
+.dvcom__body header time { margin-left: auto; font-size: .7rem; color: var(--text-light); white-space: nowrap; }
+.dvcom__body p { font-size: .85rem; line-height: 1.55; margin-top: 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dvcom__body .dvfiles { margin-top: 8px; }
+.dvcom__body .dvfiles li { background: var(--bg-card); }
+.dvcom__role {
+  font-size: .66rem; font-weight: 700; border-radius: 5px; padding: 1px 6px;
+  background: #f1f5f9; color: #475569;
+}
+.dvcom__role--teacher      { background: #dcfce7; color: #047857; }
+.dvcom__role--school_admin { background: #eef2ff; color: #4338ca; }
+.dvcom__reply {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 7px;
+  padding: 0; background: none; border: none; cursor: pointer;
+  font-size: .74rem; font-weight: 600; color: var(--text-muted);
+}
+.dvcom__reply:hover { color: var(--primary); }
+.dvcomform {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);
+}
+.dvcomform textarea { width: 100%; }
+.dvcomform__to {
+  align-self: stretch; display: flex; align-items: center; gap: 6px;
+  font-size: .78rem; color: var(--text-muted);
+}
+.dvcomform__to button {
+  margin-left: auto; padding: 2px; background: none; border: none; cursor: pointer; color: var(--text-muted);
+}
 .dvwarn {
   display: flex; align-items: center; gap: 7px;
   font-size: .8rem; color: #b91c1c;
@@ -14799,7 +15005,7 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .shassign .form-group:last-of-type { margin-bottom: 0; }
 
 /* ── Files already attached ────────────────────────────────────────────────── */
-.shkept { margin-top: 12px; }
+.shkept { margin-bottom: 12px; }
 .shkept > p {
   display: flex; align-items: center; gap: 6px;
   font-size: .77rem; color: var(--text-muted); margin-bottom: 7px;
@@ -14896,6 +15102,35 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .shaud__btn b     { display: block; font-size: .84rem; font-weight: 600; }
 .shaud__btn small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 1px; line-height: 1.35; }
 
+/* Specific teachers: the three ways to narrow the staff, then the people. */
+.shfilters {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px;
+}
+.shfilters select { font-size: .82rem; background: var(--bg-card); }
+.shfilters select.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.shpeople { display: flex; flex-direction: column; gap: 6px; max-height: 264px; overflow-y: auto; }
+.shperson {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card); text-align: left; font: inherit; cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+.shperson:hover { border-color: #c7d2fe; }
+.shperson.is-on { border-color: var(--primary); background: #f8faff; }
+.shperson > svg { color: var(--text-light); flex-shrink: 0; }
+.shperson.is-on > svg { color: var(--primary); }
+.shperson__text { flex: 1; min-width: 0; }
+.shperson__text b { display: block; font-size: .84rem; font-weight: 600; }
+.shperson__text small {
+  display: block; font-size: .73rem; color: var(--text-muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.shpick__note {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px; font-size: .77rem; color: #b45309;
+}
+.shlink:disabled { opacity: .45; cursor: not-allowed; }
+
 /* Exactly which. Boxed and scrollable, because a school with thirty sections
    would otherwise push the rest of the form off the bottom of the dialog. */
 .shpick {
@@ -14976,11 +15211,67 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 640px) {
+  .shfilters { grid-template-columns: 1fr; }
   .shaud { grid-template-columns: 1fr; }
   .shrow--3 { grid-template-columns: 1fr; }
   .shrow2__head { flex: 1 1 100%; }
 }
 
+
+/* ── A file, opened over the page (pages/documents/FileViewer.jsx) ─────────
+   Above the drawers (1001) and the modals: it is opened from inside either. */
+.fv { position: fixed; inset: 0; z-index: 1300; display: flex; align-items: center; justify-content: center; padding: 22px; }
+.fv__scrim { position: absolute; inset: 0; background: rgba(15, 23, 42, .72); }
+.fv__box {
+  position: relative; display: flex; flex-direction: column;
+  width: min(1080px, 100%); height: min(92vh, 100%);
+  background: var(--bg-card); border-radius: var(--radius-lg); overflow: hidden;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .35);
+}
+.fv__head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+}
+.fv__id { flex: 1; min-width: 0; }
+.fv__id b {
+  display: block; font-size: .9rem; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fv__id small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+.fv__nav { display: inline-flex; gap: 5px; padding-right: 8px; margin-right: 3px; border-right: 1px solid var(--border); }
+.fv__btn {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg); border: 1px solid transparent; color: var(--text-muted); cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.fv__btn:hover:not(:disabled) { background: #eef2ff; color: var(--primary); border-color: #c7d2fe; }
+.fv__btn:disabled { opacity: .4; cursor: not-allowed; }
+.fv__stage {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9; overflow: auto;
+}
+.fv__stage--image, .fv__stage--video { background: #0f172a; }
+.fvimg   { max-width: 100%; max-height: 100%; object-fit: contain; }
+.fvmedia { max-width: 100%; max-height: 100%; }
+.fvaudio { width: min(520px, 90%); }
+.fvframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.fvtext  {
+  align-self: stretch; flex: 1; margin: 0; padding: 18px 22px; overflow: auto;
+  background: var(--bg-card); font-size: .82rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.fvwait { display: flex; justify-content: center; padding: 56px; }
+.fvnone {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  max-width: 400px; padding: 32px 22px; text-align: center;
+}
+.fvnone h4 { font-size: 1rem; font-weight: 700; }
+.fvnone p  { font-size: .84rem; line-height: 1.55; color: var(--text-muted); }
+.fvnone .btn { margin-top: 6px; max-width: 100%; }
+@media (max-width: 640px) {
+  .fv { padding: 0; }
+  .fv__box { width: 100%; height: 100%; border-radius: 0; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TEACHER FEEDBACK — the admin module

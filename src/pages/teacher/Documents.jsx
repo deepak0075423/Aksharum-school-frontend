@@ -20,13 +20,14 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, uploadDocument, updateDocument, deleteDocument, getDocumentCategories,
+  markDocumentRead, markDocumentsRead,
 } from '../../api/teacher.api';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
-  DocList, DocDrawer, NothingHere, Field,
-  TABS, SORTS, applyFilters, fmtDate, fileUrl,
+  DocList, DocDrawer, NothingHere, Field, UnreadNote, OpenFile,
+  TABS, sortsFor, sortOn, applyFilters, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
 import ShareDocument from './ShareDocument';
 import Tabs from '../../components/ui/Tabs';
@@ -44,7 +45,9 @@ export default function TeacherDocuments() {
   );
   const { data: catData } = useFetch(getDocumentCategories);
 
-  const all      = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const loaded   = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  // The same list, with what has been opened on this visit already marked read.
+  const { docs: all, read, readAll } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
   const counts   = meta?.counts || {};
   const sections = meta?.sections || [];
   const years    = meta?.years || [];
@@ -72,7 +75,7 @@ export default function TeacherDocuments() {
   );
 
   const shown = useMemo(
-    () => applyFilters(scoped, { tab, category, search, sort }),
+    () => applyFilters(scoped, { tab, category, search, sort: sortOn(tab, sort) }),
     [scoped, tab, category, search, sort],
   );
 
@@ -93,7 +96,7 @@ export default function TeacherDocuments() {
   const startNew  = () => { setEditing(null); setShowForm(true); };
   const startEdit = (d)  => { setOpen(null); setEditing(d); setShowForm(true); };
 
-  const save = async (form, files) => {
+  const save = async (form, files, kept = []) => {
     setSaving(true);
     try {
       const fd = new FormData();
@@ -112,6 +115,9 @@ export default function TeacherDocuments() {
       // section — it is marked in one place.
       fd.append('sectionIds', JSON.stringify(form.sectionIds));
       files.forEach((f) => fd.append('files', f));
+      // On an edit: which of the files already attached are staying. The new
+      // ones above are added to them rather than replacing them.
+      if (editing) fd.append('keepFiles', JSON.stringify(kept.map((f) => f.storedName)));
 
       if (editing) {
         await updateDocument(editing._id, fd);
@@ -204,11 +210,12 @@ export default function TeacherDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={categories} label="Filter by category" />
           <span className="dvtools__sep" />
-          <Picker value={sort} onChange={setSort} options={SORTS} label="Sort documents" />
+          {scope === 'shared' && <UnreadNote docs={scoped} onClear={() => readAll(scoped)} />}
+          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
         </ViewerTools>
 
         <DocList
-          docs={shown} loading={loading} onOpen={setOpen}
+          docs={shown} loading={loading} onOpen={(d) => { setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear}
             what={scope === 'mine' ? 'uploads' : 'documents'} />}
           badges={(d) => (d.isAssignment && d.mine
@@ -223,7 +230,7 @@ export default function TeacherDocuments() {
               {d.isAssignment && (
                 <button type="button" className="dvact" title="Open submissions"
                   aria-label={`Open submissions for ${d.title}`}
-                  onClick={() => navigate(`/teacher/documents/${d._id}?tab=submissions`)}>
+                  onClick={() => { read(d); navigate(`/teacher/documents/${d._id}?tab=submissions`); }}>
                   <Icon name="users" size={15} />
                 </button>
               )}
@@ -258,11 +265,7 @@ export default function TeacherDocuments() {
         )}
         foot={live && (
           <>
-            {live.files?.[0] && (
-              <a className="btn btn-secondary" href={fileUrl(live.files[0].filePath)} target="_blank" rel="noreferrer">
-                <Icon name="download" size={15} /> Open the file
-              </a>
-            )}
+            <OpenFile files={live.files} caption={live.title} />
             {live.mine && (
               <>
                 <button type="button" className="btn btn-danger" onClick={() => setDel(live)}>

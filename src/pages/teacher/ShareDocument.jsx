@@ -18,7 +18,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal } from '../../components/ui/index';
-import { FileDrop, FileMark, fmtSize, DOC_TYPES } from '../documents/viewerParts';
+import { FileDrop, KeptFiles, DOC_TYPES } from '../documents/viewerParts';
 
 const TYPE_ICON = {
   notice: 'megaphone', circular: 'files', study_material: 'bookOpen',
@@ -32,6 +32,9 @@ const TYPE_HINT = {
   assignment:     'Work to hand in',
   other:          'Anything else',
 };
+
+/** What a file-less assignment is told, in the form and by the server alike. */
+const NEEDS_FILE = 'Attach the assignment or its instructions — students need a file to work from';
 
 export const EMPTY = {
   title: '', description: '', docType: 'notice', category: '', subject: '',
@@ -81,6 +84,9 @@ export default function ShareDocument({
 }) {
   const [form,  setForm]  = useState(EMPTY);
   const [files, setFiles] = useState([]);
+  // The files already on the document being edited that are staying. New
+  // ones are added to these; each can be taken off on its own.
+  const [kept,  setKept]  = useState([]);
   const [tried, setTried] = useState(false);
 
   // Reset every time it opens, so yesterday's half-finished notice never
@@ -89,6 +95,7 @@ export default function ShareDocument({
     if (!open) return;
     setForm(formFor(editing, sections));
     setFiles([]);
+    setKept(editing?.files || []);
     setTried(false);
   }, [open, editing?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -112,15 +119,18 @@ export default function ShareDocument({
     if (form.isAssignment && form.dueDate && new Date(form.dueDate) < new Date(new Date().toDateString())) {
       e.dueDate = 'That date has already passed';
     }
+    // Work that is handed in needs the paper it is handed in against. Files
+    // already on the document count, for as long as they are not removed.
+    if (form.isAssignment && !files.length && !kept.length) e.files = NEEDS_FILE;
     return e;
-  }, [form]);
+  }, [form, files, kept]);
 
   const bad = Object.keys(errors).length > 0;
 
   const submit = () => {
     setTried(true);
     if (bad) return;
-    onSave(form, files);
+    onSave(form, files, kept);
   };
 
   const show = (k) => (tried ? errors[k] : null);
@@ -145,7 +155,10 @@ export default function ShareDocument({
             : <><Icon name="info" size={14} /> Nobody selected yet</>}
         </span>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={submit} loading={saving}>
+        {/* A missing file is the one error that holds the button back: the
+            others are fixed by typing, this one by going to find something. */}
+        <Button onClick={submit} loading={saving} disabled={saving || !!errors.files}
+          title={errors.files || undefined}>
           {editing ? 'Save changes' : 'Share it'}
         </Button>
       </>}
@@ -287,24 +300,16 @@ export default function ShareDocument({
         </Block>
 
         <Block step="4" title="What is attached?"
-          hint={editing ? 'Adding files here replaces the ones already on it.' : 'Optional — a notice can be all text.'}>
-          <FileDrop id="sh-files" files={files} onChange={setFiles}
-            hint="PDFs, documents, images — up to 10" />
+          hint={form.isAssignment
+            ? 'Required for an assignment — the question paper or the instructions students work from.'
+            : editing ? 'Add more files, or remove any that are already attached.' : 'Optional — a notice can be all text.'}>
+          <KeptFiles files={kept} onRemove={(i) => setKept(kept.filter((_, x) => x !== i))} />
+          <FileDrop id="sh-files" files={files} onChange={setFiles} max={Math.max(0, 10 - kept.length)}
+            hint={kept.length ? `Add files — ${10 - kept.length} more can go on this document` : 'PDFs, documents, images — up to 10'} />
+          {/* Shown straight away, not after a failed save: it is the reason the
+              button is held back. */}
+          <Err>{errors.files}</Err>
 
-          {editing?.files?.length > 0 && files.length === 0 && (
-            <div className="shkept">
-              <p><Icon name="files" size={14} /> Already attached — left alone unless you add new files</p>
-              <ul>
-                {editing.files.map((f, i) => (
-                  <li key={`${f.storedName || f.originalName}-${i}`}>
-                    <FileMark file={f} size={28} />
-                    <span className="dvfiles__name" title={f.originalName}>{f.originalName}</span>
-                    <span className="dvfiles__size">{fmtSize(f.fileSize)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </Block>
       </div>
     </Modal>

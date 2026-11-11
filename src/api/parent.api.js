@@ -26,7 +26,9 @@ export const requestRecheck = (data) => api.post('/parent/results/recheck', data
 export const getAdmitCard = (childId, examId) => api.get('/parent/results/admit-card', { params: { examId, ...(childId ? { childId } : null) }, responseType: 'blob' });
 export const getResults       = () => api.get('/parent/results');
 export const getResultDetail  = (id) => api.get(`/parent/results/${id}`);
-export const getDocuments     = () => api.get('/parent/documents');
+export const getDocuments     = (params) => api.get('/parent/documents', { params });
+export const markDocumentRead  = (id)  => api.post(`/parent/documents/${id}/read`);
+export const markDocumentsRead = (ids) => api.post('/parent/documents/read', { ids });
 export const getHolidays      = () => api.get('/parent/holidays');
 
 // Timetable — one child's week. `child` picks which; the reply lists `children`

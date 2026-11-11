@@ -22,7 +22,11 @@ export const saveAnswer     = (id, data) => api.post(`/student/exams/${id}/save-
 export const logViolation   = (id) => api.post(`/student/exams/${id}/violation`);
 export const submitExam     = (id) => api.post(`/student/exams/${id}/submit`);
 export const getExamResult  = (id) => api.get(`/student/exams/${id}/result`);
-export const getDocuments       = () => api.get('/student/documents');
+export const getDocuments       = (params) => api.get('/student/documents', { params });
+export const markDocumentRead   = (id)   => api.post(`/student/documents/${id}/read`);
+export const markDocumentsRead  = (ids)  => api.post('/student/documents/read', { ids });
+export const getDocumentComments = (id)  => api.get(`/student/documents/${id}/comments`);
+export const addDocumentComment  = (id, data) => api.post(`/student/documents/${id}/comments`, data);
 export const getDocument        = (id)   => api.get(`/student/documents/${id}`);
 export const submitAssignment   = (id, data) => api.post(`/student/documents/${id}/submit`, data);
 export const getHolidays    = () => api.get('/student/holidays');

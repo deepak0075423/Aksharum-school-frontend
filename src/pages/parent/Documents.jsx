@@ -16,13 +16,13 @@
  */
 import React, { useMemo, useState } from 'react';
 import useFetch from '../../hooks/useFetch';
-import { getDocuments } from '../../api/parent.api';
+import { getDocuments, markDocumentRead, markDocumentsRead } from '../../api/parent.api';
 import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
-  ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field,
-  TABS, SORTS, applyFilters, fmtDate, fileUrl, STATES,
+  ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile,
+  TABS, sortsFor, sortOn, applyFilters, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
 
 export default function ParentDocuments() {
@@ -31,7 +31,9 @@ export default function ParentDocuments() {
     () => getDocuments(year ? { year } : undefined), [year],
   );
 
-  const all      = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const loaded   = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  // The same list, with what has been opened on this visit already marked read.
+  const { docs: all, read, readAll } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
   const children = useMemo(() => meta?.children || [], [meta]);
   const perChild = meta?.perChild || {};
   const years    = meta?.years || [];
@@ -65,7 +67,7 @@ export default function ParentDocuments() {
   const counts = who ? (perChild[who] || {}) : (meta?.counts || {});
 
   const shown = useMemo(
-    () => applyFilters(scoped, { tab, category, search, sort, state }),
+    () => applyFilters(scoped, { tab, category, search, sort: sortOn(tab, sort), state }),
     [scoped, tab, category, search, sort, state],
   );
 
@@ -162,12 +164,13 @@ export default function ParentDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={meta?.categories || []} label="Filter by category" />
           <span className="dvtools__sep" />
-          <Picker value={sort} onChange={setSort} options={SORTS} label="Sort documents" />
+          <UnreadNote docs={scoped} onClear={() => readAll(scoped)} />
+          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
         </ViewerTools>
 
         <DocList
           docs={shown} loading={loading}
-          onOpen={setOpen}
+          onOpen={(d) => { setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
           badges={(d) => (who ? <StatePill state={d.state} /> : childStrip(d))}
         />
@@ -215,11 +218,7 @@ export default function ParentDocuments() {
             </p>
           </section>
         )}
-        foot={live?.files?.[0] && (
-          <a className="btn btn-secondary" href={fileUrl(live.files[0].filePath)} target="_blank" rel="noreferrer">
-            <Icon name="download" size={15} /> Open {live.fileCount > 1 ? 'first file' : 'the file'}
-          </a>
-        )}
+        foot={live?.files?.[0] && <OpenFile files={live.files} caption={live.title} />}
       />
     </div>
   );

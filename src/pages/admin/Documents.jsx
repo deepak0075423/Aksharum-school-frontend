@@ -21,17 +21,18 @@ import toast from 'react-hot-toast';
 import {
   getDocuments, getDocument, getDocumentOverview, uploadDocument, updateDocument, deleteDocument,
   archiveDocument, getDocumentCategories, createDocumentCategory, deleteDocumentCategory,
-  getClassesWithSections,
+  getClassesWithSections, getDocumentTeachers,
 } from '../../api/admin.api';
 import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   Crumbs, DocHero, DocStats, DocStat, DocTabs, DocTools, SearchField, Picker, SortMenu,
   ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer,
-  MenuItem, MenuSep, fileUrl,
-  TABS, SORTS, TARGET_FILTERS, DOC_TYPES,
+  MenuItem, MenuSep,
+  TABS, sortsFor, TARGET_FILTERS, DOC_TYPES,
 } from './documentParts';
 import ShareDocument from './ShareDocument';
+import { useFileViewer } from '../documents/FileViewer';
 
 // The axios interceptor resolves to the response body — { success, data, … } —
 // and only useFetch peels that off. These calls go straight to the api module,
@@ -49,7 +50,6 @@ export default function Documents() {
   const [tab,      setTab]      = useState('all');
   const [search,   setSearch]   = useState('');
   const [term,     setTerm]     = useState('');
-  const [category, setCategory] = useState('');
   const [target,   setTarget]   = useState('');
   const [year,     setYear]     = useState('');
   const [sort,     setSort]     = useState('newest');
@@ -64,6 +64,7 @@ export default function Documents() {
   const [over,    setOver]    = useState(null);
   const [classes, setClasses] = useState([]);
   const [cats,    setCats]    = useState([]);
+  const [teachers, setTeachers] = useState([]);
 
   // ── Overlays ───────────────────────────────────────────────────────────────
   const [showForm, setShowForm] = useState(false);
@@ -78,6 +79,10 @@ export default function Documents() {
   const [newCat,    setNewCat]    = useState('');
   const [addingCat, setAddingCat] = useState(false);
   const [delCat,    setDelCat]    = useState(null);
+
+  // A document's files open over this page — from the quick preview and from
+  // a row's menu — rather than in a new tab or as a download.
+  const viewer = useFileViewer();
 
   // ── Load ───────────────────────────────────────────────────────────────────
   const loadSummary = useCallback(async () => {
@@ -99,7 +104,6 @@ export default function Documents() {
         limit: PAGE_SIZE,
         sort,
         search: term || undefined,
-        category: category || undefined,
         target: target || undefined,
         academicYear: year || undefined,
       });
@@ -112,7 +116,7 @@ export default function Documents() {
     } finally {
       setLoading(false);
     }
-  }, [tab, page, sort, term, category, target, year]);
+  }, [tab, page, sort, term, target, year]);
 
   useEffect(() => { loadList(); }, [loadList]);
 
@@ -146,6 +150,8 @@ export default function Documents() {
         setCats(unwrap(k) || []);
       } catch { /* the pickers just stay empty — the list is the page */ }
     })();
+    // On its own, so a school with no teachers yet still gets its classes.
+    getDocumentTeachers().then((r) => setTeachers(unwrap(r) || [])).catch(() => {});
   }, []);
 
   // A keystroke is not a search; wait for a pause.
@@ -157,13 +163,26 @@ export default function Documents() {
   const refresh = () => { loadList(); loadSummary(); };
 
   // ── Filter state ───────────────────────────────────────────────────────────
-  const filtered = !!(term || category || target || year);
+  const filtered = !!(term || target || year);
 
   const clearFilters = () => {
-    setSearch(''); setTerm(''); setCategory(''); setTarget(''); setYear(''); setPage(1);
+    setSearch(''); setTerm(''); setTarget(''); setYear(''); setPage(1);
+  };
+
+  // Not every tab offers every sort — "Due date" belongs to Assignments, "Type"
+  // to the tabs that mix types — so arriving on a tab that does not offer the
+  // current one falls back to newest rather than sorting by a choice the menu
+  // no longer shows.
+  const pickTab = (v) => {
+    setTab(v);
+    setPage(1);
+    if (!sortsFor(v).some((s) => s.value === sort)) setSort('newest');
   };
 
   const go = (fn) => (v) => { fn(v); setPage(1); };
+
+  // "Total Documents" opens what it counts: every document, no filter, first tab.
+  const showAll = () => { clearFilters(); pickTab('all'); };
 
   const tiles = over?.tiles || {};
   const counts = over?.counts || {};
@@ -182,11 +201,6 @@ export default function Documents() {
     if (tab === 'archived' && over && !counts.archived) setTab('all');
   }, [tab, over, counts.archived]);
 
-  const categoryOptions = useMemo(
-    () => (over?.categories || []).map((c) => ({ value: c.name, label: c.name, count: c.count })),
-    [over],
-  );
-
   const yearOptions = useMemo(
     () => (over?.academicYears || []).map((y) => ({
       value: y._id,
@@ -200,7 +214,7 @@ export default function Documents() {
   const startNew  = () => { setEditDoc(null); setShowForm(true); };
   const openEdit  = (doc) => { setViewDoc(null); setEditDoc(doc); setShowForm(true); };
 
-  const submit = async (form, files) => {
+  const submit = async (form, files, kept = []) => {
     setSaving(true);
     try {
       const fd = new FormData();
@@ -212,6 +226,7 @@ export default function Documents() {
       fd.append('targetType', form.targetType);
       fd.append('targetClasses',  JSON.stringify(form.targetType === 'class'          ? form.classIds   : []));
       fd.append('targetSections', JSON.stringify(form.targetType === 'class_sections' ? form.sectionIds : []));
+      fd.append('targetUsers',    JSON.stringify(form.targetType === 'specific_teachers' ? form.teacherIds : []));
       // Always sent, both ways: the edit endpoint reads `undefined` as "leave it
       // alone", so an assignment un-ticked would otherwise stay an assignment.
       fd.append('isAssignment', form.isAssignment ? 'true' : 'false');
@@ -221,6 +236,9 @@ export default function Documents() {
       fd.append('totalMarks', form.isAssignment && form.totalMarks ? form.totalMarks : '');
       fd.append('questions', JSON.stringify(form.isAssignment ? form.questions : []));
       files.forEach((f) => fd.append('files', f));
+      // On an edit: which of the files already attached are staying. The new
+      // ones above are added to them rather than replacing them.
+      if (editDoc) fd.append('keepFiles', JSON.stringify(kept.map((f) => f.storedName)));
 
       if (editDoc) {
         await updateDocument(editDoc._id, fd);
@@ -301,17 +319,17 @@ export default function Documents() {
   };
 
   // ── The overflow menu on a row ─────────────────────────────────────────────
+  // Only what the row does not already offer: the eye and the pencil beside
+  // this menu are the preview and the edit, so neither is repeated inside it.
   const rowMenu = (r) => (
     <>
       <MenuItem icon="arrowRight" onClick={() => navigate(`/admin/documents/${r._id}`)}>Open document</MenuItem>
-      <MenuItem icon="eye" onClick={() => setViewDoc(r)}>Quick preview</MenuItem>
       {r.files?.[0] && (
-        <MenuItem icon="download" href={fileUrl(r.files[0].filePath)}>
-          Open {r.fileCount > 1 ? 'first file' : 'file'}
+        <MenuItem icon="files" onClick={() => viewer.open(r.files, 0, r.title)}>
+          View {r.fileCount > 1 ? `files (${r.fileCount})` : 'file'}
         </MenuItem>
       )}
       <MenuSep />
-      <MenuItem icon="pencil" onClick={() => openEdit(r)}>Edit document</MenuItem>
       <MenuItem icon={r.isArchived ? 'refresh' : 'package'} onClick={() => toggleArchive(r)}>
         {r.isArchived ? 'Restore from archive' : 'Archive'}
       </MenuItem>
@@ -339,7 +357,8 @@ export default function Documents() {
 
       <DocStats>
         <DocStat icon="files" tone="indigo" label="Total Documents"
-          value={tiles.total?.value} change={tiles.total?.change} added={tiles.total?.added} />
+          value={tiles.total?.value} change={tiles.total?.change} added={tiles.total?.added}
+          onClick={showAll} />
         <DocStat icon="users" tone="green" label="Shared with Classes"
           value={tiles.classes?.value} change={tiles.classes?.change} added={tiles.classes?.added}
           on={target === 'classes'} onClick={() => go(setTarget)(target === 'classes' ? '' : 'classes')} />
@@ -348,24 +367,22 @@ export default function Documents() {
           on={target === 'teachers'} onClick={() => go(setTarget)(target === 'teachers' ? '' : 'teachers')} />
         <DocStat icon="clipboard" tone="red" label="Assignments"
           value={tiles.assignments?.value} change={tiles.assignments?.change} added={tiles.assignments?.added}
-          on={tab === 'assignments'} onClick={() => { setTab(tab === 'assignments' ? 'all' : 'assignments'); setPage(1); }} />
+          on={tab === 'assignments'} onClick={() => pickTab(tab === 'assignments' ? 'all' : 'assignments')} />
       </DocStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
 
       <section className="card docpanel">
-        <DocTabs tabs={tabs} value={tab} onChange={(v) => { setTab(v); setPage(1); }} />
+        <DocTabs tabs={tabs} value={tab} onChange={pickTab} />
 
         <DocTools>
           <SearchField value={search} onChange={setSearch} placeholder="Search documents…" />
-          <Picker value={category} onChange={go(setCategory)} all="All Categories"
-            options={categoryOptions} label="Filter by category" />
           <Picker value={target} onChange={go(setTarget)} all="All Targets"
             options={TARGET_FILTERS} label="Filter by who it was shared with" />
           <Picker value={year} onChange={go(setYear)} all="All Academic Years"
             options={yearOptions} label="Filter by academic year" />
           <span className="doctools__sep" />
-          <SortMenu value={sort} onChange={go(setSort)} options={SORTS} />
+          <SortMenu value={sort} onChange={go(setSort)} options={sortsFor(tab)} />
           <ViewSwitch value={view} onChange={setView} />
         </DocTools>
 
@@ -380,13 +397,17 @@ export default function Documents() {
       {/* ── Overlays ───────────────────────────────────────────────────────── */}
 
       <DocumentDrawer doc={viewDoc} onClose={() => setViewDoc(null)}
+        onView={viewer.open}
         onOpen={(d) => navigate(`/admin/documents/${d._id}`)}
         onEdit={openEdit} onArchive={toggleArchive} onDelete={setDelDoc} />
+
+      {viewer.node}
 
       <ShareDocument
         open={showForm}
         editing={editDoc}
         classes={classes}
+        teachers={teachers}
         categories={cats}
         saving={saving}
         onClose={() => setShowForm(false)}

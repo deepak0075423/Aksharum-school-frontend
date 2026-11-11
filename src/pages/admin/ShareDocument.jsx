@@ -16,7 +16,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal } from '../../components/ui/index';
-import { FileDrop, FileMark, fmtSize } from '../documents/viewerParts';
+import { Avatar, FileDrop, KeptFiles } from '../documents/viewerParts';
 import { DOC_TYPES } from './documentParts';
 import { ASSIGNMENT_TYPES } from './assignmentParts';
 
@@ -40,11 +40,20 @@ const AUDIENCES = [
     hint: 'Only the sections you pick' },
   { value: 'all_teachers', icon: 'users',  label: 'All teachers',
     hint: 'Staff only — no students' },
+  { value: 'specific_teachers', icon: 'user', label: 'Specific teachers',
+    hint: 'By department, subject or designation' },
 ];
+
+/** What a file-less assignment is told, in the form and by the server alike. */
+const NEEDS_FILE = 'Attach the assignment or its instructions — students need a file to work from';
+
+/** The distinct values of one field across the staff, A–Z, for a filter dropdown. */
+const optionsOf = (teachers, pick) => [...new Set(teachers.flatMap(pick).filter(Boolean))]
+  .sort((a, b) => a.localeCompare(b));
 
 export const EMPTY = {
   title: '', description: '', docType: 'notice', category: '', subject: '',
-  targetType: 'whole_school', classIds: [], sectionIds: [],
+  targetType: 'whole_school', classIds: [], sectionIds: [], teacherIds: [],
   isAssignment: false, allowSubmission: true, assignmentType: 'homework',
   dueDate: '', totalMarks: '', questions: [],
 };
@@ -61,6 +70,7 @@ export function formFor(doc) {
     targetType: doc.targetType || 'whole_school',
     classIds:   (doc.targetClasses  || []).map((c) => String(c._id || c)),
     sectionIds: (doc.targetSections || []).map((s) => String(s._id || s)),
+    teacherIds: (doc.targetUsers    || []).map((u) => String(u._id || u)),
     isAssignment: !!doc.isAssignment,
     allowSubmission: doc.allowSubmission !== false,
     assignmentType: doc.assignmentType || 'homework',
@@ -88,19 +98,27 @@ const Block = ({ step, title, hint, children }) => (
 const Err = ({ children }) => (children ? <p className="sherr"><Icon name="alert" size={13} />{children}</p> : null);
 
 export default function ShareDocument({
-  open, editing, classes, categories, saving, onClose, onSave, onManageCategories,
+  open, editing, classes, teachers = [], categories, saving, onClose, onSave, onManageCategories,
 }) {
   const [form,  setForm]  = useState(EMPTY);
   const [files, setFiles] = useState([]);
+  // The files already on the document being edited that are staying. New
+  // ones are added to these; each can be taken off on its own.
+  const [kept,  setKept]  = useState([]);
   const [tried, setTried] = useState(false);
   const [find,  setFind]  = useState('');
+  // The three things a teacher is picked by. They narrow the list; what is
+  // sent is the teachers ticked.
+  const [by, setBy] = useState({ department: '', subject: '', designation: '' });
 
   useEffect(() => {
     if (!open) return;
     setForm(formFor(editing));
     setFiles([]);
+    setKept(editing?.files || []);
     setTried(false);
     setFind('');
+    setBy({ department: '', subject: '', designation: '' });
   }, [open, editing?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -118,6 +136,31 @@ export default function ShareDocument({
       }))
       .filter((c) => c.className?.toLowerCase().includes(term) || c.sections.length);
   }, [classes, term]);
+
+  // ── Specific teachers ──────────────────────────────────────────────────────
+  const departments  = useMemo(() => optionsOf(teachers, (t) => [t.department]),  [teachers]);
+  const subjects     = useMemo(() => optionsOf(teachers, (t) => t.subjects || []), [teachers]);
+  const designations = useMemo(() => optionsOf(teachers, (t) => [t.designation]), [teachers]);
+
+  const shownTeachers = useMemo(() => teachers.filter((t) => {
+    if (by.department  && t.department  !== by.department)  return false;
+    if (by.designation && t.designation !== by.designation) return false;
+    if (by.subject     && !(t.subjects || []).includes(by.subject)) return false;
+    if (term && !`${t.name} ${t.department} ${t.designation} ${(t.subjects || []).join(' ')}`
+      .toLowerCase().includes(term)) return false;
+    return true;
+  }), [teachers, by, term]);
+
+  const narrowed = !!(by.department || by.subject || by.designation || term);
+  const shownIds = shownTeachers.map((t) => t._id);
+  const allShownOn = shownIds.length > 0 && shownIds.every((id) => form.teacherIds.includes(id));
+
+  /** Everyone the filters leave on screen, on or off together. */
+  const toggleShownTeachers = () => set({
+    teacherIds: allShownOn
+      ? form.teacherIds.filter((id) => !shownIds.includes(id))
+      : [...new Set([...form.teacherIds, ...shownIds])],
+  });
 
   const toggle = (key, id) => set({
     [key]: form[key].includes(id) ? form[key].filter((x) => x !== id) : [...form[key], id],
@@ -138,6 +181,10 @@ export default function ShareDocument({
   const reach = useMemo(() => {
     if (form.targetType === 'whole_school') return 'Everyone in the school';
     if (form.targetType === 'all_teachers') return 'Every teacher';
+    if (form.targetType === 'specific_teachers') {
+      const n = form.teacherIds.length;
+      return n ? `${n} teacher${n === 1 ? '' : 's'}` : null;
+    }
     if (form.targetType === 'class') {
       const n = form.classIds.length;
       const secs = classes
@@ -148,7 +195,7 @@ export default function ShareDocument({
     const n = form.sectionIds.length;
     const inClasses = classes.filter((c) => (c.sections || []).some((s) => form.sectionIds.includes(s._id))).length;
     return n ? `${n} section${n === 1 ? '' : 's'} across ${inClasses} class${inClasses === 1 ? '' : 'es'}` : null;
-  }, [form.targetType, form.classIds, form.sectionIds, classes]);
+  }, [form.targetType, form.classIds, form.sectionIds, form.teacherIds, classes]);
 
   // ── The question breakdown ─────────────────────────────────────────────────
   const qTotal = form.questions.reduce((n, q) => n + (Number(q.maxMarks) || 0), 0);
@@ -169,7 +216,11 @@ export default function ShareDocument({
     if (!form.category)     e.category = 'Pick a category';
     if (form.targetType === 'class'          && !form.classIds.length)   e.audience = 'Pick at least one class';
     if (form.targetType === 'class_sections' && !form.sectionIds.length) e.audience = 'Pick at least one section';
+    if (form.targetType === 'specific_teachers' && !form.teacherIds.length) e.audience = 'Pick at least one teacher';
     if (form.isAssignment) {
+      // Work that is handed in needs the paper it is handed in against. Files
+      // already on the document count, for as long as they are not removed.
+      if (!files.length && !kept.length) e.files = NEEDS_FILE;
       if (form.totalMarks && Number(form.totalMarks) <= 0) e.totalMarks = 'Marks must be more than zero';
       if (form.dueDate && new Date(form.dueDate) < new Date(new Date().toDateString())) {
         e.dueDate = 'That date has already passed';
@@ -179,7 +230,7 @@ export default function ShareDocument({
       else if (new Set(labels).size !== labels.length)  e.questions = 'Two questions share a name';
     }
     return e;
-  }, [form]);
+  }, [form, files, kept]);
 
   const bad  = Object.keys(errors).length > 0;
   const show = (k) => (tried ? errors[k] : null);
@@ -187,7 +238,7 @@ export default function ShareDocument({
   const submit = () => {
     setTried(true);
     if (bad) return;
-    onSave(form, files);
+    onSave(form, files, kept);
   };
 
   const kind = DOC_TYPES.find((t) => t.value === form.docType);
@@ -206,7 +257,12 @@ export default function ShareDocument({
             : <><Icon name="info" size={14} /> Nobody selected yet</>}
         </span>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={submit} loading={saving}>{editing ? 'Save changes' : 'Share it'}</Button>
+        {/* A missing file is the one error that holds the button back: the
+            others are fixed by typing, this one by going to find something. */}
+        <Button onClick={submit} loading={saving} disabled={saving || !!errors.files}
+          title={errors.files || undefined}>
+          {editing ? 'Save changes' : 'Share it'}
+        </Button>
       </>}
     >
       <div className="shform">
@@ -251,7 +307,7 @@ export default function ShareDocument({
             {AUDIENCES.map((a) => (
               <button key={a.value} type="button" role="radio" aria-checked={form.targetType === a.value}
                 className={`shaud__btn${form.targetType === a.value ? ' is-on' : ''}`}
-                onClick={() => set({ targetType: a.value, classIds: [], sectionIds: [] })}>
+                onClick={() => { set({ targetType: a.value, classIds: [], sectionIds: [], teacherIds: [] }); setFind(''); }}>
                 <Icon name={a.icon} size={17} />
                 <span><b>{a.label}</b><small>{a.hint}</small></span>
               </button>
@@ -326,6 +382,69 @@ export default function ShareDocument({
                     );
                   })}
                 </div>
+              )}
+            </div>
+          )}
+
+          {form.targetType === 'specific_teachers' && (
+            <div className={`shpick${show('audience') ? ' is-bad' : ''}`}>
+              <div className="shfilters">
+                {[
+                  ['department',  'All departments',  departments],
+                  ['subject',     'All subjects',     subjects],
+                  ['designation', 'All designations', designations],
+                ].map(([key, all, options]) => (
+                  <select key={key} className={`form-control${by[key] ? ' is-on' : ''}`} value={by[key]}
+                    aria-label={`Filter teachers by ${key}`} disabled={!options.length}
+                    onChange={(e) => setBy((v) => ({ ...v, [key]: e.target.value }))}>
+                    <option value="">{all}</option>
+                    {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ))}
+              </div>
+
+              <div className="shpick__bar">
+                <div className="shpick__find">
+                  <Icon name="search" size={15} />
+                  <input className="form-control" value={find} placeholder="Find a teacher…"
+                    onChange={(e) => setFind(e.target.value)} aria-label="Find a teacher" />
+                </div>
+                <button type="button" className="shlink" onClick={toggleShownTeachers}
+                  disabled={!shownIds.length}>
+                  {allShownOn ? 'Clear' : 'Select'} all{narrowed ? ` ${shownIds.length} shown` : ''}
+                </button>
+              </div>
+
+              {!teachers.length && <p className="shnone">There are no teachers on record yet.</p>}
+              {teachers.length > 0 && !shownTeachers.length && (
+                <p className="shnone">No teacher matches these filters.</p>
+              )}
+
+              <div className="shpeople">
+                {shownTeachers.map((t) => {
+                  const on = form.teacherIds.includes(t._id);
+                  const about = [t.designation, t.department, (t.subjects || []).join(', ')].filter(Boolean).join(' · ');
+                  return (
+                    <button key={t._id} type="button" aria-pressed={on}
+                      className={`shperson${on ? ' is-on' : ''}`} onClick={() => toggle('teacherIds', t._id)}>
+                      <Avatar name={t.name} src={t.photo} size={30} />
+                      <span className="shperson__text">
+                        <b>{t.name}</b>
+                        <small>{about || 'No department, subject or designation on record'}</small>
+                      </span>
+                      <Icon name={on ? 'checkCircle' : 'plus'} size={16} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* People ticked under a filter that has since changed are still
+                  going to get it — say so, or they are sent to unseen. */}
+              {form.teacherIds.some((id) => !shownIds.includes(id)) && (
+                <p className="shpick__note">
+                  {form.teacherIds.filter((id) => !shownIds.includes(id)).length} selected teacher(s) are hidden by the filters above.
+                  <button type="button" className="shlink" onClick={() => set({ teacherIds: [] })}>Clear selection</button>
+                </p>
               )}
             </div>
           )}
@@ -462,24 +581,16 @@ export default function ShareDocument({
         </Block>
 
         <Block step="4" title="What is attached?"
-          hint={editing ? 'Adding files here replaces the ones already on it.' : 'Optional — a notice can be all text.'}>
-          <FileDrop id="ad-files" files={files} onChange={setFiles}
-            hint="PDFs, documents, images — up to 10" />
+          hint={form.isAssignment
+            ? 'Required for an assignment — the question paper or the instructions students work from.'
+            : editing ? 'Add more files, or remove any that are already attached.' : 'Optional — a notice can be all text.'}>
+          <KeptFiles files={kept} onRemove={(i) => setKept(kept.filter((_, x) => x !== i))} />
+          <FileDrop id="ad-files" files={files} onChange={setFiles} max={Math.max(0, 10 - kept.length)}
+            hint={kept.length ? `Add files — ${10 - kept.length} more can go on this document` : 'PDFs, documents, images — up to 10'} />
+          {/* Shown straight away, not after a failed save: it is the reason the
+              button is held back. */}
+          <Err>{errors.files}</Err>
 
-          {editing?.files?.length > 0 && files.length === 0 && (
-            <div className="shkept">
-              <p><Icon name="files" size={14} /> Already attached — left alone unless you add new files</p>
-              <ul>
-                {editing.files.map((f, i) => (
-                  <li key={`${f.storedName || f.originalName}-${i}`}>
-                    <FileMark file={f} size={28} />
-                    <span className="dvfiles__name" title={f.originalName}>{f.originalName}</span>
-                    <span className="dvfiles__size">{fmtSize(f.fileSize)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </Block>
       </div>
     </Modal>

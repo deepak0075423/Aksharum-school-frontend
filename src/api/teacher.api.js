@@ -91,6 +91,9 @@ export const uploadDocument      = (data)   => api.post('/teacher/documents', da
 export const getDocument         = (id)     => api.get(`/teacher/documents/${id}`);
 export const updateDocument      = (id, data) => api.put(`/teacher/documents/${id}`, data);
 export const deleteDocument      = (id)     => api.delete(`/teacher/documents/${id}`);
+// Read marks: one document as it is opened, or a list of them at once.
+export const markDocumentRead    = (id)     => api.post(`/teacher/documents/${id}/read`);
+export const markDocumentsRead   = (ids)    => api.post('/teacher/documents/read', { ids });
 // One document, opened — the same four tabs the office gets, behind an access
 // check: a teacher reads anything shared with them, writes only their own.
 export const getAssignmentDetail    = (id, params) => api.get(`/teacher/documents/${id}/assignment`, { params });

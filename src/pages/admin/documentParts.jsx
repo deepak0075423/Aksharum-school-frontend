@@ -28,7 +28,7 @@ import { withFileToken } from '../../utils/fileAccess';
  * "Notices/Circulars" has to mean the same thing in every school, and a
  * free-text label one school spells "Notice" and another "Circulars & Notices"
  * cannot carry it. The school's own filing label sits beside this as
- * `category`, and is what the All Categories dropdown filters on.
+ * `category`.
  */
 export const DOC_TYPES = [
   { value: 'notice',         label: 'Notice',         tone: 'indigo' },
@@ -46,7 +46,7 @@ export const TARGET_TYPES = [
   { value: 'class',             label: 'By Class',          icon: 'layers', hint: 'Every section of the chosen classes' },
   { value: 'class_sections',    label: 'By Section',        icon: 'layers', hint: 'Only the chosen sections' },
   { value: 'all_teachers',      label: 'All Teachers',      icon: 'users',  hint: 'Every teacher, no students' },
-  { value: 'specific_teachers', label: 'Specific Teachers', icon: 'user',   hint: 'Hand-picked teachers' },
+  { value: 'specific_teachers', label: 'Specific Teachers', icon: 'user',   hint: 'Picked by department, subject or designation' },
 ];
 
 export const targetLabel = (v) => TARGET_TYPES.find((t) => t.value === v)?.label || v || '—';
@@ -64,9 +64,15 @@ export const SORTS = [
   { value: 'oldest',  label: 'Oldest first' },
   { value: 'title',   label: 'Title (A–Z)' },
   { value: 'title_z', label: 'Title (Z–A)' },
-  { value: 'type',    label: 'Type' },
-  { value: 'due',     label: 'Due date' },
+  // Assignments, Notices/Circulars and Study Material are each a type already,
+  // so sorting by type is only offered where the types are mixed.
+  { value: 'type',    label: 'Type',     tabs: ['all', 'archived'] },
+  // Only assignments have a due date, so only the Assignments tab offers this.
+  { value: 'due',     label: 'Due date', tabs: ['assignments'] },
 ];
+
+/** The sort choices one tab offers. A sort with no `tabs` is offered on all of them. */
+export const sortsFor = (tab) => SORTS.filter((s) => !s.tabs || s.tabs.includes(tab));
 
 export const TARGET_FILTERS = [
   { value: 'classes',           label: 'Shared with Classes' },
@@ -308,10 +314,6 @@ export const TypePill = ({ type }) => {
   return <span className={`docpill docpill--${t.tone}`}>{t.label}</span>;
 };
 
-export const AssignPill = ({ on }) => (
-  <span className={`docpill docpill--${on ? 'yes' : 'no'}`}>{on ? 'Yes' : 'No'}</span>
-);
-
 /**
  * Who the document reached.
  *
@@ -449,13 +451,14 @@ export const MenuSep = () => <div className="docmenu__sep" />;
 
 // ── The list ─────────────────────────────────────────────────────────────────
 
-const COLUMNS = ['Title', 'Type', 'Shared With', 'Assignment', 'Uploaded On', 'Uploaded By', 'Actions'];
+// No "Assignment" column: the Type pill already says so.
+const COLUMNS = ['Title', 'Type', 'Shared With', 'Uploaded On', 'Uploaded By', 'Actions'];
 
 /**
  * The shelf as a table.
  *
- * Written out rather than driven by a column config: there are seven columns,
- * they are the same seven every time, and each one is a different shape. Rows
+ * Written out rather than driven by a column config: there are six columns,
+ * they are the same six every time, and each one is a different shape. Rows
  * carry `data-focus-id` so a notification can flag the document it was about —
  * see hooks/useFocusHighlight.js.
  */
@@ -489,7 +492,6 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
               </td>
               <td><TypePill type={r.docType} /></td>
               <td><SharedWith shared={r.sharedWith} /></td>
-              <td><AssignPill on={r.isAssignment} /></td>
               <td className="docdate">{fmtDate(r.createdAt)}</td>
               <td><Uploader user={r.uploadedBy} /></td>
               <td className="doctable__acts">
@@ -526,7 +528,6 @@ export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) 
           <dl className="doccard__meta">
             <div><dt>Shared with</dt><dd><SharedWith shared={r.sharedWith} /></dd></div>
             <div><dt>Uploaded</dt><dd>{fmtDate(r.createdAt)}</dd></div>
-            <div><dt>Assignment</dt><dd><AssignPill on={r.isAssignment} /></dd></div>
             <div>
               <dt>Files</dt>
               <dd>{r.fileCount || 0}{r.fileCount ? ` · ${fmtSize(r.fileSize)}` : ''}</dd>
@@ -627,7 +628,7 @@ const Field = ({ label, children }) => (
   <div className="docfield"><dt>{label}</dt><dd>{children}</dd></div>
 );
 
-export function DocumentDrawer({ doc, onClose, onOpen, onEdit, onArchive, onDelete }) {
+export function DocumentDrawer({ doc, onClose, onOpen, onEdit, onArchive, onDelete, onView }) {
   if (!doc) return null;
   const t = typeOf(doc.docType);
   return (
@@ -649,6 +650,44 @@ export function DocumentDrawer({ doc, onClose, onOpen, onEdit, onArchive, onDele
 
       <div className="docdrawer__body">
         {doc.description ? <p className="docdrawer__desc">{doc.description}</p> : null}
+
+        {/* The files lead: a preview is for looking at the thing itself, and at
+            the bottom of the record they sat below the fold with nothing but a
+            download beside them. `onView` opens one over the page. */}
+        <section className="docdrawer__sec">
+          <h4>Files ({doc.files?.length || 0})</h4>
+          {doc.files?.length
+            ? (
+              <ul className="docfiles">
+                {doc.files.map((f, i) => (
+                  <li key={`${f.storedName || f.originalName}-${i}`}>
+                    <FileMark file={f} size={34} />
+                    {onView
+                      ? (
+                        <button type="button" className="docfiles__name docfiles__open"
+                          title={`View ${f.originalName}`}
+                          onClick={() => onView(doc.files, i, doc.title)}>{f.originalName}</button>
+                      )
+                      : <span className="docfiles__name" title={f.originalName}>{f.originalName}</span>}
+                    <span className="docfiles__size">{fmtSize(f.fileSize)}</span>
+                    {onView && (
+                      <button type="button" className="btn btn-secondary btn-sm docfiles__view"
+                        onClick={() => onView(doc.files, i, doc.title)}
+                        aria-label={`View ${f.originalName}`}>
+                        <Icon name="eye" size={14} /> View
+                      </button>
+                    )}
+                    <a className="docact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
+                      download={f.originalName}
+                      title="Download" aria-label={`Download ${f.originalName}`}>
+                      <Icon name="download" size={16} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )
+            : <p className="docnone">No files attached.</p>}
+        </section>
 
         <section className="docdrawer__sec">
           <h4>Sharing</h4>
@@ -685,26 +724,6 @@ export function DocumentDrawer({ doc, onClose, onOpen, onEdit, onArchive, onDele
           </section>
         )}
 
-        <section className="docdrawer__sec">
-          <h4>Files ({doc.files?.length || 0})</h4>
-          {doc.files?.length
-            ? (
-              <ul className="docfiles">
-                {doc.files.map((f, i) => (
-                  <li key={`${f.storedName || f.originalName}-${i}`}>
-                    <FileMark file={f} size={34} />
-                    <span className="docfiles__name" title={f.originalName}>{f.originalName}</span>
-                    <span className="docfiles__size">{fmtSize(f.fileSize)}</span>
-                    <a className="docact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
-                      title="Open file" aria-label={`Open ${f.originalName}`}>
-                      <Icon name="download" size={16} />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )
-            : <p className="docnone">No files attached.</p>}
-        </section>
       </div>
 
       <div className="docdrawer__foot">
@@ -735,7 +754,7 @@ export const DocEmpty = ({ filtered, onClear, onUpload }) => (
     icon={filtered ? '🔍' : '📁'}
     title={filtered ? 'No documents match these filters' : 'Nothing on the shelf yet'}
     message={filtered
-      ? 'Try another tab, category or search term.'
+      ? 'Try another tab, filter or search term.'
       : 'Upload a notice, a circular or study material and choose who it goes to.'}
     action={filtered
       ? <button type="button" className="btn btn-secondary" onClick={onClear}>Clear filters</button>

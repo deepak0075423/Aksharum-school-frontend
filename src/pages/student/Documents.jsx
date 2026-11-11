@@ -14,13 +14,16 @@
 import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getDocuments, submitAssignment } from '../../api/student.api';
+import {
+  getDocuments, submitAssignment, markDocumentRead, markDocumentsRead,
+  getDocumentComments, addDocumentComment,
+} from '../../api/student.api';
 import { Alert, Button, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
-  DocList, DocDrawer, NothingHere, StatePill, FileRows, Field,
-  TABS, SORTS, applyFilters, fmtDate, fileUrl,
+  DocList, DocDrawer, NothingHere, StatePill, FileRows, Field, FileDrop, DocComments, UnreadNote, OpenFile,
+  TABS, sortsFor, sortOn, applyFilters, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
 
 export default function StudentDocuments() {
@@ -29,7 +32,9 @@ export default function StudentDocuments() {
     () => getDocuments(year ? { year } : undefined), [year],
   );
 
-  const docs     = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const loaded   = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  // The same list, with what has been opened on this visit already marked read.
+  const { docs, read, readAll } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
   const counts   = meta?.counts || {};
   const years    = meta?.years || [];
   const myClass  = meta?.who?.label || '';
@@ -45,7 +50,7 @@ export default function StudentDocuments() {
   const [sending,  setSending]  = useState(false);
 
   const shown = useMemo(
-    () => applyFilters(docs, { tab, category, search, sort, state }),
+    () => applyFilters(docs, { tab, category, search, sort: sortOn(tab, sort), state }),
     [docs, tab, category, search, sort, state],
   );
 
@@ -116,12 +121,13 @@ export default function StudentDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={meta?.categories || []} label="Filter by category" />
           <span className="dvtools__sep" />
-          <Picker value={sort} onChange={setSort} options={SORTS} label="Sort documents" />
+          <UnreadNote docs={docs} onClear={() => readAll(docs)} />
+          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
         </ViewerTools>
 
         <DocList
           docs={shown} loading={loading}
-          onOpen={(d) => { setOpen(d); setFiles([]); }}
+          onOpen={(d) => { setOpen(d); setFiles([]); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
           badges={(d) => <StatePill state={d.state} />}
         />
@@ -130,7 +136,9 @@ export default function StudentDocuments() {
       <DocDrawer
         doc={live}
         onClose={() => { setOpen(null); setFiles([]); }}
-        extra={live?.isAssignment && (
+        extra={live && (
+          <>
+          {live.isAssignment && (
           <section className="dvdrawer__sec">
             <h4>Your submission</h4>
 
@@ -145,7 +153,7 @@ export default function StudentDocuments() {
                     </Field>
                   )}
                 </dl>
-                <FileRows files={live.mySubmission.files} empty="Handed in with no files" />
+                <FileRows files={live.mySubmission.files} caption="Your submission" empty="Handed in with no files" />
                 {live.mySubmission.feedback && (
                   <div className="dvfeedback">
                     <h5><Icon name="chat" size={14} /> Teacher feedback</h5>
@@ -159,18 +167,20 @@ export default function StudentDocuments() {
 
             {live.allowSubmission ? (
               <div className="dvsubmit">
-                <label className="form-label" htmlFor="dv-files">
+                <span className="form-label">
                   {live.mySubmission ? 'Replace what you handed in' : 'Attach your work'}
-                </label>
-                <input id="dv-files" type="file" className="form-control" multiple
-                  onChange={(e) => setFiles(Array.from(e.target.files))} />
-                {files.length > 0 && <div className="form-hint">{files.length} file(s) chosen</div>}
+                </span>
+                {/* The shared picker rather than a bare file input: it lists
+                    what was chosen and lets each file be taken back out, which
+                    matters most right before handing the wrong one in. */}
+                <FileDrop id="dv-files" files={files} onChange={setFiles} max={5}
+                  hint="Up to 5 files" />
                 {live.state === 'missed' && (
                   <p className="dvwarn">
                     <Icon name="alert" size={14} /> The due date has passed — this will be marked late.
                   </p>
                 )}
-                <Button onClick={submit} loading={sending} disabled={!files.length}>
+                <Button onClick={submit} loading={sending} disabled={sending || !files.length}>
                   <Icon name="upload" size={15} /> {live.mySubmission ? 'Replace submission' : 'Submit'}
                 </Button>
               </div>
@@ -178,12 +188,12 @@ export default function StudentDocuments() {
               <p className="dvnone">Submissions are closed for this one.</p>
             )}
           </section>
+          )}
+
+          <DocComments docId={live._id} load={getDocumentComments} post={addDocumentComment} />
+          </>
         )}
-        foot={live?.files?.[0] && (
-          <a className="btn btn-secondary" href={fileUrl(live.files[0].filePath)} target="_blank" rel="noreferrer">
-            <Icon name="download" size={15} /> Open {live.fileCount > 1 ? 'first file' : 'the file'}
-          </a>
-        )}
+        foot={live?.files?.[0] && <OpenFile files={live.files} caption={live.title} />}
       />
     </div>
   );
