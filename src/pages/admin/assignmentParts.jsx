@@ -774,18 +774,50 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
 
 const ROLE_LABEL = { school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' };
 
+/**
+ * One comment, with what this reader may do to it in plain sight.
+ *
+ * Edit, Pin and Delete sit in the footer beside Like and Reply. They used to
+ * hide behind a faint "⋯" at the far end of the header, and staff reported
+ * that they could not edit or delete comments at all. The server says which
+ * of them each reader has (`canEdit` / `canPin` / `canDelete`) and enforces
+ * the same: your own words to edit and delete, anyone's to delete if you are
+ * an admin, and pinning for an admin or the teacher who shared the document.
+ */
 export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onView, depth = 0 }) {
-  const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(c.body);
-  const box = useRef(null);
+  // Older payloads carried only `mine`.
+  const canEdit   = c.canEdit ?? c.mine;
+  const canDelete = c.canDelete ?? c.mine;
+  const canPin    = !!c.canPin && !depth;
 
-  useEffect(() => {
-    if (!menu) return undefined;
-    const away = (e) => { if (!box.current?.contains(e.target)) setMenu(false); };
-    document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
-  }, [menu]);
+  // Deleted by its author after others had replied — kept to hold their replies.
+  if (c.deleted) {
+    return (
+      <article className="adcomment adcomment--gone">
+        <span className="adcomment__goneicon" aria-hidden><Icon name="trash" size={15} /></span>
+        <div className="adcomment__body">
+          <p className="adcomment__gonetext">
+            This comment was deleted.
+            {canDelete && (
+              <button type="button" className="adchip adchip--danger" onClick={() => onDelete(c)}>
+                <Icon name="trash" size={14} /> Remove thread
+              </button>
+            )}
+          </p>
+          {c.replies?.length > 0 && (
+            <div className="adcomment__replies">
+              {c.replies.map((r) => (
+                <CommentCard key={r._id} c={r} depth={depth + 1} onView={onView}
+                  onReply={onReply} onLike={onLike} onPin={onPin} onDelete={onDelete} onEdit={onEdit} />
+              ))}
+            </div>
+          )}
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className={`adcomment${depth ? ' adcomment--reply' : ''}`}>
@@ -797,35 +829,22 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onVie
           <time>{fmtDate(c.createdAt)}, {fmtTime(c.createdAt)}</time>
           {c.isEdited && <em>edited</em>}
           {c.visibility === 'staff' && <span className="adpill adpill--slate">Staff only</span>}
-          <span className="adcomment__end">
-            {c.isPinned && <span className="adpill adpill--indigo"><Icon name="star" size={12} /> Pinned</span>}
-            <span ref={box} className="adcomment__menu">
-              <button type="button" className="adact" onClick={() => setMenu((v) => !v)}
-                aria-label="Comment actions" aria-expanded={menu}><Icon name="dots" size={15} /></button>
-              {menu && (
-                <div className="admenu">
-                  {c.mine && (
-                    <button type="button" onClick={() => { setMenu(false); setEditing(true); setDraft(c.body); }}>
-                      <Icon name="pencil" size={15} /> Edit
-                    </button>
-                  )}
-                  {!depth && (
-                    <button type="button" onClick={() => { setMenu(false); onPin(c, !c.isPinned); }}>
-                      <Icon name="star" size={15} /> {c.isPinned ? 'Unpin' : 'Pin to top'}
-                    </button>
-                  )}
-                  <button type="button" className="is-danger" onClick={() => { setMenu(false); onDelete(c); }}>
-                    <Icon name="trash" size={15} /> Delete
-                  </button>
-                </div>
-              )}
+          {c.isPinned && (
+            <span className="adcomment__end">
+              <span className="adpill adpill--indigo"><Icon name="star" size={12} /> Pinned</span>
             </span>
-          </span>
+          )}
         </header>
 
         {editing ? (
-          <form className="adcomment__edit" onSubmit={(e) => { e.preventDefault(); onEdit(c, draft); setEditing(false); }}>
-            <textarea className="form-control" rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <form className="adcomment__edit" onSubmit={(e) => {
+            e.preventDefault();
+            if (!draft.trim() && !c.files?.length) return;
+            onEdit(c, draft.trim());
+            setEditing(false);
+          }}>
+            <textarea className="form-control" rows={3} value={draft} autoFocus maxLength={2000}
+              aria-label="Edit your comment" onChange={(e) => setDraft(e.target.value)} />
             <div>
               <button type="submit" className="btn btn-primary btn-sm">Save</button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
@@ -859,6 +878,21 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onVie
           <button type="button" className="adchip" onClick={() => onReply(c)}>
             <Icon name="repeat" size={14} /> Reply
           </button>
+          {canEdit && !editing && (
+            <button type="button" className="adchip" onClick={() => { setEditing(true); setDraft(c.body); }}>
+              <Icon name="pencil" size={14} /> Edit
+            </button>
+          )}
+          {canPin && (
+            <button type="button" className={`adchip${c.isPinned ? ' is-on' : ''}`} onClick={() => onPin(c, !c.isPinned)}>
+              <Icon name="star" size={14} /> {c.isPinned ? 'Unpin' : 'Pin'}
+            </button>
+          )}
+          {canDelete && (
+            <button type="button" className="adchip adchip--danger" onClick={() => onDelete(c)}>
+              <Icon name="trash" size={14} /> Delete
+            </button>
+          )}
         </footer>
 
         {c.replies?.length > 0 && (

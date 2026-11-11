@@ -14483,6 +14483,18 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .adchip:hover  { border-color: #c7d2fe; color: var(--primary); }
 .adchip.is-on  { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
+.adchip--danger:hover { border-color: #fecaca; color: var(--danger); background: #fef2f2; }
+.adcomment__body > footer { flex-wrap: wrap; }
+/* A comment its author deleted after others had replied — it holds their replies. */
+.adcomment__goneicon {
+  flex: 0 0 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bg); border: 1px dashed var(--border); color: var(--text-light);
+}
+.adcomment__body > p.adcomment__gonetext {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 36px;
+  font-size: .84rem; font-style: italic; color: var(--text-muted);
+}
+.adcomment__gonetext .adchip { font-style: normal; }
 
 /* The comment overflow menu is anchored, not portalled — a comment card is not
    inside a scroll box the way a table row is. */
@@ -14988,6 +15000,25 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   font-size: .74rem; font-weight: 600; color: var(--text-muted);
 }
 .dvcom__reply:hover { color: var(--primary); }
+.dvcom__acts { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.dvcom__reply--danger:hover { color: var(--danger); }
+.dvcom__edited { font-size: .68rem; font-style: normal; color: var(--text-light); }
+.dvcom__edit { display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
+.dvcom__edit textarea { width: 100%; background: var(--bg-card); }
+.dvcom__edit > div { display: flex; gap: 7px; justify-content: flex-end; }
+.dvcom__ask {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+  padding: 7px 9px; border-radius: var(--radius); background: #fef2f2; border: 1px solid #fecaca;
+  font-size: .78rem; font-weight: 600; color: #b91c1c;
+}
+.dvcom__ask > span { margin-right: auto; }
+/* Deleted by its author after others replied — it holds their replies. */
+.dvcom__goneicon {
+  flex: 0 0 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  border: 1px dashed var(--border); color: var(--text-light);
+}
+.dvcom--gone .dvcom__body { background: transparent; border: 1px dashed var(--border); }
+.dvcom--gone .dvcom__body p { margin-top: 0; font-style: italic; color: var(--text-muted); }
 .dvcomform {
   display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
   margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);

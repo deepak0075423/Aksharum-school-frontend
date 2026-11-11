@@ -27,6 +27,9 @@ export const markDocumentRead   = (id)   => api.post(`/student/documents/${id}/r
 export const markDocumentsRead  = (ids)  => api.post('/student/documents/read', { ids });
 export const getDocumentComments = (id)  => api.get(`/student/documents/${id}/comments`);
 export const addDocumentComment  = (id, data) => api.post(`/student/documents/${id}/comments`, data);
+// Your own comments only — the server checks the author.
+export const updateDocumentComment = (cid, data) => api.patch(`/student/documents/comments/${cid}`, data);
+export const deleteDocumentComment = (cid)       => api.delete(`/student/documents/comments/${cid}`);
 export const getDocument        = (id)   => api.get(`/student/documents/${id}`);
 export const submitAssignment   = (id, data) => api.post(`/student/documents/${id}/submit`, data);
 export const getHolidays    = () => api.get('/student/holidays');

@@ -861,7 +861,7 @@ export default function DocumentDetail() {
           : confirm?.kind === 'archive' ? (doc.isArchived ? 'Restore Document' : 'Archive Document')
           : 'Delete Document'}
         message={confirm?.kind === 'comment'
-          ? 'Delete this comment? Any replies to it go with it.'
+          ? commentDeleteText(confirm.comment, asTeacher)
           : confirm?.kind === 'archive'
             ? (doc.isArchived ? `Put “${doc.title}” back on the shelf?` : `Archive “${doc.title}”? It stays here but leaves the main list.`)
             : `Permanently delete “${doc.title}”? Its files and every submission against it go with it.`} />
@@ -870,6 +870,22 @@ export default function DocumentDetail() {
 }
 
 // ── Small pieces this page alone uses ────────────────────────────────────────
+
+/**
+ * What deleting a comment will do. An admin's delete takes the replies with
+ * it. Anyone else deletes only their own words: replies from other people
+ * stay, under "This comment was deleted".
+ */
+function commentDeleteText(c, asTeacher) {
+  if (!c) return '';
+  if (c.deleted) return 'Remove this deleted comment and every reply under it?';
+  const replies = c.replies || [];
+  if (!replies.length) return c.mine ? 'Delete your comment?' : `Delete ${c.author?.name || 'this person'}’s comment?`;
+  if (!asTeacher) return `Delete this comment? The ${replies.length === 1 ? 'reply' : `${replies.length} replies`} under it go with it.`;
+  return replies.some((r) => !r.mine)
+    ? 'Delete your comment? The replies from other people stay, under a note that your comment was deleted.'
+    : 'Delete your comment? Your replies under it go with it.';
+}
 
 const ScoreRow = ({ icon, tone, label, value, outOf }) => (
   <div className="adscore">

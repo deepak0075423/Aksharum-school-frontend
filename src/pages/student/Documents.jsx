@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, submitAssignment, markDocumentRead, markDocumentsRead,
-  getDocumentComments, addDocumentComment,
+  getDocumentComments, addDocumentComment, updateDocumentComment, deleteDocumentComment,
 } from '../../api/student.api';
 import { Alert, Button, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -190,7 +190,8 @@ export default function StudentDocuments() {
           </section>
           )}
 
-          <DocComments docId={live._id} load={getDocumentComments} post={addDocumentComment} />
+          <DocComments docId={live._id} load={getDocumentComments} post={addDocumentComment}
+            update={updateDocumentComment} remove={deleteDocumentComment} />
           </>
         )}
         foot={live?.files?.[0] && <OpenFile files={live.files} caption={live.title} />}

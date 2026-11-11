@@ -635,26 +635,96 @@ const fmtWhen = (d) => {
   return `${fmtDate(d)}, ${x.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}`;
 };
 
-const CommentRow = ({ c, onReply, reply }) => (
-  <li className={`dvcom${reply ? ' dvcom--reply' : ''}`}>
-    <Avatar name={c.author?.name} src={c.author?.photo} size={reply ? 26 : 30} />
-    <div className="dvcom__body">
-      <header>
-        <b>{c.mine ? 'You' : c.author?.name}</b>
-        <span className={`dvcom__role dvcom__role--${c.author?.role}`}>{ROLE_LABEL[c.author?.role] || c.author?.role}</span>
-        {c.isPinned ? <span className="dvpill dvpill--indigo"><Icon name="star" size={11} /> Pinned</span> : null}
-        <time>{fmtWhen(c.createdAt)}</time>
-      </header>
-      {c.body ? <p>{c.body}</p> : null}
-      {c.files?.length > 0 && <FileRows files={c.files} caption={c.author?.name} compact />}
-      {onReply && (
-        <button type="button" className="dvcom__reply" onClick={() => onReply(c)}>
-          <Icon name="repeat" size={12} /> Reply
-        </button>
-      )}
-    </div>
-  </li>
-);
+/**
+ * One comment in the drawer. The reader's own comments carry Edit and Delete
+ * (the server's `canEdit` / `canDelete` — your own words, nobody else's).
+ * Delete asks once, in the row itself rather than over the drawer.
+ */
+const CommentRow = ({ c, onReply, reply, onEdit, onDelete }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.body || '');
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  if (c.deleted) {
+    return (
+      <li className={`dvcom dvcom--gone${reply ? ' dvcom--reply' : ''}`}>
+        <span className="dvcom__goneicon" aria-hidden><Icon name="trash" size={13} /></span>
+        <div className="dvcom__body"><p>This comment was deleted.</p></div>
+      </li>
+    );
+  }
+
+  const save = async (e) => {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body && !c.files?.length) return;
+    setBusy(true);
+    try { await onEdit(c, body); setEditing(false); } finally { setBusy(false); }
+  };
+  const remove = async () => {
+    setBusy(true);
+    try { await onDelete(c); } finally { setBusy(false); setAsking(false); }
+  };
+  const canEdit = onEdit && c.canEdit;
+  const canDelete = onDelete && c.canDelete;
+
+  return (
+    <li className={`dvcom${reply ? ' dvcom--reply' : ''}`}>
+      <Avatar name={c.author?.name} src={c.author?.photo} size={reply ? 26 : 30} />
+      <div className="dvcom__body">
+        <header>
+          <b>{c.mine ? 'You' : c.author?.name}</b>
+          <span className={`dvcom__role dvcom__role--${c.author?.role}`}>{ROLE_LABEL[c.author?.role] || c.author?.role}</span>
+          {c.isPinned ? <span className="dvpill dvpill--indigo"><Icon name="star" size={11} /> Pinned</span> : null}
+          {c.isEdited ? <em className="dvcom__edited">edited</em> : null}
+          <time>{fmtWhen(c.createdAt)}</time>
+        </header>
+        {editing ? (
+          <form className="dvcom__edit" onSubmit={save}>
+            <textarea className="form-control" rows={2} maxLength={2000} value={draft} autoFocus
+              aria-label="Edit your comment" onChange={(e) => setDraft(e.target.value)} />
+            <div>
+              <button type="submit" className="btn btn-primary btn-sm" disabled={busy || (!draft.trim() && !c.files?.length)}>
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+                onClick={() => { setEditing(false); setDraft(c.body || ''); }}>Cancel</button>
+            </div>
+          </form>
+        ) : (c.body ? <p>{c.body}</p> : null)}
+        {c.files?.length > 0 && <FileRows files={c.files} caption={c.author?.name} compact />}
+        {asking ? (
+          <div className="dvcom__ask" role="alert">
+            <span>Delete your comment?</span>
+            <button type="button" className="btn btn-danger btn-sm" onClick={remove} disabled={busy}>
+              {busy ? 'Deleting…' : 'Delete'}
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAsking(false)} disabled={busy}>Cancel</button>
+          </div>
+        ) : !editing && (onReply || canEdit || canDelete) ? (
+          <div className="dvcom__acts">
+            {onReply && (
+              <button type="button" className="dvcom__reply" onClick={() => onReply(c)}>
+                <Icon name="repeat" size={12} /> Reply
+              </button>
+            )}
+            {canEdit && (
+              <button type="button" className="dvcom__reply" onClick={() => { setDraft(c.body || ''); setEditing(true); }}>
+                <Icon name="pencil" size={12} /> Edit
+              </button>
+            )}
+            {canDelete && (
+              <button type="button" className="dvcom__reply dvcom__reply--danger" onClick={() => setAsking(true)}>
+                <Icon name="trash" size={12} /> Delete
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+};
 
 /**
  * The comments under one document, in the drawer.
@@ -664,7 +734,7 @@ const CommentRow = ({ c, onReply, reply }) => (
  * marked for everyone — a staff-only note never leaves the server — and can
  * ask a question back or answer one.
  */
-export function DocComments({ docId, load, post }) {
+export function DocComments({ docId, load, post, update, remove }) {
   const [threads, setThreads] = useState(null);
   const [failed,  setFailed]  = useState('');
   const [draft,   setDraft]   = useState('');
@@ -701,8 +771,30 @@ export function DocComments({ docId, load, post }) {
     }
   };
 
-  const total = (threads || []).reduce((n, c) => n + 1 + (c.replies?.length || 0), 0);
+  const total = (threads || []).reduce((n, c) => n + (c.deleted ? 0 : 1) + (c.replies?.length || 0), 0);
   const reply = post ? (c) => { setReplyTo(c); document.getElementById('dv-comment')?.focus(); } : null;
+
+  // Your own comments only — the server refuses anything else.
+  const onEdit = update ? async (c, body) => {
+    try {
+      await update(c._id, { body });
+      await fetchThreads();
+      toast.success('Comment updated');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+      throw err;
+    }
+  } : null;
+  const onDelete = remove ? async (c) => {
+    try {
+      await remove(c._id);
+      if (replyTo && String(replyTo._id) === String(c._id)) setReplyTo(null);
+      await fetchThreads();
+      toast.success('Comment deleted');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    }
+  } : null;
 
   return (
     <section className="dvdrawer__sec">
@@ -718,8 +810,10 @@ export function DocComments({ docId, load, post }) {
         <ul className="dvcoms">
           {threads.map((c) => (
             <React.Fragment key={c._id}>
-              <CommentRow c={c} onReply={reply} />
-              {(c.replies || []).map((r) => <CommentRow key={r._id} c={r} reply onReply={reply && (() => reply(c))} />)}
+              <CommentRow c={c} onReply={c.deleted ? null : reply} onEdit={onEdit} onDelete={onDelete} />
+              {(c.replies || []).map((r) => (
+                <CommentRow key={r._id} c={r} reply onReply={reply && (() => reply(c.deleted ? r : c))} onEdit={onEdit} onDelete={onDelete} />
+              ))}
             </React.Fragment>
           ))}
         </ul>
