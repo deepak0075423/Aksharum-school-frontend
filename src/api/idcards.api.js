@@ -24,6 +24,8 @@ export const cancelIdCard = (id, body) => api.post(`/admin/id-cards/cards/${id}/
 
 /** A PDF of these cards to print: `layout` card | sheet, `sides` both | front | back. */
 export const printIdCards = (body) => api.post('/admin/id-cards/print', body, blob);
+/** The office confirms these cards came out of the printer — nothing marks a card printed by itself. */
+export const markIdCardsPrinted = (cardIds) => api.post('/admin/id-cards/mark-printed', { cardIds });
 export const downloadIdCardAdmin = (id, layout = 'card') => api.get(`/admin/id-cards/cards/${id}/pdf`, { params: { layout }, ...blob });
 
 export const getIdCardTemplates = () => api.get('/admin/id-cards/templates');

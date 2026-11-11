@@ -662,7 +662,11 @@
 .icv .ic3d-hint { background: rgba(255, 255, 255, .14); }
 
 /* Shown at the gate. */
-.icv-present { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px 16px 26px; text-align: center; }
+.icv-present { position: relative; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 18px 16px 22px; text-align: center; }
+/* A way out in the corner, where one is looked for — the only exit used to be
+   a button under the card, which a laptop screen cut off. */
+.icv-present__close.ic-ibtn { position: absolute; top: 16px; right: 22px; z-index: 2; }
+.icv-present__acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .icv-present__top { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .icv-present__school { font-size: 1rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .icv-present__date { font-size: .82rem; color: rgba(255, 255, 255, .6); }
@@ -1056,8 +1060,13 @@
 .icdash-kind__cap b.is-due { color: #b45309; }
 .icdash-kind__cap b.is-done { color: #15803d; }
 
-.icdash-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 18px; margin-top: 20px; align-items: start; }
-.icdash-main, .icdash-side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+/* Two rows of one height each: the class table beside the latest card, then
+   the three lists side by side. `stretch`, so every box in a row ends on the
+   same line whatever is in it. */
+.icdash-top { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; margin-top: 20px; align-items: stretch; }
+.icdash-top--solo { grid-template-columns: minmax(0, 1fr); }
+.icdash-lists { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 18px; align-items: stretch; }
+.icdash-top > *, .icdash-lists > * { min-width: 0; margin: 0; }
 
 .icdash-classes { display: flex; flex-direction: column; }
 .icdash-class { display: grid; grid-template-columns: 120px minmax(0, 1fr) 190px 112px; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--ic-line-2); }
@@ -1085,11 +1094,13 @@
 .icdash-clear { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 11px; background: #f3fbf6; color: #15803d; font-size: .86rem; font-weight: 500; }
 
 .icdash-latest {
+  display: flex; flex-direction: column;
   position: relative; overflow: hidden; border-radius: 16px; color: #fff;
   background: radial-gradient(360px 260px at 50% 0%, rgba(129, 140, 248, .45), rgba(129, 140, 248, 0) 70%), linear-gradient(160deg, #24206a, #141238);
   box-shadow: 0 12px 28px rgba(30, 27, 75, .22);
 }
 .icdash-latest__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 0; font-size: .74rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .65); }
+.icdash-latest__stage { flex: 1; display: flex; align-items: center; justify-content: center; }
 .icdash-latest__stage .ic3d-shadow { background: radial-gradient(closest-side, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0)); }
 .icdash-latest__foot { display: flex; flex-direction: column; gap: 2px; padding: 0 16px 16px; text-align: center; }
 .icdash-latest__foot strong { font-size: .98rem; }
@@ -1102,20 +1113,30 @@
 .icdash-recent__side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
 .icdash-recent__side em { font-style: normal; font-size: .74rem; color: var(--ic-faint); }
 .icdash-act { list-style: none; margin: 0; padding: 8px 0; }
-.icdash-act li { display: flex; gap: 10px; padding: 8px 18px; }
+.icdash-act li { display: flex; align-items: flex-start; gap: 11px; padding: 10px 18px; }
+.icdash-act li + li { border-top: 1px dashed var(--ic-line-2); }
 .icdash-act__dot { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #f1f3f9; color: #5b6488; flex: none; }
-.icdash-act__text { min-width: 0; font-size: .82rem; color: var(--ic-ink-2); line-height: 1.4; }
+.icdash-act__text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: .82rem; color: var(--ic-ink-2); line-height: 1.4; }
+.icdash-act__text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icdash-act__when { flex: none; padding-top: 1px; font-size: .74rem; color: var(--ic-faint); white-space: nowrap; }
 .icdash-act__text b { font-weight: 600; color: var(--ic-ink); }
 .icdash-act__text em { font-style: normal; color: var(--ic-faint); }
 .icdash-act__text small { display: block; margin-top: 2px; font-size: .74rem; color: var(--ic-faint); }
 
+@media (max-width: 1320px) {
+  /* Three lists across leave each under 300px: two, with the activity log
+     taking the full row beneath them. */
+  .icdash-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .icdash-lists > :last-child { grid-column: 1 / -1; }
+}
 @media (max-width: 1240px) {
   .icdash-class { grid-template-columns: 110px minmax(0, 1fr) 112px; }
   .icdash-class .ic-meter { display: none; }
 }
 @media (max-width: 1100px) {
   .ic-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .icdash-grid { grid-template-columns: 1fr; }
+  .icdash-top { grid-template-columns: 1fr; }
+  .icdash-lists { grid-template-columns: 1fr; }
   .icdash-kinds { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
@@ -1218,10 +1239,14 @@
 /* ── Verification desk ──────────────────────────────────────────────────────*/
 
 .icvd .ic-head { margin-bottom: 20px; }
-.icvd-box { display: flex; flex-direction: column; gap: 12px; padding: 20px; border-radius: 16px; background: #fff; border: 1px solid #eef0f6; box-shadow: 0 1px 2px rgba(16, 20, 58, .03); margin-bottom: 18px; }
+/* The search sits on the page itself. It used to be a white card holding a
+   bordered field holding the input's own focus ring — a box in a box in a box
+   around one line of text. The field is the only frame now. */
+.icvd-box { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
 .icvd-box__row { display: flex; gap: 10px; flex-wrap: wrap; }
 .icvd-input { display: flex; align-items: center; gap: 12px; flex: 1 1 360px; height: 54px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--ic-line); background: #fff; color: #6b7499; transition: border-color .15s, box-shadow .15s; }
 .icvd-input:focus-within { border-color: var(--ic-primary); box-shadow: 0 0 0 4px rgba(79, 70, 229, .12); }
+.icvd-input input:focus, .icvd-input input:focus-visible { outline: none; box-shadow: none; }
 .icvd-input input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; font: inherit; font-size: 1.05rem; font-weight: 600; letter-spacing: .02em; color: var(--ic-ink); }
 .icvd-input input::placeholder { font-weight: 500; letter-spacing: 0; color: #8c94b3; }
 .icvd-box .ic-btn--lg { height: 54px; border-radius: 12px; }
@@ -1246,7 +1271,9 @@
 .icvd-verdict h2 { margin: 0; font-size: 1.5rem; font-weight: 800; }
 .icvd-verdict p { margin: 3px 0 0; color: var(--ic-ink-2); font-size: .9rem; }
 .icvd-body { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; padding: 6px 22px 22px; align-items: center; }
-.icvd-card { border-radius: 14px; background: radial-gradient(260px 180px at 50% 10%, #eef0ff, #f7f8fd 70%); padding: 8px 0; }
+/* No tinted box behind the card: the result is already a box, and the card
+   has its own edge and shadow. */
+.icvd-card { padding: 8px 0; }
 .icvd-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .icvd-name strong { font-size: 1.35rem; font-weight: 800; color: var(--ic-ink); }
 .icvd-facts dl { margin: 12px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }

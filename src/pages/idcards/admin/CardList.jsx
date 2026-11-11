@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getIdCardList, downloadIdCardAdmin } from '../../../api/idcards.api';
+import { getIdCardList, downloadIdCardAdmin, markIdCardsPrinted } from '../../../api/idcards.api';
 import {
   Page, PageHead, Btn, IconBtn, Kebab, LineTabs, SearchBox, Select, Check, Person, StatusBadge,
   Pager, Empty, Spin, Note, Ico, useLoad, useDebounced,
@@ -125,6 +125,13 @@ export default function CardList({ kind = 'student' }) {
     catch (e) { toast.error(await errorText(e, 'The card could not be downloaded')); }
   };
 
+  // For a card printed from a downloaded file, or one the office answered
+  // "not printed" for at the time.
+  const markPrinted = async (card) => {
+    try { await markIdCardsPrinted([card._id]); toast.success('Marked as printed'); refresh(); }
+    catch (e) { toast.error(await errorText(e, 'The card could not be marked as printed')); }
+  };
+
   const rowMenu = (row) => {
     const c = cardOf(row, kind);
     const open = row.state && !['expired', 'reissued', 'cancelled', 'none'].includes(row.state) && !pastYear;
@@ -139,8 +146,9 @@ export default function CardList({ kind = 'student' }) {
       { label: 'View card', icon: 'eye', onClick: () => setDrawer({ cardId: c._id, holderId: row._id, kind, name: row.name }) },
       { label: 'Download PDF', icon: 'download', onClick: () => download(c) },
       { label: 'Print', icon: 'printer', onClick: () => setPrint([c]) },
+      live && !c.printedAt ? { label: 'Mark as printed', icon: 'checkCircle', onClick: () => markPrinted(c) } : null,
       '-',
-      live && open ? { label: row.changes?.length ? (c.printedAt ? 'Reissue with latest details' : 'Update card details') : (c.printedAt ? 'Reissue card' : 'Update card details'), icon: 'regen', onClick: () => act('regenerate', c, { changes: row.changes }) } : null,
+      live && open ? { label: row.changes?.length ? (c.printedAt || c.releasedAt ? 'Reissue with latest details' : 'Update card details') : (c.printedAt || c.releasedAt ? 'Reissue card' : 'Update card details'), icon: 'regen', onClick: () => act('regenerate', c, { changes: row.changes }) } : null,
       live && open ? { label: 'Report lost', icon: 'search', onClick: () => act('report', c, { status: 'lost' }) } : null,
       live && open ? { label: 'Report damaged', icon: 'alert', onClick: () => act('report', c, { status: 'damaged' }) } : null,
       ['lost', 'damaged'].includes(row.state) && !row.card.replacedBy && !pastYear && row.isActive ? { label: 'Issue replacement', icon: 'cardStack', onClick: () => act('replace', c) } : null,

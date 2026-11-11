@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { Modal } from '../../../components/ui';
 import {
   regenerateIdCard, reportIdCard, replaceIdCard, blockIdCard, activateIdCard, cancelIdCard,
-  printIdCards, downloadIdCardAdmin,
+  printIdCards, downloadIdCardAdmin, markIdCardsPrinted,
 } from '../../../api/idcards.api';
 import { Btn, Ico, Segmented, Switch, Note, StatusBadge } from '../icUI';
 import { KIND, errorText, pdfName, plural, printBlob, saveBlob } from '../icMeta';
@@ -92,7 +92,9 @@ export function useCardActions(onDone) {
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   let dialog = null;
   if (d?.action === 'regenerate') {
-    const inPlace = !card.printedAt;
+    // In place only while no copy has left the system — printed, or handed
+    // over as a PDF that may yet be printed.
+    const inPlace = !card.printedAt && !card.releasedAt;
     dialog = (
       <Dialog open onClose={close} title={inPlace ? 'Update the card' : 'Reissue the card'} icon="regen" tone="indigo"
         footer={<><Btn onClick={close}>Cancel</Btn><Btn kind="primary" icon="regen" busy={busy} onClick={() => run(() => regenerateIdCard(card._id, { note: form.note }), 'Card updated')}>{inPlace ? 'Update card' : 'Reissue card'}</Btn></>}>
@@ -191,7 +193,12 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
   const [sides, setSides] = useState('both');
   const [marks, setMarks] = useState(true);
   const [busy, setBusy] = useState('');
+  // After the PDF has gone to the print window: did it print? The browser does
+  // not say — the same window saves a PDF, or is cancelled — so the office is
+  // asked, and only a "yes" marks the cards as printed.
+  const [asking, setAsking] = useState(false);
   const n = cards.length;
+  React.useEffect(() => { if (open) setAsking(false); }, [open]);
   const pages = useMemo(() => {
     if (!n) return 0;
     const per = layout === 'card' ? 1 : 9;
@@ -204,10 +211,14 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
     try {
       const blob = n === 1 && layout === 'card' && how === 'download'
         ? await downloadIdCardAdmin(cards[0]._id, 'card')
-        : await printIdCards({ cardIds: cards.map((c) => c._id), layout, sides, cropMarks: marks });
-      if (how === 'print') printBlob(blob);
-      else saveBlob(blob, n === 1 ? pdfName(cards[0]) : `id-cards-${new Date().toISOString().slice(0, 10)}.pdf`);
-      toast.success(how === 'print' ? 'Sent to the printer' : `${plural(n, 'card')} downloaded`);
+        : await printIdCards({ cardIds: cards.map((c) => c._id), layout, sides, cropMarks: marks, purpose: how });
+      if (how === 'print') {
+        printBlob(blob);
+        setAsking(true);            // stays open, and asks
+        return;
+      }
+      saveBlob(blob, n === 1 ? pdfName(cards[0]) : `id-cards-${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.success(`${plural(n, 'card')} downloaded`);
       onDone?.();
       onClose();
     } catch (e) {
@@ -216,6 +227,38 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
       setBusy('');
     }
   };
+
+  const answer = async (printed) => {
+    if (!printed) { onDone?.(); onClose(); return; }
+    setBusy('mark');
+    try {
+      await markIdCardsPrinted(cards.map((c) => c._id));
+      toast.success(`${plural(n, 'card')} marked as printed`);
+      onDone?.();
+      onClose();
+    } catch (e) {
+      toast.error(await errorText(e, 'The cards could not be marked as printed'));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  if (asking) {
+    return (
+      <Dialog open={open} onClose={() => !busy && answer(false)} title={`Did the ${n === 1 ? 'card' : 'cards'} print?`} icon="printer" width={480}
+        footer={<>
+          <Btn onClick={() => answer(false)} disabled={!!busy}>No, not printed</Btn>
+          <Btn kind="primary" icon="checkCircle" busy={busy === 'mark'} onClick={() => answer(true)}>Yes, mark as printed</Btn>
+        </>}>
+        <p className="ic-dialog__lead">
+          The print window has opened. Once {n === 1 ? 'the card has' : `the ${plural(n, 'card')} have`} come out of the printer, say so here.
+        </p>
+        <Note tone="slate" icon="info">
+          If you cancelled, or saved the cards as a file instead, choose <b>No</b> — they stay <b>Not printed</b>, and can be marked later from a card&rsquo;s menu.
+        </Note>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onClose={() => !busy && onClose()} title={title || `Print ${plural(n, 'card')}`} icon="printer" width={560}
@@ -242,7 +285,7 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
       </div>
       {layout === 'sheet' ? <Switch checked={marks} onChange={setMarks} label="Crop marks" hint="Fine lines at each card's corners to cut along." /> : null}
       <Note tone="slate" icon="info">
-        {plural(n, 'card')} · {plural(pages, 'page')}. Print at <b>actual size (100%)</b>{sides === 'both' && layout === 'sheet' ? ', double-sided, flipping on the long edge — each back lands behind its front' : ''}. Printed cards are marked as printed.
+        {plural(n, 'card')} · {plural(pages, 'page')}. Print at <b>actual size (100%)</b>{sides === 'both' && layout === 'sheet' ? ', double-sided, flipping on the long edge — each back lands behind its front' : ''}. After printing you will be asked whether the cards printed; downloading does not mark them as printed.
       </Note>
     </Dialog>
   );

@@ -31,7 +31,7 @@ export function useCardFiles(role) {
 const codeLabel = (card) => (card.kind === 'student' ? 'Admission No.' : card.kind === 'parent' ? 'Parent ID' : 'Employee ID');
 
 /** The card in force, hanging in the showcase, with what it says and what can be done with it. */
-export function Hero({ card, files, onPresent, onOpen, compact = false, upcoming }) {
+export function Hero({ card, files, onPresent, onOpen, compact = false, upcoming, earlier = 0 }) {
   const [back, setBack] = useState(false);
   const [busy, setBusy] = useState('');
   const s = card.snapshot || {};
@@ -66,8 +66,13 @@ export function Hero({ card, files, onPresent, onOpen, compact = false, upcoming
           {onPresent && valid ? <Btn kind="light" icon="fullscreen" onClick={() => onPresent(card)}>Show at the gate</Btn> : null}
           <Btn kind="dark" icon="download" busy={busy === 'pdf'} onClick={() => run('pdf', files.download)}>Download</Btn>
           <Btn kind="dark" icon="printer" busy={busy === 'print'} onClick={() => run('print', files.print)}>Print</Btn>
-          <Btn kind="dark" icon="flip" onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Flip card'}</Btn>
-          {onOpen ? <Btn kind="dark" icon="fullscreen" onClick={() => onOpen(card)}>Full screen</Btn> : null}
+          {/* Says what is on the other side: "Flip card" did not tell anyone
+              that the back is where the QR code is. */}
+          <Btn kind="dark" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show back (QR code)'}</Btn>
+          {/* No "Full screen" beside "Show at the gate" — both filled the
+              screen with this same card. The viewer is still how an EARLIER
+              card is opened, and only then is there anything else to see. */}
+          {onOpen && earlier > 0 ? <Btn kind="dark" icon="history" onClick={() => onOpen(card)}>Earlier cards · {earlier}</Btn> : null}
         </div>
         {upcoming ? (
           <button type="button" className="icm-upcoming" onClick={() => onOpen?.(upcoming)}>
@@ -131,11 +136,16 @@ function HistoryRow({ card, onOpen, current }) {
 }
 
 /**
- * Every card, newest first. Student cards are grouped by academic year — the
- * year's original and any replacement together — so "2025-26" reads as one
- * entry however many copies it took.
+ * Every EARLIER card, newest first. The card in force is not listed: it is
+ * the one hanging at the top of the page, and a second copy of it down here
+ * with its own "View" was the same card offered twice.
+ *
+ * Student cards are grouped by academic year — the year's original and any
+ * replacement together — so "2025-26" reads as one entry however many copies
+ * it took.
  */
-export function History({ cards, currentId, onOpen, title = 'ID Card History', sub }) {
+export function History({ cards: every, currentId, onOpen, title = 'ID Card History', sub }) {
+  const cards = useMemo(() => every.filter((c) => c._id !== currentId), [every, currentId]);
   const groups = useMemo(() => {
     if (!cards.length) return [];
     if (cards[0].kind !== 'student') return [{ key: 'all', label: '', cards }];
@@ -151,15 +161,18 @@ export function History({ cards, currentId, onOpen, title = 'ID Card History', s
   }, [cards]);
 
   return (
-    <Panel title={title} sub={sub || (cards[0]?.kind === 'student' ? 'A new card every academic year. Each year’s card stays exactly as it was issued.' : 'Every card issued to you, including any it replaced.')} icon="history" tone="indigo">
-      {!cards.length ? <Empty compact title="No cards yet">Cards appear here as the school issues them.</Empty> : (
+    <Panel title={title} sub={sub || (every[0]?.kind === 'student' ? 'A new card every academic year. Each year’s card stays exactly as it was issued.' : 'Cards issued to you before the current one.')} icon="history" tone="indigo">
+      {!cards.length ? (
+        <Empty compact title="No earlier cards">
+          {every.length ? 'The card above is the only one issued to you so far. Earlier cards are kept here once it is replaced.' : 'Cards appear here as the school issues them.'}
+        </Empty>
+      ) : (
         <div className="icm-history">
           {groups.map((g) => (
             <div key={g.key} className="icm-year">
               {g.label ? (
                 <div className="icm-year__label">
                   <span>{g.label}</span>
-                  {g.cards.some((c) => c._id === currentId) ? <em>This year</em> : null}
                 </div>
               ) : null}
               <div className="icm-year__rows">

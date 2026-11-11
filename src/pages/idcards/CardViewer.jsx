@@ -48,6 +48,37 @@ function useWakeLock(on) {
   }, [on]);
 }
 
+/**
+ * The browser's Back button closes the viewer instead of leaving the page.
+ *
+ * Full screen, the viewer reads as a page of its own, so Back is what people
+ * reach for — and it used to take them to wherever they had been BEFORE the
+ * ID card page (the dashboard). Opening the viewer now adds one history entry
+ * for it; Back pops that entry and the viewer closes. Closing it any other way
+ * goes through `leave()`, which takes the same entry back off, so the history
+ * never keeps a leftover step.
+ *
+ * The entry copies the current state rather than replacing it: the router
+ * keeps its own position in there and must find it unchanged.
+ */
+function useBackToClose(open, onClose) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!open) return undefined;
+    if (!window.history.state?.icViewer) {
+      window.history.pushState({ ...(window.history.state || {}), icViewer: true }, '');
+    }
+    const onPop = () => close.current();
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [open]);
+  return useCallback(() => {
+    if (window.history.state?.icViewer) window.history.back();   // → popstate → onClose
+    else close.current();
+  }, []);
+}
+
 function useClock(on) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -88,9 +119,13 @@ function Present({ card, school, onClose }) {
   const [back, setBack] = useState(false);
   const valid = card.status === 'active';
   const look = card.design || {};
-  const w = Math.min(window.innerWidth - 48, card.design?.layout === 'landscape' ? 300 : 330);
+  const landscape = card.design?.layout === 'landscape';
+  // Sized by the window's HEIGHT as well as its width: at a flat 330px the
+  // card ran past the bottom of a laptop screen and took the Done button with it.
+  const w = Math.round(Math.min(window.innerWidth - 48, landscape ? 300 : 330, Math.max(200, (window.innerHeight - 330) / (landscape ? 0.7 : 1.62))));
   return (
     <div className={`icv-present${valid ? '' : ' is-void'}`}>
+      <IconBtn icon="close" label="Close and go back to ID cards" className="icv-close icv-present__close" onClick={onClose} />
       <div className="icv-present__top">
         <span className="icv-present__school">{look.identity?.name || school?.name}</span>
         <span className="icv-live"><i />LIVE · {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
@@ -103,8 +138,11 @@ function Present({ card, school, onClose }) {
         <Ico name={valid ? 'checkDisc' : 'crossDisc'} size={22} />
         <span>{cardWords(card)}</span>
       </div>
-      <p className="icv-present__tip">{back ? 'The guard scans this code to check the card.' : 'Tap the card to show its QR code.'}</p>
-      <Btn kind="dark" icon="close" onClick={onClose}>Done</Btn>
+      <p className="icv-present__tip">{back ? 'The guard scans this code to check the card.' : 'The QR code is on the back of the card.'}</p>
+      <div className="icv-present__acts">
+        <Btn kind="light" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show QR code'}</Btn>
+        <Btn kind="dark" icon="close" onClick={onClose}>Close</Btn>
+      </div>
     </div>
   );
 }
@@ -116,18 +154,23 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
   const [busy, setBusy] = useState('');
   const closeRef = useRef(null);
   useLockScroll(open);
+  const leave = useBackToClose(open, onClose);
+  // Opened straight into the gate display (the page's own "Show at the gate"),
+  // closing it goes back to the page. Reached from this viewer's toolbar, it
+  // goes back to the viewer.
+  const endPresenting = () => { if (startPresenting) leave(); else setPresenting(false); };
 
   useEffect(() => { if (open) { setAt(index); setBack(false); setPresenting(!!startPresenting); } }, [open, index, startPresenting]);
   useEffect(() => { setBack(false); }, [at]);
   useEffect(() => {
     if (!open) return undefined;
     const key = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); if (presenting) setPresenting(false); else onClose(); }
+      if (e.key === 'Escape') { e.preventDefault(); if (presenting) endPresenting(); else leave(); }
     };
     document.addEventListener('keydown', key);
     closeRef.current?.focus({ preventScroll: true });
     return () => document.removeEventListener('keydown', key);
-  }, [open, onClose, presenting]);
+  }, [open, leave, presenting, startPresenting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const card = cards[at] || cards[0];
   const run = useCallback(async (what, fn) => {
@@ -144,7 +187,7 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
 
   return createPortal(
     <div className="icv" role="dialog" aria-modal="true" aria-label={title || 'ID card'}>
-      {presenting ? <Present card={card} school={school} onClose={() => setPresenting(false)} /> : (
+      {presenting ? <Present card={card} school={school} onClose={endPresenting} /> : (
         <>
           <div className="icv-bar">
             <div className="icv-bar__who">
@@ -152,7 +195,7 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
               <span>{card.number}{card.kind === 'student' && card.academicYear?.yearName ? ` · ${card.academicYear.yearName}` : ''}</span>
             </div>
             <StatusBadge status={card.status} size="lg" />
-            <IconBtn ref={closeRef} icon="close" label="Close" className="icv-close" onClick={onClose} />
+            <IconBtn ref={closeRef} icon="close" label="Close" className="icv-close" onClick={leave} />
           </div>
 
           <div className={`icv-body${cards.length > 1 ? ' has-rail' : ''}`}>
@@ -181,7 +224,7 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
           </div>
 
           <div className="icv-tools">
-            <Btn kind="dark" icon="flip" onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show back'}</Btn>
+            <Btn kind="dark" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show back (QR code)'}</Btn>
             {onDownload ? <Btn kind="dark" icon="download" busy={busy === 'pdf'} onClick={() => run('pdf', onDownload)}>Download PDF</Btn> : null}
             {onPrint ? <Btn kind="dark" icon="printer" busy={busy === 'print'} onClick={() => run('print', onPrint)}>Print</Btn> : null}
             {presentable && card.status !== 'expired' ? <Btn kind="light" icon="fullscreen" onClick={() => setPresenting(true)}>Show at the gate</Btn> : null}

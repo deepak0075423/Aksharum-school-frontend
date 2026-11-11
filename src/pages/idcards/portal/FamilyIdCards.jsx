@@ -84,7 +84,7 @@ export default function FamilyIdCards() {
         <>
           <h2 className="icf-h2"><Ico name="user" size={18} />My ID Card</h2>
           {mine.current
-            ? <Hero card={mine.current} files={files} compact onOpen={(c) => openMine(c)} onPresent={(c) => openMine(c, true)} />
+            ? <Hero card={mine.current} files={files} compact earlier={mine.cards.length - 1} onOpen={(c) => openMine(c)} onPresent={(c) => openMine(c, true)} />
             : <NoCard kind="parent" />}
 
           <h2 className="icf-h2"><Ico name="users" size={18} />My Children&rsquo;s ID Cards <em>{plural(children.length, 'child', 'children')}</em></h2>

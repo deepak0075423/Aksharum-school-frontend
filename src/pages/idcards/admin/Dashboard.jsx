@@ -19,6 +19,10 @@ import { PrintDialog } from './dialogs';
 
 const BASE = '/admin/id-cards';
 
+// How many rows each of the three lists at the foot of the page shows. One
+// number for all three, so the panels end level.
+const LIST_ROWS = 6;
+
 function ClassTable({ rows, yearName, onGenerate }) {
   if (!rows.length) return <Empty compact title="No classes this year">Classes and sections of the current academic year appear here.</Empty>;
   return (
@@ -101,7 +105,6 @@ export default function IdCardDashboard() {
   return (
     <Page className="icdash">
       <PageHead title="ID Cards" subtitle="Issue, print and verify identity cards for students, teachers, staff and parents — with every year's student cards kept on record.">
-        <Btn icon="scan" onClick={() => nav(`${BASE}/verification`)}>Verify a card</Btn>
         <MenuBtn kind="primary" icon="cardStack" label="Generate cards" items={[
           data?.year ? { label: `Student cards — ${data.year.yearName}`, icon: 'student', onClick: () => setGen({ kind: 'student', yearId: data.year._id }) } : null,
           data?.next ? { label: `Student cards — ${data.next.yearName} (ahead)`, icon: 'hourglass', onClick: () => setGen({ kind: 'student', yearId: data.next._id }) } : null,
@@ -140,82 +143,88 @@ export default function IdCardDashboard() {
         <KindTile kind="parent" t={data.parents} to={`${BASE}/parents`} />
       </div>
 
-      <div className="icdash-grid">
-        <div className="icdash-main">
-          <Panel title="Student cards by class" sub={data.year ? `${data.year.yearName} — who still needs a card` : 'No current year'} icon="building" tone="blue"
-            right={<Btn size="sm" kind="tint" onClick={() => nav(`${BASE}/students`)}>Open list</Btn>}>
-            <ClassTable rows={data.byClass || []} yearName={data.year?.yearName}
-              onGenerate={(c) => setGen({ kind: 'student', yearId: data.year._id, classId: c._id })} />
-          </Panel>
+      {/* Two rows, each of one height. The page used to be a tall left column
+          beside a taller right one — three panels stacked on the right ran a
+          full screen past the two on the left and left a blank quarter under
+          them. Now: the class table beside the latest card, then the three
+          lists side by side, each capped so they end together. */}
+      <div className={`icdash-top${latest ? '' : ' icdash-top--solo'}`}>
+        <Panel title="Student cards by class" sub={data.year ? `${data.year.yearName} — who still needs a card` : 'No current year'} icon="building" tone="blue"
+          right={<Btn size="sm" kind="tint" onClick={() => nav(`${BASE}/students`)}>Open list</Btn>}>
+          <ClassTable rows={data.byClass || []} yearName={data.year?.yearName}
+            onGenerate={(c) => setGen({ kind: 'student', yearId: data.year._id, classId: c._id })} />
+        </Panel>
 
-          <Panel title="Needs attention" sub="Cards the office should look at" icon="alertTri" tone="orange">
-            {data.attention.length ? (
-              <ul className="icdash-attn">
-                {data.attention.map((a) => (
-                  <li key={`${a.key}-${a.kind}`}>
-                    <Link to={`${BASE}/${KIND[a.kind].path}?tab=${a.tab}`}>
-                      <span className={`icdash-attn__n ic-t-${a.key === 'left' ? 'red' : a.key === 'lost' ? 'orange' : 'amber'}`}>{count(a.count)}</span>
-                      <span className="icdash-attn__text">{a.text}</span>
-                      <KindChip kind={a.kind} />
-                      <Ico name="chevronRight" size={15} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="icdash-clear"><Ico name="checkDisc" size={20} />Nothing needs attention — every card in use matches its holder&rsquo;s record.</div>
-            )}
-          </Panel>
-        </div>
+        {latest ? (
+          <section className="icdash-latest">
+            <div className="icdash-latest__head">
+              <span>Latest card</span>
+              <StatusBadge status={latest.status} size="sm" />
+            </div>
+            <div className="icdash-latest__stage"><IdCard3D card={latest} width={190} lanyard /></div>
+            <div className="icdash-latest__foot">
+              <strong>{latest.snapshot?.name}</strong>
+              <span>{latest.number} · issued {ago(latest.issuedAt)}</span>
+            </div>
+          </section>
+        ) : null}
+      </div>
 
-        <div className="icdash-side">
-          {latest ? (
-            <section className="icdash-latest">
-              <div className="icdash-latest__head">
-                <span>Latest card</span>
-                <StatusBadge status={latest.status} size="sm" />
-              </div>
-              <div className="icdash-latest__stage"><IdCard3D card={latest} width={190} lanyard /></div>
-              <div className="icdash-latest__foot">
-                <strong>{latest.snapshot?.name}</strong>
-                <span>{latest.number} · issued {ago(latest.issuedAt)}</span>
-              </div>
-            </section>
-          ) : null}
+      <div className="icdash-lists">
+        <Panel title="Needs attention" sub="Cards the office should look at" icon="alertTri" tone="orange">
+          {data.attention.length ? (
+            <ul className="icdash-attn">
+              {data.attention.map((a) => (
+                <li key={`${a.key}-${a.kind}`}>
+                  <Link to={`${BASE}/${KIND[a.kind].path}?tab=${a.tab}`}>
+                    <span className={`icdash-attn__n ic-t-${a.key === 'left' ? 'red' : a.key === 'lost' ? 'orange' : 'amber'}`}>{count(a.count)}</span>
+                    <span className="icdash-attn__text">{a.text}</span>
+                    <Ico name="chevronRight" size={15} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="icdash-clear"><Ico name="checkDisc" size={20} />Nothing needs attention — every card in use matches its holder&rsquo;s record.</div>
+          )}
+        </Panel>
 
-          <Panel title="Recently issued" icon="cardStack" tone="indigo" pad={false}>
-            {data.recent.length ? (
-              <ul className="icdash-recent">
-                {data.recent.map((r) => (
-                  <li key={r._id}>
-                    <Person name={r.name} photo={r.photo} size={36} tone={KIND[r.kind]?.tone} sub={`${r.number}${r.line ? ` · ${r.line}` : ''}`} />
-                    <span className="icdash-recent__side">
-                      <KindChip kind={r.kind} />
-                      <em>{ago(r.issuedAt)}</em>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : <Empty compact title="No cards yet">Generate the first cards to see them here.</Empty>}
-          </Panel>
+        <Panel title="Recently issued" sub="The newest cards" icon="cardStack" tone="indigo" pad={false}>
+          {data.recent.length ? (
+            <ul className="icdash-recent">
+              {data.recent.slice(0, LIST_ROWS).map((r) => (
+                <li key={r._id}>
+                  <Person name={r.name} photo={r.photo} size={36} tone={KIND[r.kind]?.tone} sub={`${r.number}${r.line ? ` · ${r.line}` : ''}`} />
+                  <span className="icdash-recent__side">
+                    <KindChip kind={r.kind} />
+                    <em>{ago(r.issuedAt)}</em>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty compact title="No cards yet">Generate the first cards to see them here.</Empty>}
+        </Panel>
 
-          <Panel title="Activity" icon="history" tone="slate" pad={false}>
-            {data.activity.length ? (
-              <ul className="icdash-act">
-                {data.activity.map((a) => (
-                  <li key={a._id}>
-                    <span className="icdash-act__dot"><Ico name={ACT_ICON[a.action] || 'info'} size={13} /></span>
-                    <span className="icdash-act__text">
-                      <b>{a.label}</b>{a.holderName ? <> · {a.holderName}</> : null}{a.number ? <em> {a.number}</em> : null}
-                      {a.meta?.count !== undefined ? <> · {plural(a.meta.count, 'card')}</> : null}
-                      <small>{a.by || 'System'} · {ago(a.createdAt)}</small>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : <Empty compact title="Nothing yet">What the office does with cards is listed here.</Empty>}
-          </Panel>
-        </div>
+        <Panel title="Activity" sub="What the office did last" icon="history" tone="slate" pad={false}>
+          {data.activity.length ? (
+            <ul className="icdash-act">
+              {data.activity.slice(0, LIST_ROWS).map((a) => (
+                <li key={a._id}>
+                  <span className="icdash-act__dot"><Ico name={ACT_ICON[a.action] || 'info'} size={14} /></span>
+                  {/* What was done, then to whom, then by whom — one fact a
+                      line, with the time held against the right edge so the
+                      column of times reads straight down. */}
+                  <span className="icdash-act__text">
+                    <b>{a.label}{a.meta?.count !== undefined ? ` · ${plural(a.meta.count, 'card')}` : ''}</b>
+                    {a.holderName || a.number ? <span>{[a.holderName, a.number].filter(Boolean).join(' · ')}</span> : null}
+                    <small>by {a.by || 'System'}</small>
+                  </span>
+                  <time className="icdash-act__when">{ago(a.createdAt)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty compact title="Nothing yet">What the office does with cards is listed here.</Empty>}
+        </Panel>
       </div>
 
       <GenerateDialog
