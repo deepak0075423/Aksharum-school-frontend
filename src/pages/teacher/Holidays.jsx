@@ -27,7 +27,7 @@ import { Alert, Button, Modal, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ListTable, ListFooter } from '../admin/listParts';
 import {
-  HolidayDialog, HolidayList, MonthCalendar, TypeChip, dayKey, daysOf, daysUntil,
+  HolidayCards, HolidayDialog, HolidayList, MonthCalendar, TypeChip, dayKey, daysOf, daysUntil,
   fmtRange, spanDays, statusOf, tintFor, today,
 } from '../admin/holidayParts';
 import Tabs from '../../components/ui/Tabs';
@@ -376,6 +376,10 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
           <Button variant="secondary" onClick={clearAll} disabled={!anyFilter}>Clear</Button>
         </div>
 
+        {/* A phone gets cards with View rather than a table to scroll sideways. */}
+        <HolidayCards rows={shown} types={types} onView={setPicked}
+          meta={(h) => ((h.myClasses || []).length ? `Your classes: ${h.myClasses.join(', ')}` : null)} />
+        <div className="holtable">
         <ListTable
           columns={columns}
           rows={shown}
@@ -388,6 +392,7 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
             : 'None of the classes you take has a holiday of its own this year.'}
           emptyAction={anyFilter ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button> : null}
         />
+        </div>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={rows.length}

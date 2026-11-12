@@ -68,8 +68,11 @@ export default function useFocusHighlight() {
       // whose meaning then depends on the parser resolving that escape back
       // before the `~=` whitespace rule is applied. Nothing here needs to be a
       // selector, so none of that has to be got right.
-      const el = marked().find((node) =>
+      // A page may draw a record twice — a table for wide screens, cards for a
+      // phone — with one of the two hidden; flag the one that is showing.
+      const hits = marked().filter((node) =>
         (node.getAttribute('data-focus-id') || '').split(/\s+/).includes(focusId));
+      const el = hits.find((node) => node.getClientRects().length) || hits[0];
       if (el) { flash(el); return true; }
       return false;
     };

@@ -108,7 +108,7 @@ export const Crumbs = ({ here, trail = [], home }) => {
  * after the label; it is the app's one tab strip now, and the count is the
  * badge the strip already knows how to draw.
  */
-export const ListTabs = ({ tabs, value, onChange, counts }) => (
+export const ListTabs = ({ tabs, value, onChange, counts, children }) => (
   <Tabs
     variant="line"
     className="uitabs--inset"
@@ -120,7 +120,9 @@ export const ListTabs = ({ tabs, value, onChange, counts }) => (
       label: t.label,
       count: t.count ?? counts?.[(t.value ?? t.key) === 'all' ? 'total' : (t.value ?? t.key)],
     }))}
-  />
+  >
+    {children}
+  </Tabs>
 );
 
 /**

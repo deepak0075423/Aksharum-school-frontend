@@ -24,7 +24,7 @@ import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
   RowActions, IconAction, SelectionBar, useSelection, HelpPanel, PageFoot, ListTabs} from './listParts';
 import {
-  AppliesCell, DateCell, HolidayCell, HolidayForm, ImportDialog, MineList,
+  AppliesCell, DateCell, HolidayCards, HolidayCell, HolidayDialog, HolidayForm, ImportDialog, MineList,
   MonthCalendar, STATUS, TypeChip, TypesDialog, TypesPanel, UpcomingPanel,
   dayKey, daysOf, formFrom, spanDays, statusOf, today,
 } from './holidayParts';
@@ -46,12 +46,25 @@ const SORTS = [
 export default function Holidays() {
   const { user: me } = useAuth();
 
-  const { data: mineData,  loading: mineLoading }  = useFetch(api.getMyHolidays);
-  const { data: allData,   loading: allLoading, error, refetch } = useFetch(api.getHolidays);
+  // Which academic year is on screen (Nov 2026): this year to begin with, never
+  // every year at once — 'current' until the server says which one that is.
+  const [year, setYear] = useState('current');
+  const { data: mineData,  loading: mineLoading }  = useFetch(
+    () => api.getMyHolidays({ year: year === 'current' ? undefined : year }), [year]);
+  const { data: allData, meta: allMeta, loading: allLoading, error, refetch } = useFetch(api.getHolidays);
   const { data: typeData,  refetch: refetchTypes } = useFetch(api.getHolidayTypes);
   const { data: classData } = useFetch(api.getClasses);
 
-  const all     = useMemo(() => allData || [], [allData]);
+  const everyYear = useMemo(() => allData || [], [allData]);
+  const years       = allMeta?.years || [];
+  const currentYear = allMeta?.currentYear || '';
+  const yearId      = year === 'current' ? currentYear : year;
+  // The school's calendar for the year on screen. A holiday written before
+  // holidays carried a year counts as this year's, as it does for everyone else.
+  const all = useMemo(() => (year === 'all' || !yearId ? everyYear : everyYear.filter((h) => {
+    const id = h.academicYear?._id ? String(h.academicYear._id) : '';
+    return id ? id === yearId : yearId === currentYear;
+  })), [everyYear, year, yearId, currentYear]);
   const mine    = useMemo(() => mineData || [], [mineData]);
   const types   = useMemo(() => (Array.isArray(typeData) ? typeData : []), [typeData]);
   const classes = useMemo(() => classData || [], [classData]);
@@ -65,7 +78,6 @@ export default function Holidays() {
   const [search, setSearch] = useState('');
   const [term,   setTerm]   = useState('');
   const [type,   setType]   = useState('');
-  const [year,   setYear]   = useState('');
   // Who a holiday is for: '' every holiday, 'school' the school-wide ones,
   // 'classes' the ones that reach only some classes.
   const [scope,  setScope]  = useState('');
@@ -75,6 +87,7 @@ export default function Holidays() {
 
   const [month, setMonth] = useState(() => { const n = new Date(); return [n.getFullYear(), n.getMonth()]; });
 
+  const [viewing, setViewing] = useState(null);     // a holiday opened from a phone card
   const [editing, setEditing] = useState(null);     // 'new' | holiday
   const [form,    setForm]    = useState(() => formFrom(null, []));
   const [saving,  setSaving]  = useState(false);
@@ -116,18 +129,13 @@ export default function Holidays() {
     all.forEach((h) => { c[h.type] = (c[h.type] || 0) + 1; });
     return c;
   }, [all]);
-
-  // The years actually present on the holidays, so the filter never offers a
-  // year that would empty the table.
-  const years = useMemo(() => {
-    const seen = new Map();
-    all.forEach((h) => {
-      const y = h.academicYear;
-      if (y?._id) seen.set(String(y._id), y.yearName || y.label || y.year || 'Year');
-    });
-    return [...seen].map(([id, name]) => ({ id, name }));
-  }, [all]);
-  const hasUnassignedYear = useMemo(() => all.some((h) => !h.academicYear), [all]);
+  // A type still in use in ANY year cannot be deleted, so the types dialog
+  // counts every year, not just the one on screen.
+  const typeCountsEver = useMemo(() => {
+    const c = {};
+    everyYear.forEach((h) => { c[h.type] = (c[h.type] || 0) + 1; });
+    return c;
+  }, [everyYear]);
 
   // ── The list ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -138,10 +146,6 @@ export default function Holidays() {
       if (scope) {
         const forClasses = (h.applicability?.scope || 'all') === 'specific_classes';
         if (scope === 'classes' ? !forClasses : forClasses) return false;
-      }
-      if (year) {
-        const id = h.academicYear?._id ? String(h.academicYear._id) : '';
-        if (year === 'none' ? id : id !== year) return false;
       }
       if (!q) return true;
       return [h.name, h.description, h.type].filter(Boolean)
@@ -154,12 +158,12 @@ export default function Holidays() {
       return sort === 'dateDsc' ? -cmp : cmp;
     });
     return rows;
-  }, [source, tab, type, year, scope, term, sort]);
+  }, [source, tab, type, scope, term, sort]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / limit));
   const start = (Math.min(page, pages) - 1) * limit;
   const shown = filtered.slice(start, start + limit);
-  const anyFilter = !!term || tab !== 'all' || !!type || !!year || !!scope;
+  const anyFilter = !!term || tab !== 'all' || !!type || !!scope;
 
   const queryKey = `${view}|${tab}|${type}|${year}|${scope}|${term}|${sort}|${page}|${limit}`;
   const selection = useSelection(shown, queryKey);
@@ -196,9 +200,12 @@ export default function Holidays() {
     setTab(nextTab); setScope(nextScope); setPage(1);
     if (view !== 'manage') setView('manage');
   };
+  // The year is which calendar is open, not a filter on it — clearing the
+  // filters leaves it where it is.
   const clearAll = () => {
-    setTab('all'); setSearch(''); setTerm(''); setType(''); setYear(''); setScope(''); setPage(1);
+    setTab('all'); setSearch(''); setTerm(''); setType(''); setScope(''); setPage(1);
   };
+  const pickYear = (v) => { setYear(v); setPage(1); };
 
   // ── Create / edit ──────────────────────────────────────────────────────────
   const openNew = () => { setFormErr(''); setForm(formFrom(null, types)); setEditing('new'); };
@@ -385,7 +392,20 @@ export default function Holidays() {
           <ListTabs value={view} tabs={[
             { value: 'manage', label: 'School calendar', count: all.length },
             { value: 'mine',   label: 'Applies to me',   count: mine.length },
-          ]} onChange={(v) => { setView(v); clearAll(); }} />
+          ]} onChange={(v) => { setView(v); clearAll(); }}>
+            {/* Which academic year — both views, the tiles and the calendar. */}
+            {years.length > 0 && (
+              <select className={`form-control lsel holyear${year !== 'current' && yearId !== currentYear ? ' lfsel--on' : ''}`}
+                value={year === 'current' ? currentYear : year}
+                onChange={(e) => pickYear(e.target.value)}
+                aria-label="Academic year" title="Academic year">
+                {years.map((y) => (
+                  <option key={y._id} value={y._id}>{y.name}{y._id === currentYear ? ' (current)' : ''}</option>
+                ))}
+                <option value="all">All years</option>
+              </select>
+            )}
+          </ListTabs>
 
           {view === 'mine' ? (
             <div className="holminewrap">
@@ -424,17 +444,6 @@ export default function Holidays() {
                   <option value="classes">Class-specific only</option>
                 </select>
 
-                {/* Only offered when there is more than one year to choose
-                    between — a filter with one option filters nothing. */}
-                {(years.length > 1 || (years.length === 1 && hasUnassignedYear)) && (
-                  <select className={`form-control lsel${year ? ' lfsel--on' : ''}`} value={year}
-                    onChange={(e) => { setYear(e.target.value); setPage(1); }} aria-label="Filter by academic year">
-                    <option value="">All years</option>
-                    {years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
-                    {hasUnassignedYear && <option value="none">No year set</option>}
-                  </select>
-                )}
-
                 <select className={`form-control lsel${sort !== 'date' ? ' lfsel--on' : ''}`} value={sort}
                   onChange={(e) => { setSort(e.target.value); setPage(1); }} aria-label="Sort holidays">
                   {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
@@ -449,7 +458,7 @@ export default function Holidays() {
                   <Button variant="secondary" onClick={() => setImportOpen(true)}>
                     <Icon name="upload" size={16} /> Import
                   </Button>
-                  <Button variant="secondary" disabled={!all.length}
+                  <Button variant="secondary" disabled={!everyYear.length}
                     onClick={() => grabFile(api.exportHolidays(), 'holidays.xlsx')}>
                     <Icon name="download" size={16} /> Export
                   </Button>
@@ -465,6 +474,11 @@ export default function Holidays() {
                 </Button>
               </SelectionBar>
 
+              {/* On a phone the table gives way to cards (.holtable hides it
+                  below 768px) — nothing scrolls sideways, and View opens the
+                  rest of a holiday with Edit and Delete beside it. */}
+              <HolidayCards rows={shown} types={types} selection={selection} onView={setViewing} />
+              <div className="holtable">
               <ListTable
                 columns={columns}
                 rows={shown}
@@ -480,6 +494,7 @@ export default function Holidays() {
                   ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
                   : <Button onClick={openNew}>+ Add Holiday</Button>}
               />
+              </div>
 
               <ListFooter
                 page={Math.min(page, pages)} pages={pages} total={filtered.length}
@@ -516,16 +531,31 @@ export default function Holidays() {
         open={!!editing}
         holiday={editing === 'new' ? null : editing}
         form={form} setForm={setForm}
-        types={types} classes={classes} holidays={all}
+        types={types} classes={classes} holidays={everyYear}
         saving={saving} error={formErr}
         onClose={() => { setEditing(null); setFormErr(''); }}
         onSave={save}
       />
 
+      <HolidayDialog holiday={viewing} types={types} onClose={() => setViewing(null)}
+        appliesTo={viewing && (viewing.applicability?.scope === 'specific_classes'
+          ? (viewing.applicability.classes || []).map((c) => classNames[String(c?._id ?? c)]).filter(Boolean).join(', ') || 'Some classes'
+          : 'Whole school')}
+        actions={viewing && (
+          <>
+            <Button variant="danger" onClick={() => { const h = viewing; setViewing(null); setDel(h); }}>
+              <Icon name="trash" size={15} /> Delete
+            </Button>
+            <Button onClick={() => { const h = viewing; setViewing(null); openEdit(h); }}>
+              <Icon name="pencil" size={15} /> Edit
+            </Button>
+          </>
+        )} />
+
       <TypesDialog
         open={typesOpen}
         types={types}
-        counts={typeCounts}
+        counts={typeCountsEver}
         saving={typeSaving}
         onClose={() => setTypesOpen(false)}
         onSave={saveTypes}

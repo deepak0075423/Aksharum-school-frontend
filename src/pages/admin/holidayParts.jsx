@@ -118,9 +118,13 @@ export const HolidayCell = ({ h }) => (
 
 export const DateCell = ({ h }) => {
   const n = spanDays(h);
+  const s = dayKey(h.startDate);
+  const e = dayKey(h.endDate) || s;
+  // A range breaks between its two dates, never inside one — kept on a single
+  // line it made the column 250px wide and squeezed the rest of the row.
   return (
     <div className="holdate">
-      <span>{fmtRange(h)}</span>
+      <span>{s === e ? <i>{fmtDayKey(s)}</i> : <><i>{fmtDayKey(s)} –</i> <i>{fmtDayKey(e)}</i></>}</span>
       <small>{n === 1 ? 'Single day' : `${n} days`}</small>
     </div>
   );
@@ -416,11 +420,12 @@ export const HolidayList = ({ title, icon, tone, holidays, types, onPick, empty,
   );
 };
 
-/** Everything the list rows leave out. */
-export const HolidayDialog = ({ holiday, types, onClose, appliesTo }) => (
+/** Everything the list rows leave out. `actions` (the admin's Edit / Delete)
+ *  sit in the footer beside Close. */
+export const HolidayDialog = ({ holiday, types, onClose, appliesTo, actions }) => (
   <Modal open={!!holiday} onClose={onClose} maxWidth={460}
     title={holiday?.name || 'Holiday'}
-    footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+    footer={<>{actions}<Button variant="secondary" onClick={onClose}>Close</Button></>}>
     {holiday && (
       <div className="holtch-detail">
         <div>
@@ -446,6 +451,57 @@ export const HolidayDialog = ({ holiday, types, onClose, appliesTo }) => (
     )}
   </Modal>
 );
+
+/** How far off a holiday is, in the words the lists use. */
+export const whenText = (h) => {
+  const st = statusOf(h);
+  if (st === 'past') return 'Been';
+  if (st === 'ongoing') return 'On now';
+  const away = daysUntil(dayKey(h.startDate));
+  return away === 1 ? 'Tomorrow' : `in ${away} days`;
+};
+
+/**
+ * A list of holidays on a phone (Nov 2026): one card each — the date, the
+ * name, its type and how far off it is — and View to open the rest. The
+ * table's six columns scrolled sideways on a phone with most of every row out
+ * of sight; the page shows these instead below 768px (`.holtable` hides the
+ * table there). `meta(h)` adds a line, `selection` a tick per card.
+ */
+export const HolidayCards = ({ rows, types, onView, selection, meta }) => (rows.length ? (
+  <ul className="holcards">
+    {rows.map((h) => {
+      const key = dayKey(h.startDate);
+      const n = spanDays(h);
+      const line = meta ? meta(h) : null;
+      return (
+        <li key={h._id} className={`holcard${selection?.has(h._id) ? ' is-picked' : ''}`} data-focus-id={h._id}>
+          {selection ? (
+            <input type="checkbox" className="holcard__tick" checked={selection.has(h._id)}
+              onChange={() => selection.toggle(h._id)} aria-label={`Select ${h.name}`} />
+          ) : null}
+          <span className="holtch-row__date">
+            <b>{Number(key.slice(8, 10))}</b>
+            <small>{SHORT_MONTHS[Number(key.slice(5, 7)) - 1]}</small>
+          </span>
+          <div className="holcard__body">
+            <b>{h.name}</b>
+            <small>
+              {fmtRange(h)} · {n === 1 ? '1 day' : `${n} days`} · <span className={`holstatus is-${statusOf(h)}`}>{whenText(h)}</span>
+            </small>
+            {line ? <small className="holcard__meta">{line}</small> : null}
+            <div className="holcard__foot">
+              <TypeChip type={h.type} types={types} />
+              <button type="button" className="btn btn-secondary btn-sm holcard__view" onClick={() => onView(h)}>
+                <Icon name="eye" size={14} /> View
+              </button>
+            </div>
+          </div>
+        </li>
+      );
+    })}
+  </ul>
+) : null);
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  My class holidays

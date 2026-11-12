@@ -294,7 +294,7 @@ export const deleteDocumentCategory   = (id)     => api.delete(`/admin/document-
 export const getHolidayTypes        = ()         => api.get('/admin/holiday-types');
 export const updateHolidayTypes     = (holidayTypes, renames) => api.put('/admin/holiday-types', { holidayTypes, renames });
 export const getHolidays            = ()         => api.get('/admin/holidays');
-export const getMyHolidays          = ()         => api.get('/admin/holidays/mine');
+export const getMyHolidays          = (params)   => api.get('/admin/holidays/mine', { params });
 export const createHoliday          = (data)     => api.post('/admin/holidays', data);
 export const updateHoliday          = (id, data) => api.put(`/admin/holidays/${id}`, data);
 export const deleteHoliday          = (id)       => api.delete(`/admin/holidays/${id}`);
