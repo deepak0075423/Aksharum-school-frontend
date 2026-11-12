@@ -338,19 +338,39 @@ export const Table = ({ columns, data, loading, emptyIcon, emptyTitle, focusIds 
 };
 
 // ── Pagination ────────────────────────────────────────────────────────────────
+/**
+ * The page numbers to draw: every page when there are seven or fewer, else
+ * the first, the last, and the current page with its neighbours, with "…"
+ * for the gaps — 1 2 3 4 5 … 31, 1 … 7 8 9 … 31, 1 … 27 28 29 30 31.
+ *
+ * It used to draw 1–7 whatever the page: on page 8 of 31 nothing was
+ * highlighted and pages 8–31 had no button at all (Notifications, Nov 2026).
+ */
+export function pageList(page, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  if (page <= 4) return [1, 2, 3, 4, 5, '…', pages];
+  if (page >= pages - 3) return [1, '…', pages - 4, pages - 3, pages - 2, pages - 1, pages];
+  return [1, '…', page - 1, page, page + 1, '…', pages];
+}
+
+/** ‹ 1 … 7 8 9 … 31 › — the buttons only, for footers that draw their own count. */
+export const PageButtons = ({ page, pages, onPage }) => (
+  <div className="pagination">
+    <button className="pagination__btn" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">‹</button>
+    {pageList(page, pages).map((n, i) => (n === '…'
+      ? <span key={`gap${i}`} className="pagination__gap" aria-hidden>…</span>
+      : <button key={n} className={`pagination__btn${n === page ? ' active' : ''}`} onClick={() => onPage(n)}
+          aria-label={`Page ${n}`} aria-current={n === page ? 'page' : undefined}>{n}</button>))}
+    <button className="pagination__btn" disabled={page >= pages} onClick={() => onPage(page + 1)} aria-label="Next page">›</button>
+  </div>
+);
+
 export const Pagination = ({ page, pages, total, onPage }) => {
   if (pages <= 1) return null;
-  const nums = Array.from({ length: Math.min(pages, 7) }, (_, i) => i + 1);
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, flexWrap: 'wrap', gap: 8 }}>
       <span className="text-muted text-sm">{total} total records</span>
-      <div className="pagination">
-        <button className="pagination__btn" disabled={page <= 1} onClick={() => onPage(page - 1)}>‹</button>
-        {nums.map(n => (
-          <button key={n} className={`pagination__btn${n === page ? ' active' : ''}`} onClick={() => onPage(n)}>{n}</button>
-        ))}
-        <button className="pagination__btn" disabled={page >= pages} onClick={() => onPage(page + 1)}>›</button>
-      </div>
+      <PageButtons page={page} pages={pages} onPage={onPage} />
     </div>
   );
 };

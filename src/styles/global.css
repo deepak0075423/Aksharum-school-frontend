@@ -1001,6 +1001,8 @@ select.form-control {
 .pagination__btn:hover   { background: var(--bg); }
 .pagination__btn.active  { background: var(--primary); color: #fff; border-color: var(--primary); }
 .pagination__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* The "…" between page numbers that are not drawn. */
+.pagination__gap { min-width: 22px; text-align: center; color: var(--text-muted); font-size: .85rem; user-select: none; }
 .pagination__info { font-size: 0.85rem; color: var(--text-muted); margin-left: 8px; }
 
 /* ── Search & Filters Bar ──────────────────────────────────────────────────── */
@@ -13272,15 +13274,93 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .nfread__bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px; }
 .nfread__n { display: block; margin-top: 5px; font-size: .74rem; color: var(--text-muted); }
 
-.nfcol-what { min-width: 260px; }
-.nfcol-aud  { width: 170px; }
-.nfcol-chan { width: 140px; }
-.nfcol-read { width: 160px; }
-.nfcol-when { width: 190px; }
-/* "15 Sept 2026, 04:25 pm" is one fact; at 150px it broke into three lines
-   with "pm" alone at the bottom. */
-.nfcol-when .lstack__main,
-.nfcol-when .lstack__sub { white-space: nowrap; }
+.nfsentrow__when .lstack__main,
+.nfsentrow__when .lstack__sub { white-space: nowrap; }
+
+/* The Sent list (Nov 2026). A row opens the notification in full, so each is
+   a button laid out as columns — and below 900px it folds into a card rather
+   than scrolling sideways inside the card with most columns out of sight. */
+.nfsentlist { display: block; }
+.nfsentlist__head,
+.nfsentrow {
+  display: grid; align-items: center; column-gap: 16px;
+  grid-template-columns: 34px minmax(0, 1fr) 160px 132px 160px 176px;
+  padding: 12px 20px;
+}
+.nfsentlist__head {
+  background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted);
+}
+.nfsentrow {
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: var(--bg-card); border: 0; border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+.nfsentrow:hover { background: #f8f9ff; }
+.nfsentrow:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.nfsentrow.is-active { background: #eef2ff; box-shadow: inset 3px 0 0 var(--primary); }
+.nfsentrow__num { font-size: .8rem; color: var(--text-muted); }
+.nfsentrow > span { min-width: 0; }
+.nfsentrow .lstack__main, .nfsentrow .lstack__sub { display: block; }
+.nfsentrow__what .nfsent__what small { max-width: none; }
+
+/* ── A sent notification, opened ─────────────────────────────────────────── */
+.nfsentdet .ldrawer__sechead { margin-bottom: 12px; }
+.nfsentdet .ldrawer__sechead h4 {
+  font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.nfsentdet__mark { width: 46px; height: 46px; }
+.nfsentdet__body { margin-top: 0; }
+.nfreach { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.nfreach > div {
+  padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg);
+}
+.nfreach b    { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.nfreach span { display: block; margin-top: 2px; font-size: .75rem; color: var(--text-muted); }
+.nfreach__bar { margin-top: 14px; }
+.nfreach__roles { list-style: none; margin: 14px 0 0; padding: 0; }
+.nfreach__roles li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: baseline;
+  padding: 8px 0; font-size: .85rem;
+}
+.nfreach__roles li + li { border-top: 1px dashed var(--border); }
+.nfreach__roles small { color: var(--text-muted); font-size: .78rem; }
+
+.nfwho__tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.nfwho__tools input { flex: 1 1 100%; }
+.nfwho__tools select { flex: 1 1 140px; width: auto; }
+.nfwho__seg {
+  display: inline-flex; padding: 3px; gap: 2px; flex: 0 1 auto;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.nfwho__seg button {
+  border: 0; background: none; font: inherit; font-size: .8rem; color: var(--text-muted);
+  padding: 6px 10px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+}
+.nfwho__seg button.is-on { background: var(--bg-card); color: var(--primary-dark); font-weight: 600; box-shadow: var(--shadow-sm); }
+.nfwho { list-style: none; margin: 0; padding: 0; }
+.nfwho li { display: flex; align-items: center; gap: 11px; padding: 9px 0; }
+.nfwho li + li { border-top: 1px dashed var(--border); }
+.nfwho__av {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; font-size: .75rem; font-weight: 700;
+  background: #eef2ff; color: var(--primary-dark);
+}
+.nfwho__id { flex: 1; min-width: 0; }
+.nfwho__id b { display: block; font-size: .85rem; font-weight: 600; overflow-wrap: anywhere; }
+.nfwho__id small { display: block; font-size: .75rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.nfwho__state {
+  flex-shrink: 0; text-align: right; font-size: .75rem; font-weight: 600; color: var(--text-muted);
+}
+.nfwho__state.is-read { color: #047857; }
+.nfwho__state small { display: block; font-weight: 400; color: var(--text-muted); }
+.nfwho__none { font-size: .85rem; color: var(--text-muted); padding: 10px 0; }
+.nfwho__pager { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .8rem; color: var(--text-muted); }
+.nfwho__pager span { margin-right: auto; }
+
+/* Under the composer's audience: the parents get it too. */
+.nfhint { margin: 6px 0 0; font-size: .78rem; color: var(--text-muted); }
 
 /* ── The composer's pickers ────────────────────────────────────────────────
    Radios and checkboxes as pills, so a choice of three reads as three options
@@ -13319,6 +13399,10 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .nfpg .ltools .lsel { flex: 1 1 auto; }
   .nfpg .ltools .ltools__sep { display: none; }
 }
+/* The academic year joined the row (Nov 2026). The search starts narrower so
+   the year, four filters and the sort still share one line on a 1470px laptop
+   — it still grows into any room left over. */
+.nfpg .ltools .lsearch { flex-basis: 200px; }
 /* The same breakpoint as the list frame's own header, which is what hides the
    art — the two must switch together. */
 @media (max-width: 1280px) {
@@ -13329,10 +13413,11 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .nfhero { grid-template-columns: 1fr; }
   .nftabs__acts { margin-left: 0; width: 100%; }
   .nftabs__acts .btn { flex: 1; justify-content: center; }
-  /* The Sent table keeps its columns and scrolls sideways inside its card.
-     Squeezed to the screen instead, every cell wrapped a word at a time and a
-     single row stood ~180px tall with four of its six columns out of sight. */
-  .nfpg .table-wrap .ltable { min-width: 920px; }
+  /* The mailbox actions wrap onto as many lines as they need. They sat on one
+     line that ran off the screen: "Delete all" was cut in half and "Send
+     Notification" was out of sight altogether. */
+  .nfpg .uitabrow__side { flex-wrap: wrap; }
+  .nfpg .uitabrow__side .btn { flex: 1 1 auto; justify-content: center; }
   /* The row becomes two rows: the message, then what can be done about it —
      the second starting exactly where the message text starts. */
   .nfrow { flex-wrap: wrap; row-gap: 0; padding-right: 0; }
@@ -13354,7 +13439,35 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
     overflow-wrap: anywhere;
   }
 }
+/* Sent, below 900px: each row a card — the message across the top, then who
+   it went to and how, then how many opened it and when. Nothing scrolls
+   sideways. */
+@media (max-width: 900px) {
+  .nfsentlist__head { display: none; }
+  .nfsentrow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "what what" "aud chan" "read when";
+    row-gap: 10px; padding: 14px 16px;
+  }
+  .nfsentrow__num  { display: none; }
+  .nfsentrow__what { grid-area: what; }
+  .nfsentrow__aud  { grid-area: aud; }
+  .nfsentrow__chan { grid-area: chan; justify-self: end; }
+  .nfsentrow__read { grid-area: read; }
+  .nfsentrow__when { grid-area: when; justify-self: end; text-align: right; }
+  .nfsentrow .nfsent__what small { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .nfsentrow .nfread { min-width: 0; }
+}
 @media (max-width: 560px) {
+  /* Two to a line, the primary action across the top where the thumb finds it. */
+  .nfpg .uitabrow__side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .nfpg .uitabrow__side .btn { width: 100%; min-width: 0; padding-left: 10px; padding-right: 10px; }
+  .nfpg .uitabrow__side .btn-primary { grid-column: 1 / -1; order: -1; }
+  .nfsentrow { grid-template-areas: "what what" "aud chan" "read read" "when when"; }
+  .nfsentrow__when { justify-self: start; text-align: left; }
+  .nfsentrow__when .lstack__main, .nfsentrow__when .lstack__sub { display: inline; }
+  .nfsentrow__when .lstack__sub::before { content: ' · '; }
+  .nfreach b { font-size: 1.1rem; }
   .nfhero__badge { width: 50px; height: 50px; border-radius: 14px; }
   /* A phone keeps the tick, the module mark and the message. The unread dot
      goes — the rail on the leading edge and the bold headline already say

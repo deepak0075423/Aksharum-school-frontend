@@ -423,6 +423,9 @@ export const removeExamDay  = (date) => api.delete('/admin/results/exam-day', { 
 
 // Notifications
 export const sendNotification = (data) => api.post('/admin/notifications/send', data);
+// The composer's class → section picker, behind the Notifications module's own
+// guard — so a teacher who administers the module gets it too.
+export const getNotificationClasses = () => api.get('/admin/notifications/classes');
 export const getNotifications  = () => api.get('/admin/notifications');
 
 // Attendance

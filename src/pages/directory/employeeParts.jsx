@@ -14,6 +14,7 @@ import {
   STATUS_LABEL, STATUS_TONE,
 } from './parts';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
+import { PageButtons } from '../../components/ui/index';
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
@@ -312,18 +313,8 @@ export const ListFoot = ({ page, pages, total, limit, count, onPage, onLimit, si
           : `Showing ${from} to ${to} of ${total} ${noun}${total === 1 ? '' : 's'}`}
       </span>
       <div className="edl-foot__right">
-        {pages > 1 && (
-          <div className="pagination">
-            <button className="pagination__btn" disabled={page <= 1} onClick={() => onPage(page - 1)}
-              aria-label="Previous page">‹</button>
-            {Array.from({ length: Math.min(pages, 7) }, (_, i) => i + 1).map((n) => (
-              <button key={n} className={`pagination__btn${n === page ? ' active' : ''}`}
-                onClick={() => onPage(n)}>{n}</button>
-            ))}
-            <button className="pagination__btn" disabled={page >= pages} onClick={() => onPage(page + 1)}
-              aria-label="Next page">›</button>
-          </div>
-        )}
+        {/* Windowed (1 … 7 8 9 … 31) — it used to stop at 7 whatever the page. */}
+        {pages > 1 && <PageButtons page={page} pages={pages} onPage={onPage} />}
         <label className="edl-foot__size">
           <select className="form-control" value={limit} aria-label={`${noun}s per page`}
             onChange={(ev) => onLimit(Number(ev.target.value))}>

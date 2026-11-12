@@ -11,7 +11,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import Icon from '../../components/ui/icons';
-import { Button, Modal } from '../../components/ui/index';
+import { Button, Modal, Spinner } from '../../components/ui/index';
+import { DrawerHead, DrawerBody, DrawerSection, DrawerFields } from '../../components/ui/Drawer';
+import { getSentDetail, getSentRecipients } from '../../api/notifications.api';
 import { RowMenu, MenuItem, MenuSep } from '../admin/listParts';
 import Tabs from '../../components/ui/Tabs';
 
@@ -127,8 +129,10 @@ export const TARGET_LABELS = {
   all_teachers:     'All Teachers',
   all_students:     'All Students',
   all_parents:      'All Parents',
+  all_students_parents: 'All Students + Parents',
   class_students:   'Class — Students',
   class_parents:    'Class — Parents',
+  class_all:        'Class — Students + Parents',
   section_students: 'Section — Students',
   section_parents:  'Section — Parents',
   section_all:      'Section — Everyone',
@@ -436,6 +440,234 @@ export const ReadThrough = ({ delivered, opened }) => {
   );
 };
 
+/**
+ * The Sent tab's list (Nov 2026). Every row opens the notification in full
+ * (SentDetail), so a row is a button, not a table row with nothing to click.
+ * On a wide screen it reads as columns; below 900px each row folds into a card
+ * — the columns used to scroll sideways inside the card, with four of six out
+ * of sight.
+ */
+export function SentList({ rows, startIndex = 0, activeId, onOpen }) {
+  return (
+    <div className="nfsentlist" role="list">
+      <div className="nfsentlist__head" aria-hidden="true">
+        <span className="nfsentrow__num">#</span>
+        <span>Notification</span>
+        <span>Audience</span>
+        <span>Channels</span>
+        <span>Opened</span>
+        <span>Sent</span>
+      </div>
+      {rows.map((n, i) => (
+        <button key={n._id} type="button" role="listitem" data-focus-id={n._id}
+          className={`nfsentrow${activeId === n._id ? ' is-active' : ''}`}
+          onClick={() => onOpen(n)} aria-label={`Open ${plain(n.title)}`}>
+          <span className="nfsentrow__num">{startIndex + i + 1}</span>
+          <span className="nfsentrow__what"><SentCell n={n} /></span>
+          <span className="nfsentrow__aud">
+            <span className="lstack__main">{targetLabel(n.target?.type)}</span>
+            <span className="lstack__sub">{n.recipientCount} recipient{n.recipientCount === 1 ? '' : 's'}</span>
+          </span>
+          <span className="nfsentrow__chan"><Channels channels={n.channels} /></span>
+          <span className="nfsentrow__read"><ReadThrough delivered={n.delivered} opened={n.opened} /></span>
+          <span className="nfsentrow__when">
+            <span className="lstack__main">{when(n.createdAt)}</span>
+            <span className="lstack__sub">{fullWhen(n.createdAt)}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const ROLE_WORD = {
+  student: ['Student', 'Students'], parent: ['Parent', 'Parents'], teacher: ['Teacher', 'Teachers'],
+  school_admin: ['Admin', 'Admins'], super_admin: ['Super admin', 'Super admins'],
+};
+const roleWord = (r, many) => (ROLE_WORD[r] || [r, `${r}s`])[many ? 1 : 0];
+const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+/**
+ * A sent notification, opened in full: the whole message, who it went to
+ * (audience, class, section), how it went out, how much of the audience has
+ * opened it — split by role — and the people themselves, a page at a time,
+ * searchable and filterable by opened / not opened.
+ */
+export function SentDetail({ id, onClose }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [term, setTerm] = useState('');
+  const [read, setRead] = useState('');
+  const [role, setRole] = useState('');
+  const [page, setPage] = useState(1);
+  const [people, setPeople] = useState({ rows: [], total: 0, pages: 1, loading: true });
+
+  useEffect(() => {
+    let live = true;
+    setD(null); setErr(''); setQ(''); setTerm(''); setRead(''); setRole(''); setPage(1);
+    getSentDetail(id).then((r) => { if (live) setD(r?.data || null); })
+      .catch((e) => { if (live) setErr(e.response?.data?.message || e.message); });
+    return () => { live = false; };
+  }, [id]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(q.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    let live = true;
+    setPeople((p) => ({ ...p, loading: true }));
+    getSentRecipients(id, { page, limit: 10, q: term || undefined, read: read || undefined, role: role || undefined })
+      .then((r) => { if (live) setPeople({ rows: r?.data || [], total: r?.total || 0, pages: r?.pages || 1, loading: false }); })
+      .catch(() => { if (live) setPeople({ rows: [], total: 0, pages: 1, loading: false }); });
+    return () => { live = false; };
+  }, [id, page, term, read, role]);
+
+  if (err) {
+    return (
+      <>
+        <DrawerHead name="Sent notification" onClose={onClose} />
+        <DrawerBody><p className="nfnote nfnote--warn"><Icon name="alert" size={14} /> {err}</p></DrawerBody>
+      </>
+    );
+  }
+  if (!d) {
+    return (
+      <>
+        <DrawerHead name="Sent notification" onClose={onClose} />
+        <DrawerBody><div className="nfloading"><Spinner /></div></DrawerBody>
+      </>
+    );
+  }
+
+  const st = d.stats || {};
+  const pct = st.delivered ? Math.round((st.opened / st.delivered) * 100) : 0;
+  const roles = st.byRole || [];
+  const emailOnly = !st.delivered;
+  const from = (page - 1) * 10;
+
+  return (
+    <>
+      <DrawerHead
+        mark={<span className="nfrow__icon tint-indigo nfsentdet__mark"><Icon name="megaphone" size={22} /></span>}
+        name={plain(d.title)}
+        sub={`Sent ${fullWhen(d.createdAt)}`}
+        tags={<>
+          <PriorityPill level={d.priority} />
+          <span className="nfdetail__tag">{d.kind === 'announcement' ? 'Announcement' : 'Activity'}</span>
+        </>}
+        onClose={onClose} />
+
+      <DrawerBody>
+        <div className="nfsentdet">
+        <DrawerSection title="Message">
+          <p className="nfdetail__body nfsentdet__body">{plain(d.body)}</p>
+        </DrawerSection>
+
+        <DrawerSection title="Reach">
+          {emailOnly ? (
+            <p className="nfnote"><Icon name="info" size={14} /> Sent by email only. Email does not report who opened it, so there is nobody to list here.</p>
+          ) : (
+            <>
+              <div className="nfreach">
+                <div><b>{st.delivered}</b><span>Recipients</span></div>
+                <div><b>{st.opened}</b><span>Opened</span></div>
+                <div><b>{st.unopened}</b><span>Not opened</span></div>
+              </div>
+              <div className="nfread nfreach__bar">
+                <div className="nfread__bar"><span style={{ width: `${pct}%` }} /></div>
+                <span className="nfread__n">{pct}% of the audience has opened it</span>
+              </div>
+              {roles.length > 0 && (
+                <ul className="nfreach__roles">
+                  {roles.map((r) => (
+                    <li key={r.role}>
+                      <span>{roleWord(r.role, true)}</span>
+                      <b>{r.total}</b>
+                      <small>{r.opened} opened</small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </DrawerSection>
+
+        <DrawerSection title="Details">
+          <DrawerFields fields={[
+            ['Audience', targetLabel(d.target?.type)],
+            ['Class', d.place?.className],
+            ['Section', d.place?.sectionName],
+            ['Recipients', String(d.recipientCount)],
+            ['Channels', <Channels key="c" channels={d.channels} />],
+            ['Priority', PRIORITIES.find((p) => p.value === d.priority)?.label || 'Low'],
+            ['Module', d.module?.label || 'General'],
+            ['Sent by', d.sender?.name],
+            ['Sent on', fullWhen(d.createdAt)],
+          ]} />
+        </DrawerSection>
+
+        {!emailOnly && (
+          <DrawerSection title="Who it reached">
+            <div className="nfwho__tools">
+              <input className="form-control" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Search by name…" aria-label="Search recipients" />
+              <div className="nfwho__seg" role="group" aria-label="Opened or not">
+                {[['', 'All'], ['opened', 'Opened'], ['unopened', 'Not opened']].map(([v, l]) => (
+                  <button key={v || 'all'} type="button" className={read === v ? 'is-on' : ''}
+                    aria-pressed={read === v} onClick={() => { setRead(v); setPage(1); }}>{l}</button>
+                ))}
+              </div>
+              {roles.length > 1 && (
+                <select className="form-control" value={role} aria-label="Role"
+                  onChange={(e) => { setRole(e.target.value); setPage(1); }}>
+                  <option value="">Everyone</option>
+                  {roles.map((r) => <option key={r.role} value={r.role}>{roleWord(r.role, true)}</option>)}
+                </select>
+              )}
+            </div>
+
+            {people.loading ? (
+              <div className="nfloading"><Spinner /></div>
+            ) : !people.rows.length ? (
+              <p className="nfwho__none">Nobody matches.</p>
+            ) : (
+              <ul className="nfwho">
+                {people.rows.map((p) => (
+                  <li key={p._id}>
+                    <span className="nfwho__av" aria-hidden="true">{initials(p.name)}</span>
+                    <span className="nfwho__id">
+                      <b>{p.name}</b>
+                      <small>{roleWord(p.role)}{p.aboutNames ? ` of ${p.aboutNames}` : ''}</small>
+                    </span>
+                    <span className={`nfwho__state${p.isRead ? ' is-read' : ''}`}>
+                      {p.isRead ? 'Opened' : 'Not opened'}
+                      {p.isRead && p.readAt ? <small>{when(p.readAt)}</small> : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {people.total > 10 && (
+              <div className="nfwho__pager">
+                <span>{from + 1}–{Math.min(from + 10, people.total)} of {people.total}</span>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={page <= 1}
+                  onClick={() => setPage((x) => x - 1)}>Previous</button>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={page >= people.pages}
+                  onClick={() => setPage((x) => x + 1)}>Next</button>
+              </div>
+            )}
+          </DrawerSection>
+        )}
+        </div>
+      </DrawerBody>
+    </>
+  );
+}
+
 // ── The composer ─────────────────────────────────────────────────────────────
 
 /**
@@ -447,24 +679,26 @@ export const ReadThrough = ({ delivered, opened }) => {
  * notification.controller's send() — so a target missing here is a target the
  * endpoint refuses, not merely one the form declines to draw.
  */
+// Sending to students reaches their parents too (Nov 2026) — each parent reads
+// it under that child's name — so there is no separate "students + parents"
+// choice any more; it would be the same audience twice. The server still
+// understands the old ones, for notifications already sent with them.
 export const ADMIN_AUDIENCES = [
   { value: 'all',              label: 'All Users (Teachers + Students + Parents)' },
   { value: 'all_teachers',     label: 'All Teachers' },
-  { value: 'all_students',     label: 'All Students' },
+  { value: 'all_students',     label: 'All Students (their parents see it too)', toParents: true },
   { value: 'all_parents',      label: 'All Parents' },
   { group: 'By Class' },
-  { value: 'class_students',   label: 'Students in a Specific Class', needsClass: true },
+  { value: 'class_students',   label: 'Students in a Specific Class (and their parents)', needsClass: true, toParents: true },
   { value: 'class_parents',    label: 'Parents of Students in a Specific Class', needsClass: true },
   { group: 'By Section' },
-  { value: 'section_students', label: 'Students in a Specific Section', needsClass: true, needsSection: true },
+  { value: 'section_students', label: 'Students in a Specific Section (and their parents)', needsClass: true, needsSection: true, toParents: true },
   { value: 'section_parents',  label: 'Parents of Students in a Specific Section', needsClass: true, needsSection: true },
-  { value: 'section_all',      label: 'Everyone in a Section (Students + Parents)', needsClass: true, needsSection: true },
 ];
 
 export const TEACHER_AUDIENCES = [
-  { value: 'section_students', label: 'Students in a section I teach', needsSection: true },
+  { value: 'section_students', label: 'Students in a section I teach (and their parents)', needsSection: true, toParents: true },
   { value: 'section_parents',  label: 'Parents of students in a section I teach', needsSection: true },
-  { value: 'section_all',      label: 'Everyone in a section I teach (students + parents)', needsSection: true },
 ];
 
 const blankForm = (audiences) => ({
@@ -541,6 +775,9 @@ export function Composer({ open, onClose, onSend, saving, audiences, classes, se
               ? <option key={a.group} disabled>{`── ${a.group} ${'─'.repeat(Math.max(0, 26 - a.group.length))}`}</option>
               : <option key={a.value} value={a.value}>{a.label}</option>))}
           </select>
+          {chosen.toParents && (
+            <p className="nfhint">Each student's parents get it as well, under that child's name.</p>
+          )}
         </div>
 
         {byClass && chosen.needsClass && (

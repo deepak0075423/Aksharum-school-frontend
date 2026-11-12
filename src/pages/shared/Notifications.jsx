@@ -32,7 +32,7 @@ import {
   clearOne, restoreOne, archiveRead, resolveNotification,
   bulkNotifications, deleteAllNotifications,
 } from '../../api/notifications.api';
-import { sendNotification as adminSend, getClassesWithSections } from '../../api/admin.api';
+import { sendNotification as adminSend, getNotificationClasses } from '../../api/admin.api';
 import { sendNotification as teacherSend, getMySections } from '../../api/teacher.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
@@ -41,12 +41,11 @@ import { Alert, Button, Confirm, Empty, Spinner } from '../../components/ui/inde
 import Icon, { SupportScene } from '../../components/ui/icons';
 import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
 import {
-  Crumbs, SearchField, ListTable, ListFooter, Drawer, HelpPanel, PageFoot, useSelection,
+  Crumbs, SearchField, ListFooter, Drawer, HelpPanel, PageFoot, useSelection,
 } from '../admin/listParts';
 import {
-  ADMIN_AUDIENCES, BulkBar, Channels, Composer, KINDS, NotifDetail, NotifHero, NotifRow,
-  PRIORITIES, ReadThrough, READ_STATES, SORTS, SentCell, TEACHER_AUDIENCES,
-  TabStrip, fullWhen, targetLabel, when,
+  ADMIN_AUDIENCES, BulkBar, Composer, KINDS, NotifDetail, NotifHero, NotifRow,
+  PRIORITIES, READ_STATES, SORTS, SentDetail, SentList, TEACHER_AUDIENCES, TabStrip,
 } from './notificationParts';
 
 // ── What each role's mailbox is ──────────────────────────────────────────────
@@ -93,10 +92,18 @@ const SENT_SORTS = [
 export default function Notifications() {
   const navigate = useNavigate();
   const { user: me } = useAuth();
-  const { isEnabled } = useModules();
+  const { isEnabled, isAdmin } = useModules();
   const [params, setParams] = useSearchParams();
 
-  const role = ROLES[me?.role] || ROLES.student;
+  // A teacher whose designation grants ADMIN on Notifications runs the module:
+  // they write to the whole school exactly as the school admin does (the
+  // server's send() already allowed it — the page kept offering only their own
+  // sections, and the class list it would need was behind an admin-only route).
+  const runsModule = me?.role === 'teacher' && isAdmin('notification');
+  const role = runsModule
+    ? { ...ROLES.teacher, sends: 'school',
+        subtitle: 'Everything your school has sent you, and everything you have sent to the school.' }
+    : (ROLES[me?.role] || ROLES.student);
   // Sending sits behind the notification module the same way the endpoint does
   // — a teacher whose school has it switched off would get a 403 from a button
   // this page had no business drawing.
@@ -108,7 +115,15 @@ export default function Notifications() {
   const [sentFilters, setSentFilters] = useState(EMPTY_SENT);
   const [page,    setPage]    = useState(1);
   const [limit,   setLimit]   = useState(10);
+  // Which academic year's mailbox is on screen (Nov 2026). 'current' is the
+  // school's active year — the server answers with its id and every year it
+  // has — so the page opens on this year without knowing which one that is.
+  // A notification belongs to the year it arrived in.
+  const [year,    setYear]    = useState('current');
+  const [years,   setYears]   = useState([]);
+  const [yearId,  setYearId]  = useState('');
   const [viewing, setViewing] = useState(null);      // the notification behind the panel
+  const [sentOpen, setSentOpen] = useState(null);    // the sent one opened in full (its id)
   // The last one opened, kept after the panel closes: having read one of forty
   // near-identical rows, the question is which one you just looked at.
   const [activeId, setActiveId] = useState(null);
@@ -139,13 +154,13 @@ export default function Notifications() {
   const choosingChild = isParent && kids.length > 1 && !wantedChild;
 
   const query = useMemo(() => (isSent
-    ? { page, limit, q: term || undefined, ...Object.fromEntries(Object.entries(sentFilters).filter(([, v]) => v)) }
+    ? { page, limit, year, q: term || undefined, ...Object.fromEntries(Object.entries(sentFilters).filter(([, v]) => v)) }
     : {
-        page, limit, box: tab, q: term || undefined,
+        page, limit, year, box: tab, q: term || undefined,
         child: isParent && wantedChild ? wantedChild : undefined,
         ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
       }),
-  [isSent, tab, page, limit, term, filters, sentFilters, isParent, wantedChild]);
+  [isSent, tab, page, limit, year, term, filters, sentFilters, isParent, wantedChild]);
   const queryKey = JSON.stringify(query);
 
   // Both boxes read the same endpoint with a different `box`, so switching tabs
@@ -162,6 +177,14 @@ export default function Notifications() {
   const [boxes, setBoxes] = useState({ inbox: 0, unread: 0, archived: 0, sent: 0 });
   useEffect(() => { if (listMeta?.boxes) setBoxes(listMeta.boxes); }, [listMeta]);
   useEffect(() => { if (Array.isArray(listMeta?.children)) setKids(listMeta.children); }, [listMeta]);
+  useEffect(() => {
+    if (Array.isArray(listMeta?.years)) setYears(listMeta.years);
+    if (listMeta && 'year' in listMeta) setYearId(listMeta.year || '');
+  }, [listMeta]);
+  // The year the actions below act on: exactly what the list was read with.
+  const yearScope = year === 'current' ? (yearId || 'current') : year;
+  const yearName  = year === 'all' ? '' : (years.find((y) => y._id === yearId)?.name || '');
+  const pickYear  = (v) => { setYear(v); setPage(1); setViewing(null); };
   // Two or more children and none named yet: start on the first.
   useEffect(() => { if (choosingChild && kids[0]) pick(kids[0]._id); }, [choosingChild, kids]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickChild = (id) => { pick(id); setPage(1); setViewing(null); };
@@ -169,6 +192,11 @@ export default function Notifications() {
   // Ticked rows. Dropped whenever the query changes, so a delete can never
   // reach a row left over from two filters ago.
   const selection = useSelection(rows, queryKey);
+  // "Read" does nothing when every ticked row is already read, and "Unread"
+  // nothing when every one is unread — so each is switched off then.
+  const picked     = rows.filter((r) => selection.has(r._id));
+  const allRead    = picked.length > 0 && picked.every((r) => r.isRead);
+  const allUnread  = picked.length > 0 && picked.every((r) => !r.isRead);
 
   const modules = listMeta?.modules || [];
   // Kept across a tab switch for the same reason as the badges — the Sent
@@ -221,7 +249,7 @@ export default function Notifications() {
 
   const markEverything = async () => {
     try {
-      await markAllRead(childId || undefined);
+      await markAllRead(childId || undefined, yearScope);
       toast.success(childId ? `Everything about ${child.name} marked as read` : 'All notifications marked as read');
       refetch();
     }
@@ -230,7 +258,7 @@ export default function Notifications() {
 
   const sweepRead = async () => {
     try {
-      const res = await archiveRead(childId || undefined);
+      const res = await archiveRead(childId || undefined, yearScope);
       const n = res?.archived ?? 0;
       toast.success(n ? `${n} read notification${n === 1 ? '' : 's'} archived` : 'Nothing read to archive');
       refetch();
@@ -274,12 +302,12 @@ export default function Notifications() {
     const n = tab === 'archived' ? boxes.archived : boxes.inbox;
     setConfirm({
       title: tab === 'archived' ? 'Empty the archive?' : 'Delete every notification in your inbox?',
-      message: `All ${n} notification${n === 1 ? '' : 's'} in your ${tab === 'archived' ? 'archive' : 'inbox'}${childId ? ` shown for ${child.name}` : ''} will be removed permanently — including any you have not read. This cannot be undone.`,
+      message: `All ${n} notification${n === 1 ? '' : 's'} in your ${tab === 'archived' ? 'archive' : 'inbox'}${yearName ? ` from ${yearName}` : ''}${childId ? ` shown for ${child.name}` : ''} will be removed permanently — including any you have not read. This cannot be undone.`,
       label: `Delete all ${n}`,
       run: async () => {
         setBusy(true);
         try {
-          const res = await deleteAllNotifications(tab === 'archived' ? 'archived' : 'inbox', childId || undefined);
+          const res = await deleteAllNotifications(tab === 'archived' ? 'archived' : 'inbox', childId || undefined, yearScope);
           toast.success(`${res?.deleted ?? 0} notifications deleted`);
           setViewing(null); selection.clear(); setPage(1); refetch();
         } catch (err) { toast.error(err.response?.data?.message || err.message); }
@@ -319,7 +347,7 @@ export default function Notifications() {
     setSendOpen(true);
     try {
       if (role.sends === 'school' && !classes.length) {
-        const res = await getClassesWithSections();
+        const res = await getNotificationClasses();
         setClasses(res?.data || res || []);
       }
       if (role.sends === 'sections' && !sections.length) {
@@ -363,28 +391,8 @@ export default function Notifications() {
     setFilters(EMPTY_FILTERS); setSentFilters(EMPTY_SENT); setPage(1);
   };
 
-  const pickTab = (value) => { setTab(value); setPage(1); setViewing(null); };
-
-  const sentColumns = [
-    { key: 'what', className: 'nfcol-what', label: 'Notification', render: (n) => <SentCell n={n} /> },
-    { key: 'aud',  className: 'nfcol-aud',  label: 'Audience',
-      render: (n) => (
-        <>
-          <div className="lstack__main">{targetLabel(n.target?.type)}</div>
-          <div className="lstack__sub">{n.recipientCount} recipient{n.recipientCount === 1 ? '' : 's'}</div>
-        </>
-      ) },
-    { key: 'chan', className: 'nfcol-chan', label: 'Channels', render: (n) => <Channels channels={n.channels} /> },
-    { key: 'read', className: 'nfcol-read', label: 'Opened',
-      render: (n) => <ReadThrough delivered={n.delivered} opened={n.opened} /> },
-    { key: 'when', className: 'nfcol-when', label: 'Sent',
-      render: (n) => (
-        <>
-          <div className="lstack__main">{when(n.createdAt)}</div>
-          <div className="lstack__sub">{fullWhen(n.createdAt)}</div>
-        </>
-      ) },
-  ];
+  const pickTab = (value) => { setTab(value); setPage(1); setViewing(null); setSentOpen(null); };
+  const openSent = (n) => { setActiveId(n._id); setSentOpen(n._id); };
 
   const emptyFor = {
     inbox:    { icon: '🔔', title: anyFilter ? 'Nothing matches those filters' : 'Your inbox is empty',
@@ -448,6 +456,17 @@ export default function Notifications() {
         <div className="ltools">
           <SearchField value={search} onChange={setSearch}
             placeholder={isSent ? 'Search what you have sent…' : 'Search notifications…'} />
+
+          {/* Which year's mailbox — Inbox, Archived and Sent alike. Not a
+              filter: "Clear filters" leaves it where it is. */}
+          {years.length > 0 && (
+            <select className={`form-control lsel nfyear${year !== 'current' ? ' lfsel--on' : ''}`}
+              value={year === 'current' ? (yearId || '') : year}
+              onChange={(e) => pickYear(e.target.value)} aria-label="Academic year" title="Academic year">
+              {years.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
+              <option value="all">All years</option>
+            </select>
+          )}
 
           {isSent ? (
             <>
@@ -522,16 +541,18 @@ export default function Notifications() {
               ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
               : (tab === 'sent' && canSend ? <Button onClick={openSend}>Send your first notification</Button> : null)} />
         ) : isSent ? (
-          <ListTable columns={sentColumns} rows={rows} startIndex={(page - 1) * limit} />
+          <SentList rows={rows} startIndex={(page - 1) * limit} activeId={activeId} onOpen={openSent} />
         ) : (
           <>
             <BulkBar count={selection.ids.length} total={rows.length}
               allOn={selection.allOn} some={selection.some}
               onToggleAll={selection.toggleAll} onClear={selection.clear}>
-              <Button variant="secondary" size="sm" disabled={busy} onClick={() => runBulk('read')}>
+              <Button variant="secondary" size="sm" disabled={busy || allRead} onClick={() => runBulk('read')}
+                title={allRead ? 'All of these are already read' : undefined}>
                 <Icon name="checkCircle" size={14} /> Read
               </Button>
-              <Button variant="secondary" size="sm" disabled={busy} onClick={() => runBulk('unread')}>
+              <Button variant="secondary" size="sm" disabled={busy || allUnread} onClick={() => runBulk('unread')}
+                title={allUnread ? 'All of these are already unread' : undefined}>
                 <Icon name="bell" size={14} /> Unread
               </Button>
               {tab === 'archived' ? (
@@ -573,9 +594,17 @@ export default function Notifications() {
       <PageFoot schoolName={me?.school?.name} />
 
       {/* One notification, opened */}
-      <Drawer open={!!viewing} onClose={() => setViewing(null)}>
+      {/* Closes from its own cross (or Esc) only — a click beside a message
+          being read used to throw it away. */}
+      <Drawer open={!!viewing} onClose={() => setViewing(null)} closeOnOutside={false}>
         <NotifDetail row={viewing} onClose={() => setViewing(null)}
           onGo={onGo} onUnread={onUnread} onArchive={onArchive} onRestore={onRestore} />
+      </Drawer>
+
+      {/* A sent notification, opened in full — the same panel, the same rule:
+          its cross (or Esc) closes it. */}
+      <Drawer open={!!sentOpen} onClose={() => setSentOpen(null)} closeOnOutside={false} label="Sent notification">
+        {sentOpen ? <SentDetail id={sentOpen} onClose={() => setSentOpen(null)} /> : null}
       </Drawer>
 
       <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.run()}
@@ -590,7 +619,9 @@ export default function Notifications() {
           sections={role.sends === 'sections' ? sections : null}
           note={role.sends === 'sections'
             ? 'You can write to the sections you teach — as class teacher, vice class teacher or subject teacher.'
-            : null} />
+            : runsModule
+              ? 'Your designation lets you run Notifications, so you can write to the whole school.'
+              : null} />
       )}
     </div>
   );

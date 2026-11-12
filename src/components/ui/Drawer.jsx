@@ -17,7 +17,12 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './icons';
 
-export function Drawer({ open, onClose, children, label = 'Details' }) {
+/**
+ * `closeOnOutside={false}` keeps the panel open when the dim area beside it is
+ * clicked — only its own close button (or Esc) shuts it. Notifications asked
+ * for this: a stray click beside a message being read threw it away.
+ */
+export function Drawer({ open, onClose, children, label = 'Details', closeOnOutside = true }) {
   useEffect(() => {
     if (!open) return undefined;
     const esc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -34,7 +39,7 @@ export function Drawer({ open, onClose, children, label = 'Details' }) {
   if (!open) return null;
   return createPortal(
     <>
-      <div className="ldrawer__scrim" onClick={onClose} />
+      <div className="ldrawer__scrim" onClick={closeOnOutside ? onClose : undefined} />
       <aside className="ldrawer" role="dialog" aria-modal="true" aria-label={label}>{children}</aside>
     </>,
     document.body,
