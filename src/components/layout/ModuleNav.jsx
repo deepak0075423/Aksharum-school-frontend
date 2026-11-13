@@ -184,16 +184,31 @@ export const TRANSPORT_PARENT_TABS = [
   { to: '/parent/transport/requests',   label: '📨 Requests' },
 ];
 
+// ── Video Learning (Board → Class → Subject → Book → Chapter → Videos) ──────
+// The central library (Super Admin), what a school follows (School Admin),
+// releasing (Teacher). Students have one screen and no tab rail.
+export const VIDEO_CENTRAL_TABS = [
+  { to: '/super-admin/videos/overview',  label: '🏠 Overview' },
+  { to: '/super-admin/videos/boards',    label: '🏛 Boards' },
+  { to: '/super-admin/videos/subjects',  label: '📘 Subjects' },
+  { to: '/super-admin/videos/books',     label: '📚 Books' },
+  { to: '/super-admin/videos/assets',    label: '🎬 Video Assets' },
+  { to: '/super-admin/videos/requests',  label: '📮 Requests' },
+  { to: '/super-admin/videos/providers', label: '⚙️ Providers' },
+  { to: '/super-admin/videos/activity',  label: '🧾 Activity' },
+];
+
 export const VIDEO_ADMIN_TABS = [
-  { to: '/admin/videos/browse',    label: '📚 Library' },
-  { to: '/admin/videos/approvals', label: '🧑‍🏫 Approvals' },
-  { to: '/admin/videos/settings',  label: '⚙️ Settings' },
+  { to: '/admin/videos/overview', label: '🏠 Overview' },
+  { to: '/admin/videos/setup',    label: '📚 Setup' },
+  { to: '/admin/videos/requests', label: '📮 Requests' },
+  { to: '/admin/videos/settings', label: '⚙️ Settings' },
 ];
 
 export const VIDEO_TEACHER_TABS = [
-  { to: '/teacher/videos/catalog',     label: '🎥 Catalog' },
-  { to: '/teacher/videos/add',         label: '➕ Add Video' },
-  { to: '/teacher/videos/assignments', label: '📌 My Assignments' },
+  { to: '/teacher/videos/books',    label: '📚 My Books' },
+  { to: '/teacher/videos/releases', label: '📤 Releases' },
+  { to: '/teacher/videos/progress', label: '📈 Progress' },
 ];
 
 // ── Teacher Feedback ─────────────────────────────────────────────────────────

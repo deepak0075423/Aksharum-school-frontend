@@ -15,7 +15,7 @@ import ModuleNav, {
   LIBRARY_STUDENT_TABS, LIBRARY_PARENT_TABS, LIBRARY_MANAGE_TABS,
   INVENTORY_ADMIN_TABS, INVENTORY_TEACHER_TABS,
   TRANSPORT_ADMIN_TABS, TRANSPORT_PARENT_TABS, HOSTEL_ADMIN_TABS,
-  VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS,
+  VIDEO_ADMIN_TABS, VIDEO_TEACHER_TABS, VIDEO_CENTRAL_TABS,
   FEEDBACK_ADMIN_TABS, FEEDBACK_TEACHER_TABS, FEEDBACK_PRINCIPAL_TABS,
   TIMETABLE_ADMIN_TABS, DIRECTORY_TABS, IDCARD_ADMIN_TABS,
 } from './components/layout/ModuleNav';
@@ -151,7 +151,6 @@ const SASchoolForm     = lazy(() => import('./pages/super-admin/SchoolForm'));
 const SAUsers          = lazy(() => import('./pages/super-admin/Users'));
 const SAPermissions    = lazy(() => import('./pages/super-admin/Permissions'));
 const SANotifications  = lazy(() => import('./pages/super-admin/Notifications'));
-const SAVideoLibrary   = lazy(() => import('./pages/super-admin/videos/Library'));
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 const ADashboard    = lazy(() => import('./pages/admin/Dashboard'));
@@ -381,15 +380,31 @@ const HsStudent      = lazy(() => import('./pages/hostel/student/Hostel'));
 const HsParent       = lazy(() => import('./pages/hostel/parent/Hostel'));
 const HsTeacher      = lazy(() => import('./pages/hostel/teacher/Hostel'));
 
-// ── Video Learning ────────────────────────────────────────────────────────────
-const VidAdmBrowse    = lazy(() => import('./pages/admin/videos/Browse'));
-const VidAdmApprovals = lazy(() => import('./pages/admin/videos/Approvals'));
-const VidAdmSettings  = lazy(() => import('./pages/admin/videos/Settings'));
-const VidTchCatalog   = lazy(() => import('./pages/teacher/videos/Catalog'));
-const VidTchAdd       = lazy(() => import('./pages/teacher/videos/AddVideo'));
-const VidTchAssign    = lazy(() => import('./pages/teacher/videos/Assignments'));
-const VidStuDash      = lazy(() => import('./pages/student/videos/Dashboard'));
-const VidStuPlayer    = lazy(() => import('./pages/student/videos/Player'));
+// ── Video Learning (pages/videos) ─────────────────────────────────────────────
+// Board → Class → Subject → Book → Chapter → Videos. One folder per role.
+const VlCOverview  = lazy(() => import('./pages/videos/central/Overview'));
+const VlCBoards    = lazy(() => import('./pages/videos/central/Boards'));
+const VlCSubjects  = lazy(() => import('./pages/videos/central/Subjects'));
+const VlCBooks     = lazy(() => import('./pages/videos/central/Books'));
+const VlCBook      = lazy(() => import('./pages/videos/central/BookDetail'));
+const VlCAssets    = lazy(() => import('./pages/videos/central/Assets'));
+const VlCRequests  = lazy(() => import('./pages/videos/central/Requests'));
+const VlCProviders = lazy(() => import('./pages/videos/central/Providers'));
+const VlCActivity  = lazy(() => import('./pages/videos/central/Activity'));
+const VlSOverview  = lazy(() => import('./pages/videos/school/Overview'));
+const VlSSetup     = lazy(() => import('./pages/videos/school/Setup'));
+const VlSRequests  = lazy(() => import('./pages/videos/school/Requests'));
+const VlSSettings  = lazy(() => import('./pages/videos/school/Settings'));
+const VlTBooks     = lazy(() => import('./pages/videos/teacher/Books'));
+const VlTBook      = lazy(() => import('./pages/videos/teacher/Book'));
+const VlTReleases  = lazy(() => import('./pages/videos/teacher/Releases'));
+const VlTProgress  = lazy(() => import('./pages/videos/teacher/Progress'));
+const VlTStudent   = lazy(() => import('./pages/videos/teacher/StudentReport'));
+const VlStHome     = lazy(() => import('./pages/videos/student/Home'));
+const VlStBook     = lazy(() => import('./pages/videos/student/Book'));
+const VlStChapter  = lazy(() => import('./pages/videos/student/Chapter'));
+const VlStWatch    = lazy(() => import('./pages/videos/student/Watch'));
+const VlStHistory  = lazy(() => import('./pages/videos/student/History'));
 
 // ── Teacher Feedback ──────────────────────────────────────────────────────────
 const FbAdmOverview    = lazy(() => import('./pages/feedback/admin/Overview'));
@@ -492,7 +507,18 @@ export default function App() {
             <Route path="schools/:id/edit" element={<SASchoolForm />} />
             <Route path="users"         element={<SAUsers />} />
             <Route path="permissions"   element={<SAPermissions />} />
-            <Route path="videos"        element={<SAVideoLibrary />} />
+            <Route path="videos" element={<ModuleNav tabs={VIDEO_CENTRAL_TABS} />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview"  element={<VlCOverview />} />
+              <Route path="boards"    element={<VlCBoards />} />
+              <Route path="subjects"  element={<VlCSubjects />} />
+              <Route path="books"     element={<VlCBooks />} />
+              <Route path="books/:id" element={<VlCBook />} />
+              <Route path="assets"    element={<VlCAssets />} />
+              <Route path="requests"  element={<VlCRequests />} />
+              <Route path="providers" element={<VlCProviders />} />
+              <Route path="activity"  element={<VlCActivity />} />
+            </Route>
             <Route path="notifications" element={<SANotifications />} />
             <Route path="admission-groups" element={<SAAdmissionGroups />} />
           </Route>
@@ -763,10 +789,14 @@ export default function App() {
             </Route>
             {/* Video Learning */}
             <Route path="videos" element={<ModuleNav tabs={VIDEO_ADMIN_TABS} />}>
-              <Route index element={<Navigate to="browse" replace />} />
-              <Route path="browse"    element={<VidAdmBrowse />} />
-              <Route path="approvals" element={<VidAdmApprovals />} />
-              <Route path="settings"  element={<VidAdmSettings />} />
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<VlSOverview />} />
+              <Route path="setup"    element={<VlSSetup />} />
+              <Route path="requests" element={<VlSRequests />} />
+              <Route path="settings" element={<VlSSettings />} />
+              {/* The old flat library's screens — kept as redirects for bookmarks and old notifications. */}
+              <Route path="browse"    element={<Navigate to="/admin/videos/overview" replace />} />
+              <Route path="approvals" element={<Navigate to="/admin/videos/overview" replace />} />
             </Route>
             {/* Teacher Feedback — five sections. The paths the old ten-tab rail
                 used still resolve: they are redirects rather than dead links,
@@ -864,10 +894,15 @@ export default function App() {
               <Route path="requests" element={<InvTeacherRequests />} />
             </Route>
             <Route path="videos" element={<ModuleNav tabs={VIDEO_TEACHER_TABS} />}>
-              <Route index element={<Navigate to="catalog" replace />} />
-              <Route path="catalog"     element={<VidTchCatalog />} />
-              <Route path="add"         element={<VidTchAdd />} />
-              <Route path="assignments" element={<VidTchAssign />} />
+              <Route index element={<Navigate to="books" replace />} />
+              <Route path="books"     element={<VlTBooks />} />
+              <Route path="books/:id" element={<VlTBook />} />
+              <Route path="releases"  element={<VlTReleases />} />
+              <Route path="progress"  element={<VlTProgress />} />
+              <Route path="progress/students/:id" element={<VlTStudent />} />
+              <Route path="catalog"     element={<Navigate to="/teacher/videos/books" replace />} />
+              <Route path="add"         element={<Navigate to="/teacher/videos/books" replace />} />
+              <Route path="assignments" element={<Navigate to="/teacher/videos/releases" replace />} />
             </Route>
             {/* My own feedback results */}
             <Route path="feedback" element={<ModuleNav tabs={FEEDBACK_TEACHER_TABS} />}>
@@ -917,8 +952,13 @@ export default function App() {
             <Route path="fees/*"           element={<SFees />} />
             <Route path="transport"        element={<TransportEnrolledGuard><TrRider /></TransportEnrolledGuard>} />
             <Route path="hostel"           element={<HsStudent />} />
-            <Route path="videos"           element={<VidStuDash />} />
-            <Route path="videos/:id"       element={<VidStuPlayer />} />
+            <Route path="videos"              element={<VlStHome />} />
+            <Route path="videos/books/:id"    element={<VlStBook />} />
+            <Route path="videos/chapters/:id" element={<VlStChapter />} />
+            <Route path="videos/watch/:id"    element={<VlStWatch />} />
+            <Route path="videos/history"      element={<VlStHistory />} />
+            {/* An address of the old flat library (/student/videos/<video id>). */}
+            <Route path="videos/:id"          element={<Navigate to="/student/videos" replace />} />
             <Route path="feedback"           element={<FbStuList />} />
             <Route path="feedback/:id"       element={<FbStuForm />} />
             <Route path="feedback/:id/view"  element={<FbStuDetail />} />

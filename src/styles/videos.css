@@ -1,0 +1,194 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIDEO LEARNING — the `vl-` kit (pages/videos)
+   Board → Class → Subject → Book → Chapter → Videos.
+   Borrows the admin list frame (.listpg, .lstats, .ltools, .ltable, .lfoot),
+   .card, .btn, .badge, .form-control and the .tint-* icon tints; adds only
+   what those do not have: book covers, video thumbnails, progress bars, the
+   chapter outline, and the player.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.vl-page { display: flex; flex-direction: column; gap: 20px; }
+.vl-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.vl-head h1 { font-size: 1.45rem; font-weight: 700; line-height: 1.25; }
+.vl-head p  { color: var(--text-muted); font-size: .9rem; margin-top: 2px; max-width: 720px; }
+.vl-head__acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.vl-muted { color: var(--text-muted); }
+.vl-small { font-size: .82rem; }
+.vl-row   { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vl-grow  { flex: 1; min-width: 0; }
+.vl-right { margin-left: auto; }
+.vl-stack { display: flex; flex-direction: column; gap: 14px; }
+/* The shared search field grows along a toolbar ROW (flex: 1 1 260px). In a
+   column that same rule makes it 260px TALL, and its vertically-centred icon
+   floats down into the empty space below the box. */
+.vl-stack > .lsearch { flex: none; }
+.vl-clip  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vl-link  { color: var(--primary); font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; font-size: inherit; }
+.vl-link:hover { text-decoration: underline; }
+
+/* ── Cards and sections ───────────────────────────────────────────────────── */
+.vl-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.vl-card__head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.vl-card__head h2 { font-size: 1rem; font-weight: 700; }
+.vl-card__head p  { font-size: .82rem; color: var(--text-muted); }
+.vl-card__body { padding: 18px; }
+.vl-card__body--flush { padding: 0; }
+.vl-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.vl-grid--wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.vl-two { display: grid; gap: 20px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+.vl-form-grid { display: grid; gap: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vl-form-grid .vl-span { grid-column: 1 / -1; }
+.vl-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.vl-check { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: .84rem; cursor: pointer; background: var(--bg-card); user-select: none; }
+.vl-check input { accent-color: var(--primary); }
+.vl-check.is-on { border-color: var(--primary); background: #eef2ff; color: var(--primary-dark); font-weight: 600; }
+.vl-check.is-off { opacity: .55; cursor: not-allowed; }
+.vl-kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: .88rem; }
+.vl-kv dt { color: var(--text-muted); }
+.vl-kv dd { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.vl-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); font-size: .76rem; color: var(--text-muted); white-space: nowrap; }
+.vl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ── Book covers and video thumbnails ─────────────────────────────────────── */
+.vl-cover { position: relative; flex: none; width: 54px; aspect-ratio: 3 / 4; border-radius: 6px; overflow: hidden; display: grid; place-items: center;
+            font-weight: 700; font-size: .95rem; letter-spacing: .02em; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .08); }
+.vl-cover img { width: 100%; height: 100%; object-fit: cover; }
+.vl-cover--lg { width: 120px; font-size: 1.6rem; border-radius: 10px; }
+.vl-cover--xl { width: 100%; font-size: 2rem; border-radius: 10px; }
+.vl-thumb { position: relative; flex: none; width: 128px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #0f172a; display: grid; place-items: center; color: #94a3b8; }
+.vl-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.vl-thumb--sm { width: 84px; border-radius: 6px; }
+.vl-thumb--fill { width: 100%; }
+.vl-thumb__time { position: absolute; right: 5px; bottom: 5px; padding: 1px 6px; border-radius: 4px; background: rgba(15, 23, 42, .82); color: #fff; font-size: .7rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.vl-thumb__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .25); }
+.vl-thumb__bar span { display: block; height: 100%; background: var(--primary-light); }
+
+/* ── Progress ─────────────────────────────────────────────────────────────── */
+.vl-bar { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; min-width: 60px; }
+.vl-bar span { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .3s ease; }
+.vl-bar--done span { background: var(--success); }
+.vl-bar--sm { height: 6px; }
+.vl-pct { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .84rem; min-width: 40px; text-align: right; }
+.vl-meter { display: flex; align-items: center; gap: 10px; }
+.vl-meter .vl-bar { flex: 1; }
+
+/* ── Book cards (student, teacher) ────────────────────────────────────────── */
+.vl-book { display: flex; gap: 14px; padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); color: inherit; text-align: left; transition: box-shadow var(--transition), border-color var(--transition); }
+a.vl-book:hover, button.vl-book:hover { border-color: var(--primary-light); box-shadow: var(--shadow-sm); color: inherit; }
+.vl-book__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.vl-book__title { font-weight: 700; line-height: 1.3; }
+.vl-book__sub { font-size: .82rem; color: var(--text-muted); }
+
+/* ── Chapter outline ──────────────────────────────────────────────────────── */
+.vl-chapters { display: flex; flex-direction: column; }
+.vl-chapter { border-top: 1px solid var(--border); }
+.vl-chapter:first-child { border-top: 0; }
+.vl-chapter__head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; width: 100%; text-align: left; color: inherit; background: none; }
+a.vl-chapter__head:hover { background: #f8fafc; color: inherit; }
+.vl-chapter__num { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: .9rem; }
+.vl-chapter__title { font-weight: 600; }
+.vl-chapter.is-locked .vl-chapter__title, .vl-chapter.is-locked .vl-chapter__num { color: var(--text-light); }
+.vl-chapter__videos { padding: 0 18px 14px 66px; display: flex; flex-direction: column; gap: 8px; }
+.vl-vrow { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); }
+.vl-vrow__title { font-weight: 600; font-size: .9rem; }
+.vl-vrow__acts { display: flex; gap: 6px; margin-left: auto; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.vl-grip { display: flex; flex-direction: column; gap: 2px; }
+.vl-grip button { width: 22px; height: 18px; display: grid; place-items: center; border-radius: 4px; color: var(--text-muted); }
+.vl-grip button:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+.vl-grip button:disabled { opacity: .3; cursor: default; }
+
+/* ── Video list (student chapter) ─────────────────────────────────────────── */
+.vl-videos { display: flex; flex-direction: column; gap: 12px; }
+.vl-video { display: flex; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card); color: inherit; align-items: center; }
+a.vl-video:hover { border-color: var(--primary-light); box-shadow: var(--shadow-sm); color: inherit; }
+.vl-video__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.vl-video__title { font-weight: 600; }
+
+/* ── Upload ───────────────────────────────────────────────────────────────── */
+.vl-drop { border: 2px dashed var(--border); border-radius: var(--radius-lg); padding: 26px 18px; text-align: center; color: var(--text-muted); background: var(--bg); cursor: pointer; }
+.vl-drop:hover, .vl-drop.is-over { border-color: var(--primary-light); background: #eef2ff; }
+.vl-drop b { color: var(--text); display: block; margin-bottom: 2px; }
+.vl-steps { display: flex; gap: 6px; align-items: center; font-size: .8rem; color: var(--text-muted); flex-wrap: wrap; }
+.vl-steps span { padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); }
+.vl-steps span.is-on { background: #eef2ff; border-color: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
+.vl-steps span.is-done { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+
+/* ── Set-up (school) ──────────────────────────────────────────────────────── */
+.vl-class { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card); }
+.vl-class__head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; width: 100%; text-align: left; color: inherit; }
+.vl-class__head h3 { font-size: 1rem; font-weight: 700; }
+.vl-class__body { border-top: 1px solid var(--border); padding: 16px 18px; display: flex; flex-direction: column; gap: 16px; }
+.vl-subject { border: 1px solid var(--border); border-radius: 10px; }
+.vl-subject__head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg); border-radius: 10px 10px 0 0; flex-wrap: wrap; }
+.vl-subject__body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.vl-assign { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* ── Timeline (request history, release audit) ────────────────────────────── */
+.vl-timeline { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.vl-timeline li { display: grid; grid-template-columns: 10px 1fr; gap: 12px; font-size: .86rem; }
+.vl-timeline li::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--primary-light); margin-top: 6px; }
+.vl-timeline time { color: var(--text-muted); font-size: .78rem; display: block; }
+
+/* ── Provider cards ───────────────────────────────────────────────────────── */
+.vl-provider { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card); }
+.vl-provider__head { display: flex; gap: 12px; align-items: center; padding: 14px 18px; flex-wrap: wrap; }
+.vl-provider__body { border-top: 1px solid var(--border); padding: 16px 18px; }
+.vl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-light); flex: none; }
+.vl-dot--ok { background: var(--success); } .vl-dot--warn { background: var(--warning); } .vl-dot--bad { background: var(--danger); }
+
+/* ── The player ───────────────────────────────────────────────────────────── */
+.vl-watch { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+.vl-player { position: relative; background: #000; border-radius: var(--radius-lg); overflow: hidden; aspect-ratio: 16 / 9; user-select: none; -webkit-user-select: none; }
+.vl-player:fullscreen { border-radius: 0; aspect-ratio: auto; width: 100vw; height: 100vh; }
+.vl-player video, .vl-player__frame, .vl-player__frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vl-player video { object-fit: contain; background: #000; }
+/* The provider's own player is driven by ours: clicks go to our layer, not to its buttons. */
+.vl-player__shield { position: absolute; inset: 0; z-index: 2; cursor: pointer; background: transparent; border: 0; width: 100%; }
+.vl-player__center { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; }
+.vl-player__big { width: 72px; height: 72px; border-radius: 50%; background: rgba(15, 23, 42, .7); color: #fff; display: grid; place-items: center; pointer-events: auto; }
+.vl-player__big:hover { background: var(--primary); }
+.vl-player__msg { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; text-align: center; padding: 24px; background: rgba(15, 23, 42, .88); color: #e2e8f0; }
+.vl-player__msg h3 { color: #fff; font-size: 1.05rem; margin-bottom: 6px; }
+.vl-player__toast { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 7px 14px; border-radius: 999px; background: rgba(15, 23, 42, .9); color: #fff; font-size: .82rem; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
+.vl-player__bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 26px 14px 10px; background: linear-gradient(transparent, rgba(0, 0, 0, .78)); color: #fff; display: flex; flex-direction: column; gap: 8px; transition: opacity .25s; }
+.vl-player.is-idle .vl-player__bar { opacity: 0; pointer-events: none; }
+.vl-player.is-idle { cursor: none; }
+.vl-track { position: relative; height: 16px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+.vl-track__rail { position: absolute; left: 0; right: 0; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, .22); overflow: hidden; }
+.vl-track__seen { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255, 255, 255, .5); }
+.vl-track__now  { position: absolute; left: 0; top: 0; bottom: 0; background: var(--primary-light); }
+.vl-track__knob { position: absolute; width: 13px; height: 13px; border-radius: 50%; background: #fff; transform: translateX(-50%); box-shadow: 0 0 0 3px rgba(129, 140, 248, .35); }
+.vl-ctrls { display: flex; align-items: center; gap: 10px; }
+.vl-ctrls button { color: #fff; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; }
+.vl-ctrls button:hover { background: rgba(255, 255, 255, .16); }
+.vl-ctrls__time { font-size: .82rem; font-variant-numeric: tabular-nums; }
+.vl-ctrls__vol { width: 84px; accent-color: #fff; }
+.vl-ctrls__sp { flex: 1; }
+.vl-next { display: flex; flex-direction: column; gap: 8px; }
+.vl-next a { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 10px; border: 1px solid var(--border); color: inherit; background: var(--bg-card); }
+.vl-next a:hover { border-color: var(--primary-light); }
+.vl-next a.is-on { border-color: var(--primary); background: #eef2ff; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .vl-watch { grid-template-columns: 1fr; }
+  .vl-two { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .vl-form-grid { grid-template-columns: 1fr; }
+  .vl-chapter__videos { padding-left: 18px; }
+  .vl-thumb { width: 104px; }
+  .vl-vrow, .vl-video { flex-wrap: wrap; }
+  .vl-vrow__acts { margin-left: 0; width: 100%; justify-content: flex-start; }
+  .vl-ctrls__vol { display: none; }
+  .vl-kv { grid-template-columns: 1fr; gap: 0 0; }
+  .vl-kv dd { margin-bottom: 8px; }
+}
+
+/* Five figures in one row: the shared tile grid is four across, and a fifth
+   tile wrapping alone under them reads as a mistake. Narrower screens fall
+   back to the shared grid's own breakpoints. */
+@media (min-width: 1200px) {
+  .vl-five .lstats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .vl-five .lstat { padding: 16px; gap: 12px; }
+}
