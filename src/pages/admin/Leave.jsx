@@ -23,6 +23,7 @@ import {
   BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep,
   HelpPanel, LeaveDonut, SummaryLine, TypeIcon, OnLeaveTodayModal,
   chipTones, dayNum, docUrl, donutSlices, fmtDate,
+  PhoneTable, TypeDrawer,
 } from './leaveParts';
 
 const STATUS_VARIANT = {
@@ -107,7 +108,12 @@ export default function AdminLeave() {
   // states five numbers about a table that holds years of applications, and
   // paging that table into the browser to add them up is how the old screen
   // ended up showing none of them.
-  const { data: ovData, loading: ovLoading, refetch: refetchOverview } = useFetch(api.getLeaveOverview);
+  // The academic year the Requests queue (and its tiles) show. '' = the
+  // school's active year, so moving the school to a new year starts an empty
+  // queue rather than repeating last year's requests; 'all' = every year.
+  const [reqYear, setReqYear] = useState('');
+  const { data: ovData, loading: ovLoading, refetch: refetchOverview } = useFetch(
+    () => api.getLeaveOverview(reqYear ? { academicYear: reqYear } : undefined), [reqYear]);
   const ov = ovData || {};
 
   // ── Requests ─────────────────────────────────────────────────────────────────
@@ -148,19 +154,21 @@ export default function AdminLeave() {
       department: reqDept     || undefined,
       fromDate:  reqFromDate  || undefined,
       toDate:    reqToDate    || undefined,
+      // A notification's request is found whatever year it belongs to.
+      academicYear: focusId ? 'all' : (reqYear || undefined),
       focus:     focusId      || undefined,
     }),
     [reqPage, reqLimit, reqTerm, reqStatus, reqTeacher, reqLeaveType, reqDept,
-     reqFromDate, reqToDate, focusId],
+     reqFromDate, reqToDate, reqYear, focusId],
   );
   const requests = reqData || [];
 
-  const anyReqFilter = !!(reqTerm || reqStatus || reqTeacher || reqLeaveType || reqDept || reqFromDate || reqToDate);
+  const anyReqFilter = !!(reqTerm || reqStatus || reqTeacher || reqLeaveType || reqDept || reqFromDate || reqToDate || reqYear);
 
   const clearReqFilters = useCallback(() => {
     setReqStatus(''); setReqTeacher(''); setReqLeaveType(''); setReqDept('');
     setReqSearch(''); setReqTerm('');
-    setReqFromDate(''); setReqToDate(''); setReqPage(1);
+    setReqFromDate(''); setReqToDate(''); setReqYear(''); setReqPage(1);
   }, []);
   // The request exists but a filter in force hides it — clearing them is what
   // following the notification meant.
@@ -309,7 +317,7 @@ export default function AdminLeave() {
     }
     const start = ((reqMeta?.page || reqPage) - 1) * reqLimit;
     return (
-      <div className="lvtable__wrap">
+      <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days']}>
         <table className="lvtable">
           <thead>
             <tr>
@@ -381,7 +389,7 @@ export default function AdminLeave() {
             ))}
           </tbody>
         </table>
-      </div>
+      </PhoneTable>
     );
   };
 
@@ -391,6 +399,7 @@ export default function AdminLeave() {
   const [typeForm,  setTypeForm]  = useState(EMPTY_TYPE);
   const [typeLoad,  setTypeLoad]  = useState(false);
   const [delType,   setDelType]   = useState(null);
+  const [viewType,  setViewType]  = useState(null);   // the type in the drawer
   const [delLoad,   setDelLoad]   = useState(false);
   const [delImpact, setDelImpact] = useState(null);   // what the delete would wipe
   const [impactLoad, setImpactLoad] = useState(false);
@@ -817,6 +826,8 @@ export default function AdminLeave() {
     setReqStatus(status || repStatus || '');
     setReqLeaveType(repType || '');
     setReqDept(repDept || '');
+    // The report's own date window decides the year, so the picker steps aside.
+    setReqYear('all');
     // No year on record: the report covered everything, so no window here.
     setReqFromDate(rep.window?.startDate ? String(rep.window.startDate).slice(0, 10) : '');
     setReqToDate(rep.window?.endDate ? String(rep.window.endDate).slice(0, 10) : '');
@@ -834,6 +845,7 @@ export default function AdminLeave() {
         department: reqDept     || undefined,
         fromDate:  reqFromDate  || undefined,
         toDate:    reqToDate    || undefined,
+        academicYear: reqYear   || undefined,
       });
       downloadBuffer(res?.data ?? res, 'leave_requests.xlsx');
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -1066,6 +1078,7 @@ export default function AdminLeave() {
       fromDate: rep.window?.startDate || undefined,
       toDate:   rep.window?.endDate   || undefined,
       status:   repStatus || undefined,
+      academicYear: 'all',   // the window above already is the year
       sort: 'recent', limit: 50, page: 1,
     })
       .then((res) => { if (alive) setRepApps(res?.data ?? res ?? []); })
@@ -1096,6 +1109,11 @@ export default function AdminLeave() {
   const onFilter = (setter) => (value) => { releaseFocus(); setReqPage(1); setter(value); };
 
   const isQueue = tab === 'requests';
+  // What the tiles counted, in words: the active year reads as "this year".
+  const yearCaption = (thisYear) => (ov.countedYear === 'all' || !ov.countedYear ? 'All years'
+    : ov.countedYear === ov.activeAcademicYear ? thisYear : `In ${ov.countedYear}`);
+  const activeYearLabel = reqMeta?.activeAcademicYear || ov.activeAcademicYear || '';
+  const otherYears = (reqMeta?.academicYears || []).filter((y) => y.label !== activeYearLabel);
   const pages = reqMeta?.pages || 1;
 
   return (
@@ -1130,16 +1148,16 @@ export default function AdminLeave() {
       <LeaveStats>
         <LeaveStat icon="fileCheck" tone="blue" label="Total Requests"
           value={ov.counts?.total ?? 0}
-          caption={ov.academicYear ? 'This Academic Year' : 'All time'}
+          caption={yearCaption('This Academic Year')}
           on={!reqStatus} onClick={() => pickStatus('')} />
         <LeaveStat icon="clock" tone="amber" label="Pending"
           value={ov.counts?.pending ?? 0} caption="Awaiting approval"
           on={reqStatus === 'pending'} onClick={() => pickStatus('pending')} />
         <LeaveStat icon="checkCircle" tone="green" label="Approved"
-          value={ov.counts?.approved ?? 0} caption="This Year"
+          value={ov.counts?.approved ?? 0} caption={yearCaption('This Year')}
           on={reqStatus === 'approved'} onClick={() => pickStatus('approved')} />
         <LeaveStat icon="closeCircle" tone="red" label="Rejected"
-          value={ov.counts?.rejected ?? 0} caption="This Year"
+          value={ov.counts?.rejected ?? 0} caption={yearCaption('This Year')}
           on={reqStatus === 'rejected'} onClick={() => pickStatus('rejected')} />
         {/* Not a filter: who is out today is a different question from which
             requests are in which state, and it counts people, not requests —
@@ -1179,6 +1197,10 @@ export default function AdminLeave() {
                 options={!reqDept || departments.includes(reqDept) ? departments : [...departments, reqDept]}
                 onChange={onFilter(setReqDept)} />
             )}
+            <FilterSelect label="Filter by academic year" value={reqYear}
+              all={activeYearLabel ? `${activeYearLabel} (current)` : 'Current year'}
+              options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
+              onChange={onFilter(setReqYear)} />
             <DateRange from={reqFromDate} to={reqToDate}
               onFrom={onFilter(setReqFromDate)} onTo={onFilter(setReqToDate)} />
           </FilterRow>
@@ -1266,7 +1288,7 @@ export default function AdminLeave() {
                   />
                 </div>
               ) : (
-                <div className="lvtable__wrap">
+                <PhoneTable title="Leave Type" side="Status" keep={['Code', 'Annual Allocation']}>
                   <table className="lvtable">
                     <thead>
                       <tr>
@@ -1309,6 +1331,8 @@ export default function AdminLeave() {
                           </td>
                           <td className="lvt-acts">
                             <RowActions>
+                              <IconAction icon="eye" label={`View ${t.name}`}
+                                onClick={() => setViewType(t)} />
                               <IconAction icon="pencil" label={`Edit ${t.name}`} variant="edit"
                                 onClick={() => openEditType(t)} />
                               <IconAction icon="trash" label={`Delete ${t.name}`} variant="danger"
@@ -1319,7 +1343,7 @@ export default function AdminLeave() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </PhoneTable>
               )}
 
               <div className="lvfoot">
@@ -1441,7 +1465,7 @@ export default function AdminLeave() {
                 />
               </div>
             ) : (
-              <div className="lvtable__wrap">
+              <PhoneTable title="Teacher" side="Status" keep={['Department', 'Total Allocated']}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -1518,7 +1542,7 @@ export default function AdminLeave() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </PhoneTable>
             )}
 
             <div className="lvfoot">
@@ -1588,7 +1612,7 @@ export default function AdminLeave() {
                     />
                   </div>
                 ) : (
-                  <div className="lvtable__wrap">
+                  <PhoneTable title="Teacher" side="Status" keep={['Department', 'Total']}>
                     <table className="lvtable lvtable--grouped">
                       {/* Two header rows: the per-type columns are one group, and
                           saying so once beats repeating "balance" four times. */}
@@ -1662,7 +1686,7 @@ export default function AdminLeave() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </PhoneTable>
                 )}
 
                 <div className="lvfoot">
@@ -1826,7 +1850,7 @@ export default function AdminLeave() {
                 />
               </div>
             ) : (
-              <div className="lvtable__wrap">
+              <PhoneTable title="Teacher" keep={['Department', 'Total']}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -1869,7 +1893,7 @@ export default function AdminLeave() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </PhoneTable>
             )}
 
             <div className="lvfoot">
@@ -1917,6 +1941,12 @@ export default function AdminLeave() {
 
       <OnLeaveTodayModal open={outOpen} out={ov.out || []}
         onClose={() => setOutOpen(false)} onPick={showOutRequest} />
+
+      <TypeDrawer
+        type={viewType}
+        onClose={() => setViewType(null)}
+        onEdit={(t) => { setViewType(null); openEditType(t); }}
+      />
 
       <RequestDrawer
         request={detail}
@@ -2089,7 +2119,7 @@ export default function AdminLeave() {
               )}
             </FormStep>
 
-            <FormStep n={3} title="Reason" note="Add a reason for the leave request.">
+            <FormStep n={3} title={<>Reason <i className="lvstar" aria-label="required">*</i></>} note="Add a reason for the leave request.">
               <textarea className="form-control" rows={3} required maxLength={500}
                 value={applyForm.reason}
                 onChange={(e) => setApplyForm((f) => ({ ...f, reason: e.target.value }))}

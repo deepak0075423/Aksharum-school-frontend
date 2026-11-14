@@ -132,8 +132,79 @@ export const LeaveStats = ({ children, className = '' }) => (
 
 /** The module's sections, as a row of pills. The active one is filled. */
 export const LeaveTabs = ({ tabs, value, onChange }) => (
-  <Tabs variant="pill" items={tabs} value={value} onChange={onChange} label="Leave sections" />
+  <Tabs variant="pill" items={tabs} value={value} onChange={onChange} label="Leave sections"
+    className="lvtabs-main" />
 );
+
+/**
+ * The column names of a table head, one per body column. Walks rowSpan and
+ * colSpan the way the browser lays them out, so a grouped head (Balance
+ * Summary's "Leave Balance" over one column per type) names each column by its
+ * lowest header — the type's code, not the group.
+ */
+function columnLabels(thead) {
+  const grid = [];
+  [...(thead?.rows || [])].forEach((tr, r) => {
+    grid[r] = grid[r] || [];
+    let c = 0;
+    for (const th of tr.cells) {
+      while (grid[r][c] !== undefined) c += 1;
+      // A ThSub's <small> names the cell's second line; the column is its first.
+      const head = th.cloneNode(true);
+      head.querySelectorAll('small').forEach((s) => s.remove());
+      const text = (th.dataset.label || head.textContent || '').trim();
+      for (let i = 0; i < (th.rowSpan || 1); i += 1) {
+        grid[r + i] = grid[r + i] || [];
+        for (let j = 0; j < (th.colSpan || 1); j += 1) grid[r + i][c + j] = text;
+      }
+      c += th.colSpan || 1;
+    }
+  });
+  return grid[grid.length - 1] || [];
+}
+
+/**
+ * A leave table that turns into cards on a phone, so nothing scrolls sideways.
+ *
+ * Desktop: the table, untouched. Phone (≤640px, CSS): each row is a card — the
+ * `title` column as its heading, `side` (usually Status) beside it, the `keep`
+ * columns as label/value lines, and the row's own Actions cell (whose eye
+ * opens the full record) along the bottom. Every other column is left to that
+ * eye. Labels are read from the table's own head, so each table only names
+ * the columns it wants on the card.
+ */
+export function PhoneTable({ title, side, keep = [], children }) {
+  const ref = React.useRef(null);
+  const spec = `${title}|${side}|${keep.join('|')}`;
+  React.useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root) return undefined;
+    const mark = () => {
+      const table = root.querySelector('table');
+      if (!table) return;
+      const labels = columnLabels(table.tHead);
+      for (const body of table.tBodies) {
+        for (const tr of body.rows) {
+          let c = 0;
+          for (const td of tr.cells) {
+            const label = labels[c] || '';
+            if (td.dataset.label !== label) td.dataset.label = label;
+            td.classList.toggle('lvph-title', label === title);
+            td.classList.toggle('lvph-side', !!side && label === side);
+            td.classList.toggle('lvph-keep', keep.includes(label));
+            c += td.colSpan || 1;
+          }
+        }
+      }
+    };
+    mark();
+    // Rows come and go with paging and filters; label the new ones too.
+    const watch = new MutationObserver(mark);
+    watch.observe(root, { childList: true, subtree: true });
+    return () => watch.disconnect();
+  }, [spec]);
+  return <div ref={ref} className="lvtable__wrap lvph">{children}</div>;
+}
 
 // ── Card furniture ───────────────────────────────────────────────────────────
 
@@ -651,6 +722,60 @@ export const TypeIcon = ({ type }) => {
     </span>
   );
 };
+
+/**
+ * One leave type, in full — what the Leave Types row shows across seven
+ * columns, for a phone that shows only its name and status. The rules a type
+ * runs on live on its policy, so the drawer points there rather than repeating
+ * the type's own seed columns.
+ */
+export function TypeDrawer({ type: t, onClose, onEdit, onPolicy }) {
+  if (!t) return null;
+  const compOff = t.category === 'compoff' || String(t.code || '').toUpperCase() === 'COMPOFF';
+  return (
+    <Drawer open={!!t} onClose={onClose}>
+      <DrawerHead
+        name={t.name}
+        sub={t.code}
+        tone="indigo"
+        tags={[
+          <span key="s" className={`lvbadge is-${t.isActive === false ? 'rejected' : 'approved'}`}>
+            {t.isActive === false ? 'Inactive' : 'Active'}
+          </span>,
+          compOff ? <span key="c" className="lvtag">Comp Off</span> : null,
+        ].filter(Boolean)}
+        onClose={onClose}
+      />
+      <div className="ldrawer__body">
+        <DrawerSection
+          title="The leave type"
+          fields={[
+            ['Name', t.name],
+            ['Code', t.code],
+            ['Kind', compOff ? 'Comp Off — earned by approved requests' : 'General leave'],
+            ['Annual allocation', compOff ? 'Earned on approval' : `${t.annualAllocation || 0} days`],
+            ['Paid', t.isPaid === false ? 'Unpaid' : 'Paid'],
+            ['Status', t.isActive === false ? 'Inactive — cannot be applied for' : 'Active'],
+          ]}
+        />
+        <DrawerSection title="Description" fields={[['About', t.description || 'No description']]} />
+      </div>
+      <DrawerFoot>
+        {onPolicy && (
+          <Button variant="secondary" onClick={() => onPolicy(t)}>
+            <Icon name="sliders" size={16} /> Policy
+          </Button>
+        )}
+        {onEdit && (
+          <Button onClick={() => onEdit(t)}>
+            <Icon name="pencil" size={16} /> Edit
+          </Button>
+        )}
+        <Button variant="secondary" onClick={onClose}>Close</Button>
+      </DrawerFoot>
+    </Drawer>
+  );
+}
 
 export const TypeNameCell = ({ type }) => (
   <div className="lvtypename">
@@ -1882,19 +2007,40 @@ export const ChoiceCards = ({ name, value, onChange, options }) => (
   </div>
 );
 
-/** The file field, drawn as a drop target rather than a browse button. */
-export const DropZone = ({ inputRef, accept, hint, fileName, error, required, onPick }) => (
-  <div className={`lvdrop${error ? ' is-error' : ''}${fileName ? ' is-set' : ''}`}>
-    <input ref={inputRef} type="file" accept={accept} onChange={onPick}
-      aria-label={`Supporting document${required ? ' (required)' : ' (optional)'}`} />
-    <Icon name={fileName ? 'fileCheck' : 'upload'} size={26} />
-    <span className="lvdrop__text">
-      {fileName
-        ? <><b>{fileName}</b><small>Click to choose a different file</small></>
-        : <><b>Click to upload</b> or drag and drop<small>{hint}</small></>}
-    </span>
-  </div>
-);
+/**
+ * The file field, drawn as a drop target rather than a browse button. Once a
+ * file is chosen it shows Replace and Remove; both work through the same input,
+ * so every form's `onPick` (which reads `files[0]`) sees the change.
+ */
+export const DropZone = ({ inputRef, accept, hint, fileName, error, required, onPick }) => {
+  const replace = () => inputRef.current?.click();
+  const remove = () => {
+    if (inputRef.current) inputRef.current.value = '';
+    onPick?.();
+  };
+  return (
+    <div className={`lvdrop${error ? ' is-error' : ''}${fileName ? ' is-set' : ''}`}>
+      <input ref={inputRef} type="file" accept={accept} onChange={onPick}
+        aria-label={`Supporting document${required ? ' (required)' : ' (optional)'}`} />
+      <Icon name={fileName ? 'fileCheck' : 'upload'} size={26} />
+      <span className="lvdrop__text">
+        {fileName
+          ? <><b title={fileName}>{fileName}</b><small>{hint}</small></>
+          : <><b>Click to upload</b> or drag and drop<small>{hint}</small></>}
+      </span>
+      {fileName ? (
+        <span className="lvdrop__acts">
+          <button type="button" className="lvdrop__btn" onClick={replace}>
+            <Icon name="refresh" size={14} /> Replace
+          </button>
+          <button type="button" className="lvdrop__btn lvdrop__btn--del" onClick={remove}>
+            <Icon name="trash" size={14} /> Remove
+          </button>
+        </span>
+      ) : null}
+    </div>
+  );
+};
 
 /**
  * One ratio, drawn round, with the figure that matters in the middle.

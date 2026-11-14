@@ -10,6 +10,7 @@ import {
   FilterSelect, FormStep, InfoPanels, LeaveStat, LeaveStats, LedgerDrawer, Pager,
   RulesNote, STATUS, ShowingCount, SignOffStep, StatusBadge, SubTabs, SummaryLine,
   ThSub, WORK_TYPES, fmtDate, fmtHours, hoursBetween, weekdayOf,
+  PhoneTable,
 } from '../admin/leaveParts';
 
 // Mounted as the "Comp Off" tab of pages/teacher/Leave.jsx — Comp Off stays
@@ -263,7 +264,7 @@ export default function TeacherCompOff() {
                   : <Button onClick={() => { setForm(EMPTY_FORM); setDocName(''); setModal(true); }}>+ Apply Comp Off</Button>} />
             </div>
           ) : (
-            <div className="lvtable__wrap">
+            <PhoneTable title="Work Date" side="Status" keep={['Comp Off', 'Credited On']}>
               <table className="lvtable">
                 <thead>
                   <tr>
@@ -336,7 +337,7 @@ export default function TeacherCompOff() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </PhoneTable>
           )}
 
           <div className="lvfoot">
@@ -433,7 +434,7 @@ export default function TeacherCompOff() {
               )}
             </FormStep>
 
-            <FormStep n={2} title="Reason" note="Tell us what you worked on that day.">
+            <FormStep n={2} title={<>Reason <i className="lvstar" aria-label="required">*</i></>} note="Tell us what you worked on that day.">
               <textarea className="form-control" rows={3} required maxLength={200}
                 value={form.reason}
                 onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
@@ -587,7 +588,7 @@ function MyLedger() {
               : null} />
         </div>
       ) : (
-        <div className="lvtable__wrap">
+        <PhoneTable title="Entry" keep={['When', 'Days', 'Balance After']}>
           <table className="lvtable">
             <thead>
               <tr>
@@ -643,7 +644,7 @@ function MyLedger() {
               ))}
             </tbody>
           </table>
-        </div>
+        </PhoneTable>
       )}
 
       <div className="lvfoot">

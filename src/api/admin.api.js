@@ -201,7 +201,7 @@ export const getLeaveTypeImpact     = (id)       => api.get(`/admin/leave/types/
 export const updateLeaveSettings    = (data)     => api.put('/admin/leave/settings', data);
 // The landing page's figures in one call — tiles, who is out today, the split
 // by leave type. Counted in Postgres, not by paging the application table.
-export const getLeaveOverview       = ()         => api.get('/admin/leave/overview');
+export const getLeaveOverview       = (params)   => api.get('/admin/leave/overview', { params });
 export const getLeaveRequests       = (params)   => api.get('/admin/leave/requests', { params });
 export const adminApplyLeave        = (data)     => api.post('/admin/leave/requests', data);
 export const getTeacherLeaveBalance = (teacherId) => api.get('/admin/leave/balance', { params: { teacherId } });

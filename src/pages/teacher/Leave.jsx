@@ -14,6 +14,7 @@ import {
   LeaveStats, LeaveTypeCell, MyBalanceDrawer, Pager, PeriodCell, RequestDrawer,
   STATUS_OPTIONS, ShowingCount, StatusBadge, SubTabs, SummaryRow,
   chipTones, dayNum, docUrl, fmtDate,
+  PhoneTable,
 } from '../admin/leaveParts';
 import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
 import TeacherLeaveApprovals from './LeaveApprovals';
@@ -129,6 +130,8 @@ export default function TeacherLeave() {
   const [filterMode,   setFilterMode]   = useState('');
   const [filterFrom,   setFilterFrom]   = useState('');
   const [filterTo,     setFilterTo]     = useState('');
+  // '' = the school's active academic year; 'all' = every year.
+  const [filterYear,   setFilterYear]   = useState('');
   const [leavePage,    setLeavePage]    = useState(1);
   const [detail,       setDetail]       = useState(null);   // the row in the drawer
   const LEAVE_PAGE = 5;
@@ -140,18 +143,25 @@ export default function TeacherLeave() {
       mode:      filterMode   || undefined,
       fromDate:  filterFrom   || undefined,
       toDate:    filterTo     || undefined,
+      academicYear: filterYear || undefined,
       page: leavePage, limit: LEAVE_PAGE,
     }),
-    [filterStatus, filterType, filterMode, filterFrom, filterTo, leavePage],
+    [filterStatus, filterType, filterMode, filterFrom, filterTo, filterYear, leavePage],
   );
   const leaves = leavesData?.data || leavesData || [];
-  // These describe the whole history, not the filtered page — see the endpoint.
+  // These describe the whole year shown, not the filtered page — see the endpoint.
   const leaveCounts = leavesMeta?.counts || {};
   const leaveShare  = (n) => (leaveCounts.total ? Math.round((n / leaveCounts.total) * 100) : 0);
 
-  const anyLeaveFilter = !!(filterStatus || filterType || filterMode || filterFrom || filterTo);
+  const activeYear = leavesMeta?.activeAcademicYear || '';
+  const shownYear  = leavesMeta?.academicYear;
+  const otherYears = (leavesMeta?.academicYears || []).filter((y) => y.label !== activeYear);
+  const yearCaption = shownYear === 'all' || !shownYear ? 'All years'
+    : shownYear === activeYear ? 'This academic year' : `In ${shownYear}`;
+
+  const anyLeaveFilter = !!(filterStatus || filterType || filterMode || filterFrom || filterTo || filterYear);
   const clearLeaveFilters = () => {
-    setFilterStatus(''); setFilterType(''); setFilterMode('');
+    setFilterStatus(''); setFilterType(''); setFilterMode(''); setFilterYear('');
     setFilterFrom(''); setFilterTo(''); setLeavePage(1);
   };
   const onLeaveFilter = (setter) => (v) => { setLeavePage(1); setter(v); };
@@ -387,7 +397,7 @@ export default function TeacherLeave() {
         <>
           <LeaveStats className="lvstats--4">
             <LeaveStat valueFirst icon="fileCheck" tone="indigo" value={leaveCounts.total ?? 0}
-              label="Total Applications" caption="All time"
+              label="Total Applications" caption={yearCaption}
               on={!filterStatus} onClick={() => onLeaveFilter(setFilterStatus)('')} />
             <LeaveStat valueFirst icon="checkCircle" tone="green" value={leaveCounts.approved ?? 0}
               label="Approved" caption={`${leaveShare(leaveCounts.approved || 0)}% of total`}
@@ -405,6 +415,10 @@ export default function TeacherLeave() {
 
           <section className="card lvcard">
             <FilterRow>
+              <FilterSelect label="Filter by academic year" value={filterYear}
+                all={activeYear ? `${activeYear} (current)` : 'Current year'}
+                options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
+                onChange={onLeaveFilter(setFilterYear)} />
               <FilterSelect label="Filter by status" value={filterStatus} all="All Statuses"
                 options={STATUS_OPTIONS} onChange={onLeaveFilter(setFilterStatus)} />
               <FilterSelect label="Filter by leave type" value={filterType} all="All Leave Types"
@@ -437,7 +451,7 @@ export default function TeacherLeave() {
                 />
               </div>
             ) : (
-              <div className="lvtable__wrap">
+              <PhoneTable title="Leave Type" side="Status" keep={['Period', 'Duration']}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -499,7 +513,7 @@ export default function TeacherLeave() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </PhoneTable>
             )}
 
             <div className="lvfoot">
@@ -578,7 +592,7 @@ export default function TeacherLeave() {
                         action={<Button onClick={openModal}>+ Apply Leave</Button>} />
                     </div>
                   ) : (
-                    <div className="lvtable__wrap">
+                    <PhoneTable title="Type" side="Status" keep={['Date', 'Duration']}>
                       <table className="lvtable">
                         <thead>
                           <tr>
@@ -612,7 +626,7 @@ export default function TeacherLeave() {
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                    </PhoneTable>
                   )}
                 </section>
               </div>
@@ -757,7 +771,7 @@ export default function TeacherLeave() {
               )}
             </FormStep>
 
-            <FormStep n={2} title="Reason" note="Let us know why you are taking leave.">
+            <FormStep n={2} title={<>Reason <i className="lvstar" aria-label="required">*</i></>} note="Let us know why you are taking leave.">
               <textarea className={`form-control${errors.reason ? ' is-error' : ''}`}
                 rows={3} maxLength={500} value={form.reason}
                 onChange={(e) => setField('reason', e.target.value)}

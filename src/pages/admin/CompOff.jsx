@@ -13,6 +13,7 @@ import {
   LeaveDonut, LeaveStat, LeaveStats, Pager, PolicyHead, RuleCard, RuleCheck, RuleList,
   RuleNum, RulePick, STATUS, SearchBox, SectionHead, ShowingCount, SignOffStep, StatusBadge,
   SubTabs, TYPE_TONES, TeacherCell, WORK_TYPES, WorkDateCell,
+  PhoneTable,
 } from './leaveParts';
 
 // Comp Off lives inside Leave Management — these two panels are mounted as
@@ -366,7 +367,7 @@ export function AdminCompOff() {
                     : <Button onClick={() => setGenModal(true)}>Generate from Attendance</Button>} />
               </div>
             ) : (
-              <div className="lvtable__wrap">
+              <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Hours / Days']}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -468,7 +469,7 @@ export function AdminCompOff() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </PhoneTable>
             )}
 
             <div className="lvfoot">
@@ -878,7 +879,7 @@ function CompOffBalances({ onOpenLedger }) {
                 : null} />
           </div>
         ) : (
-          <div className="lvtable__wrap">
+          <PhoneTable title="Employee" keep={['Used', 'Available']}>
             <table className="lvtable">
               <thead>
                 <tr>
@@ -920,7 +921,7 @@ function CompOffBalances({ onOpenLedger }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </PhoneTable>
         )}
 
         <div className="lvfoot">
@@ -1014,7 +1015,7 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
               : null} />
         </div>
       ) : (
-        <div className="lvtable__wrap">
+        <PhoneTable title="Employee" keep={['When', 'Entry', 'Days', 'Balance After']}>
           <table className="lvtable">
             <thead>
               <tr>
@@ -1071,7 +1072,7 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
               ))}
             </tbody>
           </table>
-        </div>
+        </PhoneTable>
       )}
 
       <div className="lvfoot">
@@ -1220,7 +1221,7 @@ function CompOffReports({ onOpenRequests }) {
                 : null} />
           </div>
         ) : (
-          <div className="lvtable__wrap">
+          <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Claimed', 'Credited']}>
             <table className="lvtable">
               <thead>
                 <tr>
@@ -1256,7 +1257,7 @@ function CompOffReports({ onOpenRequests }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </PhoneTable>
         )}
 
         <div className="lvfoot">

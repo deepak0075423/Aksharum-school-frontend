@@ -12056,7 +12056,10 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   transition:    background var(--transition), border-color var(--transition), color var(--transition);
 }
 .lvpage:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
-.lvpage.is-on {
+/* The page you are on stays white-on-purple when hovered: the hover rule above
+   outranks a plain `.lvpage.is-on`, and turned its number purple on purple —
+   invisible (Nov 2026, user report). */
+.lvpage.is-on, .lvpage.is-on:hover:not(:disabled) {
   background: var(--primary); border-color: var(--primary); color: #fff;
 }
 .lvpage:disabled { opacity: .4; cursor: not-allowed; }
@@ -12381,6 +12384,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvstep-sec header b { display: block; font-size: .95rem; font-weight: 700; }
 .lvstep-sec header p { font-size: .79rem; color: var(--text-muted); margin-top: 2px; }
 .lvstep-sec__body { display: flex; flex-direction: column; gap: 14px; }
+.lvstar { font-style: normal; font-weight: 700; color: var(--danger); }
 .lvreq { font-style: normal; font-size: .78rem; font-weight: 600; color: var(--danger); }
 .lvopt { font-style: normal; font-size: .78rem; font-weight: 400; color: var(--text-muted); }
 .lvfield__label i { font-style: normal; color: var(--danger); }
@@ -12458,6 +12462,27 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvdrop.is-set > svg { color: var(--success); }
 .lvdrop.is-set .lvdrop__text b { color: var(--text); }
 .lvdrop.is-error { border-color: var(--danger); background: #fef2f2; }
+/* With a file chosen the box is no longer one big target: the input steps back
+   so Replace / Remove are what the teacher clicks (Replace opens the same input). */
+.lvdrop.is-set input { pointer-events: none; }
+.lvdrop.is-set .lvdrop__text { min-width: 0; flex: 1; }
+.lvdrop.is-set .lvdrop__text b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvdrop__acts { display: flex; gap: 8px; flex-shrink: 0; position: relative; z-index: 1; }
+.lvdrop__btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface, #fff);
+  color: var(--text); font-size: .8rem; font-weight: 600; cursor: pointer;
+}
+.lvdrop__btn:hover { border-color: var(--primary); color: var(--primary); }
+.lvdrop__btn--del { color: var(--danger); }
+.lvdrop__btn--del:hover { border-color: var(--danger); color: var(--danger); background: #fef2f2; }
+@media (max-width: 560px) {
+  .lvdrop.is-set { flex-wrap: wrap; }
+  .lvdrop.is-set .lvdrop__text { flex-basis: calc(100% - 40px); }
+  .lvdrop__acts { width: 100%; }
+  .lvdrop__btn { flex: 1; justify-content: center; }
+}
 
 /* ── The balance panel ───────────────────────────────────────────────────── */
 .lvring { display: flex; align-items: center; gap: 14px; }
@@ -12816,7 +12841,11 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   display: inline-flex; align-items: center; gap: 8px;
   font-size: .84rem; cursor: pointer;
 }
-.lvcheckitem input, .lvcheck input {
+/* The checkbox only. This read `.lvcheck input`, which also caught the number
+   box shown under a rule once it is ticked ("Max encashable days", "Back-dated
+   within (days)" …) and shrank each to a 30×20 sliver nobody could type into
+   (Nov 2026, user report). */
+.lvcheckitem > input[type="checkbox"], .lvcheck > label > input[type="checkbox"] {
   width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0;
 }
 .lvcheck { display: flex; flex-direction: column; }
@@ -13128,6 +13157,13 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .lvcardhead__acts { width: 100%; align-items: stretch; }
   .lvcardhead__acts .btn { flex: 1; justify-content: center; }
   .lvheadfield, .lvsplit { flex: 1 1 100%; }
+  /* A labelled field stacks its label over the box (a column), so the row
+     rule's 160px basis above would become the box's HEIGHT — the 160px-tall
+     year / department selects on Allocations, Balance Summary and Reports. */
+  .lvheadfield > .lvsel { flex: 0 0 auto; width: 100%; }
+  /* Its label would push it below an unlabelled box sharing the row (Reports),
+     so the labelled field takes a row of its own. */
+  .lvsection__acts .lvheadfield { flex-basis: 100%; }
   .lvsplit__main { flex: 1; justify-content: center; }
 }
 @media (max-width: 768px) {
@@ -13136,6 +13172,63 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 @media (max-width: 560px) {
   .lvstats, .lvstats--4 { grid-template-columns: 1fr; }
   .lvfoot  { justify-content: center; }
+}
+
+/* ── Leave on a phone: nothing scrolls sideways ─────────────────────────────
+   The section strip wraps into a two-column grid instead of scrolling (the
+   shared phone rule sets pill strips to nowrap), and every table drawn through
+   PhoneTable becomes a stack of cards: heading + status, a few label/value
+   lines, then the row's own actions — its eye opens the whole record. */
+@media (max-width: 640px) {
+  .uitabs.lvtabs-main {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible; gap: 8px;
+  }
+  .uitabs.lvtabs-main .uitab { justify-content: center; padding: 9px 8px; font-size: .82rem; min-width: 0; }
+  .uitabs.lvtabs-main .uitab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .lvph.lvtable__wrap { overflow: visible; }
+  .lvph .lvtable, .lvph .lvtable > tbody { display: block; width: 100%; }
+  .lvph .lvtable > thead { display: none; }
+  .lvph .lvtable > tbody > tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+    margin: 0 12px 12px; padding: 14px;
+    border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .lvph .lvtable > tbody > tr:first-child { margin-top: 12px; }
+  .lvph .lvtable > tbody > tr:hover { background: var(--bg-card, #fff); }
+  .lvph .lvtable > tbody > tr > td {
+    display: none; padding: 0; border: 0; max-width: none; width: auto;
+    font-size: .84rem; text-align: left; white-space: normal;
+  }
+  /* Heading: the person or the type, taking the row beside the status. */
+  .lvph .lvtable > tbody > tr > td.lvph-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
+  .lvph .lvtable > tbody > tr > td.lvph-title b { white-space: normal; overflow-wrap: anywhere; }
+  .lvph .lvtable > tbody > tr > td.lvph-side  { display: block; order: 2; flex: 0 0 auto; }
+  .lvph .lvtable > tbody > tr > td.lvt-tick   { display: block; order: 0; flex: 0 0 auto; }
+  /* The label/value lines. */
+  .lvph .lvtable > tbody > tr > td.lvph-keep {
+    display: flex; order: 3; width: 100%; align-items: flex-start; justify-content: space-between; gap: 14px;
+    padding-top: 8px; border-top: 1px dashed var(--border);
+  }
+  .lvph .lvtable > tbody > tr > td.lvph-keep::before {
+    content: attr(data-label); flex-shrink: 0;
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); padding-top: 2px;
+  }
+  .lvph .lvtable > tbody > tr > td.lvph-keep > * { min-width: 0; text-align: right; }
+  .lvph .lvtable > tbody > tr > td.lvph-keep .lvperiod span,
+  .lvph .lvtable > tbody > tr > td.lvph-keep .lvtype b { white-space: normal; }
+  /* The row's actions (its eye opens everything the card leaves out). */
+  .lvph .lvtable > tbody > tr > td.lvt-acts {
+    display: block; order: 4; width: 100%;
+    padding-top: 10px; border-top: 1px solid var(--border);
+  }
+  .lvph .lvtable > tbody > tr > td.lvt-acts .lvrowacts,
+  .lvph .lvtable > tbody > tr > td.lvt-acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
+  .lvph .lvtable > tbody > tr > td.lvt-acts .lvacts { flex: 1; }
+  .lvph .lvtable > tbody > tr > td.lvt-acts .lvacts .lvbtn { flex: 1; justify-content: center; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
