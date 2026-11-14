@@ -28,6 +28,7 @@ import Icon from '../../../components/ui/icons';
 import MemberPicker from '../../../components/library/MemberPicker';
 import { ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import BookDialog from './bookDialog';
+import { copyErrors, noSignKeys, todayIso } from './bookRules';
 import {
   BookHero, CopyStatus, Facts, LoanStatus, Panel, QuickActions, RelatedBooks,
   StockBar, Tabs, Who, authorsOf, fmtDate, stateOf,
@@ -94,6 +95,9 @@ export default function LibraryBookDetail() {
     const count = Number(addForm.count);
     if (!Number.isInteger(count) || count < 1 || count > 100)
       return toast.error('Enter a number of copies between 1 and 100');
+    // The same checks as the Add Book form and the server (bookRules.js).
+    const found = Object.values(copyErrors(addForm));
+    if (found.length) return toast.error(found[0]);
     setSaving(true);
     try {
       const res = await addCopies(id, { ...addForm, count, cost: addForm.cost === '' ? 0 : Number(addForm.cost) });
@@ -113,6 +117,8 @@ export default function LibraryBookDetail() {
 
   const handleEditCopy = async (e) => {
     e.preventDefault();
+    const found = Object.values(copyErrors(editForm));
+    if (found.length) return toast.error(found[0]);
     setSaving(true);
     try {
       await updateCopy(id, editCopy._id, editForm);
@@ -568,13 +574,13 @@ export default function LibraryBookDetail() {
             </div>
             <div className="form-group">
               <label className="form-label">Rack location</label>
-              <input data-text="title" className="form-control" placeholder="e.g. A-01" value={addForm.rackLocation}
+              <input data-text="code" maxLength={30} className="form-control" placeholder="e.g. A-01" value={addForm.rackLocation}
                 onChange={(e) => setAddForm((f) => ({ ...f, rackLocation: e.target.value }))} />
             </div>
           </div>
           <div className="form-group">
             <label className="form-label">Acquisition date</label>
-            <input type="date" className="form-control" value={addForm.acquisitionDate}
+            <input type="date" className="form-control" max={todayIso()} value={addForm.acquisitionDate}
               onChange={(e) => setAddForm((f) => ({ ...f, acquisitionDate: e.target.value }))} />
           </div>
 
@@ -582,7 +588,7 @@ export default function LibraryBookDetail() {
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Vendor</label>
-              <input data-text="title" className="form-control" placeholder="Who it was bought from" value={addForm.vendor}
+              <input data-text="title" maxLength={100} className="form-control" placeholder="e.g. Sapna Book House" value={addForm.vendor}
                 onChange={(e) => setAddForm((f) => ({ ...f, vendor: e.target.value }))} />
             </div>
             <div className="form-group">
@@ -593,7 +599,7 @@ export default function LibraryBookDetail() {
           </div>
           <div className="form-group">
             <label className="form-label">Cost per copy (₹)</label>
-            <input type="number" className="form-control" min={0} step="0.01" value={addForm.cost}
+            <input type="number" className="form-control" min={0} max={1000000} step="0.01" onKeyDown={noSignKeys} value={addForm.cost}
               onChange={(e) => setAddForm((f) => ({ ...f, cost: e.target.value }))} />
             <div className="form-hint">Recorded against every copy in this batch.</div>
           </div>
@@ -616,14 +622,14 @@ export default function LibraryBookDetail() {
             </div>
             <div className="form-group">
               <label className="form-label">Rack location</label>
-              <input data-text="title" className="form-control" placeholder="e.g. A-01" value={editForm.rackLocation}
+              <input data-text="code" maxLength={30} className="form-control" placeholder="e.g. A-01" value={editForm.rackLocation}
                 onChange={(e) => setEditForm((f) => ({ ...f, rackLocation: e.target.value }))} />
             </div>
           </div>
           <div className="form-row form-row-2">
             <div className="form-group">
               <label className="form-label">Vendor</label>
-              <input data-text="title" className="form-control" value={editForm.vendor || ''}
+              <input data-text="title" maxLength={100} className="form-control" placeholder="e.g. Sapna Book House" value={editForm.vendor || ''}
                 onChange={(e) => setEditForm((f) => ({ ...f, vendor: e.target.value }))} />
             </div>
             <div className="form-group">
@@ -634,7 +640,7 @@ export default function LibraryBookDetail() {
           </div>
           <div className="form-group">
             <label className="form-label">Cost (₹)</label>
-            <input type="number" className="form-control" min={0} step="0.01" value={editForm.cost ?? ''}
+            <input type="number" className="form-control" min={0} max={1000000} step="0.01" onKeyDown={noSignKeys} value={editForm.cost ?? ''}
               onChange={(e) => setEditForm((f) => ({ ...f, cost: e.target.value }))} />
           </div>
         </form>

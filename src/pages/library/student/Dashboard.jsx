@@ -19,7 +19,7 @@ import useFetch from '../../../hooks/useFetch';
 import { teacherLibDashboard, studentDashboard, getDashboard } from '../../../api/library.api';
 import { Spinner } from '../../../components/ui/index';
 import {
-  LibHero, Fig, Panel, ViewAll, Action, LoanTable, Activity, Categories, rupees,
+  LibHero, Fig, Panel, ViewAll, LoanTable, Activity, Categories, rupees,
 } from './dashboardParts';
 
 // LibraryIssuance.status is issued / overdue / returned / lost. A loan somebody
@@ -165,21 +165,8 @@ export default function LibraryMemberDashboard() {
 
       <div className="liblg-grid">
         <div className="liblg-col">
-          <Panel icon="activity" tone="indigo" title="Quick Actions">
-            <div className="liblg-acts-grid">
-              <Action to={`${base}/search`} icon="search" tone="blue"
-                label="Search Books" sub="Find books in library" />
-              <Action to={`${base}/my-books`} icon="bookOpen" tone="green"
-                label="My Books" sub="View issued books" />
-              <Action to={`${base}/my-fines`} icon="banknote" tone="amber"
-                label="My Fines" sub="Check pending fines" />
-              {runsLibrary && (
-                <Action to="/teacher/manage-library/dashboard" icon="settings" tone="violet"
-                  label="Manage Library" sub="Add, update books" />
-              )}
-            </div>
-          </Panel>
-
+          {/* No "Quick Actions" block: it repeated the tab strip above (Search
+              Books, My Books, My Fines), and Manage Library is in the sidebar. */}
           <Panel icon="bookOpen" tone="indigo"
             title={runsLibrary ? 'Currently Issued Books' : 'My Issued Books'}
             action={<ViewAll to={runsLibrary ? '/teacher/manage-library/circulation' : `${base}/my-books`} />}>

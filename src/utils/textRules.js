@@ -23,6 +23,9 @@
  *            description): English letters, digits, spaces and . , ' - ( ) /
  *   code     an ID or a number with letters — admission number, employee ID,
  *            room number, a reference: English letters, digits and - / _ .
+ *   author   one or more people's names, comma separated (a book's authors):
+ *            English letters, spaces and . ' - ,
+ *   isbn     an ISBN as printed: digits, hyphens, spaces and X (no sign)
  *   upper    capital letters and digits (a vehicle registration); small
  *            letters typed become capitals
  *   digits   digits only
@@ -71,6 +74,8 @@ export const KINDS = {
   words:   { keep: /[^A-Za-z0-9 ]/g, ok: /^[A-Za-z][A-Za-z0-9 ]*$/, msg: (l) => `${l} must start with a letter and can only have English letters, numbers and spaces` },
   sentence: { keep: /[^A-Za-z0-9 .,'()/-]/g, ok: /^[A-Za-z0-9][A-Za-z0-9 .,'()/-]*$/, msg: (l) => `${l} must start with a letter or a number and can only have English letters, numbers, spaces and . , ' - ( ) /` },
   code:    { keep: /[^A-Za-z0-9/._-]/g, ok: /^[A-Za-z0-9/._-]+$/, msg: (l) => `${l} can only have English letters, numbers and - / _ .` },
+  author:  { keep: /[^A-Za-z .,'-]/g, ok: /^[A-Za-z][A-Za-z .,'-]*$/, msg: (l) => `${l} can only have English letters, spaces and . ' - (commas between names)` },
+  isbn:    { keep: /[^0-9Xx -]/g, ok: /^[0-9Xx -]+$/, msg: (l) => `${l} can only have digits, hyphens, spaces and X` },
   upper:   { upper: true, keep: /[^A-Z0-9]/g, ok: /^[A-Z0-9]+$/, msg: (l) => `${l} can only have capital letters and numbers` },
   digits:  { keep: /[^0-9]/g, ok: /^[0-9]+$/, msg: (l) => `${l} can only have numbers` },
   decimal: { keep: /[^0-9.]/g, oneDot: true, ok: /^(\d+\.?\d*|\.\d+)$/, msg: (l) => `${l} must be a number` },

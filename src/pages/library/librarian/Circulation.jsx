@@ -8,12 +8,12 @@
  * the search box — travels with the request. The list is paginated, so
  * filtering in the browser would narrow one page and quietly hide the rest.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import {
-  getIssuances, getBook, returnBook, renewBook, bulkRenew, scanCopy, getClassList, downloadFile,
+  getIssuances, getBook, returnBook, renewBook, bulkRenew, scanCopy, searchCopies, getClassList, downloadFile,
 } from '../../../api/library.api';
 import { Button, Modal, Spinner, Alert } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
@@ -173,20 +173,60 @@ export default function LibraryCirculation() {
   const [scanCode,  setScanCode]  = useState('');
   const [scanned,   setScanned]   = useState(null);
   const [scanBusy,  setScanBusy]  = useState(false);
+  const [scanMiss,  setScanMiss]  = useState('');      // typed text that matched no copy
+  const [matches,   setMatches]   = useState(null);    // { q, list, total } while typing
+  const lastScan = useRef('');                         // the code last looked up
 
-  const openScan = () => { setScanned(null); setScanCode(''); setScanModal(true); };
+  const openScan = () => { setScanned(null); setScanCode(''); setScanMiss(''); setMatches(null); lastScan.current = ''; setScanModal(true); };
+  const clearScan = () => { setScanned(null); setScanCode(''); setScanMiss(''); setMatches(null); lastScan.current = ''; };
 
-  const handleScan = async (e) => {
-    e.preventDefault();
-    const code = scanCode.trim();
-    if (!code) return;
-    setScanBusy(true);
+  // One lookup per distinct code. `quiet` is the as-you-type lookup: a code
+  // still being typed says so under the field instead of toasting an error at
+  // every pause.
+  const lookupScan = async (raw, { quiet = false } = {}) => {
+    const code = String(raw || '').trim();
+    if (!code || code === lastScan.current) return;
+    lastScan.current = code;
+    setScanBusy(true); setScanMiss('');
     try {
       const res = await scanCopy(code);
       setScanned(res?.data || null);
-      setScanCode('');
-    } catch (err) { setScanned(null); toast.error(err?.message || 'Copy not found'); }
-    finally { setScanBusy(false); }
+    } catch (err) {
+      setScanned(null);
+      if (quiet) setScanMiss(code); else toast.error(err?.message || 'Copy not found');
+    } finally { setScanBusy(false); }
+  };
+
+  // Typing searches by itself once there are more than 3 characters and the
+  // typing pauses — for PART of a code too: "LIB-COPY" lists every copy whose
+  // code (or book title / ISBN) contains it. An exact code goes straight to
+  // that copy's next move; a scanner's Enter (below) looks up at once.
+  useEffect(() => {
+    if (!scanModal) return undefined;
+    const text = scanCode.trim();
+    if (text.length <= 3) { setScanMiss(''); setMatches(null); return undefined; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      try {
+        const res = await searchCopies(text);
+        if (!alive) return;
+        const list = res?.data || [];
+        const exact = list.find((m) => m.uniqueCode.toLowerCase() === text.toLowerCase());
+        if (exact) { setMatches(null); lookupScan(exact.uniqueCode, { quiet: true }); return; }
+        setScanned(null); lastScan.current = '';
+        setMatches({ q: text, list, total: res?.total ?? list.length });
+        setScanMiss(list.length ? '' : text);
+      } catch { if (alive) setMatches(null); }
+    }, 350);
+    return () => { alive = false; clearTimeout(t); };
+  }, [scanCode, scanModal]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pickMatch = (m) => { setMatches(null); setScanCode(m.uniqueCode); lookupScan(m.uniqueCode); };
+  const handleScan = (e) => {
+    e.preventDefault();
+    // Enter on a list of exactly one copy takes that copy.
+    if (matches?.list?.length === 1) return pickMatch(matches.list[0]);
+    lookupScan(scanCode);
   };
 
   // Scanned a book somebody has out — the desk's next move is a return.
@@ -196,7 +236,7 @@ export default function LibraryCirculation() {
       const res = await returnBook({ issuanceId: scanned.issuance._id, condition });
       const fine = res?.data?.fine;
       toast.success(fine ? `Returned — ₹${fine.amount} fine raised` : 'Book returned');
-      setScanned(null); setScanCode(''); refetch();
+      clearScan(); refetch();
     } catch (err) { toast.error(err?.message || 'Could not record the return'); }
     finally { setScanBusy(false); }
   };
@@ -386,13 +426,46 @@ export default function LibraryCirculation() {
         footer={<Button variant="secondary" onClick={() => setScanModal(false)}>Close</Button>}>
         <form onSubmit={handleScan}>
           <div className="form-group">
-            <label className="form-label">Copy code</label>
-            <input data-text="code" className="form-control" autoFocus value={scanCode}
-              placeholder="Scan the spine label, or type LIB-COPY-000042"
-              onChange={e => setScanCode(e.target.value)} />
-            <div className="form-hint">The scanner submits on its own — no need to press anything.</div>
+            <label className="form-label" htmlFor="lib-scan-code">Copy code</label>
+            <span className="libc-search libc-search--scan">
+              <Icon name="search" size={16} />
+              <input id="lib-scan-code" data-text="title" className="form-control" autoFocus value={scanCode}
+                autoComplete="off"
+                placeholder="Scan the spine label, or type part of a code — LIB-COPY…"
+                onChange={e => setScanCode(e.target.value)} />
+              {scanCode && (
+                <button type="button" onClick={clearScan} aria-label="Clear code">
+                  <Icon name="close" size={14} />
+                </button>
+              )}
+            </span>
+            {scanMiss
+              ? <div className="form-hint libc-scan-miss">No copy matches “{scanMiss}” — check the label, or try part of the code or the title.</div>
+              : <div className="form-hint">Type more than 3 characters of a copy code (or a title / ISBN) to list matching copies. A scanner submits on its own.</div>}
           </div>
         </form>
+
+        {/* Every copy matching what has been typed so far; pick one to act on it. */}
+        {matches?.list?.length > 0 && !scanned && (
+          <div className="libc-scan-list" role="listbox" aria-label="Matching copies">
+            <div className="libc-scan-list__head">
+              {matches.total > matches.list.length
+                ? `First ${matches.list.length} of ${matches.total} copies matching “${matches.q}” — type more to narrow`
+                : `${matches.total} cop${matches.total === 1 ? 'y' : 'ies'} matching “${matches.q}”`}
+            </div>
+            {matches.list.map((m) => (
+              <button key={m._id} type="button" role="option" aria-selected="false" className="libc-scan-item" onClick={() => pickMatch(m)}>
+                <span className="libc-scan-item__main">
+                  <b>{m.uniqueCode}</b>
+                  <small>{m.title}{m.rackLocation ? ` · ${m.rackLocation}` : ''}</small>
+                </span>
+                <span className={`libc-scan-item__state is-${m.status}`}>
+                  {m.holder ? `Out · ${m.holder}` : m.status}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {scanBusy && <div style={{ padding:16, display:'flex', justifyContent:'center' }}><Spinner /></div>}
 

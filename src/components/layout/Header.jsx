@@ -6,6 +6,7 @@ import { getInbox, markAllRead, markOneRead, clearAll, getUnreadCount } from '..
 import { connectSocket, disconnectSocket, onSocketState, socketState } from '../../socket';
 import toast from 'react-hot-toast';
 import { Modal } from '../ui/index';
+import { roleTitle } from '../../utils/roleTitle';
 import { notificationIconUrl } from '../../utils/branding';
 import { notificationPath, hasTarget } from '../../utils/notificationLink';
 import { enableWebPush, isWebPushOn } from '../../utils/webPush';
@@ -387,7 +388,7 @@ export default function Header({ onMenuClick, onCollapseClick }) {
             </span>
             <span className="header__user-text">
               <span className="header__user-name">{user?.name}</span>
-              <span className="header__user-role">{user?.role?.replace('_', ' ')}</span>
+              <span className="header__user-role">{roleTitle(user)}</span>
             </span>
             <Icon name="chevronDown" size={15} className="header__user-caret" />
           </button>
@@ -396,8 +397,8 @@ export default function Header({ onMenuClick, onCollapseClick }) {
             <div className="dropdown-menu">
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{user?.name}</div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                  {user?.role?.replace('_', ' ')}
+                <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
+                  {roleTitle(user)}
                   {user?.school?.name ? ` · ${user.school.name}` : ''}
                 </div>
               </div>

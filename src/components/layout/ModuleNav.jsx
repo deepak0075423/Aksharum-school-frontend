@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import Tabs from '../ui/Tabs';
 
 /**
@@ -17,7 +17,14 @@ import Tabs from '../ui/Tabs';
  * tabs: [{ to: '/admin/fees/dashboard', label: 'Dashboard', end?: true }]
  * size: 'compact' for the tighter 33px pills a module's mockups draw (Hostel).
  */
-export default function ModuleNav({ tabs, nowrap = false, size, className = '' }) {
+export default function ModuleNav({ tabs, nowrap = false, size, className = '', keepQuery = [] }) {
+  // Parameters that describe WHO the module is showing (a parent's ?child=)
+  // ride along on every tab, so moving between sections keeps the same person.
+  const { search } = useLocation();
+  const kept = new URLSearchParams();
+  const now = new URLSearchParams(search);
+  keepQuery.forEach((k) => { if (now.get(k)) kept.set(k, now.get(k)); });
+  const tail = kept.toString() ? `?${kept}` : '';
   // A rail with one pill in it is not navigation — there is nowhere else to
   // go. The module with a single section (the teacher's Inventory) gets its
   // page's own heading straight under the breadcrumb instead.
@@ -30,7 +37,7 @@ export default function ModuleNav({ tabs, nowrap = false, size, className = '' }
             `nowrap` keeps a module's sections on one scrolling row, which is
             how the Inventory redesign's mockups draw them. */}
         <Tabs variant="pill" label="Module sections" wrap={!nowrap} size={size}
-          items={tabs.map(t => ({ ...t, label: t.label.replace(/^[^A-Za-z]+/, '') }))} />
+          items={tabs.map(t => ({ ...t, to: t.to && tail ? `${t.to}${tail}` : t.to, label: t.label.replace(/^[^A-Za-z]+/, '') }))} />
       </div>
       <Outlet />
     </>

@@ -261,6 +261,13 @@ export default function LibraryFines() {
         quote={heroQuote} />
 
       <div className="libd-tiles">
+        {/* The year's takings at a glance: everything collected in the
+            current academic year, not just this month. */}
+        <Tile icon="banknote" tone="blue" to={`${pathname}?status=paid`}
+          value={money(stats.collectedYear)} label="Total fines"
+          caption={stats.yearName ? `Collected in ${stats.yearName}` : 'Collected in total'}
+          trend={note(`${stats.collectedYearCount ?? 0} fine${stats.collectedYearCount === 1 ? '' : 's'} paid`)} />
+
         <Tile icon="wallet" tone={stats.outstanding ? 'pink' : 'green'} to={`${pathname}?status=pending`}
           value={money(stats.outstanding)} label="Outstanding"
           caption={stats.unpaidCount
@@ -382,10 +389,7 @@ export default function LibraryFines() {
           against.
         </p>
 
-        <div className="form-group">
-          <label className="form-label required">Member</label>
-          <MemberPicker placeholder="Search students and staff…" value={addUser} onChange={setAddUser} />
-        </div>
+        <MemberPicker placeholder="Search students and staff…" value={addUser} onChange={setAddUser} />
 
         <div className="form-group">
           <label className="form-label required">Which loan</label>

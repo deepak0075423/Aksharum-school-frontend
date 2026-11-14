@@ -26,14 +26,15 @@ import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import { useAuth } from '../../../contexts/AuthContext';
 import { listReports, runReport, remindOverdue, downloadFile } from '../../../api/library.api';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import { Alert, Button, Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import {
-  ListTable, ListFooter, RowActions, RowMenu, MenuItem, SelectionBar, useSelection,
+  ListTable, ListFooter, RowActions, RowMenu, MenuItem, SelectionBar, useSelection, IconAction,
 } from '../../admin/listParts';
 import { Hero, Tile, delta, note, quoteOfTheDay } from './dashParts';
 import {
-  Cell, Chip, FilterBar, PrintHead, Rail, RangePicker, SummaryStrip,
+  Cell, Chip, FilterBar, PrintHead, Rail, RangePicker, SummaryStrip, ReportRowDrawer, keyColumnsOf,
   fmtDate, money, rangeFor, today, words,
 } from './reportParts';
 
@@ -185,10 +186,14 @@ export default function LibraryReports() {
     );
   };
 
-  const [reminding, setReminding] = useState(false);
-  const remind = async (ids) => {
+  // Which loans are being reminded right now. One flag for the whole table
+  // made every row's button spin when one was pressed — it looked as if two
+  // members (or all of them) were being chased.
+  const [remindingIds, setRemindingIds] = useState([]);
+  const reminding = remindingIds.length > 0;
+  const remind = async (ids, { keepSelection = false } = {}) => {
     if (!ids.length) return;
-    setReminding(true);
+    setRemindingIds(ids.map(String));
     try {
       const res = await remindOverdue(ids);
       if (res?.sent) toast.success(`Reminder sent for ${res.sent} loan${res.sent === 1 ? '' : 's'}`);
@@ -196,16 +201,21 @@ export default function LibraryReports() {
       // saying so is better than quietly sending nothing.
       (res?.skipped || []).forEach((s) => toast(`${s.title} — ${s.reason}`, { icon: 'ℹ️' }));
       if (!res?.sent && !res?.skipped?.length) toast('Nothing to send', { icon: 'ℹ️' });
-      selection.clear();
+      if (!keepSelection) selection.clear();
     } catch (err) {
       toast.error(err?.message || 'The reminder could not be sent');
-    } finally { setReminding(false); }
+    } finally { setRemindingIds([]); }
   };
 
   // ── Columns ──────────────────────────────────────────────────────────────
+  // The row in the details panel.
+  const [viewRow, setViewRow] = useState(null);
+  const keyCols = useMemo(() => keyColumnsOf(report?.key, columns), [report?.key, columns]);
+
   const tableColumns = useMemo(() => {
-    const shown = columns
-      .filter((c) => !c.inline)
+    // Only the report's key columns in the table (they fit the screen); the
+    // eye opens the row with every column.
+    const shown = keyCols
       .map((c) => ({
         key: c.key,
         className: `librep-col is-${c.type}${c.align === 'right' ? ' is-right' : ''}`,
@@ -213,16 +223,30 @@ export default function LibraryReports() {
         render: (row) => <Cell column={c} row={row} />,
       }));
 
-    if (!canRemind) return shown;
+    const eye = (row) => (
+      <IconAction icon="eye" label="View details" onClick={(e) => { e?.stopPropagation?.(); setViewRow(row); }} />
+    );
+    if (!canRemind) {
+      return [...shown, {
+        key: 'actions', className: 'ltable__acts librep-col is-acts', label: 'Actions',
+        render: (row) => <RowActions>{eye(row)}</RowActions>,
+      }];
+    }
     return [...shown, {
       key: 'actions',
       className: 'ltable__acts librep-col is-acts',
       label: 'Actions',
       render: (row) => (
         <RowActions>
-          <Button size="sm" variant="secondary" loading={reminding} onClick={() => remind([row._id])}>
-            <Icon name="mail" size={14} /> Send Reminder
-          </Button>
+          {eye(row)}
+          {/* This row's own reminder: it spins alone, and leaves any ticked
+              rows ticked (it is not a bulk send). */}
+          {/* An icon, not a worded button: the wide button alone pushed the
+              register past the screen. The tooltip says what it does. */}
+          <IconAction icon={remindingIds.includes(String(row._id)) ? 'clock' : 'mail'}
+            label={remindingIds.includes(String(row._id)) ? 'Sending reminder…' : 'Send reminder'}
+            disabled={reminding}
+            onClick={(e) => { e?.stopPropagation?.(); remind([row._id], { keepSelection: true }); }} />
           <RowMenu>
             <MenuItem icon="repeat" to={`${base}/circulation?q=${encodeURIComponent(row.copy || '')}`}>
               Open in circulation
@@ -234,7 +258,7 @@ export default function LibraryReports() {
         </RowActions>
       ),
     }];
-  }, [columns, canRemind, reminding, base]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [keyCols, canRemind, remindingIds, base]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const heroQuote = useMemo(() => quoteOfTheDay(3), []);
   const period = `the previous ${stats.periodDays || 30} days`;
@@ -243,6 +267,7 @@ export default function LibraryReports() {
 
   return (
     <div className="page libdpg libreppg">
+      <ReportRowDrawer report={report} columns={columns} row={viewRow} onClose={() => setViewRow(null)} />
       <Hero
         icon="chart" title="Library Reports"
         tagline="Measure · Explain · Decide"
@@ -303,9 +328,6 @@ export default function LibraryReports() {
               <Button variant="secondary" size="sm" onClick={exportSheet} disabled={!ready}>
                 <Icon name="download" size={15} /> Export
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => window.print()} disabled={!ready || !rows.length}>
-                <Icon name="files" size={15} /> Print
-              </Button>
             </FilterBar>
 
             {chips.length > 0 && (
@@ -333,21 +355,26 @@ export default function LibraryReports() {
               </div>
             ) : (
               <>
-                <ListTable
-                  columns={tableColumns}
-                  rows={rows}
-                  loading={loading}
-                  selection={canRemind ? selection : undefined}
-                  startIndex={start}
-                  emptyIcon={chips.length ? '🔍' : '✅'}
-                  emptyTitle={chips.length ? 'Nothing matches these filters' : 'Nothing to report'}
-                  emptyMessage={chips.length
-                    ? 'Try a wider period, or clear a filter.'
-                    : 'No rows came back — which, for most of these reports, is good news.'}
-                  emptyAction={chips.length
-                    ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-                    : null}
-                />
+                {/* Cards on a phone: the first key column as the heading, the next
+                    three as lines, the eye for everything else. */}
+                <PhoneCards title={keyCols[0]?.label} side={keyCols.find((c) => c.type === 'status')?.label}
+                  keep={keyCols.slice(1).filter((c) => c.type !== 'status').slice(0, 3).map((c) => c.label)}>
+                  <ListTable
+                    columns={tableColumns}
+                    rows={rows}
+                    loading={loading}
+                    selection={canRemind ? selection : undefined}
+                    startIndex={start}
+                    emptyIcon={chips.length ? '🔍' : '✅'}
+                    emptyTitle={chips.length ? 'Nothing matches these filters' : 'Nothing to report'}
+                    emptyMessage={chips.length
+                      ? 'Try a wider period, or clear a filter.'
+                      : 'No rows came back — which, for most of these reports, is good news.'}
+                    emptyAction={chips.length
+                      ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+                      : null}
+                  />
+                </PhoneCards>
 
                 <ListFooter
                   page={Math.min(page, pages)} pages={pages} total={total}

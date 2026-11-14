@@ -146,7 +146,9 @@ export const TEACHER_NAV = [
     children: sub(PAYROLL_TEACHER_TABS) },
   { to: '/teacher/library', match: '/teacher/library', icon: 'bookOpen', label: 'Library', module: 'library',
     children: sub(LIBRARY_STUDENT_TABS('/teacher')) },
-  { to: '/teacher/manage-library/dashboard', match: '/teacher/manage-library', icon: 'book', label: 'Manage Library', module: 'library', requires: 'isLibrarian',
+  // Shown under "Module Admin" (Sidebar moves it there): it is the library's
+  // admin side, for a teacher whose designation administers the library.
+  { to: '/teacher/manage-library/dashboard', match: '/teacher/manage-library', icon: 'book', label: 'Manage Library', module: 'library', requires: 'isLibrarian', moduleAdmin: true,
     children: sub(LIBRARY_MANAGE_TABS('/teacher/manage-library')) },
   { to: '/teacher/inventory/requests', match: '/teacher/inventory', icon: 'package', label: 'Inventory',   module: 'inventory' },
   { to: '/teacher/videos/books', match: '/teacher/videos',  icon: 'video', label: 'Video Learning', module: 'videoLibrary',

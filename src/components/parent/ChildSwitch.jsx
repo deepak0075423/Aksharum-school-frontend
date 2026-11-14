@@ -27,9 +27,15 @@ export const whereOf = (c) => [
  * Picks the child on screen from `?child=`, falling back to the first. Returns
  * the selected child and a `pick(id)` that writes the choice back to the URL.
  */
+// The child last picked, for this browser tab — so a screen reached without
+// ?child= (a sidebar link, a tab of another module) opens on the same child.
+const LAST_CHILD = 'parent.child';
+const remembered = () => { try { return sessionStorage.getItem(LAST_CHILD) || ''; } catch { return ''; } };
+const remember = (id) => { try { sessionStorage.setItem(LAST_CHILD, String(id)); } catch { /* storage off */ } };
+
 export function useChild(children) {
   const [params, setParams] = useSearchParams();
-  const wanted = params.get('child') || '';
+  const wanted = params.get('child') || remembered();
 
   const child = useMemo(
     () => children.find((c) => String(c._id) === wanted) || children[0] || null,
@@ -37,6 +43,7 @@ export function useChild(children) {
   );
 
   const pick = (id) => {
+    remember(id);
     const next = new URLSearchParams(params);
     next.set('child', String(id));
     setParams(next, { replace: true });

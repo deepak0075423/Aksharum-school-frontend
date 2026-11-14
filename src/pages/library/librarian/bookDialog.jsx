@@ -19,6 +19,7 @@ import { Alert, Button, Modal } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import { fileUrl } from '../../admin/listParts';
 import { EMPTY_BOOK, bookToForm, formToBook } from './booksParts';
+import { bookErrors, copyErrors, noSignKeys, thisYear, todayIso } from './bookRules';
 
 // The languages a school library here actually shelves, plus a way out of the
 // list — the column is free text, so the select must never be a cage.
@@ -56,6 +57,7 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
   const [dup,    setDup]    = useState(null);
   const [newCat, setNewCat] = useState(false);
   const [newLang, setNewLang] = useState(false);
+  const [errors, setErrors] = useState({});   // field → message, shown under the field
   const titleRef = useRef(null);
 
   // The cover: a file waiting to be sent, the path already stored, or neither.
@@ -82,7 +84,10 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
   useEffect(() => {
     if (!open) return;
     const seed = editing ? bookToForm(book) : EMPTY_BOOK;
-    setForm(seed);
+    // Edition is a number now; an older "3rd" opens as 3.
+    const ed = String(seed.edition || '').match(/^\s*(\d{1,3})/);
+    setForm({ ...seed, edition: ed ? ed[1] : '' });
+    setErrors({});
     setExtra(editing ? {
       subjects: (book.subjects || []).join(', '),
       publishedYear: book.publishedYear ?? '',
@@ -102,8 +107,13 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
   // An object URL is a handle on memory; drop it when the preview moves on.
   useEffect(() => () => { if (preview.startsWith('blob:')) URL.revokeObjectURL(preview); }, [preview]);
 
-  const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
-  const setCopy = (key, value) => setStock((s) => ({ ...s, [key]: value }));
+  // Changing a field clears its own message; the rest wait for the next save.
+  const unflag = (key) => setErrors((e) => (e[key] ? { ...e, [key]: '' } : e));
+  const set = (key, value) => { unflag(key); setForm((f) => ({ ...f, [key]: value })); };
+  const setCopy = (key, value) => { unflag(key); setStock((s) => ({ ...s, [key]: value })); };
+  const setExtraField = (key, value) => { unflag(key); setExtra((x) => ({ ...x, [key]: value })); };
+  const bad = (key) => (errors[key] ? ' is-invalid' : '');
+  const Err = ({ k }) => (errors[k] ? <div className="form-error">{errors[k]}</div> : null);
 
   const count = Number(stock.copies);
   const copiesValid = Number.isInteger(count) && count >= 0 && count <= 100;
@@ -146,8 +156,17 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
 
   const save = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) return toast.error('A title is required');
-    if (!editing && !copiesValid) return toast.error('Copies must be a whole number between 0 and 100');
+    // Every field checked before anything is sent — the same rules the server
+    // applies (bookRules.js mirrors services/libraryBookRules.js).
+    const found = {
+      ...bookErrors(form, extra, { oldIsbn: editing ? (book.isbn || '') : null }),
+      ...(!editing && count > 0 && stock.detail ? copyErrors(stock) : {}),
+    };
+    if (!editing && !copiesValid) found.copies = 'Copies must be a whole number from 0 to 100';
+    if (Object.keys(found).length) {
+      setErrors(found);
+      return toast.error(Object.keys(found).length === 1 ? Object.values(found)[0] : 'Fix the fields marked in red');
+    }
 
     const typed = stock.codes.split(/[\n,]/).map((c) => c.trim()).filter(Boolean);
     if (!editing && count > 0 && !stock.autoCodes && typed.length !== count)
@@ -204,7 +223,11 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
       // The server refuses a title that already exists and says which one, so
       // the librarian can go and add copies to it instead of retyping it.
       if (err?.data?.code === 'DUPLICATE_BOOK') setDup({ message: err.message, ...err.data.data });
-      else toast.error(err?.message || 'Could not save the book');
+      else {
+        // The server names the field it refused; put the message under it.
+        if (err?.data?.field) setErrors((x) => ({ ...x, [err.data.field]: err.message }));
+        toast.error(err?.message || 'Could not save the book');
+      }
     } finally { setSaving(false); }
   };
 
@@ -237,7 +260,10 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
             </Button>
           </>
         )}>
-        <form id="book-dialog-form" onSubmit={save} className="libx-grid libbk-grid">
+        {/* noValidate: the browser's own bubble stopped at the first bad box
+            (and in its own words); bookRules checks every field and puts each
+            message under its field instead. */}
+        <form id="book-dialog-form" onSubmit={save} noValidate className="libx-grid libbk-grid">
           {/* ── The record ───────────────────────────────────────────────── */}
           <section className="libx-pane">
             <h4>Book information</h4>
@@ -246,29 +272,33 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label required">Title</label>
-                <input ref={titleRef} className="form-control" required autoFocus maxLength={300}
+                <input ref={titleRef} className={`form-control${bad('title')}`} autoFocus maxLength={300}
                   placeholder="Enter book title" value={form.title}
                   onChange={(e) => set('title', e.target.value)} />
+                <Err k="title" />
               </div>
               <div className="form-group">
                 <label className="form-label">Author(s)</label>
-                <input data-text="title" className="form-control" placeholder="e.g. J.K. Rowling, John Smith"
-                  value={form.authors} onChange={(e) => set('authors', e.target.value)} />
-                <div className="form-hint">Separate several with commas.</div>
+                <input data-text="author" className={`form-control${bad('authors')}`} placeholder="e.g. J.K. Rowling, John Smith"
+                  maxLength={500} value={form.authors} onChange={(e) => set('authors', e.target.value)} />
+                {errors.authors ? <Err k="authors" />
+                  : <div className="form-hint">Letters, spaces and . ' - only. Separate several with commas.</div>}
               </div>
             </div>
 
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label">ISBN</label>
-                <input data-text="code" className="form-control" placeholder="e.g. 9780141439563"
-                  value={form.isbn} onChange={(e) => set('isbn', e.target.value)} />
-                <div className="form-hint">10 or 13 digits. Hyphens and spaces are fine.</div>
+                <input data-text="isbn" inputMode="numeric" maxLength={17} className={`form-control${bad('isbn')}`}
+                  placeholder="e.g. 9780141439563" value={form.isbn} onChange={(e) => set('isbn', e.target.value)} />
+                {errors.isbn ? <Err k="isbn" />
+                  : <div className="form-hint">10 or 13 digits (an ISBN-10 may end in X). Hyphens and spaces are fine.</div>}
               </div>
               <div className="form-group">
                 <label className="form-label">Publisher</label>
-                <input data-text="title" className="form-control" placeholder="e.g. Bloomsbury"
-                  value={form.publisher} onChange={(e) => set('publisher', e.target.value)} />
+                <input data-text="title" className={`form-control${bad('publisher')}`} placeholder="e.g. Bloomsbury"
+                  maxLength={150} value={form.publisher} onChange={(e) => set('publisher', e.target.value)} />
+                <Err k="publisher" />
               </div>
             </div>
 
@@ -276,8 +306,8 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               <div className="form-group">
                 <label className="form-label">Category</label>
                 {newCat || !chosenCategories.length ? (
-                  <input data-text="title" className="form-control" placeholder="e.g. Fiction" value={form.category}
-                    onChange={(e) => set('category', e.target.value)} />
+                  <input data-text="title" className={`form-control${bad('category')}`} placeholder="e.g. Fiction" value={form.category}
+                    maxLength={60} onChange={(e) => set('category', e.target.value)} />
                 ) : (
                   <select className="form-control" value={form.category}
                     onChange={(e) => {
@@ -289,13 +319,14 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
                     <option value="__new">＋ New category…</option>
                   </select>
                 )}
+                <Err k="category" />
               </div>
               <div className="form-group">
                 <label className="form-label">Subjects / Tags</label>
-                <input data-text="title" className="form-control" placeholder="e.g. Fantasy, Adventure, Magic"
-                  value={extra.subjects}
-                  onChange={(e) => setExtra((x) => ({ ...x, subjects: e.target.value }))} />
-                <div className="form-hint">Keywords separated by commas — up to 20.</div>
+                <input data-text="title" className={`form-control${bad('subjects')}`} placeholder="e.g. Fantasy, Adventure, Magic"
+                  value={extra.subjects} onChange={(e) => setExtraField('subjects', e.target.value)} />
+                {errors.subjects ? <Err k="subjects" />
+                  : <div className="form-hint">Keywords separated by commas — up to 20.</div>}
               </div>
             </div>
 
@@ -303,8 +334,8 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
               <div className="form-group">
                 <label className="form-label">Language</label>
                 {newLang ? (
-                  <input data-text="letters" className="form-control" placeholder="Language" value={form.language}
-                    onChange={(e) => set('language', e.target.value)} />
+                  <input data-text="letters" className={`form-control${bad('language')}`} placeholder="Language" value={form.language}
+                    maxLength={40} onChange={(e) => set('language', e.target.value)} />
                 ) : (
                   <select className="form-control" value={form.language}
                     onChange={(e) => {
@@ -315,33 +346,39 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
                     <option value="__new">Another language…</option>
                   </select>
                 )}
+                <Err k="language" />
               </div>
               <div className="form-group">
                 <label className="form-label">Edition</label>
-                <input data-text="title" className="form-control" placeholder="e.g. 3rd" value={form.edition}
+                <input type="number" className={`form-control${bad('edition')}`} placeholder="e.g. 3"
+                  min={1} max={999} step={1} value={form.edition} onKeyDown={noSignKeys}
                   onChange={(e) => set('edition', e.target.value)} />
-                <div className="form-hint">Two editions of one title are two catalogue entries.</div>
+                {errors.edition ? <Err k="edition" />
+                  : <div className="form-hint">The edition number — 3 for the 3rd edition. Two editions are two catalogue entries.</div>}
               </div>
             </div>
 
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label className="form-label">Publication year</label>
-                <input type="number" className="form-control" placeholder="e.g. 1998"
-                  min={1450} max={new Date().getFullYear() + 1} step={1} value={extra.publishedYear}
-                  onChange={(e) => setExtra((x) => ({ ...x, publishedYear: e.target.value }))} />
+                <input type="number" className={`form-control${bad('publishedYear')}`} placeholder={`e.g. ${thisYear() - 5}`}
+                  min={1450} max={thisYear()} step={1} value={extra.publishedYear} onKeyDown={noSignKeys}
+                  onChange={(e) => setExtraField('publishedYear', e.target.value)} />
+                {errors.publishedYear ? <Err k="publishedYear" />
+                  : <div className="form-hint">This year ({thisYear()}) or earlier.</div>}
               </div>
               <div className="form-group">
                 <label className="form-label">Number of pages</label>
-                <input type="number" className="form-control" placeholder="e.g. 341"
-                  min={1} max={20000} step={1} value={extra.pages}
-                  onChange={(e) => setExtra((x) => ({ ...x, pages: e.target.value }))} />
+                <input type="number" className={`form-control${bad('pages')}`} placeholder="e.g. 341"
+                  min={1} max={20000} step={1} value={extra.pages} onKeyDown={noSignKeys}
+                  onChange={(e) => setExtraField('pages', e.target.value)} />
+                <Err k="pages" />
               </div>
             </div>
 
             <div className="form-group">
               <label className="form-label">Description</label>
-              <textarea className="form-control" rows={4} maxLength={1000} value={form.description}
+              <textarea className={`form-control${bad('description')}`} rows={4} maxLength={1000} value={form.description}
                 placeholder="Enter a short description about the book…"
                 onChange={(e) => set('description', e.target.value)} />
               <div className="form-hint libx-count">{(form.description || '').length}/1000</div>
@@ -394,9 +431,10 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
 
                   <div className="form-group">
                     <label className="form-label required">Number of copies</label>
-                    <input type="number" className="form-control" min={0} max={100} step={1}
-                      value={stock.copies}
+                    <input type="number" className={`form-control${bad('copies')}`} min={0} max={100} step={1}
+                      value={stock.copies} onKeyDown={noSignKeys}
                       onChange={(e) => setCopy('copies', e.target.value === '' ? '' : Number(e.target.value))} />
+                    <Err k="copies" />
                   </div>
 
                   {count === 0 ? (
@@ -449,32 +487,38 @@ export default function BookDialog({ open, book, categories = [], onClose, onSav
                             </div>
                             <div className="form-group">
                               <label className="form-label">Rack</label>
-                              <input data-text="title" className="form-control" placeholder="e.g. A-01" value={stock.rackLocation}
-                                onChange={(e) => setCopy('rackLocation', e.target.value)} />
+                              <input data-text="code" className={`form-control${bad('rackLocation')}`} placeholder="e.g. A-01" value={stock.rackLocation}
+                                maxLength={30} onChange={(e) => setCopy('rackLocation', e.target.value)} />
+                              <Err k="rackLocation" />
                             </div>
                           </div>
                           <div className="form-row form-row-2">
                             <div className="form-group">
                               <label className="form-label">Acquired on</label>
-                              <input type="date" className="form-control" value={stock.acquisitionDate}
-                                onChange={(e) => setCopy('acquisitionDate', e.target.value)} />
+                              <input type="date" className={`form-control${bad('acquisitionDate')}`} value={stock.acquisitionDate}
+                                max={todayIso()} onChange={(e) => setCopy('acquisitionDate', e.target.value)} />
+                              <Err k="acquisitionDate" />
                             </div>
                             <div className="form-group">
                               <label className="form-label">Cost per copy (₹)</label>
-                              <input type="number" className="form-control" min={0} step="0.01" value={stock.cost}
-                                onChange={(e) => setCopy('cost', e.target.value)} />
+                              <input type="number" className={`form-control${bad('cost')}`} min={0} max={1000000} step="0.01" value={stock.cost}
+                                onKeyDown={noSignKeys} onChange={(e) => setCopy('cost', e.target.value)} />
+                              <Err k="cost" />
                             </div>
                           </div>
                           <div className="form-row form-row-2">
                             <div className="form-group">
                               <label className="form-label">Vendor</label>
-                              <input data-text="title" className="form-control" placeholder="Who it was bought from"
-                                value={stock.vendor} onChange={(e) => setCopy('vendor', e.target.value)} />
+                              <input data-text="title" className={`form-control${bad('vendor')}`} placeholder="e.g. Sapna Book House"
+                                maxLength={100} value={stock.vendor} onChange={(e) => setCopy('vendor', e.target.value)} />
+                              {errors.vendor ? <Err k="vendor" />
+                                : <div className="form-hint">The shop or supplier's name.</div>}
                             </div>
                             <div className="form-group">
                               <label className="form-label">Bill number</label>
-                              <input data-text="code" className="form-control" placeholder="Invoice reference"
-                                value={stock.billNumber} onChange={(e) => setCopy('billNumber', e.target.value)} />
+                              <input data-text="code" className={`form-control${bad('billNumber')}`} placeholder="Invoice reference"
+                                maxLength={40} value={stock.billNumber} onChange={(e) => setCopy('billNumber', e.target.value)} />
+                              <Err k="billNumber" />
                             </div>
                           </div>
                         </div>

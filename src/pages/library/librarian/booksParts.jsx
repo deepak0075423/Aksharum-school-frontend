@@ -68,6 +68,8 @@ export const TitleCell = ({ book }) => (
     <Cover book={book} />
     <span>
       <b>{book.title}</b>
+      {/* ISBN under the title — it was a column of its own, and one too many. */}
+      {book.isbn ? <small className="libb-title__isbn">ISBN {book.isbn}</small> : null}
       {book.publisher ? <small>{book.publisher}</small> : null}
     </span>
   </span>

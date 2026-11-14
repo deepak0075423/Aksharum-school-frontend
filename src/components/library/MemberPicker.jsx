@@ -12,7 +12,7 @@ import DropdownPanel, { isInsideDropdown } from '../ui/DropdownPanel';
  * `compact` drops the label and tightens the control so it sits in a filter bar
  * next to the select boxes, rather than as a form field in a modal.
  */
-export default function MemberPicker({ value, onChange, role, label = 'Member', autoFocus, compact = false, placeholder }) {
+export default function MemberPicker({ value, onChange, role, label = 'Member', autoFocus, compact = false, placeholder, hint: note }) {
   const [query,   setQuery]   = useState('');
   const [results, setResults] = useState([]);
   const [open,    setOpen]    = useState(false);
@@ -125,6 +125,9 @@ export default function MemberPicker({ value, onChange, role, label = 'Member', 
           </button>
         ))}
       </DropdownPanel>
+      {/* The field's own note, under it — so a form never wraps the picker in a
+          second labelled group (which printed "Member" twice). */}
+      {!compact && note ? <div className="form-hint">{note}</div> : null}
     </div>
   );
 }

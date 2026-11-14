@@ -213,7 +213,11 @@ export default function Profile() {
             <div style={{ minWidth: 0 }}>
               <div className="ed-hero__name">{user.name}</div>
               <div className="ed-hero__role">
-                {o.designation || <span className="ed-none">{ROLE_LABEL[user.role] || user.role}</span>}
+                {/* A school admin reads as School Admin even with a designation
+                    on file; a teacher or staff member reads as their post. */}
+                {user.role === 'school_admin'
+                  ? (ROLE_LABEL.school_admin || 'School Admin')
+                  : (o.designation || <span className="ed-none">{ROLE_LABEL[user.role] || user.role}</span>)}
                 {o.department ? ` · ${o.department}` : ''}
               </div>
               {o.employeeId !== undefined && (

@@ -14,8 +14,9 @@
  * unreachable.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import useFetch from '../../../hooks/useFetch';
 import {
   getReservations, createReservation, markReservationReady, cancelReservation,
@@ -29,7 +30,7 @@ import {
 } from '../../admin/listParts';
 import { Hero, Tile, delta, note, quoteOfTheDay } from './dashParts';
 import {
-  BookCell, ClassCell, CopyCell, DateRange, ExpiryCell, MemberCell, QueueCell,
+  BookCell, DateRange, ExpiryCell, MemberCell, QueueCell, ReservationDrawer,
   SearchBox, StatusChip, StatusTabs, fmtDate,
 } from './reservationParts';
 
@@ -38,7 +39,6 @@ const LIVE = ['pending', 'ready'];
 
 export default function LibraryReservations() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const base = pathname.replace(/\/reservations$/, '');
 
   // All by default — the queue is only half the story; expired and collected
@@ -113,6 +113,7 @@ export default function LibraryReservations() {
   // re-finding the same book and the same person. The row already knows both,
   // and the server names the copy to give out.
   const [issueItem, setIssueItem] = useState(null);
+  const [viewItem, setViewItem] = useState(null);   // the row in the side panel
   const [issueLoad, setIssueLoad] = useState(false);
   const handIt = async () => {
     setIssueLoad(true);
@@ -189,12 +190,8 @@ export default function LibraryReservations() {
   const columns = [
     { key: 'book',    className: 'libr-col-book',   label: 'Book',        render: (r) => <BookCell row={r} /> },
     { key: 'member',  className: 'libr-col-member', label: 'Reserved by', render: (r) => <MemberCell row={r} /> },
-    { key: 'class',   className: 'libr-col-class',  label: 'Class / role', render: (r) => <ClassCell row={r} /> },
     { key: 'on',      className: 'libr-col-date',   label: 'Reserved on', render: (r) => fmtDate(r.reservedAt || r.createdAt) || '—' },
-    { key: 'ready',   className: 'libr-col-date',   label: 'Ready on',    render: (r) => fmtDate(r.readyAt) || <span className="lnone">—</span> },
     { key: 'expires', className: 'libr-col-date',   label: 'Expires on',  render: (r) => <ExpiryCell row={r} /> },
-    // This is where a held book is handed over, so the row names the copy.
-    { key: 'copy',    className: 'libr-col-copy',   label: 'Copy to give', render: (r) => <CopyCell row={r} /> },
     { key: 'status',  className: 'libr-col-status', label: 'Status',      render: (r) => <StatusChip status={r.status} /> },
     { key: 'queue',   className: 'libr-col-queue',  label: 'Queue #',     render: (r) => <QueueCell row={r} /> },
     {
@@ -206,9 +203,9 @@ export default function LibraryReservations() {
           {LIVE.includes(r.status) && r.availableCopy && (
             <Button size="sm" onClick={() => setIssueItem(r)}>Hand over</Button>
           )}
-          <IconAction icon="eye" label="Open this book"
-            onClick={() => navigate(`${base}/books/${r.book?._id || ''}`)}
-            disabled={!r.book?._id} />
+          {/* The whole record — the member's details and the hold's dates —
+              without the table having to be wide enough to show it all. */}
+          <IconAction icon="eye" label="View details" onClick={() => setViewItem(r)} />
           <RowMenu>
             {/* There is no edit endpoint for a reservation — it is a queue
                 position, not a record to amend — so the menu offers the two
@@ -290,20 +287,23 @@ export default function LibraryReservations() {
           </div>
         </div>
 
-        <ListTable
-          columns={columns}
-          rows={rows}
-          loading={loading}
-          startIndex={start}
-          emptyIcon={anyFilter ? '🔍' : '🔖'}
-          emptyTitle={anyFilter ? 'No reservations match this' : 'Nobody is waiting for anything'}
-          emptyMessage={anyFilter
-            ? 'Try another search term, another status, or a wider date window.'
-            : 'When a book is out and somebody wants it, queue them here and they are told the moment it is free.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={resetAll}>Clear filters</Button>
-            : <Button onClick={openNew}>+ New reservation</Button>}
-        />
+        {/* Cards on a phone, so nothing scrolls sideways (components/ui/PhoneCards). */}
+        <PhoneCards title="Book" side="Status" keep={['Reserved by', 'Expires on', 'Queue #']}>
+          <ListTable
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            startIndex={start}
+            emptyIcon={anyFilter ? '🔍' : '🔖'}
+            emptyTitle={anyFilter ? 'No reservations match this' : 'Nobody is waiting for anything'}
+            emptyMessage={anyFilter
+              ? 'Try another search term, another status, or a wider date window.'
+              : 'When a book is out and somebody wants it, queue them here and they are told the moment it is free.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={resetAll}>Clear filters</Button>
+              : <Button onClick={openNew}>+ New reservation</Button>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}
@@ -313,10 +313,15 @@ export default function LibraryReservations() {
       </section>
 
       {/* ── Overlays ────────────────────────────────────────────────────────── */}
-      <Modal open={!!issueItem} onClose={() => setIssueItem(null)} maxWidth={460} title="Hand over the book"
+      <ReservationDrawer row={viewItem} live={!!viewItem && LIVE.includes(viewItem.status)}
+        onClose={() => setViewItem(null)}
+        onCallUp={(r) => { setViewItem(null); handleReady(r._id); }}
+        onCancel={(r) => { setViewItem(null); setCancelItem(r); }}
+        onHandOver={(r) => { setViewItem(null); setIssueItem(r); }} />
+      <Modal open={!!issueItem} onClose={() => setIssueItem(null)} maxWidth={460} title="Confirm handover"
         footer={<>
           <Button variant="secondary" onClick={() => setIssueItem(null)}>Cancel</Button>
-          <Button onClick={handIt} loading={issueLoad}>Issue it</Button>
+          <Button onClick={handIt} loading={issueLoad}>Confirm handover</Button>
         </>}>
         <p style={{ color: 'var(--text-muted)' }}>
           Give <strong>{issueItem?.availableCopy?.uniqueCode}</strong>
@@ -337,8 +342,8 @@ export default function LibraryReservations() {
       <Modal open={!!cancelItem} onClose={() => { setCancelItem(null); setCancelReason(''); }} maxWidth={460}
         title="Cancel reservation"
         footer={<>
-          <Button variant="secondary" onClick={() => { setCancelItem(null); setCancelReason(''); }}>Keep it</Button>
-          <Button variant="danger" onClick={handleCancel} loading={cancelLoad}>Cancel reservation</Button>
+          <Button variant="secondary" onClick={() => { setCancelItem(null); setCancelReason(''); }}>Cancel</Button>
+          <Button variant="danger" onClick={handleCancel} loading={cancelLoad}>Confirm cancellation</Button>
         </>}>
         <p style={{ color: 'var(--text-muted)' }}>
           Cancel <strong>{cancelItem?.reservedBy?.name}</strong>&rsquo;s reservation for
@@ -397,13 +402,8 @@ export default function LibraryReservations() {
           )}
         </div>
 
-        <div className="form-group">
-          <label className="form-label required">Member</label>
-          <MemberPicker placeholder="Search students and staff…" value={newUser} onChange={setNewUser} />
-          <div className="form-hint">
-            If a copy is free it goes straight onto the hold shelf; otherwise they join the queue.
-          </div>
-        </div>
+        <MemberPicker placeholder="Search students and staff…" value={newUser} onChange={setNewUser}
+          hint="If a copy is free, it goes straight into the hold shelf, otherwise they join the queue." />
       </Modal>
     </div>
   );

@@ -35,7 +35,9 @@ export const setCopyStatus       = (bookId, copyId, status, chargeLastBorrower =
 export const deleteCopy          = (bookId, copyId)       => api.delete(`/library/books/${bookId}/copies/${copyId}`);
 // Counter helpers — member typeahead and the barcode scanner
 export const searchMembers       = (q, role)    => api.get('/library/members', { params: { q, role } });
+export const getMember           = (id)         => api.get(`/library/members/${id}`);
 export const scanCopy            = (code)       => api.get('/library/scan', { params: { code } });
+export const searchCopies         = (q)          => api.get('/library/scan/search', { params: { q } });
 export const labelSheetUrl       = (bookId, params = {}) => {
   const qs = new URLSearchParams(params).toString();
   return `${api.defaults.baseURL}/library/books/${bookId}/labels${qs ? `?${qs}` : ''}`;

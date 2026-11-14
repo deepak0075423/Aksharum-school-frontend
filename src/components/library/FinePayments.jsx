@@ -98,8 +98,13 @@ export function FinesView({
           caption="All time" />
         <Fig icon="checkCircle" tone="green" label="Paid Fines" value={paidThisYear}
           caption={data?.academicYear?.yearName ? `In ${data.academicYear.yearName}` : 'All time'} />
-        <Fig icon="clock" tone="violet" label="Pending Payments" value={data?.pendingPayments || 0}
-          caption={data?.pendingPayments ? 'Started but not confirmed' : 'No pending actions'} />
+        {/* Fines still to be paid — the same rows the list marks Unpaid. It
+            used to count only online payments started and not confirmed, so a
+            damage fine waiting at the counter showed "0 pending". */}
+        <Fig icon="clock" tone="violet" label="Pending Payments" value={pending.length}
+          caption={data?.pendingPayments
+            ? `${data.pendingPayments} started online, not confirmed`
+            : pending.length ? `${money(data?.outstanding)} to pay` : 'No pending actions'} />
       </div>
 
       <div className="libfn-body">

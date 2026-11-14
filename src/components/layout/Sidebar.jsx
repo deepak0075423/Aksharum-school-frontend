@@ -7,6 +7,7 @@ import { ADMIN_CAPABLE_MODULES } from '../../utils/modules';
 import logoIcon from '../../assets/logo-icon.svg';
 import { schoolLogoUrl } from '../../utils/branding';
 import Icon from '../ui/icons';
+import { roleTitle } from '../../utils/roleTitle';
 // The tree itself lives in navTree.js, so the rail and the app's breadcrumb
 // are drawn from one description of the site rather than two.
 import { NAV_MAP, homeFor } from './navTree';
@@ -82,6 +83,11 @@ export default function Sidebar({ onLinkClick, collapsed }) {
         .filter(m => modules.moduleAdmin[m.key] && !TEACHER_OWN_ADMIN.has(m.key))
         .map(m => ({ to: m.adminHome, icon: m.icon, label: `Manage ${m.label}` }))
     : [];
+  // A module a teacher administers through their own route tree (Manage
+  // Library) is still module administration: it is taken out of the general
+  // modules and listed first under "Module Admin" with the rest.
+  const ownAdmin = nav.filter(item => item.moduleAdmin);
+  if (ownAdmin.length) manageNav.unshift(...ownAdmin);
   // A teacher posted to a hostel — its warden or staff — runs its day-to-day
   // screens without administering the module. One entry, unless they already
   // have "Manage Hostel" above.
@@ -90,7 +96,7 @@ export default function Sidebar({ onLinkClick, collapsed }) {
   }
   // Some submenus belong only to some people — a plain teacher has one
   // directory screen, so it must not sprout the administrator's sections.
-  const navResolved = nav.map(item => (
+  const navResolved = nav.filter(item => !item.moduleAdmin).map(item => (
     item.children && item.childrenIf && !item.childrenIf(modules)
       ? { ...item, children: undefined }
       : item));
@@ -227,7 +233,7 @@ export default function Sidebar({ onLinkClick, collapsed }) {
             </div>
             <div className="sidebar__me-text">
               <div className="sidebar__me-name">{user?.name}</div>
-              <div className="sidebar__me-role">{user?.role?.replace('_', ' ')}</div>
+              <div className="sidebar__me-role">{roleTitle(user)}</div>
             </div>
             <Icon name="chevronDown" size={15} />
           </Link>

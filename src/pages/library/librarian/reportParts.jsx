@@ -19,6 +19,7 @@
  *    the difference between a ledger and a list.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from '../../admin/listParts';
 import Icon from '../../../components/ui/icons';
 import DropdownPanel, { isInsideDropdown } from '../../../components/ui/DropdownPanel';
 import MemberPicker from '../../../components/library/MemberPicker';
@@ -109,6 +110,46 @@ const Spine = ({ title }) => (
  * under a name) — the spreadsheet still gets it as a column of its own, because
  * a sheet has no room for two lines in a box.
  */
+/**
+ * The columns a report shows in its table — the ones that answer its question
+ * at a glance, few enough to fit the screen without scrolling sideways. Every
+ * other column is in the row's details panel (the eye). A report not listed
+ * here shows its first five.
+ */
+export const KEY_COLUMNS = {
+  overdue:   ['member', 'book', 'due', 'daysLate', 'fine', 'status'],
+  popular:   ['book', 'category', 'loans', 'readers', 'perCopy'],
+  dead:      ['book', 'category', 'copies', 'value', 'lastLoan'],
+  member:    ['book', 'due', 'returned', 'fine', 'status'],
+  accession: ['accession', 'book', 'acquired', 'cost', 'status'],
+  stock:     ['rack', 'copy', 'book', 'status', 'heldBy'],
+  fines:     ['member', 'type', 'charged', 'outstanding', 'status', 'raised'],
+  usage:     ['period', 'loans', 'returns', 'readers', 'charged', 'collected'],
+};
+export const keyColumnsOf = (reportKey, columns) => {
+  const want = KEY_COLUMNS[reportKey];
+  const visible = columns.filter((c) => !c.inline);
+  return want ? visible.filter((c) => want.includes(c.key)) : visible.slice(0, 5);
+};
+
+/** One report row, every column of it — what the row's eye opens. */
+export function ReportRowDrawer({ report, columns, row, onClose }) {
+  if (!row) return null;
+  const head = columns[0];
+  const title = head ? String(row[head.key] ?? '') : (report?.name || 'Details');
+  return (
+    <Drawer open onClose={onClose}>
+      <DrawerHead name={title || '—'} sub={report?.name || ''} tone="indigo" onClose={onClose} />
+      <div className="ldrawer__body">
+        <DrawerSection title="Details" fields={columns.map((c) => [c.label, <Cell key={c.key} column={c} row={row} />])} />
+      </div>
+      <DrawerFoot>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+      </DrawerFoot>
+    </Drawer>
+  );
+}
+
 export const Cell = ({ column, row }) => {
   const value = row[column.key];
   const sub   = column.sub ? row[column.sub] : '';
@@ -268,7 +309,7 @@ export const RangePicker = ({ from, to, onChange }) => {
         <Icon name="chevronDown" size={14} />
       </button>
 
-      <DropdownPanel anchorRef={btn} open={open} maxHeight={360}>
+      <DropdownPanel anchorRef={btn} open={open} maxHeight={420} minWidth={300}>
         <div className="librep-range__pop">
           {PRESETS.filter((p) => p.key !== 'year').map((p) => (
             <button key={p.key} type="button" className="librep-range__preset"

@@ -10,7 +10,10 @@
  * off the shelf in the next two days, and how long the person at the front of
  * the queue has been waiting. Both ride under the tiles they belong to.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getMember } from '../../../api/library.api';
+import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from '../../admin/listParts';
+import { Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import Tabs from '../../../components/ui/Tabs';
 
@@ -76,13 +79,100 @@ export const BookCell = ({ row }) => (
 export const MemberCell = ({ row }) => {
   const name = row.reservedBy?.name || '—';
   const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  // Class (or role) under the name — it used to be a column of its own.
+  const role = row.reservedBy?.role || row.reservedByRole || '';
+  const where = row.borrowerClass || (role === 'teacher' ? 'Teacher' : role === 'student' ? 'Student' : 'Staff');
   return (
     <span className="libr-who">
       <span className="libr-who__mark" aria-hidden>{initials || '?'}</span>
-      <b>{name}</b>
+      <span className="libr-who__txt"><b>{name}</b><small>{where}</small></span>
     </span>
   );
 };
+
+/**
+ * A reservation and the person behind it, in full — what the row's eye opens.
+ * The row keeps the essentials so the table fits the screen; everything else
+ * (contact, class or post, parent, library standing, the hold's dates and the
+ * copy to give) is here.
+ */
+export function ReservationDrawer({ row, onClose, onHandOver, onCallUp, onCancel, live }) {
+  const [m, setM] = useState(null);
+  const [err, setErr] = useState('');
+  const memberId = row?.reservedBy?._id || row?.reservedBy;
+  useEffect(() => {
+    if (!row) return undefined;
+    let alive = true;
+    setM(null); setErr('');
+    getMember(memberId)
+      .then((res) => { if (alive) setM(res?.data || null); })
+      .catch((e) => { if (alive) setErr(e?.message || 'Could not load the member'); });
+    return () => { alive = false; };
+  }, [row, memberId]);
+  if (!row) return null;
+
+  const roleLabel = (r) => (r === 'teacher' ? 'Teacher' : r === 'student' ? 'Student' : 'Staff');
+  const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+  return (
+    <Drawer open onClose={onClose}>
+      <DrawerHead
+        name={row.reservedBy?.name || 'Member'}
+        sub={m?.email || row.reservedBy?.email || ''}
+        photo={m?.photo ? `/${String(m.photo).replace(/^\//, '')}` : undefined}
+        tone="indigo" onClose={onClose}
+        tags={[<StatusChip key="s" status={row.status} />]}
+      />
+      <div className="ldrawer__body">
+        {err ? <p className="form-error">{err}</p> : null}
+        {!m && !err ? <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spinner /></div> : null}
+        {m ? (
+          <>
+            <DrawerSection title="The member" fields={[
+              ['Name', m.name],
+              ['Role', roleLabel(m.role)],
+              [m.identifierLabel, m.identifier],
+              ['Class', m.className],
+              ['Roll number', m.rollNumber],
+              ['Designation', m.designation],
+              ['Department', m.department],
+              ['Email', m.email],
+              ['Phone', m.phone],
+              ['Account', m.isActive ? 'Active' : 'Switched off'],
+            ]} />
+            {m.parent ? (
+              <DrawerSection title="Parent / guardian" fields={[
+                ['Name', m.parent.name], ['Phone', m.parent.phone], ['Email', m.parent.email],
+              ]} />
+            ) : null}
+            <DrawerSection title="With the library" fields={[
+              ['Books out', String(m.booksOut)],
+              ['Overdue', m.overdue ? <span className="form-error" style={{ margin: 0 }}>{m.overdue}</span> : '0'],
+              ['Fines owed', m.finesDue ? money(m.finesDue) : 'None'],
+              ['Live reservations', String(m.liveHolds)],
+            ]} />
+          </>
+        ) : null}
+        <DrawerSection title="This reservation" fields={[
+          ['Book', row.book?.title],
+          ['ISBN', row.book?.isbn],
+          ['Reserved on', fmtDate(row.reservedAt || row.createdAt)],
+          ['Ready on', fmtDate(row.readyAt)],
+          ['Expires on', fmtDate(row.expiresAt)],
+          ['Queue', row.status === 'pending' || row.status === 'ready' ? `#${row.queuePosition || 1}` : null],
+          ['Copy to give', row.availableCopy
+            ? `${row.availableCopy.uniqueCode}${row.availableCopy.rackLocation ? ` · ${row.availableCopy.rackLocation}` : ''}`
+            : (live ? 'None free yet' : null)],
+        ]} />
+      </div>
+      <DrawerFoot>
+        {live && row.status === 'pending' ? <button type="button" className="btn btn-secondary" onClick={() => onCallUp(row)}>Call up</button> : null}
+        {live ? <button type="button" className="btn btn-danger" onClick={() => onCancel(row)}>Cancel reservation</button> : null}
+        {live && row.availableCopy ? <button type="button" className="btn btn-primary" onClick={() => onHandOver(row)}>Hand over</button> : null}
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+      </DrawerFoot>
+    </Drawer>
+  );
+}
 
 /** Staff have no class, and a student whose section was never set has none. */
 export const ClassCell = ({ row }) => {

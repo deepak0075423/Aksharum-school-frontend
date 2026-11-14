@@ -48,6 +48,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('refreshToken', refreshToken);
     if (userData?.school) rememberSchoolBranding(userData.school);
     setUser(userData);
+    // The sign-in reply is the bare account; /auth/me adds what the screens
+    // show about the person (their designation, the seats they can switch to).
+    getMe().then((d) => { if (d?.user) setUser(d.user); }).catch(() => {});
   };
 
   /**

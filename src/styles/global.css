@@ -320,7 +320,7 @@ input, select, textarea {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sidebar__me-role {
-  color: rgba(255,255,255,.5); font-size: .72rem; text-transform: capitalize;
+  color: rgba(255,255,255,.5); font-size: .72rem;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sidebar__me svg { color: rgba(255,255,255,.45); flex-shrink: 0; }
@@ -551,7 +551,7 @@ input, select, textarea {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .header__user-role {
-  font-size: .72rem; color: var(--text-muted); text-transform: capitalize; line-height: 1.25;
+  font-size: .72rem; color: var(--text-muted); line-height: 1.25;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .header__user-caret { color: var(--text-light); flex-shrink: 0; }
@@ -8780,12 +8780,15 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libb-sort.is-on     { color: var(--primary); }
 .libb-sort.is-on svg { opacity: 1; }
 
-.libb-col-title  { min-width: 220px; }
-.libb-col-author { width: 170px; }
-.libb-col-isbn   { width: 150px; }
-.libb-col-cat    { width: 140px; }
-.libb-col-num    { width: 100px; text-align: right; }
+/* No fixed widths that add up past the screen: the title takes the room and
+   wraps, ISBN rides under it, Available/Total are one "Copies" column. */
+.libb-col-title  { min-width: 200px; }
+.libb-col-author { width: 18%; min-width: 120px; }
+.libb-col-cat    { width: 13%; min-width: 100px; }
+.libb-col-num    { width: 90px; text-align: right; white-space: nowrap; }
 .libb-col-status { width: 120px; }
+.libb-title small.libb-title__isbn { font-variant-numeric: tabular-nums; }
+.libb-authors { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 @media (max-width: 1100px) {
   .libb-head > div:nth-child(2) { flex: 1 1 100%; margin-right: 0; }
@@ -8848,6 +8851,26 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   border: none; border-radius: 50%; background: none; color: var(--text-light); cursor: pointer;
 }
 .libc-search > button:hover { background: var(--bg); color: var(--text); }
+/* The scan dialog's code field: the same box, full width in the form. */
+.libc-search--scan { display: block; min-width: 0; }
+.libc-scan-miss { color: var(--warning, #b45309); }
+/* The copies matching what has been typed so far. */
+.libc-scan-list { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-top: 4px; max-height: 320px; overflow-y: auto; }
+.libc-scan-list__head { padding: 8px 12px; font-size: .74rem; font-weight: 600; color: var(--text-muted); background: var(--bg); border-bottom: 1px solid var(--border); }
+.libc-scan-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+  padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-card, #fff);
+  text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.libc-scan-item:last-child { border-bottom: 0; }
+.libc-scan-item:hover, .libc-scan-item:focus-visible { background: #eef2ff; }
+.libc-scan-item__main { display: flex; flex-direction: column; min-width: 0; }
+.libc-scan-item__main b { font-size: .86rem; font-variant-numeric: tabular-nums; }
+.libc-scan-item__main small { font-size: .76rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.libc-scan-item__state { flex-shrink: 0; font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg); color: var(--text-muted); text-transform: capitalize; }
+.libc-scan-item__state.is-available { background: #dcfce7; color: #047857; }
+.libc-scan-item__state.is-issued { background: #e0f2fe; color: #0369a1; }
+.libc-scan-item__state.is-damaged, .libc-scan-item__state.is-lost { background: #fee2e2; color: #b91c1c; }
 
 /* ── Cells ─────────────────────────────────────────────────────────────────── */
 .libc-book { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -8954,6 +8977,8 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   background: #ede9fe; color: var(--primary); font-size: .72rem; font-weight: 700;
 }
 .libr-who b { font-size: .83rem; font-weight: 600; }
+.libr-who__txt { display: flex; flex-direction: column; min-width: 0; }
+.libr-who__txt small { font-size: .71rem; color: var(--text-muted); margin-top: 1px; }
 
 .libr-class b     { display: block; font-size: .82rem; font-weight: 600; }
 .libr-class small { display: block; font-size: .71rem; color: var(--text-muted); margin-top: 1px; }
@@ -9280,7 +9305,12 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .librep-range__custom label {
   display: block; font-size: .72rem; font-weight: 600; color: var(--text-muted);
 }
-.librep-range__custom input { margin-top: 4px; font-size: .8rem; padding: 6px 8px; }
+.librep-range__custom input { margin-top: 4px; font-size: .8rem; padding: 6px 8px; width: 100%; min-width: 0; }
+.librep-range__custom label { min-width: 0; }
+/* On a phone the two dates stack, each the panel's full width. */
+@media (max-width: 420px) {
+  .librep-range__custom { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ── Cells ─────────────────────────────────────────────────────────────────── */
 .librep-col.is-right { text-align: right; }
@@ -9330,7 +9360,8 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .librep-role.is-student { background: #eef2ff; color: #4338ca; }
 .librep-role.is-teacher { background: #ecfdf5; color: #047857; }
 
-.librep-col.is-acts { width: 190px; }
+/* Sized to its icons (eye, reminder, menu) rather than a fixed 190px. */
+.librep-col.is-acts { width: 1%; white-space: nowrap; }
 
 /* ── Waiting for a member ──────────────────────────────────────────────────── */
 .librep-prompt {
@@ -9345,7 +9376,9 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .librep-prompt span { font-size: .8rem; color: var(--text-muted); max-width: 44ch; line-height: 1.5; }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 1180px) {
+/* Below 1380px the list of reports moves above the table, so the table has the
+   full width — beside a 260px rail at 1280px it had ~700px and scrolled. */
+@media (max-width: 1380px) {
   .librep-body { grid-template-columns: minmax(0, 1fr); }
   /* Stacked, the rail becomes a strip of cards rather than a tall list nobody
      scrolls past to reach the table — nothing to stick to the top of, and
@@ -11321,7 +11354,7 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 
 .libsr-art { width: 210px; height: 88px; color: var(--primary); flex-shrink: 0; }
 
-.libsr-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 16px; align-items: start; }
+.libsr-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .libsr-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 /* Four across the results column, which is narrower than the whole page. */
 .libsr-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -11329,17 +11362,22 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libsr-figs .liblg-ico--lg { width: 46px; height: 46px; }
 .libsr-figs .liblg-fig__value { font-size: 1.35rem; }
 
-/* ── Filter rail ──────────────────────────────────────────────────────────── */
-/* Sticky because the results scroll past it; see the .app-main opt-out below. */
-.libsr-rail { position: sticky; top: 12px; }
+/* ── Filter bar ───────────────────────────────────────────────────────────── */
+/* One horizontal bar above the results (it was a tall rail beside them, which
+   pushed every choice down the page): the search box widest, the selects
+   beside it, the buttons at the end; wrapping as the width runs out. */
+.libsr-rail { position: static; }
 .libsr-filters {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
-  padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 14px;
+  padding: 14px 18px 16px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 14px;
 }
 .libsr-filters > header {
+  flex: 1 1 100%;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
+.libsr-filters > .libsr-field { flex: 1 1 160px; min-width: 0; }
+.libsr-filters > .libsr-field:has(.libsr-input) { flex: 2 1 260px; }
 .libsr-filters h2 {
   display: flex; align-items: center; gap: 8px;
   font-size: 1rem; font-weight: 700; letter-spacing: -.01em;
@@ -11359,8 +11397,8 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   color: var(--text-light); pointer-events: none;
 }
 .libsr-input .form-control { padding-left: 34px; }
-.libsr-filters__go { display: flex; flex-direction: column; gap: 9px; margin-top: 2px; }
-.libsr-filters__go .btn { width: 100%; justify-content: center; gap: 7px; }
+.libsr-filters__go { display: flex; gap: 9px; flex: 0 0 auto; }
+.libsr-filters__go .btn { justify-content: center; gap: 7px; white-space: nowrap; }
 
 /* ── Results head ─────────────────────────────────────────────────────────── */
 .libsr-tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -11479,6 +11517,10 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .libsr-figs { grid-template-columns: minmax(0, 1fr); }
   .libsr-tools { flex-wrap: wrap; }
   .libsr-sort .form-control { min-width: 120px; }
+  /* On a phone each filter takes the row, and the two buttons share one. */
+  .libsr-filters > .libsr-field, .libsr-filters > .libsr-field:has(.libsr-input) { flex: 1 1 100%; }
+  .libsr-filters__go { flex: 1 1 100%; }
+  .libsr-filters__go .btn { flex: 1; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -13172,6 +13214,59 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 @media (max-width: 560px) {
   .lvstats, .lvstats--4 { grid-template-columns: 1fr; }
   .lvfoot  { justify-content: center; }
+}
+
+/* A module's section tabs as a two-column grid on a phone (className
+   "modnav--grid" on <ModuleNav>), instead of a strip that scrolls sideways.
+   The library's status tabs (Reservations, Fines) wrap for the same reason. */
+@media (max-width: 640px) {
+  .modnav--grid .uitabs {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible; gap: 8px;
+  }
+  .modnav--grid .uitab { justify-content: center; padding: 9px 8px; font-size: .82rem; min-width: 0; }
+  .modnav--grid .uitab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .librpg .uitabs--pill, .libfpg .uitabs--pill { flex-wrap: wrap; overflow: visible; }
+}
+
+/* ── PhoneCards (components/ui/PhoneCards.jsx) ──────────────────────────────
+   Any table as cards on a phone: heading + status, a few label/value lines,
+   then the row's actions (whose eye opens the full record). Nothing scrolls
+   sideways. */
+@media (max-width: 640px) {
+  .phc .table-wrap, .phc .lvtable__wrap { overflow: visible; }
+  .phc table, .phc table > tbody { display: block; width: 100%; }
+  .phc table > thead { display: none; }
+  .phc table > tbody > tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+    margin: 0 12px 12px; padding: 14px;
+    border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .phc table > tbody > tr:first-child { margin-top: 12px; }
+  .phc table > tbody > tr > td {
+    display: none; padding: 0; border: 0; max-width: none; width: auto; min-width: 0;
+    font-size: .84rem; text-align: left; white-space: normal;
+  }
+  .phc table > tbody > tr > td.phc-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
+  .phc table > tbody > tr > td.phc-title b { white-space: normal; overflow-wrap: anywhere; }
+  .phc table > tbody > tr > td.phc-side  { display: block; order: 2; flex: 0 0 auto; }
+  .phc table > tbody > tr > td.ltable__tick { display: block; order: 0; flex: 0 0 auto; }
+  .phc table > tbody > tr > td.phc-keep {
+    display: flex; order: 3; width: 100%; align-items: flex-start; justify-content: space-between; gap: 14px;
+    padding-top: 8px; border-top: 1px dashed var(--border);
+  }
+  .phc table > tbody > tr > td.phc-keep::before {
+    content: attr(data-label); flex-shrink: 0;
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); padding-top: 2px;
+  }
+  .phc table > tbody > tr > td.phc-keep > * { min-width: 0; text-align: right; }
+  .phc table > tbody > tr > td.ltable__acts, .phc table > tbody > tr > td.lvt-acts {
+    display: block; order: 4; width: 100%;
+    padding-top: 10px; border-top: 1px solid var(--border);
+  }
+  .phc table > tbody > tr > td.ltable__acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
 }
 
 /* ── Leave on a phone: nothing scrolls sideways ─────────────────────────────

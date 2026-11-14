@@ -599,7 +599,7 @@ export default function App() {
               <Route path="settings"    element={<PaySettings />} />
             </Route>
             {/* Library */}
-            <Route path="library" element={<ModuleNav tabs={LIBRARY_ADMIN_TABS} />}>
+            <Route path="library" element={<ModuleNav tabs={LIBRARY_ADMIN_TABS} className="modnav--grid" />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<LibDashboard />} />
               <Route path="books"       element={<LibBooks />} />
@@ -869,7 +869,7 @@ export default function App() {
               <Route path="ctc"      element={<PayMyCtc />} />
               <Route path="payslips" element={<PayMyPayslips />} />
             </Route>
-            <Route element={<ModuleNav tabs={LIBRARY_STUDENT_TABS('/teacher')} />}>
+            <Route element={<ModuleNav tabs={LIBRARY_STUDENT_TABS('/teacher')} className="modnav--grid" />}>
               <Route path="library"          element={<SLibrary />} />
               <Route path="library/search"   element={<SLibSearch />} />
               <Route path="library/my-books" element={<SLibMyBooks />} />
@@ -877,7 +877,7 @@ export default function App() {
             </Route>
             {/* Library management for teachers with the Librarian designation
                 (backend enforces the designation on every endpoint) */}
-            <Route path="manage-library" element={<ModuleNav tabs={LIBRARY_MANAGE_TABS('/teacher/manage-library')} />}>
+            <Route path="manage-library" element={<ModuleNav tabs={LIBRARY_MANAGE_TABS('/teacher/manage-library')} className="modnav--grid" />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<LibDashboard />} />
               <Route path="books"       element={<LibBooks />} />
@@ -962,7 +962,7 @@ export default function App() {
             <Route path="feedback"           element={<FbStuList />} />
             <Route path="feedback/:id"       element={<FbStuForm />} />
             <Route path="feedback/:id/view"  element={<FbStuDetail />} />
-            <Route element={<ModuleNav tabs={LIBRARY_STUDENT_TABS('/student')} />}>
+            <Route element={<ModuleNav tabs={LIBRARY_STUDENT_TABS('/student')} className="modnav--grid" />}>
               <Route path="library"          element={<SLibrary />} />
               <Route path="library/search"   element={<SLibSearch />} />
               <Route path="library/my-books" element={<SLibMyBooks />} />
@@ -1003,7 +1003,7 @@ export default function App() {
             </Route>
             <Route path="hostel"           element={<HsParent />} />
             {/* Library — one child at a time; the child rides in ?child= */}
-            <Route element={<ModuleNav tabs={LIBRARY_PARENT_TABS} />}>
+            <Route element={<ModuleNav tabs={LIBRARY_PARENT_TABS} keepQuery={['child']} />}>
               <Route path="library"       element={<PLibrary />} />
               <Route path="library/fines" element={<PLibFines />} />
             </Route>

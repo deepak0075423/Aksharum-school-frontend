@@ -25,6 +25,7 @@ import {
 } from '../../admin/listParts';
 import { Hero, Tile, note, quoteOfTheDay } from './dashParts';
 import BookDialog from './bookDialog';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import {
   AuthorsCell, Chip, CopiesCell, FiltersPanel, SortHead, StatusChip, TitleCell,
 } from './booksParts';
@@ -171,12 +172,6 @@ export default function LibraryBooks() {
       render: (r) => <AuthorsCell book={r} />,
     },
     {
-      key: 'isbn',
-      className: 'libb-col-isbn',
-      label: <SortHead label="ISBN" field="isbn" sort={sort} onSort={onSort} />,
-      render: (r) => (r.isbn ? <span className="libb-isbn">{r.isbn}</span> : <span className="lnone">—</span>),
-    },
-    {
       key: 'category',
       className: 'libb-col-cat',
       label: <SortHead label="Category" field="category" sort={sort} onSort={onSort} />,
@@ -185,18 +180,13 @@ export default function LibraryBooks() {
         : <span className="lnone">Uncategorised</span>),
     },
     {
+      // On the shelf of owned — "11 of 12" — in one column (was Available + Total).
       key: 'available',
       className: 'libb-col-num',
-      label: <SortHead label="Available" field="available" sort={sort} onSort={onSort} align="right" />,
-      render: (r) => <CopiesCell value={r.availableCopies ?? 0} of={r.totalCopies ?? 0} />,
-    },
-    {
-      key: 'total',
-      className: 'libb-col-num',
-      label: <SortHead label="Total" field="total" sort={sort} onSort={onSort} align="right" />,
+      label: <SortHead label="Copies" field="available" sort={sort} onSort={onSort} align="right" />,
       render: (r) => ((r.totalCopies ?? 0) === 0
         ? <span className="lnone">None</span>
-        : <span className="libb-copies"><b>{r.totalCopies}</b></span>),
+        : <CopiesCell value={r.availableCopies ?? 0} total={r.totalCopies ?? 0} of={r.totalCopies ?? 0} />),
     },
     {
       key: 'status',
@@ -313,21 +303,24 @@ export default function LibraryBooks() {
           </Button>
         </SelectionBar>
 
-        <ListTable
-          columns={columns}
-          rows={books}
-          loading={loading}
-          selection={selection}
-          startIndex={start}
-          emptyIcon={anyFilter ? '🔍' : '📚'}
-          emptyTitle={anyFilter ? 'No books match this' : 'The catalogue is empty'}
-          emptyMessage={anyFilter
-            ? 'Try another search term, category or status.'
-            : 'Add a title, or import a whole catalogue from a spreadsheet.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : <Button onClick={openCreate}>+ Add Book</Button>}
-        />
+        {/* Cards on a phone, so nothing scrolls sideways (components/ui/PhoneCards). */}
+        <PhoneCards title="Title" side="Status" keep={['Author(s)', 'Category', 'Copies']}>
+          <ListTable
+            columns={columns}
+            rows={books}
+            loading={loading}
+            selection={selection}
+            startIndex={start}
+            emptyIcon={anyFilter ? '🔍' : '📚'}
+            emptyTitle={anyFilter ? 'No books match this' : 'The catalogue is empty'}
+            emptyMessage={anyFilter
+              ? 'Try another search term, category or status.'
+              : 'Add a title, or import a whole catalogue from a spreadsheet.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : <Button onClick={openCreate}>+ Add Book</Button>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}

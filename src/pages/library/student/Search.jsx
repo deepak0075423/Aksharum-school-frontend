@@ -17,7 +17,7 @@ import {
   studentSearch, studentReserve, cancelMyReservation,
   teacherSearch, teacherReserve, cancelTeacherReserv,
 } from '../../../api/library.api';
-import { Spinner, Pagination, Button } from '../../../components/ui/index';
+import { Spinner, Pagination, Button, Confirm } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import { RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import { Fig, Panel } from './dashboardParts';
@@ -35,6 +35,9 @@ const AVAILABILITY = [
   ['available', 'Available now'],
   ['out',       'All copies out'],
 ];
+// A borrower (student or teacher) is choosing what to borrow — "every copy is
+// out" is a librarian's question, not theirs, so it is not offered to them.
+const MEMBER_ROLES = ['student', 'teacher'];
 
 const BLANK = { q: '', category: '', language: '', subject: '', availability: '' };
 
@@ -77,8 +80,10 @@ export default function LibrarySearch() {
 
   const setFilter = (key) => (value) => { setApplied((f) => ({ ...f, [key]: value })); setPage(1); };
   const runSearch = () => { setApplied((f) => ({ ...f, q: draft.trim() })); setPage(1); };
-  const clearAll  = () => { setDraft(''); setApplied(BLANK); setPage(1); };
-  const dirty     = draft.trim() !== applied.q || Object.values(applied).some(Boolean);
+  // Reset is the one way back to the page as it opened: no search, no
+  // filters, the default order, page 1.
+  const clearAll  = () => { setDraft(''); setApplied(BLANK); setSort('title_asc'); setPage(1); };
+  const dirty     = draft.trim() !== applied.q || Object.values(applied).some(Boolean) || sort !== 'title_asc';
 
   const from = total ? (page - 1) * 10 + 1 : 0;
   const to   = Math.min(page * 10, total);
@@ -96,9 +101,14 @@ export default function LibrarySearch() {
     finally { setBusy(''); }
   };
 
-  const handleCancel = async (hold) => {
+  // Cancelling gives up a place in the queue that cannot be got back, so it
+  // is asked first — the buttons below only open this.
+  const [cancelHold, setCancelHold] = useState(null);   // { hold, title }
+  const handleCancel = (hold, title) => setCancelHold({ hold, title });
+  const confirmCancel = async () => {
+    const { hold } = cancelHold;
     setBusy(hold._id);
-    try { await unqueue(hold._id); toast.success('Reservation cancelled'); refetch(); }
+    try { await unqueue(hold._id); toast.success('Reservation cancelled'); setCancelHold(null); refetch(); }
     catch (err) { toast.error(err?.message || 'Could not cancel the reservation'); }
     finally { setBusy(''); }
   };
@@ -111,7 +121,7 @@ export default function LibrarySearch() {
         <div className={`libsr-held${block ? ' libsr-held--block' : ''}`}>
           <HoldPill hold={hold} />
           <button type="button" className="libsr-cancel" disabled={busy === hold._id}
-            onClick={() => handleCancel(hold)}>Cancel</button>
+            onClick={() => handleCancel(hold, book.title)}>Cancel</button>
         </div>
       );
     }
@@ -136,7 +146,7 @@ export default function LibrarySearch() {
       )}
       {book.myReservation && <MenuSep />}
       {book.myReservation && (
-        <MenuItem icon="close" danger onClick={() => handleCancel(book.myReservation)}>
+        <MenuItem icon="close" danger onClick={() => handleCancel(book.myReservation, book.title)}>
           Cancel reservation
         </MenuItem>
       )}
@@ -168,11 +178,10 @@ export default function LibrarySearch() {
         {/* ── Filters ──────────────────────────────────────────────────── */}
         <aside className="libsr-rail">
           <div className="libsr-filters">
+            {/* No "Clear All" here: Reset (with Search, at the end of the bar)
+                did exactly the same thing. */}
             <header>
               <h2><Icon name="filter" size={17} />Filters</h2>
-              {filtersOn > 0 && (
-                <button type="button" className="libsr-clear" onClick={clearAll}>Clear All</button>
-              )}
             </header>
 
             <Field label="Search">
@@ -194,7 +203,9 @@ export default function LibrarySearch() {
             <Field label="Availability">
               <select className="form-control" value={applied.availability}
                 onChange={(e) => setFilter('availability')(e.target.value)}>
-                {AVAILABILITY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                {AVAILABILITY
+                  .filter(([v]) => !(v === 'out' && MEMBER_ROLES.includes(user?.role)))
+                  .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
 
@@ -338,6 +349,12 @@ export default function LibrarySearch() {
             <ReserveAction book={details} />
           </>} />
       )}
+
+      <Confirm open={!!cancelHold} onClose={() => setCancelHold(null)} onConfirm={confirmCancel}
+        loading={!!cancelHold && busy === cancelHold.hold._id}
+        title="Cancel reservation"
+        confirmLabel="Confirm cancellation"
+        message={`Cancel your reservation for "${cancelHold?.title || 'this book'}"? You will lose your place in the queue.`} />
     </div>
   );
 }
