@@ -420,7 +420,9 @@ function StudentDrawer({ row, onClose, onEdit }) {
   useEffect(() => {
     if (!row) { setDetail(null); return undefined; }
     let live = true;
-    api.getStudent(row._id).then((d) => { if (live) setDetail(d); }).catch(() => {});
+    // The client hands back the { success, data } envelope — the record is in
+    // `data`. Reading the envelope itself left profile, parent and history blank.
+    api.getStudent(row._id).then((d) => { if (live) setDetail(d?.data ?? d); }).catch(() => {});
     return () => { live = false; };
   }, [row]);
 
@@ -452,6 +454,16 @@ function StudentDrawer({ row, onClose, onEdit }) {
           ['Section', row.sectionName],
           ['Admitted on', fmtDate(row.createdAt)],
         ]} />
+
+        {/* Year by year, newest first: each year keeps its own class, section
+            and roll — placing a student in a new year never rewrites an old one. */}
+        {detail?.enrollments?.length ? (
+          <DrawerSection title="Academic history" fields={[...detail.enrollments].reverse().map((e) => [
+            `${e.yearName}${e.yearStatus === 'active' ? ' (current)' : ''}`,
+            [e.className || '—', e.sectionName ? `– ${e.sectionName}` : '(no section yet)']
+              .join(' ') + (e.rollNumber ? ` · Roll ${e.rollNumber}` : ''),
+          ])} />
+        ) : null}
 
         <DrawerSection title="Personal" fields={[
           ['Gender', row.gender],
