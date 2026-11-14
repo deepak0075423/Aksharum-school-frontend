@@ -659,7 +659,7 @@ export default function App() {
               <Route path="audit"       element={<Navigate to="/admin/transport/activity" replace />} />
             </Route>
             {/* ID cards */}
-            <Route path="id-cards" element={<ModuleNav tabs={IDCARD_ADMIN_TABS} nowrap />}>
+            <Route path="id-cards" element={<ModuleNav tabs={IDCARD_ADMIN_TABS} nowrap className="modnav--ic" />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"    element={<IcDashboard />} />
               <Route path="students"     element={<IcCardList kind="student" />} />

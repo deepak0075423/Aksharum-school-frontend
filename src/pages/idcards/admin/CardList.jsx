@@ -36,8 +36,8 @@ const SORTS = {
 
 const SUBTITLE = {
   student: 'One card per student per academic year. Earlier years stay on record exactly as they were issued.',
-  teacher: 'One card per teacher, kept from year to year — reissued only when it is lost, damaged or its details change.',
-  staff: 'One card per non-teaching employee and administrator, kept from year to year.',
+  teacher: 'One card per teaching member of staff, kept from year to year — reissued only when it is lost, damaged or its details change.',
+  staff: 'One card per non-teaching employee (a teacher account with no classes in any year, or marked non-teaching) and per administrator account, kept from year to year.',
   parent: 'One card per parent, kept from year to year. It names the children the parent may collect.',
 };
 
@@ -227,6 +227,45 @@ export default function CardList({ kind = 'student' }) {
             {q || classId || tab !== 'all' ? 'Try another search, filter or tab.' : student ? 'Students appear here once they are placed in a class of the year.' : `${k.plural} appear here once their accounts are added.`}
           </Empty>
         ) : (
+          <>
+          {/* On a phone the table gives way to one card per person (.icl-phone,
+              shown ≤720px while the table is hidden) — everything the row says,
+              in one place, nothing scrolling sideways. The eye opens the card. */}
+          <ul className="icl-phone" aria-label={k.plural}>
+            <li className="icl-phone__all">
+              <Check checked={pageAll} indeterminate={pageSome} onChange={togglePage} label="Select every row on this page" />
+              <span>Select all on this page</span>
+            </li>
+            {rows.map((r) => {
+              const on = sel.has(r._id);
+              const openRow = () => setDrawer({ cardId: r.card?._id || null, holderId: r._id, kind, name: r.name });
+              const where = student ? [r.className, r.sectionName].filter(Boolean).join(' – ') || 'No class' : (r.line || '—');
+              return (
+                <li key={r._id} className={`icl-pc${on ? ' is-sel' : ''}${!r.isActive ? ' is-off' : ''}`}>
+                  <div className="icl-pc__top">
+                    <Check checked={on} onChange={() => toggle(r)} label={`Select ${r.name}`} />
+                    <button type="button" className="icl-pc__who" onClick={openRow}>
+                      <Person name={r.name} photo={r.photo} tone={k.tone} sub={r.code || (student ? 'No admission no.' : kind === 'parent' ? 'Parent ID on first card' : 'No employee ID')} />
+                    </button>
+                    <span className="icl-pc__acts">
+                      <IconBtn icon="eye" label={r.card ? 'View card' : 'View details'} onClick={openRow} />
+                      {!r.card && r.state === 'pending' && r.isActive ? <IconBtn icon="cardStack" label="Generate card" onClick={() => setGen({ selected: [{ _id: r._id, name: r.name }] })} /> : null}
+                      <Kebab items={rowMenu(r)} label={`Actions for ${r.name}`} />
+                    </span>
+                  </div>
+                  <dl className="icl-pc__facts">
+                    <div><dt>{student ? 'Class' : kind === 'parent' ? 'Children' : 'Designation'}</dt>
+                      <dd>{where}{student && r.rollNumber ? <em> · Roll {r.rollNumber}</em> : null}</dd></div>
+                    <div><dt>Card</dt>
+                      <dd>{r.card ? <><span className="icl-mono">{r.card.number}</span><em> · {r.card.reissueNo ? `Reissue ${r.card.reissueNo}` : student ? r.card.yearName : 'Original'}</em></> : <span className="icl-none">None yet</span>}</dd></div>
+                    <div><dt>Issued</dt>
+                      <dd>{r.card ? <>{fmtDate(r.card.issuedAt)}<em className={r.card.printedAt ? '' : 'is-warn'}> · {r.card.printedAt ? `Printed${r.card.printCount > 1 ? ` ${r.card.printCount}×` : ''}` : 'Not printed'}</em></> : <span className="icl-none">—</span>}</dd></div>
+                  </dl>
+                  <div className="icl-pc__status"><StatusBadge status={r.state} /><Flags row={r} /></div>
+                </li>
+              );
+            })}
+          </ul>
           <div className="icl-scroll">
             <table className="ic-table">
               <thead>
@@ -283,6 +322,7 @@ export default function CardList({ kind = 'student' }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
         {data && data.total ? (
           <Pager page={data.page} pages={data.pages} total={data.total} limit={data.limit} noun={k.who} many={k.plural.toLowerCase()}

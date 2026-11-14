@@ -63,13 +63,13 @@ export function Hero({ card, files, onPresent, onOpen, compact = false, upcoming
           <div><dt>Issued on</dt><dd>{fmtDate(card.issuedAt)}</dd></div>
         </dl>
         <div className="icm-hero__acts">
-          {onPresent && valid ? <Btn kind="light" icon="fullscreen" onClick={() => onPresent(card)}>Show at the gate</Btn> : null}
+          {onPresent && valid ? <Btn kind="light" icon="fullscreen" onClick={() => onPresent(card)}>Full screen view</Btn> : null}
           <Btn kind="dark" icon="download" busy={busy === 'pdf'} onClick={() => run('pdf', files.download)}>Download</Btn>
           <Btn kind="dark" icon="printer" busy={busy === 'print'} onClick={() => run('print', files.print)}>Print</Btn>
           {/* Says what is on the other side: "Flip card" did not tell anyone
               that the back is where the QR code is. */}
           <Btn kind="dark" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show back (QR code)'}</Btn>
-          {/* No "Full screen" beside "Show at the gate" — both filled the
+          {/* No second "Full screen" beside "Full screen view" — both filled the
               screen with this same card. The viewer is still how an EARLIER
               card is opened, and only then is there anything else to see. */}
           {onOpen && earlier > 0 ? <Btn kind="dark" icon="history" onClick={() => onOpen(card)}>Earlier cards · {earlier}</Btn> : null}

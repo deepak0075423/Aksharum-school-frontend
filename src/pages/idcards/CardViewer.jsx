@@ -3,7 +3,7 @@
  * stage, hanging from its lanyard, with every other card of the same holder
  * in a rail beside it (the years, the replacements).
  *
- * "Show at the gate" turns it into a presentation: the card large and face
+ * "Full screen view" turns it into a presentation: the card large and face
  * on, the school's name, whether the card is valid, and a clock ticking to
  * the second — a live screen, which a screenshot is not. The screen is kept
  * awake while it is shown (Wake Lock, where the browser has it).
@@ -155,7 +155,7 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
   const closeRef = useRef(null);
   useLockScroll(open);
   const leave = useBackToClose(open, onClose);
-  // Opened straight into the gate display (the page's own "Show at the gate"),
+  // Opened straight into the gate display (the page's own "Full screen view"),
   // closing it goes back to the page. Reached from this viewer's toolbar, it
   // goes back to the viewer.
   const endPresenting = () => { if (startPresenting) leave(); else setPresenting(false); };
@@ -227,7 +227,7 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
             <Btn kind="dark" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show back (QR code)'}</Btn>
             {onDownload ? <Btn kind="dark" icon="download" busy={busy === 'pdf'} onClick={() => run('pdf', onDownload)}>Download PDF</Btn> : null}
             {onPrint ? <Btn kind="dark" icon="printer" busy={busy === 'print'} onClick={() => run('print', onPrint)}>Print</Btn> : null}
-            {presentable && card.status !== 'expired' ? <Btn kind="light" icon="fullscreen" onClick={() => setPresenting(true)}>Show at the gate</Btn> : null}
+            {presentable && card.status !== 'expired' ? <Btn kind="light" icon="fullscreen" onClick={() => setPresenting(true)}>Full screen view</Btn> : null}
           </div>
           <div className="icv-meta">
             {card.kind === 'student' && (card.validUntil || card.snapshot?.yearEnd) ? <span>Valid till {fmtDay(card.validUntil || card.snapshot.yearEnd)}</span> : null}

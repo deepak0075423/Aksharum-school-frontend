@@ -27,6 +27,7 @@ import {
   AppliesCell, DateCell, HolidayCards, HolidayCell, HolidayDialog, HolidayForm, ImportDialog, MineList,
   MonthCalendar, STATUS, TypeChip, TypesDialog, TypesPanel, UpcomingPanel,
   dayKey, daysOf, formFrom, spanDays, statusOf, today,
+  clashesWith, duplicateAmong, movedFrom,
 } from './holidayParts';
 
 const TABS = [
@@ -36,9 +37,13 @@ const TABS = [
   { value: 'past',     label: 'Past' },
 ];
 
+// Two different questions hide in "latest": the holiday furthest ahead on the
+// calendar, and the one typed in most recently. Each has its own order, and
+// the labels say which is which.
 const SORTS = [
-  { value: 'date',    label: 'Date (soonest first)' },
-  { value: 'dateDsc', label: 'Date (latest first)' },
+  { value: 'date',    label: 'Holiday date (earliest first)' },
+  { value: 'dateDsc', label: 'Holiday date (latest first)' },
+  { value: 'added',   label: 'Recently added first' },
   { value: 'name',    label: 'Name (A–Z)' },
   { value: 'length',  label: 'Longest first' },
 ];
@@ -151,11 +156,16 @@ export default function Holidays() {
       return [h.name, h.description, h.type].filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
+    // Two rows the chosen order cannot separate (the same day, the same
+    // length) come newest-added first, so a holiday just saved is never
+    // hidden behind an older one it ties with.
+    const added = (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     rows = [...rows].sort((a, b) => {
-      if (sort === 'name')   return a.name.localeCompare(b.name);
-      if (sort === 'length') return spanDays(b) - spanDays(a);
+      if (sort === 'added')  return added(a, b);
+      if (sort === 'name')   return a.name.localeCompare(b.name) || added(a, b);
+      if (sort === 'length') return spanDays(b) - spanDays(a) || dayKey(a.startDate).localeCompare(dayKey(b.startDate)) || added(a, b);
       const cmp = dayKey(a.startDate).localeCompare(dayKey(b.startDate));
-      return sort === 'dateDsc' ? -cmp : cmp;
+      return (sort === 'dateDsc' ? -cmp : cmp) || added(a, b);
     });
     return rows;
   }, [source, tab, type, scope, term, sort]);
@@ -220,6 +230,11 @@ export default function Holidays() {
     if (end < form.startDate) return setFormErr('The last day cannot be before the first.');
     if (form.scope === 'specific_classes' && !form.classes.length)
       return setFormErr('Choose at least one class, or set it to the whole school.');
+    // The same holiday twice — the server refuses it too; said here first.
+    const was = editing === 'new' ? null : editing;
+    const shape = { type: form.type, startKey: form.startDate, endKey: end, scope: form.scope, classes: form.classes };
+    const twin = movedFrom(was, shape) ? duplicateAmong(clashesWith(everyYear, form.startDate, end, was?._id), shape) : null;
+    if (twin) return setFormErr(`“${twin.name}” is already on the calendar with the same date and type. A holiday with the same date and type cannot be added again.`);
 
     const body = {
       name: form.name.trim(),

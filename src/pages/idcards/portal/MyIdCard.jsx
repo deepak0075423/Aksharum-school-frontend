@@ -23,7 +23,7 @@ export default function MyIdCard({ role = 'student' }) {
       <PageHead
         title="My ID Card"
         subtitle={role === 'student'
-          ? `Your school identity card${current?.academicYear?.yearName ? ` for ${current.academicYear.yearName}` : ''}. Show it at the gate, download it or print it.`
+          ? `Your school identity card${current?.academicYear?.yearName ? ` for ${current.academicYear.yearName}` : ''}. View it full screen, download it or print it.`
           : 'Your staff identity card. It stays with you from year to year — show it, download it or print it.'}
       />
       {loading && !data ? <Spin /> : error && !data ? (

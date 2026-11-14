@@ -20941,3 +20941,9 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
    now. Their rules are gone; these two lines stand in their place so that a
    page copied from an old one shows up wrong immediately rather than quietly
    bringing back a seventeenth look. */
+
+/* Holidays — the same holiday twice (Nov 2026). The form's "already on these
+   days" note is a caution for a different holiday on the same days, and a stop
+   for the same one: same date, same type. */
+.holclash--stop { background: #fef2f2; border-color: #fecaca; }
+.holclash--stop h3, .holclash--stop small, .holclash--stop p { color: #991b1b; }

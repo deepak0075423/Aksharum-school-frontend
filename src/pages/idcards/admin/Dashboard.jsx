@@ -64,6 +64,11 @@ function KindTile({ kind, t, to }) {
         <span className="icdash-kind__label">{k.cards}</span>
         <span className="icdash-kind__fig"><strong>{count(t.issued)}</strong> / {count(t.holders)}</span>
         <span className="ic-tile__bar"><i style={{ width: `${t.holders ? Math.round((t.issued / t.holders) * 100) : 0}%` }} /></span>
+        {/* Staff is two groups the Teachers page does not count — say which,
+            so the two screens can be squared with each other. */}
+        {kind === 'staff' && (t.nonTeaching != null) ? (
+          <span className="icdash-kind__mix">{count(t.nonTeaching)} non-teaching · {count(t.admins)} {t.admins === 1 ? 'administrator' : 'administrators'}</span>
+        ) : kind === 'teacher' ? <span className="icdash-kind__mix">Teaching staff</span> : null}
         <span className="icdash-kind__cap">
           {t.pending ? <b className="is-due">{count(t.pending)} pending</b> : <b className="is-done">Everyone has a card</b>}
           {t.reissue ? <> · {count(t.reissue)} to reissue</> : null}

@@ -91,6 +91,35 @@ export const clashesWith = (holidays, startKey, endKey, ignoreId) => holidays.fi
   return s <= endKey && e >= startKey;
 });
 
+/**
+ * The one among those that is the SAME holiday as the form's: same type, same
+ * first and last day, reaching some of the same people (the whole school
+ * reaches everyone; two class holidays meet only when they share a class).
+ * The server refuses it — school-backend holiday.controller `sameHoliday`.
+ */
+export const duplicateAmong = (clashes, { type, startKey, endKey, scope, classes = [] }) => clashes.find((h) => {
+  if (!type || h.type !== type) return false;
+  if (dayKey(h.startDate) !== startKey || (dayKey(h.endDate) || dayKey(h.startDate)) !== endKey) return false;
+  const theirs = (h.applicability?.scope || 'all') === 'specific_classes'
+    ? (h.applicability.classes || []).map((c) => String(c?._id || c)) : null;
+  const mine = scope === 'specific_classes' ? classes.map(String) : null;
+  return !theirs || !mine || mine.some((c) => theirs.includes(c));
+}) || null;
+
+/**
+ * Has the form moved the holiday being edited — its type, its days, or who it
+ * is for? Only then can an edit turn it into a copy of another one; a rename
+ * or a new note cannot, and is never refused.
+ */
+export const movedFrom = (holiday, { type, startKey, endKey, scope, classes = [] }) => {
+  if (!holiday) return true;
+  const was = (holiday.applicability?.scope || 'all') === 'specific_classes'
+    ? (holiday.applicability.classes || []).map((c) => String(c?._id || c)).sort().join(',') : 'all';
+  const now = scope === 'specific_classes' ? classes.map(String).sort().join(',') : 'all';
+  return holiday.type !== type || dayKey(holiday.startDate) !== startKey
+    || (dayKey(holiday.endDate) || dayKey(holiday.startDate)) !== endKey || was !== now;
+};
+
 // ── Type colours ─────────────────────────────────────────────────────────────
 
 const TINTS = ['indigo', 'blue', 'green', 'amber', 'purple', 'pink', 'teal', 'orange'];
@@ -552,6 +581,8 @@ export const HolidayForm = ({
   const start = form.startDate;
   const end = form.mode === 'single' ? form.startDate : (form.endDate || form.startDate);
   const clashes = start && end ? clashesWith(holidays, start, end, holiday?._id) : [];
+  const shape = { type: form.type, startKey: start, endKey: end, scope: form.scope, classes: form.classes };
+  const duplicate = movedFrom(holiday, shape) ? duplicateAmong(clashes, shape) : null;
   const days = start && end
     ? Math.max(1, Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1)
     : 0;
@@ -702,15 +733,17 @@ export const HolidayForm = ({
           {/* Two holidays on the same day is usually a duplicate being typed in
               for the second time. Said before saving, not after. */}
           {clashes.length > 0 && (
-            <div className="holclash">
-              <h3><Icon name="alert" size={14} /> Already on these days</h3>
+            <div className={`holclash${duplicate ? ' holclash--stop' : ''}`} role={duplicate ? 'alert' : undefined}>
+              <h3><Icon name="alert" size={14} /> {duplicate ? 'This holiday is already on the calendar' : 'Already on these days'}</h3>
               <ul>
                 {clashes.slice(0, 4).map((c) => (
-                  <li key={c._id}><b>{c.name}</b><small>{fmtRange(c)}</small></li>
+                  <li key={c._id}><b>{c.name}</b><small>{fmtRange(c)} · {c.type}</small></li>
                 ))}
               </ul>
               {clashes.length > 4 ? <small>and {clashes.length - 4} more</small> : null}
-              <p>Saving anyway is allowed — the school calendar can hold both.</p>
+              <p>{duplicate
+                ? `“${duplicate.name}” has the same date and type, so this one cannot be saved. Change the date or the type — or edit that holiday instead.`
+                : 'A different type of holiday on the same days can still be saved.'}</p>
             </div>
           )}
 

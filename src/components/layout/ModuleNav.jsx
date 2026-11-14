@@ -17,14 +17,14 @@ import Tabs from '../ui/Tabs';
  * tabs: [{ to: '/admin/fees/dashboard', label: 'Dashboard', end?: true }]
  * size: 'compact' for the tighter 33px pills a module's mockups draw (Hostel).
  */
-export default function ModuleNav({ tabs, nowrap = false, size }) {
+export default function ModuleNav({ tabs, nowrap = false, size, className = '' }) {
   // A rail with one pill in it is not navigation — there is nowhere else to
   // go. The module with a single section (the teacher's Inventory) gets its
   // page's own heading straight under the breadcrumb instead.
   if ((tabs || []).length < 2) return <Outlet />;
   return (
     <>
-      <div className="modnav__wrap">
+      <div className={`modnav__wrap${className ? ` ${className}` : ''}`}>
         {/* The arrays carry a leading emoji for the rail's own use; the tab
             strip is icon-and-label everywhere else, so it is dropped here.
             `nowrap` keeps a module's sections on one scrolling row, which is

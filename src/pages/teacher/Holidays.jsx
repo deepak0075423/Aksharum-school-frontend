@@ -27,8 +27,8 @@ import { Alert, Button, Modal, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ListTable, ListFooter } from '../admin/listParts';
 import {
-  HolidayCards, HolidayDialog, HolidayList, MonthCalendar, TypeChip, dayKey, daysOf, daysUntil,
-  fmtRange, spanDays, statusOf, tintFor, today,
+  DateCell, HolidayCards, HolidayDialog, HolidayList, MonthCalendar, TypeChip, dayKey, daysOf, daysUntil,
+  statusOf, tintFor, today,
 } from '../admin/holidayParts';
 import Tabs from '../../components/ui/Tabs';
 
@@ -298,12 +298,10 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
     },
     {
       key: 'dates', className: 'holcol-dates', label: 'Date(s)',
-      render: (h) => (
-        <span className="holdate">
-          <span>{fmtRange(h)}</span>
-          <small>{spanDays(h) === 1 ? '1 day' : `${spanDays(h)} days`}</small>
-        </span>
-      ),
+      // The admin table's own cell: a date never breaks inside itself, and a
+      // range only between its two dates. Written out by hand here it wrapped
+      // at every space once the column narrowed — "Thu, 5 / Nov, / 2026".
+      render: (h) => <DateCell h={h} />,
     },
     {
       key: 'classes', className: 'holcol-app', label: 'Your classes',

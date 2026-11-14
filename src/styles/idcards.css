@@ -1301,3 +1301,37 @@
   .icvd-body { grid-template-columns: 1fr; }
   .icvd-facts dl { grid-template-columns: 1fr; }
 }
+
+/* ── Phone (Nov 2026): nothing scrolls sideways ─────────────────────────────
+   The module's eight sections become a two-column grid instead of a strip
+   that ran 500px past the screen, and each card list shows one card per
+   person — everything the table row says, in one place — with the eye
+   opening the card. The table is kept for wider screens. */
+.icl-phone { display: none; list-style: none; margin: 0; padding: 10px 12px; }
+@media (max-width: 720px) {
+  .modnav--ic .uitabs--pill { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+  .modnav--ic .uitab { justify-content: flex-start; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .modnav--ic .uitab .uitab__label { overflow: hidden; text-overflow: ellipsis; }
+
+  .icl .icl-scroll { display: none; }
+  .icl .icl-phone { display: flex; flex-direction: column; gap: 10px; }
+  .icl-phone__all { display: flex; align-items: center; gap: 10px; padding: 2px 4px; font-size: .82rem; color: var(--ic-faint); }
+  .icl-pc { border: 1px solid var(--ic-line); border-radius: 12px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+  .icl-pc.is-sel { border-color: var(--ic-primary, #4f46e5); box-shadow: 0 0 0 3px rgba(79, 70, 229, .10); }
+  .icl-pc.is-off { opacity: .72; }
+  .icl-pc__top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .icl-pc__who { flex: 1; min-width: 0; text-align: left; padding: 0; border: 0; background: none; cursor: pointer; }
+  .icl-pc__who .ic-person { min-width: 0; }
+  .icl-pc__who .ic-person__text { min-width: 0; }
+  .icl-pc__who .ic-person__text strong, .icl-pc__who .ic-person__text em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icl-pc__acts { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+  .icl-pc__facts { margin: 0; display: grid; gap: 6px; padding: 10px 0 0; border-top: 1px dashed var(--ic-line-2); }
+  .icl-pc__facts > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; font-size: .84rem; }
+  .icl-pc__facts dt { color: var(--ic-faint); }
+  .icl-pc__facts dd { margin: 0; color: var(--ic-ink-2); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  .icl-pc__facts dd em { font-style: normal; font-weight: 500; color: var(--ic-faint); }
+  .icl-pc__facts dd em.is-warn { color: #b45309; font-weight: 600; }
+  .icl-pc__status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .icl-pc__status .ic-flags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+}
+.icdash-kind__mix { display: block; font-size: .74rem; color: var(--ic-faint); margin-top: 2px; }
