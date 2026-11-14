@@ -68,7 +68,7 @@ const myStats = (list) => {
 
 const classStats = (list) => [
   { icon: 'calendar', tone: 'indigo', value: list.length, label: 'Class holidays',
-    caption: 'Across the classes you take' },
+    caption: `${list.filter((h) => h.wholeSchool).length} whole school · ${list.filter((h) => !h.wholeSchool).length} for your classes` },
   { icon: 'sunrise', tone: 'green', value: list.filter((h) => statusOf(h) !== 'past').length,
     label: 'Still to come', caption: nextLine(list) },
   { icon: 'checkSquare', tone: 'amber', value: list.filter((h) => daysOf(h).some(inThisMonth)).length,
@@ -104,8 +104,8 @@ export default function TeacherHolidays() {
             <h1>{tab === 'my' ? 'My Holidays' : 'My Class Holidays'}</h1>
             <p>
               {tab === 'my'
-                ? 'All holidays that apply to you and your classes.'
-                : 'Holidays for classes where you are class teacher, vice class teacher, or subject teacher.'}
+                ? 'Your own days off. Holidays for one class only are on My Class Holidays.'
+                : 'Days your classes do not meet — whole-school holidays and holidays for your classes alone.'}
             </p>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function TeacherHolidays() {
       ]} />
 
       {tab === 'my'
-        ? <MyHolidays holidays={mine} classHolidays={classes} types={types} loading={loadingMine} />
+        ? <MyHolidays holidays={mine} types={types} loading={loadingMine} />
         : <ClassHolidays holidays={classes} types={types} loading={loadingCls}
             classNames={clsMeta?.classes || []} />}
     </div>
@@ -142,7 +142,7 @@ export default function TeacherHolidays() {
 //  My holidays
 // ═════════════════════════════════════════════════════════════════════════════
 
-function MyHolidays({ holidays, classHolidays, types, loading }) {
+function MyHolidays({ holidays, types, loading }) {
   const { isEnabled } = useModules();
   const [month, setMonth] = useState(MONTH_START);
   const [picked, setPicked] = useState(null);
@@ -156,18 +156,15 @@ function MyHolidays({ holidays, classHolidays, types, loading }) {
     return out;
   }, [holidays]);
 
-  // The calendar carries both sets: a teacher looking at a month wants every
-  // day their timetable changes, whoever the day was declared for. `mine` marks
-  // which is which, so the legend under it can mean something.
+  // The teacher's OWN days off only. A holiday declared for one class (Class 7's
+  // trip) is not a day off for the teacher — the rest of the school still
+  // meets — so it used to be overlaid here as a "class holiday" and read as one
+  // (Nov 2026, user report). Those days are on the My Class Holidays tab.
   const byDay = useMemo(() => {
     const out = {};
-    const add = (h, own) => daysOf(h).forEach((k) => {
-      (out[k] ||= []).push(own ? { ...h, mine: true } : { ...h, mine: false });
-    });
-    holidays.forEach((h) => add(h, true));
-    classHolidays.forEach((h) => add(h, false));
+    holidays.forEach((h) => daysOf(h).forEach((k) => { (out[k] ||= []).push({ ...h, mine: true }); }));
     return out;
-  }, [holidays, classHolidays]);
+  }, [holidays]);
 
   const counts = useMemo(() => {
     const out = {};
@@ -191,7 +188,6 @@ function MyHolidays({ holidays, classHolidays, types, loading }) {
             legend={(
               <p className="holcal__legend">
                 <span><i className="is-mine" />Your holiday</span>
-                <span><i className="is-class" />Class holiday</span>
                 <span><i className="is-today" />Today</span>
               </p>
             )} />
@@ -306,6 +302,8 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
     {
       key: 'classes', className: 'holcol-app', label: 'Your classes',
       render: (h) => {
+        // A whole-school day closes every class the teacher takes.
+        if (h.wholeSchool) return <span className="badge badge-info">Whole school</span>;
         const own = h.myClasses || [];
         const others = (h.applicability?.classes || []).length - own.length;
         return (
@@ -376,7 +374,8 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
 
         {/* A phone gets cards with View rather than a table to scroll sideways. */}
         <HolidayCards rows={shown} types={types} onView={setPicked}
-          meta={(h) => ((h.myClasses || []).length ? `Your classes: ${h.myClasses.join(', ')}` : null)} />
+          meta={(h) => (h.wholeSchool ? 'Whole school — all your classes'
+            : (h.myClasses || []).length ? `Your classes: ${h.myClasses.join(', ')}` : null)} />
         <div className="holtable">
         <ListTable
           columns={columns}
@@ -387,7 +386,7 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
           emptyTitle={anyFilter ? 'Nothing matches those filters' : 'No class holidays'}
           emptyMessage={anyFilter
             ? 'Try a wider date range, or clear the filters.'
-            : 'None of the classes you take has a holiday of its own this year.'}
+            : 'No holiday this year closes the classes you take — none for the whole school, and none for your classes alone.'}
           emptyAction={anyFilter ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button> : null}
         />
         </div>
@@ -399,9 +398,9 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
       </section>
 
       <Alert variant="info">
-        These are holidays for classes where you are the class teacher, the vice class teacher
-        or a subject teacher. They close the class, not the school — your own days off are on
-        the <b>My holidays</b> tab.
+        These are the days the classes you take do not meet — where you are the class teacher,
+        the vice class teacher or a subject teacher: holidays for the whole school, and holidays
+        declared for one of your classes alone. Your own days off are on the <b>My holidays</b> tab.
       </Alert>
 
       <HolidayDialog holiday={picked} types={types} onClose={() => setPicked(null)} />
