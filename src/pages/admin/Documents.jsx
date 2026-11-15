@@ -21,7 +21,7 @@ import toast from 'react-hot-toast';
 import {
   getDocuments, getDocument, getDocumentOverview, uploadDocument, updateDocument, deleteDocument,
   archiveDocument, getDocumentCategories, createDocumentCategory, deleteDocumentCategory,
-  getClassesWithSections, getDocumentTeachers,
+  getDocumentClasses, getDocumentTeachers,
 } from '../../api/admin.api';
 import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -51,7 +51,10 @@ export default function Documents() {
   const [search,   setSearch]   = useState('');
   const [term,     setTerm]     = useState('');
   const [target,   setTarget]   = useState('');
-  const [year,     setYear]     = useState('');
+  // null until the summary says which year is current: the page opens on this
+  // year's documents, like the rest of the office's screens, and '' is the
+  // deliberate "All Academic Years".
+  const [year,     setYear]     = useState(null);
   const [sort,     setSort]     = useState('newest');
   const [view,     setView]     = useState('list');
   const [page,     setPage]     = useState(1);
@@ -87,15 +90,20 @@ export default function Documents() {
   // ── Load ───────────────────────────────────────────────────────────────────
   const loadSummary = useCallback(async () => {
     try {
-      setOver(unwrap(await getDocumentOverview()));
+      const d = unwrap(await getDocumentOverview());
+      setOver(d);
+      // First arrival only: open on the current academic year.
+      setYear((y) => (y === null ? (d?.academicYears || []).find((a) => a.status === 'active')?._id || '' : y));
     } catch (err) {
       // The tiles failing must not take the list down with them.
       setOver(null);
+      setYear((y) => (y === null ? '' : y));
       setError(err?.response?.data?.message || err.message || 'Failed to load the summary');
     }
   }, []);
 
   const loadList = useCallback(async () => {
+    if (year === null) return;          // the year to open on is not known yet
     setLoading(true);
     try {
       const res = await getDocuments({
@@ -145,7 +153,7 @@ export default function Documents() {
   useEffect(() => {
     (async () => {
       try {
-        const [c, k] = await Promise.all([getClassesWithSections(), getDocumentCategories()]);
+        const [c, k] = await Promise.all([getDocumentClasses(), getDocumentCategories()]);
         setClasses(unwrap(c) || []);
         setCats(unwrap(k) || []);
       } catch { /* the pickers just stay empty — the list is the page */ }
@@ -163,10 +171,12 @@ export default function Documents() {
   const refresh = () => { loadList(); loadSummary(); };
 
   // ── Filter state ───────────────────────────────────────────────────────────
-  const filtered = !!(term || target || year);
+  const thisYear = (over?.academicYears || []).find((a) => a.status === 'active')?._id || '';
+  // The year the page opens on is where it starts, not a filter someone set.
+  const filtered = !!(term || target || (year || '') !== thisYear);
 
   const clearFilters = () => {
-    setSearch(''); setTerm(''); setTarget(''); setYear(''); setPage(1);
+    setSearch(''); setTerm(''); setTarget(''); setYear(thisYear); setPage(1);
   };
 
   // Not every tab offers every sort — "Due date" belongs to Assignments, "Type"
@@ -182,7 +192,10 @@ export default function Documents() {
   const go = (fn) => (v) => { fn(v); setPage(1); };
 
   // "Total Documents" opens what it counts: every document, no filter, first tab.
-  const showAll = () => { clearFilters(); pickTab('all'); };
+  // Across every year — the tiles count the whole shelf, not one year of it.
+  const showAll = () => { setSearch(''); setTerm(''); setTarget(''); setYear(''); pickTab('all'); };
+  // A tile opens what it counts: its audience, on every tab and in every year.
+  const pickTarget = (v) => { setTarget(target === v ? '' : v); setYear(''); pickTab('all'); };
 
   const tiles = over?.tiles || {};
   const counts = over?.counts || {};
@@ -202,11 +215,16 @@ export default function Documents() {
   }, [tab, over, counts.archived]);
 
   const yearOptions = useMemo(
-    () => (over?.academicYears || []).map((y) => ({
-      value: y._id,
-      label: y.status === 'active' ? `${y.name} (current)` : y.name,
-      count: y.count,
-    })),
+    () => [
+      ...(over?.academicYears || []).map((y) => ({
+        value: y._id,
+        label: y.status === 'active' ? `${y.name} (current)` : y.name,
+        count: y.count,
+      })),
+      // Filed under no year at all — counted by the summary, and until now
+      // with no way to list them.
+      ...(over?.unfiledYear > 0 ? [{ value: 'none', label: 'No academic year', count: over.unfiledYear }] : []),
+    ],
     [over],
   );
 
@@ -361,13 +379,14 @@ export default function Documents() {
           onClick={showAll} />
         <DocStat icon="users" tone="green" label="Shared with Classes"
           value={tiles.classes?.value} change={tiles.classes?.change} added={tiles.classes?.added}
-          on={target === 'classes'} onClick={() => go(setTarget)(target === 'classes' ? '' : 'classes')} />
+          on={target === 'classes'} onClick={() => pickTarget('classes')} />
         <DocStat icon="user" tone="amber" label="Shared with Teachers"
           value={tiles.teachers?.value} change={tiles.teachers?.change} added={tiles.teachers?.added}
-          on={target === 'teachers'} onClick={() => go(setTarget)(target === 'teachers' ? '' : 'teachers')} />
+          on={target === 'teachers'} onClick={() => pickTarget('teachers')} />
         <DocStat icon="clipboard" tone="red" label="Assignments"
           value={tiles.assignments?.value} change={tiles.assignments?.change} added={tiles.assignments?.added}
-          on={tab === 'assignments'} onClick={() => pickTab(tab === 'assignments' ? 'all' : 'assignments')} />
+          on={tab === 'assignments'}
+          onClick={() => { if (tab !== 'assignments') { setTarget(''); setYear(''); } pickTab(tab === 'assignments' ? 'all' : 'assignments'); }} />
       </DocStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -379,7 +398,7 @@ export default function Documents() {
           <SearchField value={search} onChange={setSearch} placeholder="Search documents…" />
           <Picker value={target} onChange={go(setTarget)} all="All Targets"
             options={TARGET_FILTERS} label="Filter by who it was shared with" />
-          <Picker value={year} onChange={go(setYear)} all="All Academic Years"
+          <Picker value={year || ''} onChange={go(setYear)} all="All Academic Years"
             options={yearOptions} label="Filter by academic year" />
           <span className="doctools__sep" />
           <SortMenu value={sort} onChange={go(setSort)} options={sortsFor(tab)} />

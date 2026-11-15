@@ -25,11 +25,12 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as adminApi from '../../api/admin.api';
 import * as teacherApi from '../../api/teacher.api';
-import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
+import { Alert, Button, Confirm, Modal, Spinner } from '../../components/ui/index';
 import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../../components/ui/icons';
 import { saveFile } from '../../utils/downloadFile';
-import { typeOf, FileMark, fmtSize } from './documentParts';
+import { fetchFile } from '../../utils/fileAccess';
+import { typeOf, FileMark, fmtSize, downloadUrl } from './documentParts';
 import {
   Crumbs, DetailHero, MetaStrip, DetailTabs, StatTiles, Panel, Blank, Loading,
   SubmissionDonut, ScoreHistogram, SubmissionTrend, RankRows, QuestionBars,
@@ -62,7 +63,17 @@ const SORT_OPTIONS = [
 
 const PAGE_SIZE = 10;
 
+/**
+ * Keyed on the document: going from one to another (Duplicate does) is a new
+ * page, not this one with a different id. Without the key the copy opened
+ * showing the original's analytics, comment count, picked student and filters.
+ */
 export default function DocumentDetail() {
+  const { id } = useParams();
+  return <DocumentDetailPage key={id} />;
+}
+
+function DocumentDetailPage() {
   const { id } = useParams();
   const { user: me } = useAuth();
   const navigate = useNavigate();
@@ -86,9 +97,12 @@ export default function DocumentDetail() {
       updateComment: teacherApi.updateDocumentComment,
       deleteComment: teacherApi.deleteDocumentComment,
       likeComment:   teacherApi.likeDocumentComment,
-      archive:   null,                       // a teacher has no archive
+      archive:   teacherApi.archiveDocument,  // their own only — the route checks
       remove:    teacherApi.deleteDocument,
       markRead:  teacherApi.markDocumentRead,
+      versions:  teacherApi.getDocumentVersions,
+      restore:   teacherApi.restoreDocumentVersion,
+      readers:   teacherApi.getDocumentReaders,
     }
     : {
       detail:    adminApi.getAssignmentDetail,
@@ -103,6 +117,9 @@ export default function DocumentDetail() {
       likeComment:   adminApi.likeDocumentComment,
       archive:   adminApi.archiveDocument,
       remove:    adminApi.deleteDocument,
+      versions:  adminApi.getDocumentVersions,
+      restore:   adminApi.restoreDocumentVersion,
+      readers:   adminApi.getDocumentReaders,
     };
 
   const setTab = (v) => {
@@ -258,6 +275,8 @@ export default function DocumentDetail() {
     try {
       await api.review(id, picked._id, payload);
       toast.success('Marks and feedback saved');
+      // The analytics were worked out before this mark existed.
+      setAnalytics(null);
       await load(false);
       // The panel is showing a row that has just changed — pull the new one
       // through rather than leaving a stale copy beside a refreshed table.
@@ -279,7 +298,48 @@ export default function DocumentDetail() {
   const remind = async (studentIds) => {
     try {
       const r = await api.remind(id, studentIds ? { studentIds } : {});
-      toast.success(r.sent ? `Reminder sent to ${r.sent} student${r.sent === 1 ? '' : 's'}` : (r.message || 'Nobody to remind'));
+      toast.success(r.sent
+        ? `Reminder sent to ${r.sent} student${r.sent === 1 ? '' : 's'} and their parents`
+        : (r.message || 'Nobody to remind'));
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    }
+  };
+
+  // Everyone the current filters leave, not the ten rows on screen — Export
+  // and Download used to stop at the page.
+  const wholeRoster = async () => {
+    const out = [];
+    for (let p = 1; p <= 50; p += 1) {
+      const d = unwrap(await api.detail(id, {
+        status: status || undefined, section: section || undefined, search: term || undefined,
+        sort, page: p, limit: 200,
+      }));
+      out.push(...(d.roster?.students || []));
+      if (p >= (d.roster?.pages || 1)) break;
+    }
+    return out;
+  };
+
+  // ── Earlier files, and who has opened it ───────────────────────────────────
+  const [history, setHistory] = useState(null);     // { current, versions } | 'loading'
+  const [readers, setReaders] = useState(null);     // { total, readers } | 'loading'
+  const openHistory = async () => {
+    setConfirm(null); setHistory('loading');
+    try { setHistory(unwrap(await api.versions(id))); }
+    catch (err) { setHistory(null); toast.error(err?.response?.data?.message || err.message); }
+  };
+  const openReaders = async () => {
+    setConfirm(null); setReaders('loading');
+    try { setReaders(unwrap(await api.readers(id))); }
+    catch (err) { setReaders(null); toast.error(err?.response?.data?.message || err.message); }
+  };
+  const restoreVersion = async (v) => {
+    try {
+      await api.restore(id, v._id);
+      toast.success(`Version ${v.versionNumber} is the current one again`);
+      setHistory(null);
+      await load(false);
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     }
@@ -299,7 +359,7 @@ export default function DocumentDetail() {
     const url = `${window.location.origin}${home}/${id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Link copied');
+      toast.success('Link copied — it opens for staff who can see this document');
     } catch {
       // Clipboard is blocked outside a secure context — show the link so it can
       // still be copied by hand rather than failing silently.
@@ -307,17 +367,65 @@ export default function DocumentDetail() {
     }
   };
 
-  const exportCsv = () => {
-    const rows = roster?.students || [];
-    if (!rows.length) return toast.error('Nothing to export');
+  const [working, setWorking] = useState('');     // 'export' | 'files' while one runs
+  const exportCsv = async () => {
+    if (!roster?.shown) return toast.error('Nothing to export');
+    setWorking('export');
+    let rows;
+    try { rows = await wholeRoster(); }
+    catch (err) { setWorking(''); return toast.error(err?.response?.data?.message || err.message); }
+    setWorking('');
     const head = ['Roll No.', 'Student', 'Section', 'Status', 'Submitted On', 'Marks', 'Out of', 'Feedback'];
-    const esc  = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // A cell that starts with = + - or @ is a formula to a spreadsheet; a
+    // leading apostrophe makes it text again.
+    const esc  = (v) => {
+      const t = String(v ?? '');
+      return `"${(/^[=+\-@\t\r]/.test(t) ? `'${t}` : t).replace(/"/g, '""')}"`;
+    };
     const csv  = [head, ...rows.map((r) => [
       r.rollNumber, r.name, r.sectionLabel, r.state,
       r.submittedAt ? `${fmtDate(r.submittedAt)} ${fmtTime(r.submittedAt)}` : '',
       r.marks ?? '', doc.totalMarks ?? '', r.feedback,
     ])].map((line) => line.map(esc).join(',')).join('\n');
-    saveFile(csv, `${doc.title.replace(/[^\w\-]+/g, '_')}-submissions.csv`, 'text/csv;charset=utf-8');
+    saveFile(`\ufeff${csv}`, `${doc.title.replace(/[^\w\-]+/g, '_')}-submissions.csv`, 'text/csv;charset=utf-8');
+  };
+
+  /**
+   * Every submitted file, saved one after another under the student's name.
+   *
+   * It used to open a browser tab per file — the pop-up blocker stopped it
+   * after the first — and only for the ten students on screen.
+   */
+  const downloadAll = async () => {
+    setWorking('files');
+    try {
+      const students = (await wholeRoster()).filter((s) => s.files?.length);
+      const total = students.reduce((n, s) => n + s.files.length, 0);
+      if (!total) { toast.error('Nobody on this list has handed in a file'); return; }
+      const note = toast.loading(`Saving ${total} file${total === 1 ? '' : 's'}…`);
+      let saved = 0;
+      for (const s of students) {
+        for (const f of s.files) {
+          try {
+            const res = await fetchFile(downloadUrl(f.filePath));
+            if (!res.ok) throw new Error(String(res.status));
+            const who = `${s.rollNumber ? `${s.rollNumber}-` : ''}${s.name}`.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_');
+            saveFile(await res.blob(), `${who}-${f.originalName}`, f.mimeType || 'application/octet-stream');
+            saved += 1;
+            toast.loading(`Saving ${saved} of ${total}…`, { id: note });
+            // A breath between saves: browsers drop downloads fired in one burst.
+            await new Promise((r) => setTimeout(r, 350));
+          } catch { /* counted below */ }
+        }
+      }
+      toast.dismiss(note);
+      if (saved === total) toast.success(`${saved} file${saved === 1 ? '' : 's'} saved`);
+      else toast.error(`${saved} of ${total} files saved — the rest could not be opened`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setWorking('');
+    }
   };
 
   const postComment = async (e) => {
@@ -358,6 +466,7 @@ export default function DocumentDetail() {
     try {
       if (c.kind === 'comment') { await api.deleteComment(c.comment._id); await loadComments(); toast.success('Comment deleted'); }
       if (c.kind === 'archive') { await api.archive(id, !doc.isArchived); toast.success(doc.isArchived ? 'Restored' : 'Archived'); await load(false); }
+      if (c.kind === 'remind')  { await remind(); await load(false); }
       if (c.kind === 'delete')  { await api.remove(id); toast.success('Document deleted'); navigate(home); return; }
       setConfirm(null);
     } catch (err) {
@@ -399,7 +508,15 @@ export default function DocumentDetail() {
   const crumbTrail = isAssignment
     ? [{ label: 'Assignments', to: asTeacher ? home : '/admin/documents?tab=assignments' }, { label: doc.title }]
     : [{ label: typeOf(doc.docType).label }, { label: doc.title }];
-  const crumbHere = tabs.find((t) => t.value === tab)?.label || 'Overview';
+  // A tab this document does not have (`?tab=submissions` on a notice, or on
+  // work that has since stopped being an assignment) is the Overview — it used
+  // to draw nothing under the header at all.
+  const view = tabs.some((t) => t.value === tab) ? tab : 'overview';
+  const crumbHere = tabs.find((t) => t.value === view)?.label || 'Overview';
+  const outstanding = (counts.pending || 0) + (counts.missed || 0);
+  // Replying inside a staff-only thread stays staff-only, so the choice is
+  // shown made rather than offered.
+  const replyStaff = replyTo?.visibility === 'staff';
 
   // What narrows the roster. The sort is not one of them — it orders what is
   // left — so it sits with the count and the pager, on the list itself.
@@ -436,11 +553,11 @@ export default function DocumentDetail() {
       rows={(roster?.students || []).map((s, i) => ({ ...s, index: (page - 1) * PAGE_SIZE + i }))}
       loading={busy}
       outOf={doc.totalMarks}
-      showFeedback={tab === 'overview'}
+      showFeedback={view === 'overview'}
       selected={picked?._id}
-      onOpen={(r) => { pick(r); if (tab === 'overview') setTab('submissions'); }}
-      onMark={(r) => { pick(r); setTab('submissions'); }}
-      onSelect={(r) => remind([r._id])}
+      onOpen={(r) => { pick(r); if (view === 'overview') setTab('submissions'); }}
+      onMark={doc.canManage ? (r) => { pick(r); setTab('submissions'); } : undefined}
+      onSelect={doc.canManage ? (r) => remind([r._id]) : undefined}
       empty={<Blank text={status || section || term ? 'No students match these filters' : 'Nobody is on this assignment yet'} />}
     />
   );
@@ -479,7 +596,7 @@ export default function DocumentDetail() {
             {doc.canManage && (
               <>
                 <button type="button" className="btn btn-secondary"
-                  onClick={() => navigate(asTeacher ? home : `/admin/documents?edit=${id}`)}>
+                  onClick={() => navigate(`${home}?edit=${id}`)}>
                   <Icon name="pencil" size={15} /> Edit
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={duplicate}>
@@ -487,8 +604,9 @@ export default function DocumentDetail() {
                 </button>
               </>
             )}
-            <button type="button" className="btn btn-secondary" onClick={share}>
-              <Icon name="upload" size={15} /> Share
+            <button type="button" className="btn btn-secondary" onClick={share}
+              title="Copy a link to this page — it opens for staff who can see this document">
+              <Icon name="upload" size={15} /> Copy link
             </button>
             {doc.canManage && (
               <button type="button" className="adact" title="More actions"
@@ -517,13 +635,13 @@ export default function DocumentDetail() {
             onClick: files.length ? () => viewer.open(files, 0, doc.title) : undefined },
         ]} />
 
-        <DetailTabs tabs={tabs} value={tab} onChange={setTab} />
+        <DetailTabs tabs={tabs} value={view} onChange={setTab} />
       </section>
 
       {error && <Alert variant="danger">{error}</Alert>}
 
       {/* ── Overview ───────────────────────────────────────────────────────── */}
-      {tab === 'overview' && (
+      {view === 'overview' && (
         isAssignment ? (
           <>
             <StatTiles counts={counts} percent={percent} active={status}
@@ -556,12 +674,14 @@ export default function DocumentDetail() {
                 {/* The two actions travel together: when the row runs out, both
                     go to the next line rather than the last one alone. */}
                 <div className="adtools__group">
-                  <button type="button" className="btn btn-secondary" onClick={exportCsv}>
-                    <Icon name="download" size={15} /> Export
+                  <button type="button" className="btn btn-secondary" onClick={exportCsv} disabled={!!working}>
+                    <Icon name="download" size={15} /> {working === 'export' ? 'Exporting…' : 'Export'}
                   </button>
-                  <button type="button" className="btn btn-primary" onClick={() => remind()}>
-                    <Icon name="bell" size={15} /> Send Reminder
-                  </button>
+                  {doc.canManage && (
+                    <button type="button" className="btn btn-primary" onClick={() => setConfirm({ kind: 'remind' })}>
+                      <Icon name="bell" size={15} /> Send Reminder
+                    </button>
+                  )}
                 </div>
               </div>
             }>
@@ -579,7 +699,20 @@ export default function DocumentDetail() {
                 <div><dt>Academic year</dt><dd>{doc.academicYearName || 'Unfiled'}</dd></div>
                 <div><dt>Uploaded by</dt><dd>{doc.uploadedBy?.name || '—'}</dd></div>
                 <div><dt>Uploaded on</dt><dd>{fmtDate(doc.assignedOn)}, {fmtTime(doc.assignedOn)}</dd></div>
-                <div><dt>Version</dt><dd>v{doc.currentVersion}</dd></div>
+                <div><dt>Version</dt><dd>
+                  v{doc.currentVersion}
+                  {doc.canManage && doc.currentVersion > 1 && (
+                    <button type="button" className="adlinkbtn" onClick={openHistory}>See earlier files</button>
+                  )}
+                </dd></div>
+                {doc.canManage && (
+                  <div><dt>Opened by</dt><dd>
+                    {doc.readCount ? `${doc.readCount} ${doc.readCount === 1 ? 'person' : 'people'}` : 'Nobody yet'}
+                    {doc.readCount > 0 && (
+                      <button type="button" className="adlinkbtn" onClick={openReaders}>See who</button>
+                    )}
+                  </dd></div>
+                )}
               </dl>
             </Panel>
             <Panel title="Files" subtitle={`(${doc.files?.length || 0})`}>
@@ -590,7 +723,7 @@ export default function DocumentDetail() {
       )}
 
       {/* ── Submissions ────────────────────────────────────────────────────── */}
-      {tab === 'submissions' && isAssignment && (
+      {view === 'submissions' && isAssignment && (
         <>
           <StatTiles counts={counts} percent={percent} active={status}
             onPick={(v) => { setStatus(v); setPage(1); }} />
@@ -603,15 +736,16 @@ export default function DocumentDetail() {
             <div className="adtools adtools--bar">
               {rosterTools}
               <div className="adtools__group">
-                <button type="button" className="btn btn-secondary" onClick={() => remind()}>
-                  <Icon name="bell" size={15} /> Send Reminder
+                {doc.canManage && (
+                  <button type="button" className="btn btn-secondary" onClick={() => setConfirm({ kind: 'remind' })}>
+                    <Icon name="bell" size={15} /> Send Reminder
+                  </button>
+                )}
+                <button type="button" className="btn btn-secondary" onClick={exportCsv} disabled={!!working}>
+                  <Icon name="download" size={15} /> {working === 'export' ? 'Exporting…' : 'Export'}
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={exportCsv}>
-                  <Icon name="download" size={15} /> Export
-                </button>
-                <button type="button" className="btn btn-secondary"
-                  onClick={() => downloadAll(roster?.students, doc)}>
-                  <Icon name="files" size={15} /> Download files
+                <button type="button" className="btn btn-secondary" onClick={downloadAll} disabled={!!working}>
+                  <Icon name="files" size={15} /> {working === 'files' ? 'Saving…' : 'Download files'}
                 </button>
               </div>
             </div>
@@ -627,8 +761,8 @@ export default function DocumentDetail() {
               {picked && (
                 <div className="adwork__side" ref={sideRef}>
                   <SubmissionPanel student={picked} doc={doc} saving={saving}
-                    onClose={() => setPicked(null)} onSave={saveMarks}
-                    onRemind={(s) => remind([s._id])} onView={viewer.open} />
+                    onClose={() => setPicked(null)} onSave={doc.canManage ? saveMarks : null}
+                    onRemind={doc.canManage ? (s) => remind([s._id]) : null} onView={viewer.open} />
                 </div>
               )}
             </div>
@@ -637,7 +771,7 @@ export default function DocumentDetail() {
       )}
 
       {/* ── Analytics ──────────────────────────────────────────────────────── */}
-      {tab === 'analytics' && isAssignment && (
+      {view === 'analytics' && isAssignment && (
         anaLoading || !analytics ? <Loading /> : (
           <>
             <StatTiles counts={counts} percent={percent} />
@@ -711,7 +845,7 @@ export default function DocumentDetail() {
       )}
 
       {/* ── Comments ───────────────────────────────────────────────────────── */}
-      {tab === 'comments' && (
+      {view === 'comments' && (
         <div className="adrow adrow--split">
           <Panel title="Comments & Discussions"
             lead="Communicate with students and keep track of important discussions."
@@ -798,7 +932,9 @@ export default function DocumentDetail() {
                         onChange={(e) => { addAttach(Array.from(e.target.files || [])); e.target.value = ''; }} />
                     </label>
                     <span className="adtools__sep" />
-                    <select className="form-control adsel" value={visibility} aria-label="Who can see this"
+                    <select className="form-control adsel" value={replyStaff ? 'staff' : visibility}
+                      aria-label="Who can see this" disabled={replyStaff}
+                      title={replyStaff ? 'A reply is seen by whoever sees the comment it answers' : undefined}
                       onChange={(e) => setVisibility(e.target.value)}>
                       <option value="all">Visible to All</option>
                       <option value="staff">Staff only</option>
@@ -838,6 +974,13 @@ export default function DocumentDetail() {
         <div className="adsheet" role="dialog" aria-label="Document actions" onClick={() => setConfirm(null)}>
           <div className="adsheet__box" onClick={(e) => e.stopPropagation()}>
             <h3>{doc.title}</h3>
+            <button type="button" onClick={openReaders}>
+              <Icon name="eye" size={16} />
+              Who has opened it{doc.readCount ? ` (${doc.readCount})` : ''}
+            </button>
+            <button type="button" onClick={openHistory}>
+              <Icon name="repeat" size={16} /> Earlier files (version {doc.currentVersion})
+            </button>
             {api.archive && (
               <button type="button" onClick={() => setConfirm({ kind: 'archive' })}>
                 <Icon name={doc.isArchived ? 'refresh' : 'package'} size={16} />
@@ -857,14 +1000,64 @@ export default function DocumentDetail() {
         onClose={() => setConfirm(null)}
         onConfirm={runConfirm}
         loading={busy}
+        confirmLabel={confirm?.kind === 'remind' ? 'Send reminder' : undefined}
         title={confirm?.kind === 'comment' ? 'Delete Comment'
           : confirm?.kind === 'archive' ? (doc.isArchived ? 'Restore Document' : 'Archive Document')
+          : confirm?.kind === 'remind' ? 'Send Reminder'
           : 'Delete Document'}
         message={confirm?.kind === 'comment'
           ? commentDeleteText(confirm.comment, asTeacher)
+          : confirm?.kind === 'remind'
+            ? (outstanding
+              ? `Remind the ${outstanding} student${outstanding === 1 ? '' : 's'} who ${outstanding === 1 ? 'has' : 'have'} not handed in “${doc.title}”? Their parents are told too. It can be sent to everyone once an hour.`
+              : `Everyone has handed in “${doc.title}” — there is nobody to remind.`)
           : confirm?.kind === 'archive'
             ? (doc.isArchived ? `Put “${doc.title}” back on the shelf?` : `Archive “${doc.title}”? It stays here but leaves the main list.`)
             : `Permanently delete “${doc.title}”? Its files and every submission against it go with it.`} />
+
+      {/* Earlier sets of files. Replacing a file keeps what was there. */}
+      <Modal open={!!history} onClose={() => setHistory(null)} title="Earlier files" maxWidth={560}>
+        {history === 'loading' || !history ? <Loading /> : (
+          <div className="adversions">
+            <section>
+              <h4>Version {history.current.versionNumber} <span className="adpill adpill--yes">Current</span></h4>
+              <FileList files={history.current.files} onView={viewer.open} />
+            </section>
+            {history.versions.length === 0 && (
+              <p className="adnone">Nothing has been replaced on this document — there are no earlier files.</p>
+            )}
+            {history.versions.map((v) => (
+              <section key={v._id}>
+                <h4>
+                  Version {v.versionNumber}
+                  <small>replaced {fmtDate(v.replacedAt)}{v.replacedBy ? ` by ${v.replacedBy}` : ''}</small>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => restoreVersion(v)}>
+                    <Icon name="refresh" size={14} /> Use these again
+                  </button>
+                </h4>
+                <FileList files={v.files} onView={viewer.open} />
+              </section>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* Who has opened it — the read marks, read from the sharer's side. */}
+      <Modal open={!!readers} onClose={() => setReaders(null)} title="Who has opened it" maxWidth={520}>
+        {readers === 'loading' || !readers ? <Loading /> : (
+          readers.readers.length ? (
+            <ul className="adreaders">
+              {readers.readers.map((r) => (
+                <li key={r._id}>
+                  <Person name={r.name} photo={r.photo} size={30}
+                    sub={[{ school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' }[r.role] || r.role, r.section].filter(Boolean).join(' · ')} />
+                  <time>{fmtDate(r.readAt)}, {fmtTime(r.readAt)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="adnone">Nobody has opened this yet.</p>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -918,7 +1111,7 @@ const FileList = ({ files, onView }) => (
               onClick={() => onView(files, i)}>{f.originalName}</button>
             <button type="button" className="adact" onClick={() => onView(files, i)}
               title="View file" aria-label={`View ${f.originalName}`}><Icon name="eye" size={15} /></button>
-            <a className="adact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
+            <a className="adact" href={downloadUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
               title="Download" aria-label={`Download ${f.originalName}`}><Icon name="download" size={15} /></a>
           </li>
         ))}
@@ -1039,14 +1232,4 @@ function cumulate(trend) {
     out.push({ label: `${String(d.getDate()).padStart(2, '0')} ${TREND_MONTHS[d.getMonth()]}`, total: running });
   }
   return out;
-}
-
-/** Open every submitted file at once — the browser handles the rest. */
-function downloadAll(students, doc) {
-  const files = (students || []).flatMap((s) => s.files || []);
-  if (!files.length) return toast.error('No submitted files on this page');
-  toast.success(`Opening ${files.length} file${files.length === 1 ? '' : 's'}`);
-  files.forEach((f, i) => {
-    setTimeout(() => window.open(fileUrl(f.filePath), '_blank', 'noopener'), i * 250);
-  });
 }

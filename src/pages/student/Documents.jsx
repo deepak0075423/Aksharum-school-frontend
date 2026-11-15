@@ -11,9 +11,9 @@
  * type pill and a due date read the same here as they do for a parent or in the
  * office.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, submitAssignment, markDocumentRead, markDocumentsRead,
   getDocumentComments, addDocumentComment, updateDocumentComment, deleteDocumentComment,
@@ -23,22 +23,11 @@ import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
   DocList, DocDrawer, NothingHere, StatePill, FileRows, Field, FileDrop, DocComments, UnreadNote, OpenFile,
-  TABS, sortsFor, sortOn, applyFilters, useReadMarks, fmtDate,
+  TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
 
 export default function StudentDocuments() {
   const [year, setYear] = useState('');
-  const { data, meta, loading, error, refetch } = useFetch(
-    () => getDocuments(year ? { year } : undefined), [year],
-  );
-
-  const loaded   = useMemo(() => (Array.isArray(data) ? data : []), [data]);
-  // The same list, with what has been opened on this visit already marked read.
-  const { docs, read, readAll } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
-  const counts   = meta?.counts || {};
-  const years    = meta?.years || [];
-  const myClass  = meta?.who?.label || '';
-
   const [tab,      setTab]      = useState('all');
   const [category, setCategory] = useState('');
   const [search,   setSearch]   = useState('');
@@ -49,28 +38,65 @@ export default function StudentDocuments() {
   const [files,    setFiles]    = useState([]);
   const [sending,  setSending]  = useState(false);
 
-  const shown = useMemo(
-    () => applyFilters(docs, { tab, category, search, sort: sortOn(tab, sort), state }),
-    [docs, tab, category, search, sort, state],
+  // A notification names one document (`?focus=`); the drawer's own document
+  // is asked for the same way, so it stays current whatever page it is on.
+  const [urlParams] = useSearchParams();
+  const wanted   = useRef(urlParams.get('focus'));
+  const focusRef = useRef(wanted.current);
+
+  // The server narrows, counts and pages; this page only says what it wants.
+  const params = useMemo(
+    () => ({ year, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort), state }),
+    [year, tab, category, search, sort, state],
   );
+  const { docs: loaded, meta, loading, error, more, refetch } = useShelf(getDocuments, params, { focusRef });
+
+  // The same list, with what has been opened on this visit already marked read.
+  const { docs, read, readAll, stillUnread } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
+  const counts   = meta?.counts || {};
+  const years    = meta?.years || [];
+  const myClass  = meta?.who?.label || '';
+  const shown    = docs;
+  const unread   = stillUnread(meta?.unreadIds);
 
   const filtered = !!(category || search || state);
   const clear = () => { setCategory(''); setSearch(''); setState(''); setTab('all'); };
 
   // The drawer holds a copy; re-point it at the refreshed row after a submit so
   // it shows the submission that was just made rather than the state before it.
-  const live = open ? docs.find((d) => d._id === open._id) || open : null;
+  const live = open
+    ? docs.find((d) => d._id === open._id)
+      || (meta?.focused && String(meta.focused._id) === String(open._id) ? meta.focused : open)
+    : null;
+
+  // The notified document is opened, not just flagged — the marks, the
+  // feedback and the reply are inside it. The server finds it wherever it is
+  // filed (`meta.focused`), so there is no year to guess at.
+  useEffect(() => {
+    if (!wanted.current || !meta) return;
+    const hit = meta.focused;
+    wanted.current = null;
+    if (hit) { setOpen(hit); setFiles([]); read(hit); }
+    else { focusRef.current = null; toast.error('That document is no longer on your shelf'); }
+  }, [meta]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const mine    = live?.mySubmission || null;
+  const handed  = !!mine && (mine.status === 'submitted' || mine.status === 'late');
+  // Looked at by the teacher: the marks and feedback describe the work that
+  // was read, so it can no longer be swapped for something else.
+  const settled = !!mine && (mine.marks != null || !!mine.reviewedAt);
+  const pastDue = !!live?.dueDate && Date.now() > new Date(live.dueDate).getTime();
 
   const submit = async () => {
     if (!files.length) return toast.error('Attach at least one file');
     setSending(true);
     try {
-      await submitAssignment(live._id, (() => {
+      const res = await submitAssignment(live._id, (() => {
         const fd = new FormData();
         files.forEach((f) => fd.append('files', f));
         return fd;
       })());
-      toast.success(live.state === 'missed' ? 'Submitted — it will be marked late' : 'Submitted');
+      toast.success(res?.message === 'Submitted late' ? 'Handed in — after the due date, so it is marked late' : 'Handed in');
       setFiles([]);
       await refetch();
     } catch (err) {
@@ -82,7 +108,7 @@ export default function StudentDocuments() {
 
   const pickState = (v) => { setState(state === v ? '' : v); setTab(state === v ? 'all' : 'assignments'); };
 
-  if (loading && !data) return <div className="loading-page"><Spinner /></div>;
+  if (loading && !meta) return <div className="loading-page"><Spinner /></div>;
 
   return (
     <div className="page dvpg">
@@ -121,13 +147,13 @@ export default function StudentDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={meta?.categories || []} label="Filter by category" />
           <span className="dvtools__sep" />
-          <UnreadNote docs={docs} onClear={() => readAll(docs)} />
+          <UnreadNote count={unread.length} onClear={() => readAll(unread)} />
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
         </ViewerTools>
 
         <DocList
-          docs={shown} loading={loading}
-          onOpen={(d) => { setOpen(d); setFiles([]); read(d); }}
+          docs={shown} loading={loading} more={more}
+          onOpen={(d) => { focusRef.current = d._id; setOpen(d); setFiles([]); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
           badges={(d) => <StatePill state={d.state} />}
         />
@@ -135,29 +161,40 @@ export default function StudentDocuments() {
 
       <DocDrawer
         doc={live}
-        onClose={() => { setOpen(null); setFiles([]); }}
+        onClose={() => { focusRef.current = null; setOpen(null); setFiles([]); }}
         extra={live && (
           <>
           {live.isAssignment && (
           <section className="dvdrawer__sec">
             <h4>Your submission</h4>
 
-            {live.mySubmission ? (
+            {mine ? (
               <>
                 <dl>
                   <Field label="Status"><StatePill state={live.state} /></Field>
-                  <Field label="Handed in">{fmtDate(live.mySubmission.submittedAt)}</Field>
-                  {live.mySubmission.marks != null && (
+                  <Field label="Handed in">
+                    {handed ? fmtDate(mine.submittedAt) : 'Nothing was handed in here'}
+                  </Field>
+                  {mine.marks != null && (
                     <Field label="Marks">
-                      <b>{live.mySubmission.marks}</b>{live.totalMarks ? ` / ${live.totalMarks}` : ''}
+                      <b>{mine.marks}</b>{live.totalMarks ? ` / ${live.totalMarks}` : ''}
                     </Field>
                   )}
                 </dl>
-                <FileRows files={live.mySubmission.files} caption="Your submission" empty="Handed in with no files" />
-                {live.mySubmission.feedback && (
+                {/* Where the marks came from, when the paper was marked
+                    question by question. */}
+                {mine.questionScores?.some((q) => q.score != null) && (
+                  <ul className="dvscores">
+                    {mine.questionScores.filter((q) => q.score != null).map((q) => (
+                      <li key={q.label}><span>{q.label}</span><b>{q.score}</b></li>
+                    ))}
+                  </ul>
+                )}
+                {handed && <FileRows files={mine.files} caption="Your submission" empty="Handed in with no files" />}
+                {mine.feedback && (
                   <div className="dvfeedback">
                     <h5><Icon name="chat" size={14} /> Teacher feedback</h5>
-                    <p>{live.mySubmission.feedback}</p>
+                    <p>{mine.feedback}</p>
                   </div>
                 )}
               </>
@@ -165,23 +202,34 @@ export default function StudentDocuments() {
               <p className="dvnone">You have not handed anything in yet.</p>
             )}
 
-            {live.allowSubmission ? (
+            {settled ? (
+              <p className="dvnote dvnote--calm">
+                <Icon name="info" size={14} />
+                This has been marked, so it can no longer be replaced. Ask your teacher if you need to hand it in again.
+              </p>
+            ) : live.allowSubmission ? (
               <div className="dvsubmit">
                 <span className="form-label">
-                  {live.mySubmission ? 'Replace what you handed in' : 'Attach your work'}
+                  {handed ? 'Replace what you handed in' : 'Attach your work'}
                 </span>
                 {/* The shared picker rather than a bare file input: it lists
                     what was chosen and lets each file be taken back out, which
                     matters most right before handing the wrong one in. */}
                 <FileDrop id="dv-files" files={files} onChange={setFiles} max={5}
-                  hint="Up to 5 files" />
-                {live.state === 'missed' && (
+                  hint="Up to 5 files, 10 MB each — PDFs, documents or photos" />
+                {/* Said before the button is pressed, and for a replacement
+                    too: work handed in on time and swapped after the due date
+                    used to turn late without a word. */}
+                {pastDue && (
                   <p className="dvwarn">
-                    <Icon name="alert" size={14} /> The due date has passed — this will be marked late.
+                    <Icon name="alert" size={14} />
+                    {handed && mine.status !== 'late'
+                      ? 'The due date has passed — replacing your work now will mark it late.'
+                      : 'The due date has passed — this will be marked late.'}
                   </p>
                 )}
                 <Button onClick={submit} loading={sending} disabled={sending || !files.length}>
-                  <Icon name="upload" size={15} /> {live.mySubmission ? 'Replace submission' : 'Submit'}
+                  <Icon name="upload" size={15} /> {handed ? 'Replace submission' : 'Submit'}
                 </Button>
               </div>
             ) : (

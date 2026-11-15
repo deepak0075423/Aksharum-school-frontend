@@ -106,8 +106,11 @@ export const addDocumentComment     = (id, data)  => api.post(`/teacher/document
 export const updateDocumentComment  = (cid, data) => api.patch(`/teacher/documents/comments/${cid}`, data);
 export const deleteDocumentComment  = (cid)       => api.delete(`/teacher/documents/comments/${cid}`);
 export const likeDocumentComment    = (cid)       => api.post(`/teacher/documents/comments/${cid}/like`);
-export const getDocumentSubs     = (id)     => api.get(`/teacher/documents/${id}/submissions`);
-export const reviewSubmission    = (subId, data) => api.post(`/teacher/documents/submissions/${subId}/review`, data);
+// Their own documents: put away and take back out, earlier files, who opened it.
+export const archiveDocument        = (id, archived = true) => api.post(`/teacher/documents/${id}/archive`, { archived });
+export const getDocumentVersions    = (id)      => api.get(`/teacher/documents/${id}/versions`);
+export const restoreDocumentVersion = (id, vid) => api.post(`/teacher/documents/${id}/versions/${vid}/restore`);
+export const getDocumentReaders     = (id)      => api.get(`/teacher/documents/${id}/readers`);
 export const getHolidays         = () => api.get('/teacher/holidays');
 export const getClassHolidays    = () => api.get('/teacher/class-holidays');
 export const getResultBoard   = () => api.get('/teacher/results/board');

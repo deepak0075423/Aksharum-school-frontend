@@ -14,20 +14,20 @@
  * Built on the shared viewer kit, so a document looks the same to a teacher as
  * it does to the class they set it for.
  */
-import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, uploadDocument, updateDocument, deleteDocument, getDocumentCategories,
-  markDocumentRead, markDocumentsRead,
+  markDocumentRead, markDocumentsRead, archiveDocument,
 } from '../../api/teacher.api';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
   DocList, DocDrawer, NothingHere, Field, UnreadNote, OpenFile,
-  TABS, sortsFor, sortOn, applyFilters, useReadMarks, fmtDate,
+  TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
 import ShareDocument from './ShareDocument';
 import Tabs from '../../components/ui/Tabs';
@@ -40,21 +40,7 @@ const SCOPES = [
 export default function TeacherDocuments() {
   const navigate = useNavigate();
   const [year, setYear] = useState('');
-  const { data, meta, loading, error, refetch } = useFetch(
-    () => getDocuments(year ? { year } : undefined), [year],
-  );
   const { data: catData } = useFetch(getDocumentCategories);
-
-  const loaded   = useMemo(() => (Array.isArray(data) ? data : []), [data]);
-  // The same list, with what has been opened on this visit already marked read.
-  const { docs: all, read, readAll } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
-  const counts   = meta?.counts || {};
-  const sections = meta?.sections || [];
-  const years    = meta?.years || [];
-  const categories = useMemo(
-    () => (catData || []).map((c) => c.name ?? c),
-    [catData],
-  );
 
   const [scope,    setScope]    = useState('shared');
   const [tab,      setTab]      = useState('all');
@@ -63,38 +49,78 @@ export default function TeacherDocuments() {
   const [sort,     setSort]     = useState('newest');
   const [open,     setOpen]     = useState(null);
 
+  // `?edit=<id>` names one of their own documents to open the form on — how the
+  // document's own page sends its owner back here. The server finds it
+  // whatever year or half of the shelf it sits in (`meta.focused`).
+  const [urlParams, setUrlParams] = useSearchParams();
+  const focusRef = useRef(urlParams.get('edit'));
+
+  // The server narrows, counts and pages; this page only says what it wants.
+  const params = useMemo(
+    () => ({ year, scope, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort) }),
+    [year, scope, tab, category, search, sort],
+  );
+  const { docs: loaded, meta, loading, error, more, refetch } = useShelf(getDocuments, params, { focusRef });
+
+  // The same list, with what has been opened on this visit already marked read.
+  const { docs: all, read, readAll, stillUnread } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
+  const counts   = meta?.counts || {};
+  const sections = meta?.sections || [];
+  const years    = meta?.years || [];
+  const unread   = stillUnread(meta?.unreadIds);
+  const categories = useMemo(
+    () => (catData || []).map((c) => c.name ?? c),
+    [catData],
+  );
+
   const [editing,  setEditing]  = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [del,      setDel]      = useState(null);
   const [busy,     setBusy]     = useState(false);
 
-  const scoped = useMemo(
-    () => all.filter((d) => (scope === 'mine' ? d.mine : !d.mine)),
-    [all, scope],
-  );
-
-  const shown = useMemo(
-    () => applyFilters(scoped, { tab, category, search, sort: sortOn(tab, sort) }),
-    [scoped, tab, category, search, sort],
-  );
+  const shown = all;
 
   // The tab counts follow the scope, or they would promise rows the other half
-  // of the page is holding.
-  const tabCounts = useMemo(() => ({
-    all:         scoped.length,
-    assignments: scoped.filter((d) => d.isAssignment).length,
-    notices:     scoped.filter((d) => ['notice', 'circular'].includes(d.docType)).length,
-    study:       scoped.filter((d) => d.docType === 'study_material').length,
-  }), [scoped]);
+  // of the page is holding. The server counts them over that half.
+  const tabCounts = meta?.tabCounts || {};
 
   const filtered = !!(category || search);
   const clear = () => { setCategory(''); setSearch(''); setTab('all'); };
-  const live  = open ? all.find((d) => d._id === open._id) || open : null;
+  const live  = open
+    ? all.find((d) => d._id === open._id)
+      || (meta?.focused && String(meta.focused._id) === String(open._id) ? meta.focused : open)
+    : null;
 
   // ── Upload / edit ──────────────────────────────────────────────────────────
   const startNew  = () => { setEditing(null); setShowForm(true); };
   const startEdit = (d)  => { setOpen(null); setEditing(d); setShowForm(true); };
+
+  // The edit form opens on arrival. (The page's Edit button used to bring its
+  // owner to this list and stop.)
+  useEffect(() => {
+    const id = urlParams.get('edit');
+    if (!id || !meta) return;
+    const hit = meta.focused;
+    if (hit?.mine && String(hit._id) === id) { setScope('mine'); startEdit(hit); }
+    else toast.error('That document is not one of yours to edit');
+    focusRef.current = null;
+    const next = new URLSearchParams(urlParams);
+    next.delete('edit');
+    setUrlParams(next, { replace: true });
+  }, [urlParams, meta]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Their own to put away and take back out. Archived, it leaves every
+  // reader's shelf and stays on this one, marked.
+  const toggleArchive = async (d) => {
+    try {
+      await archiveDocument(d._id, !d.isArchived);
+      toast.success(d.isArchived ? 'Back on the shelf' : 'Archived — readers no longer see it');
+      refetch();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    }
+  };
 
   const save = async (form, files, kept = []) => {
     setSaving(true);
@@ -152,7 +178,7 @@ export default function TeacherDocuments() {
     }
   };
 
-  if (loading && !data) return <div className="loading-page"><Spinner /></div>;
+  if (loading && !meta) return <div className="loading-page"><Spinner /></div>;
 
   return (
     <div className="page dvpg">
@@ -192,7 +218,9 @@ export default function TeacherDocuments() {
         <ViewerStat icon="clipboard" tone="green" value={counts.assignments} label="Assignments"
           caption="Set across your sections" />
         <ViewerStat icon="pencil" tone="amber" value={counts.toMark} label="To mark"
-          caption="Handed in, not yet marked" />
+          caption="Handed in, not yet marked"
+          on={scope === 'mine' && tab === 'assignments'}
+          onClick={() => { setScope('mine'); setTab('assignments'); }} />
       </ViewerStats>
 
       <section className="card dvpanel">
@@ -210,12 +238,12 @@ export default function TeacherDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={categories} label="Filter by category" />
           <span className="dvtools__sep" />
-          {scope === 'shared' && <UnreadNote docs={scoped} onClear={() => readAll(scoped)} />}
+          {scope === 'shared' && <UnreadNote count={unread.length} onClear={() => readAll(unread)} />}
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
         </ViewerTools>
 
         <DocList
-          docs={shown} loading={loading} onOpen={(d) => { setOpen(d); read(d); }}
+          docs={shown} loading={loading} more={more} onOpen={(d) => { setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear}
             what={scope === 'mine' ? 'uploads' : 'documents'} />}
           badges={(d) => (d.isAssignment && d.mine
@@ -266,8 +294,18 @@ export default function TeacherDocuments() {
         foot={live && (
           <>
             <OpenFile files={live.files} caption={live.title} />
+            {/* Every document has a page — the discussion under it lives
+                there, and a notice had no way to reach it from here. */}
+            <button type="button" className="btn btn-secondary"
+              onClick={() => navigate(`/teacher/documents/${live._id}${live.isAssignment ? '' : '?tab=comments'}`)}>
+              <Icon name="chat" size={15} /> {live.isAssignment ? 'Open page' : 'Comments'}
+            </button>
             {live.mine && (
               <>
+                <button type="button" className="btn btn-secondary" onClick={() => toggleArchive(live)}>
+                  <Icon name={live.isArchived ? 'refresh' : 'package'} size={15} />
+                  {live.isArchived ? 'Restore' : 'Archive'}
+                </button>
                 <button type="button" className="btn btn-danger" onClick={() => setDel(live)}>
                   <Icon name="trash" size={15} /> Delete
                 </button>

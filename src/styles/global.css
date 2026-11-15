@@ -21135,3 +21135,60 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
    for the same one: same date, same type. */
 .holclash--stop { background: #fef2f2; border-color: #fecaca; }
 .holclash--stop h3, .holclash--stop small, .holclash--stop p { color: #991b1b; }
+
+/* Documents (Nov 2026 fixes) — the pieces the audit's fixes added. Placed
+   after the dv/ad/sh base rules they sit beside, so they win at equal weight. */
+
+/* Reader lists draw thirty cards at a time. */
+.dvmore { align-self: center; margin: 14px 0 4px; }
+.dvmore small { font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+
+/* A student's marks, question by question. */
+.dvscores {
+  list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px; margin: 10px 0 0;
+}
+.dvscores li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; font-size: .8rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.dvscores li span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Marking a student who handed nothing in. */
+.admark__note {
+  display: flex; gap: 8px; align-items: flex-start; margin-bottom: 14px; padding: 10px 12px;
+  font-size: .8rem; line-height: 1.5; color: #92400e;
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-lg);
+}
+.admark__note svg { flex-shrink: 0; margin-top: 2px; }
+.adside__quote { font-size: .84rem; line-height: 1.55; color: var(--text-muted); font-style: italic; }
+
+/* "See who" / "See earlier files", beside a fact. */
+.adfacts dd .adlinkbtn { margin-left: 10px; }
+
+/* Earlier sets of files. */
+.adversions { display: flex; flex-direction: column; gap: 18px; }
+.adversions h4 {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: .86rem; font-weight: 700; margin-bottom: 8px;
+}
+.adversions h4 small { font-size: .76rem; font-weight: 500; color: var(--text-muted); }
+.adversions h4 .btn { margin-left: auto; }
+.adversions section + section { padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* Who has opened a document. */
+.adreaders { list-style: none; display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
+.adreaders li {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 2px; border-bottom: 1px solid var(--border);
+}
+.adreaders li:last-child { border-bottom: none; }
+.adreaders time { font-size: .76rem; color: var(--text-muted); white-space: nowrap; }
+
+/* A note's icon keeps its size when the sentence beside it wraps. */
+.dvnote svg { flex-shrink: 0; }
+.dvscores { margin-bottom: 10px; }
+/* The year filter is set from the start now ("2026-27 (current) (12)"), so it
+   needs the room to say so. */
+.docsel { max-width: 230px; }

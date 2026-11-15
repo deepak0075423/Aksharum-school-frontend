@@ -23,7 +23,7 @@ import {
 import Icon from '../../components/ui/icons';
 import { Spinner } from '../../components/ui/index';
 import { VIZ } from '../analytics/palette';
-import { FileMark, fileUrl, fmtSize, fmtDate, typeOf } from './documentParts';
+import { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf } from './documentParts';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 
@@ -52,6 +52,9 @@ export const fmtSpan = (fromISO, toISO) => {
   const days = Math.floor(hrs / 24);
   return `${days} day${days === 1 ? '' : 's'}${hrs % 24 ? ` ${hrs % 24} hours` : ''}`;
 };
+
+/** The marking form's own line for what the named questions leave over (the server's name for it). */
+export const OTHER_MARKS = 'Other marks';
 
 export const ASSIGNMENT_TYPES = [
   { value: 'homework',  label: 'Homework' },
@@ -503,9 +506,12 @@ export function RosterTable({
               <td className="adtable__acts">
                 <RowActions>
                   <IconAction icon="eye" label="Open submission" onClick={() => onOpen(r)} />
-                  <IconAction icon="pencil" label="Mark and give feedback" variant="edit"
-                    onClick={() => onMark(r)}
-                    disabled={r.state === 'pending' || r.state === 'missed'} />
+                  {/* Open for everyone on the list: work done on paper, or a
+                      zero for work never done, is marked here too. */}
+                  {onMark && (
+                    <IconAction icon="pencil" label="Mark and give feedback" variant="edit"
+                      onClick={() => onMark(r)} />
+                  )}
                   {onSelect && (
                     <IconAction icon="bell" label="Send a reminder to this student"
                       onClick={() => onSelect(r)}
@@ -558,6 +564,11 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
 
   const questions = doc.questions || [];
   const byQuestion = questions.length > 0;
+  // What the named questions leave over — presentation, neatness — when each
+  // says what it is worth and together they come to less than the total.
+  const named = questions.reduce((n, q) => n + (Number(q.maxMarks) > 0 ? Number(q.maxMarks) : 0), 0);
+  const room = byQuestion && Number(doc.totalMarks) > 0 && questions.every((q) => Number(q.maxMarks) > 0)
+    ? Math.round((Number(doc.totalMarks) - named) * 100) / 100 : 0;
 
   useEffect(() => {
     if (!student) return;
@@ -565,9 +576,9 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
     setMarks(student.marks == null ? '' : String(student.marks));
     setNote(student.feedback || '');
     setScores(Object.fromEntries(
-      questions.map((q) => {
-        const hit = (student.questionScores || []).find((s) => s.label === q.label);
-        return [q.label, hit?.score == null ? '' : String(hit.score)];
+      [...questions.map((q) => q.label), OTHER_MARKS].map((label) => {
+        const hit = (student.questionScores || []).find((s) => s.label === label);
+        return [label, hit?.score == null ? '' : String(hit.score)];
       }),
     ));
     // Keyed on the student, so switching rows reloads the form rather than
@@ -578,9 +589,11 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
   // one number with an extra chance to be wrong.
   const derived = useMemo(() => {
     if (!byQuestion) return null;
-    const vals = questions.map((q) => Number(scores[q.label])).filter((n) => Number.isFinite(n));
-    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
-  }, [byQuestion, questions, scores]);
+    const labels = [...questions.map((q) => q.label), ...(room > 0 ? [OTHER_MARKS] : [])];
+    const vals = labels.filter((l) => scores[l] !== '' && scores[l] != null)
+      .map((l) => Number(scores[l])).filter((n) => Number.isFinite(n));
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) * 100) / 100 : null;
+  }, [byQuestion, questions, scores, room]);
 
   // Nobody picked, nothing to show: the list keeps the whole width rather than
   // sharing it with a box that says "No student selected".
@@ -660,7 +673,7 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                       <span className="adfiles__size">{fmtSize(f.fileSize)}</span>
                       <button type="button" className="adact" onClick={() => onView(student.files, i, student.name)}
                         title="View file" aria-label={`View ${f.originalName}`}><Icon name="eye" size={15} /></button>
-                      <a className="adact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
+                      <a className="adact" href={downloadUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
                         title="Download" aria-label={`Download ${f.originalName}`}><Icon name="download" size={15} /></a>
                     </li>
                   ))}
@@ -683,6 +696,10 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                   ? 'Nothing was handed in, and the due date has passed.'
                   : 'Nothing handed in yet — the due date has not passed.'}
               </p>
+              {student.marks != null && (
+                <p><b>Marked {student.marks}{doc.totalMarks ? ` / ${doc.totalMarks}` : ''}</b> without a submission.</p>
+              )}
+              {student.feedback ? <p className="adside__quote">“{student.feedback}”</p> : null}
               {onRemind && (
                 <button type="button" className="btn btn-secondary" onClick={() => onRemind(student)}>
                   <Icon name="bell" size={15} /> Send a reminder
@@ -695,6 +712,9 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
         {face === 'history' && (
           <ul className="adhistory">
             <li><span /><div><b>Assigned</b><small>{fmtDate(doc.assignedOn)}, {fmtTime(doc.assignedOn)}</small></div></li>
+            {student.readAt && (
+              <li className="is-on"><span /><div><b>Opened by the student</b><small>{fmtDate(student.readAt)}, {fmtTime(student.readAt)}</small></div></li>
+            )}
             {doc.dueDate && <li><span /><div><b>Due</b><small>{fmtDate(doc.dueDate)}, {fmtTime(doc.dueDate)}</small></div></li>}
             {student.submittedAt && (
               <li className="is-on"><span /><div>
@@ -708,20 +728,30 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                 <small>{fmtDate(student.reviewedAt)}, {fmtTime(student.reviewedAt)}</small>
               </div></li>
             )}
-            {!student.submittedAt && !student.reviewedAt && <Blank text="Nothing has happened on this one yet" />}
+            {!student.submittedAt && !student.reviewedAt && !student.readAt && <Blank text="Nothing has happened on this one yet" />}
           </ul>
         )}
 
         {face === 'mark' && (
-          handedIn ? (
+          !onSave ? <Blank text="Only the teacher who set this, or the office, can mark it." /> : (
             <form className="admark" onSubmit={(e) => {
               e.preventDefault();
               onSave({
                 marks: byQuestion ? undefined : marks,
                 feedback: note,
-                questionScores: byQuestion ? questions.map((q) => ({ label: q.label, score: scores[q.label] })) : undefined,
+                questionScores: byQuestion
+                  ? [...questions.map((q) => q.label), ...(room > 0 ? [OTHER_MARKS] : [])]
+                    .map((label) => ({ label, score: scores[label] }))
+                  : undefined,
               });
             }}>
+              {!handedIn && (
+                <p className="admark__note">
+                  <Icon name="info" size={14} />
+                  Nothing was handed in here. Marks and feedback are recorded for work done on paper, or as a
+                  zero — the list still shows it as not submitted.
+                </p>
+              )}
               {byQuestion ? (
                 <>
                   <label className="form-label">Marks per question</label>
@@ -734,6 +764,14 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                           onChange={(e) => setScores((s) => ({ ...s, [q.label]: e.target.value }))} />
                       </div>
                     ))}
+                    {room > 0 && (
+                      <div>
+                        <label htmlFor="q-other">{OTHER_MARKS}<small> / {room}</small></label>
+                        <input id="q-other" className="form-control" type="number" min="0" step="0.5" max={room}
+                          value={scores[OTHER_MARKS] ?? ''}
+                          onChange={(e) => setScores((s) => ({ ...s, [OTHER_MARKS]: e.target.value }))} />
+                      </div>
+                    )}
                   </div>
                   <p className="adqtotal">
                     Total <b>{derived ?? '—'}</b>{doc.totalMarks ? ` / ${doc.totalMarks}` : ''}
@@ -763,7 +801,7 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                 {saving ? 'Saving…' : 'Save marks & feedback'}
               </button>
             </form>
-          ) : <Blank text="There is nothing to mark until something is handed in." />
+          )
         )}
       </div>
     </aside>

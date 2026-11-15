@@ -16,18 +16,18 @@
  * file marks and type registry come from the admin list so a PDF looks the same
  * to a parent as it does to the office.
  */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
 import {
-  FileMark, fileUrl, fmtSize, fmtDate, typeOf, DOC_TYPES,
+  FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, UPLOAD_TYPES, UPLOAD_MAX_BYTES,
 } from '../admin/documentParts';
 import Tabs from '../../components/ui/Tabs';
 import { useFileViewer } from './FileViewer';
 
-export { FileMark, fileUrl, fmtSize, fmtDate, typeOf, DOC_TYPES };
+export { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES };
 
 // ── Words ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,8 @@ export const STATES = {
   late:      { label: 'Submitted late', tone: 'warn', icon: 'checkCircle' },
   marked:    { label: 'Marked',      tone: 'info', icon: 'star' },
   missed:    { label: 'Missed',      tone: 'bad',  icon: 'alert' },
+  // Nothing handed in and submissions are shut: not something still to do.
+  closed:    { label: 'Closed',      tone: 'slate', icon: 'clock' },
 };
 
 export const StatePill = ({ state, compact }) => {
@@ -79,7 +81,7 @@ export function dueLine(dueISO, state) {
   const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((midnight(due) - midnight(new Date())) / 86400000);
 
-  if (state === 'submitted' || state === 'late' || state === 'marked') {
+  if (state === 'submitted' || state === 'late' || state === 'marked' || state === 'closed') {
     return { text: `Due ${fmtDate(dueISO)}`, tone: 'calm' };
   }
   if (days < 0)  return { text: `Overdue by ${-days} day${days === -1 ? '' : 's'}`, tone: 'bad' };
@@ -245,6 +247,7 @@ export function DocCard({ doc, onOpen, badges, actions, dense }) {
           <span className="dvcard__title">
             {unread ? <span className="dvnew">New</span> : null}
             {doc.title}
+            {doc.isArchived ? <span className="dvpill dvpill--slate">Archived</span> : null}
           </span>
           {doc.description ? <span className="dvcard__sub">{doc.description}</span> : null}
           <span className="dvcard__meta">
@@ -265,8 +268,8 @@ export function DocCard({ doc, onOpen, badges, actions, dense }) {
         <div className="dvcard__acts">
           {slot(actions)}
           {doc.files?.[0] && (
-            <a className="dvact" href={fileUrl(doc.files[0].filePath)} target="_blank" rel="noreferrer"
-              title="Open the file" aria-label={`Open ${doc.files[0].originalName}`}>
+            <a className="dvact" href={downloadUrl(doc.files[0].filePath)} target="_blank" rel="noreferrer"
+              title={`Download ${doc.files[0].originalName}`} aria-label={`Download ${doc.files[0].originalName}`}>
               <Icon name="download" size={15} />
             </a>
           )}
@@ -276,11 +279,108 @@ export function DocCard({ doc, onOpen, badges, actions, dense }) {
   );
 }
 
-export const DocList = ({ docs, loading, empty, ...rest }) => {
+/**
+ * The cards on screen, and the way to the next page of them.
+ *
+ * `more` is `{ total, loading, onMore }` from useShelf: the server sends a page
+ * at a time, and "Show more" asks for the next one.
+ */
+export const DocList = ({ docs, loading, empty, more, ...rest }) => {
   if (loading) return <Loading />;
   if (!docs.length) return empty;
-  return <div className="dvlist">{docs.map((d) => <DocCard key={d._id} doc={d} {...rest} />)}</div>;
+  const left = (more?.total || 0) - docs.length;
+  return (
+    <div className="dvlist">
+      {docs.map((d) => <DocCard key={d._id} doc={d} {...rest} />)}
+      {left > 0 && (
+        <button type="button" className="btn btn-secondary dvmore" onClick={more.onMore} disabled={more.loading}>
+          {more.loading ? 'Loading…' : <>Show {Math.min(SHELF_PAGE, left)} more <small>({left} not shown)</small></>}
+        </button>
+      )}
+    </div>
+  );
 };
+
+// ── The shelf, a page at a time ──────────────────────────────────────────────
+
+export const SHELF_PAGE = 30;
+
+/**
+ * One reader's shelf, read from the server a page at a time.
+ *
+ * The tabs, the category, the search, the sort and the tiles' state filter are
+ * all `params` — the server narrows and counts, and sends back only the page
+ * being shown (it used to send every document of the year, files and all, and
+ * this file did the narrowing). `meta` is the whole answer: the figures, the
+ * years, the ids still unread under these filters, and `focused` — the one
+ * document named by `focusRef`, wherever it is filed.
+ *
+ * A change of params starts again from the first page; `refetch()` re-reads
+ * what is already on screen in place, without blanking it.
+ */
+export function useShelf(load, params, { focusRef } = {}) {
+  // A keystroke is not a search; wait for a pause.
+  const [term, setTerm] = useState(params.search || '');
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(params.search || ''), 250);
+    return () => clearTimeout(t);
+  }, [params.search]);
+
+  const key = JSON.stringify({ ...params, search: String(term).trim() });
+  const query = useMemo(() => {
+    const q = JSON.parse(key);
+    Object.keys(q).forEach((k) => { if (q[k] === '' || q[k] == null) delete q[k]; });
+    return q;
+  }, [key]);
+
+  const [box, setBox] = useState({ docs: [], meta: null, loading: true, more: false, error: '' });
+  const held = useRef(box);
+  held.current = box;
+  const turn = useRef(0);
+
+  const ask = useCallback((page, limit) => load({
+    ...query, page, limit, ...(focusRef?.current ? { focus: focusRef.current } : {}),
+  }), [query, load]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const read = useCallback(async (keep) => {
+    const mine = ++turn.current;
+    if (!keep) setBox((b) => ({ ...b, loading: true, error: '' }));
+    try {
+      const limit = keep ? Math.min(100, Math.max(SHELF_PAGE, held.current.docs.length)) : SHELF_PAGE;
+      const res = await ask(1, limit);
+      if (mine !== turn.current) return;      // a newer question has been asked since
+      setBox({ docs: res?.data || [], meta: res, loading: false, more: false, error: '' });
+    } catch (err) {
+      if (mine !== turn.current) return;
+      setBox((b) => ({ ...b, loading: false, more: false, error: err?.response?.data?.message || err.message || 'The documents could not be loaded' }));
+    }
+  }, [ask]);
+
+  useEffect(() => { read(false); }, [read]);
+
+  const loadMore = useCallback(async () => {
+    const mine = turn.current;
+    setBox((b) => ({ ...b, more: true }));
+    try {
+      const res = await ask(Math.floor(held.current.docs.length / SHELF_PAGE) + 1, SHELF_PAGE);
+      if (mine !== turn.current) return;
+      setBox((b) => {
+        const have = new Set(b.docs.map((d) => d._id));
+        return { ...b, docs: [...b.docs, ...(res?.data || []).filter((d) => !have.has(d._id))], meta: res, more: false };
+      });
+    } catch (err) {
+      setBox((b) => ({ ...b, more: false }));
+      toast.error(err?.response?.data?.message || err.message);
+    }
+  }, [ask]);
+
+  return {
+    docs: box.docs, meta: box.meta, loading: box.loading, error: box.error,
+    total: box.meta?.total ?? box.docs.length,
+    more: { total: box.meta?.total ?? box.docs.length, loading: box.more, onMore: loadMore },
+    refetch: () => read(true),
+  };
+}
 
 export const NothingHere = ({ filtered, onClear, what = 'documents' }) => (
   <Empty
@@ -370,7 +470,7 @@ export const FileRows = ({ files, empty = 'No files attached', caption, compact 
                 <Icon name="eye" size={14} /> View
               </button>
             ))}
-          <a className="dvact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
+          <a className="dvact" href={downloadUrl(f.filePath)} target="_blank" rel="noreferrer" download={f.originalName}
             title="Download" aria-label={`Download ${f.originalName}`}><Icon name="download" size={15} /></a>
         </li>
       ))}
@@ -516,12 +616,35 @@ export const KeptFiles = ({ files, onRemove }) => (
 export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
   const [over, setOver] = useState(false);
 
+  // Said here, before anything is sent: a file the server will not take used
+  // to travel all the way up and come back as an error.
+  const usable = (picked) => {
+    const good = [];
+    for (const f of picked) {
+      const ext = f.name.includes('.') ? f.name.split('.').pop().toLowerCase() : '';
+      if (!UPLOAD_TYPES.includes(ext)) {
+        toast.error(`${f.name} cannot be attached — use a PDF, a Word, Excel or PowerPoint file, a text file or a photo`);
+      } else if (f.size > UPLOAD_MAX_BYTES) {
+        toast.error(`${f.name} is ${fmtSize(f.size)} — the limit is 10 MB a file`);
+      } else if (!f.size) {
+        toast.error(`${f.name} is empty`);
+      } else {
+        good.push(f);
+      }
+    }
+    return good;
+  };
+
   // Everything picked is added, including a second file with the same name as
   // one already listed. Matching name and size used to be treated as "the same
   // file picked twice" and dropped without a word — which also dropped a real
   // second document that happened to be called the same thing. A file added by
   // mistake has its own × beside it.
-  const add = (picked) => onChange([...files, ...picked].slice(0, max));
+  const add = (picked) => {
+    const next = [...files, ...usable(picked)];
+    if (next.length > max) toast.error(max > 0 ? `Only ${max} file${max === 1 ? '' : 's'} can be attached here` : 'No more files can be attached here');
+    onChange(next.slice(0, max));
+  };
 
   const total = files.reduce((n, f) => n + f.size, 0);
 
@@ -539,7 +662,7 @@ export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
           <b>Drop files here, or browse</b>
           <small>{hint || `Up to ${max} files`}</small>
         </span>
-        <input id={id} type="file" multiple
+        <input id={id} type="file" multiple accept={UPLOAD_TYPES.map((t) => `.${t}`).join(',')}
           onChange={(e) => { add(Array.from(e.target.files || [])); e.target.value = ''; }} />
       </label>
 
@@ -598,8 +721,10 @@ export function useReadMarks(docs, { one, many }) {
     one(doc._id).catch(() => {});
   }, [seen, one]);
 
+  // Ids, or documents: the server names everything unread under the current
+  // filters (`meta.unreadIds`), which is more than the page on screen.
   const readAll = useCallback(async (list) => {
-    const ids = list.filter((d) => d.isRead === false).map((d) => d._id);
+    const ids = list.map((d) => (typeof d === 'string' ? d : d.isRead === false ? d._id : null)).filter(Boolean);
     if (!ids.length) return;
     try {
       await many(ids);
@@ -609,12 +734,16 @@ export function useReadMarks(docs, { one, many }) {
     }
   }, [many]);
 
-  return { docs: marked, read, readAll };
+  // What the server still calls unread, less what has been opened since.
+  const stillUnread = useCallback((ids) => (ids || []).filter((id) => !seen.has(id)), [seen]);
+
+  return { docs: marked, read, readAll, stillUnread };
 }
 
 /** "3 unread · Mark all as read" — only there while something is unread. */
-export const UnreadNote = ({ docs, onClear }) => {
-  const n = docs.filter((d) => d.isRead === false).length;
+export const UnreadNote = ({ docs, count, onClear }) => {
+  // `count` is the whole shelf's figure from the server; without it, what is loaded.
+  const n = count ?? (docs || []).filter((d) => d.isRead === false).length;
   if (!n) return null;
   return (
     <span className="dvunread">
@@ -838,49 +967,4 @@ export function DocComments({ docId, load, post, update, remove }) {
       )}
     </section>
   );
-}
-
-// ── Filtering, shared by all three pages ─────────────────────────────────────
-
-const TAB_TYPES = {
-  notices: ['notice', 'circular'],
-  study:   ['study_material'],
-};
-
-/**
- * One filter pass, so the tabs mean the same thing on all three screens.
- *
- * The assignments tab is the flag rather than the type: a piece of work set as
- * "Study Material" that students still hand in is an assignment to the person
- * who has to do it.
- */
-export function applyFilters(docs, { tab, category, search, sort, state }) {
-  const term = String(search || '').trim().toLowerCase();
-
-  let out = docs.filter((d) => {
-    if (tab === 'assignments' && !d.isAssignment) return false;
-    if (TAB_TYPES[tab] && !TAB_TYPES[tab].includes(d.docType)) return false;
-    if (category && d.category !== category) return false;
-    if (state && d.state !== state) return false;
-    if (term && !`${d.title} ${d.description} ${d.category} ${d.uploadedBy?.name || ''}`
-      .toLowerCase().includes(term)) return false;
-    return true;
-  });
-
-  const byDate = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
-  out = [...out].sort((a, b) => {
-    switch (sort) {
-      case 'oldest': return -byDate(a, b);
-      case 'title':  return a.title.localeCompare(b.title);
-      // Documents with no due date sort last rather than first — a notice is
-      // not "due immediately" just because it has no date.
-      case 'due': {
-        const av = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-        const bv = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-        return av - bv || byDate(a, b);
-      }
-      default: return byDate(a, b);
-    }
-  });
-  return out;
 }

@@ -102,6 +102,21 @@ export function fileUrl(filePath) {
 }
 
 /**
+ * The same address, asking to be saved rather than shown. The server names the
+ * download after the file as it was uploaded — the `download` attribute cannot,
+ * once the API is on another host.
+ */
+export function downloadUrl(filePath) {
+  const url = fileUrl(filePath);
+  if (!url) return '';
+  return `${url}${url.includes('?') ? '&' : '?'}dl=1`;
+}
+
+/** What the share forms and the hand-in box take — the server's own list (middleware/upload.js). */
+export const UPLOAD_TYPES = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
  * What a file is, from its own name and type.
  *
  * Read off the extension first and the MIME type second: the extension is what
@@ -677,7 +692,7 @@ export function DocumentDrawer({ doc, onClose, onOpen, onEdit, onArchive, onDele
                         <Icon name="eye" size={14} /> View
                       </button>
                     )}
-                    <a className="docact" href={fileUrl(f.filePath)} target="_blank" rel="noreferrer"
+                    <a className="docact" href={downloadUrl(f.filePath)} target="_blank" rel="noreferrer"
                       download={f.originalName}
                       title="Download" aria-label={`Download ${f.originalName}`}>
                       <Icon name="download" size={16} />

@@ -5,9 +5,17 @@
  * Documents module's files are no longer public (server services/privateFiles).
  * The server reads who is asking from a 12-hour FILE TOKEN. Signed in, this
  * keeps one in the `aks_ft` cookie, so every <img>, link and frame that points
- * at those folders keeps working without knowing about it. `withFileToken(url)`
- * also puts it on the address, for an API on another site where the cookie
- * would not travel.
+ * at those folders keeps working without knowing about it.
+ *
+ * The token used to be written onto every file address as well (`?ft=…`), so
+ * a link copied out of the app — or sitting in the browser's history — opened
+ * files as that person for up to twelve hours. It stays off the address now
+ * wherever the cookie reaches the API by itself, which is every deployment
+ * where the app and the API share a site (app.example.com and api.example.com,
+ * or two ports of one machine). `withFileToken(url)` only falls back to the
+ * address when the API is on an unrelated site, or the browser keeps no
+ * cookies. Code that fetches a file's bytes uses `fetchFile(url)`, which sends
+ * the token as a header instead.
  */
 import api from '../api/axios';
 
@@ -72,8 +80,39 @@ export function stopFileAccess() {
   writeCookie('', 0);
 }
 
-/** The address with the reader's file token on it, when it points at a private folder. */
+/**
+ * Will the cookie reach the host this address is on? It does when the address
+ * is on this page's own host, or on a host under the domain the cookie was set
+ * for — and only if the browser actually kept the cookie.
+ */
+function cookieReaches(url) {
+  if (!document.cookie.split(';').some((c) => c.trim().startsWith(`${COOKIE}=`))) return false;
+  let host;
+  try { host = new URL(url, window.location.href).hostname; } catch { return false; }
+  if (host === window.location.hostname) return true;
+  const d = cookieDomain();
+  return !!d && (host === d || host.endsWith(`.${d}`));
+}
+
+/**
+ * The address a private file is opened at. Unchanged wherever the cookie
+ * travels with the request; with the reader's file token on it only when
+ * nothing else would carry it.
+ */
 export function withFileToken(url) {
   if (!url || !token || !PRIVATE_UPLOAD.test(url) || /[?&]ft=/.test(url)) return url;
+  if (cookieReaches(url)) return url;
   return `${url}${url.includes('?') ? '&' : '?'}ft=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Fetch a private file's bytes — for showing a PDF in place, or saving a set
+ * of files. The token goes in a header (a script's request to another origin
+ * does not carry the cookie), never on the address.
+ */
+export function fetchFile(url, init = {}) {
+  const clean = String(url || '').replace(/([?&])ft=[^&]*(&|$)/, (_, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  const headers = { ...(init.headers || {}) };
+  if (token && PRIVATE_UPLOAD.test(clean)) headers.Authorization = `Bearer ${token}`;
+  return fetch(clean, { ...init, headers });
 }

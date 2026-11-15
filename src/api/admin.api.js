@@ -267,6 +267,13 @@ export const getDocumentOverview = ()       => api.get('/admin/documents/overvie
 export const getDocument     = (id)         => api.get(`/admin/documents/${id}`);
 // Every teacher with their department, designation and subjects — the picker behind "Specific teachers".
 export const getDocumentTeachers = ()       => api.get('/admin/documents/teachers');
+// The share form's class → section picker, on the module's own route so a
+// teacher who administers Documents gets it too.
+export const getDocumentClasses  = ()       => api.get('/admin/documents/classes');
+// Earlier sets of files, putting one back, and who has opened the document.
+export const getDocumentVersions    = (id)      => api.get(`/admin/documents/${id}/versions`);
+export const restoreDocumentVersion = (id, vid) => api.post(`/admin/documents/${id}/versions/${vid}/restore`);
+export const getDocumentReaders     = (id)      => api.get(`/admin/documents/${id}/readers`);
 export const uploadDocument  = (data)       => api.post('/admin/documents', data);
 export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`, data);
 export const deleteDocument  = (id)         => api.delete(`/admin/documents/${id}`);

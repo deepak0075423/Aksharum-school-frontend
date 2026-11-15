@@ -18,7 +18,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../../components/ui/icons';
 import { Spinner } from '../../components/ui/index';
-import { FileMark, fileUrl, fmtSize } from '../admin/documentParts';
+import { FileMark, fileUrl, downloadUrl, fmtSize } from '../admin/documentParts';
+import { fetchFile } from '../../utils/fileAccess';
 
 const KINDS = [
   { kind: 'image', exts: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'], mime: /^image\/(png|jpe?g|gif|webp|svg|bmp)/ },
@@ -41,6 +42,7 @@ export default function FileViewer({ files, index, onIndex, onClose, caption }) 
   const file  = files?.[index] || null;
   const kind  = file ? viewKind(file) : 'other';
   const url   = file ? fileUrl(file.filePath) : '';
+  const saveUrl = file ? downloadUrl(file.filePath) : '';
   const many  = (files?.length || 0) > 1;
 
   // { url } for a PDF, { text } for a text file, { failed } when it would not load.
@@ -51,7 +53,7 @@ export default function FileViewer({ files, index, onIndex, onClose, caption }) 
     let gone = false;
     let made = '';
     setBody(null);
-    fetch(url)
+    fetchFile(url)
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return kind === 'pdf' ? r.arrayBuffer() : r.text(); })
       .then((data) => {
         if (gone) return;
@@ -96,7 +98,7 @@ export default function FileViewer({ files, index, onIndex, onClose, caption }) 
           ? 'It may have been removed, or your session may have expired. Try downloading it instead.'
           : 'Images, PDFs, text, audio and video open on this screen. Word, Excel and PowerPoint files need to be downloaded.'}
       </p>
-      <a className="btn btn-primary" href={url} target="_blank" rel="noreferrer" download={file.originalName}>
+      <a className="btn btn-primary" href={saveUrl} target="_blank" rel="noreferrer" download={file.originalName}>
         <Icon name="download" size={15} /> Download {file.originalName}
       </a>
     </div>
@@ -136,7 +138,7 @@ export default function FileViewer({ files, index, onIndex, onClose, caption }) 
               </button>
             </div>
           )}
-          <a className="fv__btn" href={url} target="_blank" rel="noreferrer" download={file.originalName}
+          <a className="fv__btn" href={saveUrl} target="_blank" rel="noreferrer" download={file.originalName}
             title="Download" aria-label={`Download ${file.originalName}`}>
             <Icon name="download" size={16} />
           </a>

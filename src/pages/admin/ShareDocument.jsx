@@ -44,6 +44,12 @@ const AUDIENCES = [
     hint: 'By department, subject or designation' },
 ];
 
+/** Who an assignment cannot go to, in the form and by the server alike. */
+const STAFF_AUDIENCES = ['all_teachers', 'specific_teachers'];
+const STAFF_ONLY = 'Only students hand work in — pick classes, sections or the whole school for an assignment';
+/** The marking form's own line for what the named questions leave over. */
+const RESERVED_QUESTION = 'other marks';
+
 /** What a file-less assignment is told, in the form and by the server alike. */
 const NEEDS_FILE = 'Attach the assignment or its instructions — students need a file to work from';
 
@@ -122,6 +128,11 @@ export default function ShareDocument({
   }, [open, editing?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  // The due date as it was when the form opened: an assignment already past
+  // its date must still be editable without moving it.
+  const dueWas = editing?.dueDate ? String(editing.dueDate).slice(0, 10) : '';
+  const categoryNames = categories.map((c) => c.name ?? c);
 
   // ── The audience ───────────────────────────────────────────────────────────
   const term = find.trim().toLowerCase();
@@ -218,19 +229,23 @@ export default function ShareDocument({
     if (form.targetType === 'class_sections' && !form.sectionIds.length) e.audience = 'Pick at least one section';
     if (form.targetType === 'specific_teachers' && !form.teacherIds.length) e.audience = 'Pick at least one teacher';
     if (form.isAssignment) {
+      if (STAFF_AUDIENCES.includes(form.targetType) && !e.audience) e.audience = STAFF_ONLY;
       // Work that is handed in needs the paper it is handed in against. Files
       // already on the document count, for as long as they are not removed.
       if (!files.length && !kept.length) e.files = NEEDS_FILE;
       if (form.totalMarks && Number(form.totalMarks) <= 0) e.totalMarks = 'Marks must be more than zero';
-      if (form.dueDate && new Date(form.dueDate) < new Date(new Date().toDateString())) {
+      // Only a date that was changed is held to "not in the past" — fixing a
+      // typo in last week's assignment must not mean moving its due date.
+      if (form.dueDate && form.dueDate !== dueWas && new Date(`${form.dueDate}T23:59:59`) < new Date()) {
         e.dueDate = 'That date has already passed';
       }
       const labels = form.questions.map((q) => q.label.trim().toLowerCase());
       if (form.questions.some((q) => !q.label.trim())) e.questions = 'Every question needs a name';
       else if (new Set(labels).size !== labels.length)  e.questions = 'Two questions share a name';
+      else if (labels.includes(RESERVED_QUESTION))      e.questions = '“Other marks” is kept for what the questions leave over — call the question something else';
     }
     return e;
-  }, [form, files, kept]);
+  }, [form, files, kept, dueWas]);
 
   const bad  = Object.keys(errors).length > 0;
   const show = (k) => (tried ? errors[k] : null);
@@ -324,15 +339,28 @@ export default function ShareDocument({
                 </div>
                 <button type="button" className="shlink"
                   onClick={() => {
-                    if (form.targetType === 'class') {
-                      const all = shown.map((c) => c._id);
-                      set({ classIds: form.classIds.length === all.length ? [] : all });
-                    } else {
-                      const all = shown.flatMap((c) => (c.sections || []).map((s) => s._id));
-                      set({ sectionIds: form.sectionIds.length === all.length ? [] : all });
-                    }
+                    // What is on screen, on or off together — added to (or
+                    // taken from) what is already ticked. It used to REPLACE
+                    // the selection with what a search happened to be showing.
+                    const key = form.targetType === 'class' ? 'classIds' : 'sectionIds';
+                    const all = form.targetType === 'class'
+                      ? shown.map((c) => c._id)
+                      : shown.flatMap((c) => (c.sections || []).map((s) => s._id));
+                    const every = all.length > 0 && all.every((id) => form[key].includes(id));
+                    set({
+                      [key]: every
+                        ? form[key].filter((id) => !all.includes(id))
+                        : [...new Set([...form[key], ...all])],
+                    });
                   }}>
-                  Select all{term ? ' shown' : ''}
+                  {(() => {
+                    const key = form.targetType === 'class' ? 'classIds' : 'sectionIds';
+                    const all = form.targetType === 'class'
+                      ? shown.map((c) => c._id)
+                      : shown.flatMap((c) => (c.sections || []).map((s) => s._id));
+                    const every = all.length > 0 && all.every((id) => form[key].includes(id));
+                    return `${every ? 'Clear' : 'Select'} all${term ? ' shown' : ''}`;
+                  })()}
                 </button>
               </div>
 
@@ -449,7 +477,9 @@ export default function ShareDocument({
             </div>
           )}
 
-          <Err>{show('audience')}</Err>
+          {/* An assignment for teachers alone is a contradiction, not a field
+              left empty — said as soon as it is chosen. */}
+          <Err>{show('audience') || (errors.audience === STAFF_ONLY ? STAFF_ONLY : null)}</Err>
 
           {reach && (
             <p className="shreach">
@@ -466,6 +496,10 @@ export default function ShareDocument({
               <select id="ad-cat" className={`form-control${show('category') ? ' is-bad' : ''}`}
                 value={form.category} onChange={(e) => set({ category: e.target.value })}>
                 <option value="">— Select —</option>
+                {/* A label since removed from the list is still this
+                    document's label until someone changes it. */}
+                {form.category && !categoryNames.includes(form.category)
+                  ? <option value={form.category}>{form.category} (removed)</option> : null}
                 {categories.map((c) => <option key={c.name ?? c} value={c.name ?? c}>{c.name ?? c}</option>)}
               </select>
               <div className="form-hint">
@@ -586,7 +620,7 @@ export default function ShareDocument({
             : editing ? 'Add more files, or remove any that are already attached.' : 'Optional — a notice can be all text.'}>
           <KeptFiles files={kept} onRemove={(i) => setKept(kept.filter((_, x) => x !== i))} />
           <FileDrop id="ad-files" files={files} onChange={setFiles} max={Math.max(0, 10 - kept.length)}
-            hint={kept.length ? `Add files — ${10 - kept.length} more can go on this document` : 'PDFs, documents, images — up to 10'} />
+            hint={kept.length ? `Add files — ${10 - kept.length} more can go on this document` : 'PDFs, documents, photos — up to 10 files, 10 MB each'} />
           {/* Shown straight away, not after a failed save: it is the reason the
               button is held back. */}
           <Err>{errors.files}</Err>

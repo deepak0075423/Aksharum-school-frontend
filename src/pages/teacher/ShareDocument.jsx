@@ -101,6 +101,17 @@ export default function ShareDocument({
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
+  // Sections already on the document that this form cannot offer — an earlier
+  // year's, or a class no longer taught. They stay on it (the server keeps
+  // them); saying so is what stops the form reading as "shared with nobody".
+  const locked = editing
+    ? (editing.targetSections || []).map((s) => String(s._id || s))
+      .filter((id) => !sections.some((x) => String(x._id) === id)).length
+    : 0;
+  // The due date as it was when the form opened: an assignment already past
+  // its date must still be editable without moving it.
+  const dueWas = editing?.dueDate ? String(editing.dueDate).slice(0, 10) : '';
+
   const toggleSection = (id) => set({
     sectionIds: form.sectionIds.includes(id)
       ? form.sectionIds.filter((x) => x !== id)
@@ -112,18 +123,19 @@ export default function ShareDocument({
     const e = {};
     if (!form.title.trim())       e.title = 'Give it a title';
     if (!form.category)           e.category = 'Pick a category';
-    if (!form.sectionIds.length)  e.sections = 'Choose at least one section';
+    if (!form.sectionIds.length && !locked) e.sections = 'Choose at least one section';
     if (form.isAssignment && form.totalMarks && Number(form.totalMarks) <= 0) {
       e.totalMarks = 'Marks must be more than zero';
     }
-    if (form.isAssignment && form.dueDate && new Date(form.dueDate) < new Date(new Date().toDateString())) {
+    if (form.isAssignment && form.dueDate && form.dueDate !== dueWas
+      && new Date(`${form.dueDate}T23:59:59`) < new Date()) {
       e.dueDate = 'That date has already passed';
     }
     // Work that is handed in needs the paper it is handed in against. Files
     // already on the document count, for as long as they are not removed.
     if (form.isAssignment && !files.length && !kept.length) e.files = NEEDS_FILE;
     return e;
-  }, [form, files, kept]);
+  }, [form, files, kept, locked, dueWas]);
 
   const bad = Object.keys(errors).length > 0;
 
@@ -228,6 +240,12 @@ export default function ShareDocument({
                 </button>
               )}
               <Err>{show('sections')}</Err>
+              {locked > 0 && (
+                <p className="shpick__note">
+                  Also shared with {locked} section{locked === 1 ? '' : 's'} from an earlier year or that you no
+                  longer teach — {locked === 1 ? 'it stays' : 'they stay'} as {locked === 1 ? 'it is' : 'they are'}.
+                </p>
+              )}
             </>
           ) : (
             <p className="shnone">
@@ -244,6 +262,10 @@ export default function ShareDocument({
               <select id="sh-cat" className={`form-control${show('category') ? ' is-bad' : ''}`}
                 value={form.category} onChange={(e) => set({ category: e.target.value })}>
                 <option value="">— Select —</option>
+                {/* A label the office has since removed is still this
+                    document's label until someone changes it. */}
+                {form.category && !categories.includes(form.category)
+                  ? <option value={form.category}>{form.category} (removed)</option> : null}
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <Err>{show('category')}</Err>
@@ -305,7 +327,7 @@ export default function ShareDocument({
             : editing ? 'Add more files, or remove any that are already attached.' : 'Optional — a notice can be all text.'}>
           <KeptFiles files={kept} onRemove={(i) => setKept(kept.filter((_, x) => x !== i))} />
           <FileDrop id="sh-files" files={files} onChange={setFiles} max={Math.max(0, 10 - kept.length)}
-            hint={kept.length ? `Add files — ${10 - kept.length} more can go on this document` : 'PDFs, documents, images — up to 10'} />
+            hint={kept.length ? `Add files — ${10 - kept.length} more can go on this document` : 'PDFs, documents, photos — up to 10 files, 10 MB each'} />
           {/* Shown straight away, not after a failed save: it is the reason the
               button is held back. */}
           <Err>{errors.files}</Err>

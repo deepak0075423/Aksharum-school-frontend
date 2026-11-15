@@ -14,30 +14,20 @@
  * Read-only by design: handing work in is the student's own account. This page
  * answers "what has my child been given, and have they done it".
  */
-import React, { useMemo, useState } from 'react';
-import useFetch from '../../hooks/useFetch';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getDocuments, markDocumentRead, markDocumentsRead } from '../../api/parent.api';
 import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
   ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile,
-  TABS, sortsFor, sortOn, applyFilters, useReadMarks, fmtDate, STATES,
+  TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
 
 export default function ParentDocuments() {
   const [year, setYear] = useState('');
-  const { data, meta, loading, error } = useFetch(
-    () => getDocuments(year ? { year } : undefined), [year],
-  );
-
-  const loaded   = useMemo(() => (Array.isArray(data) ? data : []), [data]);
-  // The same list, with what has been opened on this visit already marked read.
-  const { docs: all, read, readAll } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
-  const children = useMemo(() => meta?.children || [], [meta]);
-  const perChild = meta?.perChild || {};
-  const years    = meta?.years || [];
-
   // '' is every child at once.
   const [who,      setWho]      = useState('');
   const [tab,      setTab]      = useState('all');
@@ -46,6 +36,26 @@ export default function ParentDocuments() {
   const [sort,     setSort]     = useState('newest');
   const [state,    setState]    = useState('');
   const [open,     setOpen]     = useState(null);
+
+  // A notification names one document (`?focus=`); the server finds it
+  // wherever it is filed.
+  const [urlParams] = useSearchParams();
+  const wanted   = useRef(urlParams.get('focus'));
+  const focusRef = useRef(wanted.current);
+
+  // The server narrows, counts and pages — whose shelf included.
+  const params = useMemo(
+    () => ({ year, child: who, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort), state }),
+    [year, who, tab, category, search, sort, state],
+  );
+  const { docs: loaded, meta, loading, error, more } = useShelf(getDocuments, params, { focusRef });
+
+  // The same list, with what has been opened on this visit already marked read.
+  const { docs: all, read, readAll, stillUnread } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
+  const children = useMemo(() => meta?.children || [], [meta]);
+  const perChild = meta?.perChild || {};
+  const years    = meta?.years || [];
+  const unread   = stillUnread(meta?.unreadIds);
 
   const nameOf = useMemo(
     () => Object.fromEntries(children.map((c) => [String(c._id), c.name])),
@@ -59,23 +69,31 @@ export default function ParentDocuments() {
    * status pill and the "still to do" tile mean the same thing. With all of
    * them showing there is no single state — the card lists them instead.
    */
-  const scoped = useMemo(() => {
-    const list = who ? all.filter((d) => d.forChildren.includes(who)) : all;
-    return list.map((d) => (who ? { ...d, state: d.perChild?.[who]?.state ?? null } : d));
-  }, [all, who]);
+  const scoped = useMemo(
+    () => all.map((d) => (who ? { ...d, state: d.perChild?.[who]?.state ?? null } : d)),
+    [all, who],
+  );
 
   const counts = who ? (perChild[who] || {}) : (meta?.counts || {});
-
-  const shown = useMemo(
-    () => applyFilters(scoped, { tab, category, search, sort: sortOn(tab, sort), state }),
-    [scoped, tab, category, search, sort, state],
-  );
+  const shown  = scoped;
 
   const filtered = !!(category || search || state);
   const clear = () => { setCategory(''); setSearch(''); setState(''); setTab('all'); };
   const pickState = (v) => { setState(state === v ? '' : v); setTab(state === v ? 'all' : 'assignments'); };
 
-  const live = open ? scoped.find((d) => d._id === open._id) || open : null;
+  const live = open
+    ? scoped.find((d) => d._id === open._id)
+      || (meta?.focused && String(meta.focused._id) === String(open._id) ? meta.focused : open)
+    : null;
+
+  // The notified document is opened, not just flagged.
+  useEffect(() => {
+    if (!wanted.current || !meta) return;
+    const hit = meta.focused;
+    wanted.current = null;
+    if (hit) { setOpen(hit); read(hit); }
+    else { focusRef.current = null; toast.error('That document is no longer on the shelf'); }
+  }, [meta]); // eslint-disable-line react-hooks/exhaustive-deps
   const forChild = who ? children.find((c) => String(c._id) === who) : null;
 
   /**
@@ -107,7 +125,7 @@ export default function ParentDocuments() {
     );
   };
 
-  if (loading && !data) return <div className="loading-page"><Spinner /></div>;
+  if (loading && !meta) return <div className="loading-page"><Spinner /></div>;
 
   return (
     <div className="page dvpg">
@@ -136,7 +154,7 @@ export default function ParentDocuments() {
       )}
 
       <ChildSwitch children={children} value={who} onChange={(v) => { setWho(v); setState(''); setOpen(null); }}
-        allCount={all.length} countFor={(id) => perChild[id]?.all ?? 0} />
+        allCount={meta?.counts?.all ?? 0} countFor={(id) => perChild[id]?.all ?? 0} />
 
       {children.length === 1 && children[0].className ? (
         <p className="dvnote">
@@ -164,13 +182,13 @@ export default function ParentDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={meta?.categories || []} label="Filter by category" />
           <span className="dvtools__sep" />
-          <UnreadNote docs={scoped} onClear={() => readAll(scoped)} />
+          <UnreadNote count={unread.length} onClear={() => readAll(unread)} />
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
         </ViewerTools>
 
         <DocList
-          docs={shown} loading={loading}
-          onOpen={(d) => { setOpen(d); read(d); }}
+          docs={shown} loading={loading} more={more}
+          onOpen={(d) => { focusRef.current = d._id; setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
           badges={(d) => (who ? <StatePill state={d.state} /> : childStrip(d))}
         />
@@ -178,7 +196,7 @@ export default function ParentDocuments() {
 
       <DocDrawer
         doc={live}
-        onClose={() => setOpen(null)}
+        onClose={() => { focusRef.current = null; setOpen(null); }}
         extra={live?.isAssignment && (
           <section className="dvdrawer__sec">
             <h4>{who ? 'How it is going' : 'Each of your children'}</h4>
