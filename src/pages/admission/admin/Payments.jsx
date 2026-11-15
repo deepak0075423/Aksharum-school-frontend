@@ -5,8 +5,8 @@
  */
 import React from 'react';
 import { admin } from '../../../api/admission.api';
-import { Page, Head, Panel, Chip, Table, Toolbar, Select, Pager, Empty, ErrorBox, Spin, IconBtn, Person, Tiles, Tile, useLoad } from '../admUI';
-import { fmtDate, money, PAY_MODES } from '../meta';
+import { Page, Head, Panel, Chip, Table, Toolbar, Select, Pager, Empty, ErrorBox, Spin, IconBtn, Person, Tiles, Tile, Note, useLoad } from '../admUI';
+import { fmtDate, fmtDateTime, money, PAY_MODES } from '../meta';
 import { useQueryState, openFile } from './parts';
 import BackgroundExport from './ExportJobs';
 
@@ -26,6 +26,7 @@ export default function Payments() {
         <Tile icon="wallet" tone="green" label={q.status === 'void' ? 'Cancelled receipts' : 'Collected (these filters)'} value={money(meta?.amount || 0)} sub={`${(meta?.total || 0).toLocaleString('en-IN')} receipts`} />
         {meta?.refunded > 0 ? <Tile icon="reply" tone="amber" label="Refunded on these" value={money(meta.refunded)} sub={`${money((meta.amount || 0) - meta.refunded)} kept`} /> : null}
       </Tiles>
+      <Attention />
       <Panel pad={false}>
         <Toolbar>
           <Select value={q.kind} onChange={(e) => setQ({ kind: e.target.value })} aria-label="Fee">
@@ -53,5 +54,45 @@ export default function Payments() {
         )}
       </Panel>
     </Page>
+  );
+}
+
+/**
+ * Money that wants somebody: more received than was due (to give back),
+ * cheques the bank has not been seen to pay, online payments started and not
+ * finished, refunds the gateway has not settled, instalments past their date.
+ * Each row opens its application, where it is dealt with.
+ */
+function Attention() {
+  const { data } = useLoad(() => admin.paymentsAttention(), []);
+  if (!data) return null;
+  const groups = [
+    ['refundsOwed', 'To give back', 'amber', (x) => `${money(x.excess)} more than the ${KIND[x.kind].toLowerCase()} was received`],
+    ['cheques', 'Cheques and drafts not cleared', 'amber', (x) => `${x.mode === 'dd' ? 'Draft' : 'Cheque'} ${x.reference} · ${money(x.amount)} · taken ${fmtDate(x.paidAt)}`],
+    ['openOrders', 'Online payments not finished', 'indigo', (x) => `${money(x.amount)} started ${fmtDateTime(x.createdAt)}${x.checkedAt ? ` · gateway last asked ${fmtDateTime(x.checkedAt)}` : ''}`],
+    ['refunds', 'Refunds not settled', 'red', (x) => `${money(x.amount)} on receipt ${x.receiptNumber} · ${x.status === 'failed' ? `failed — ${x.error}` : 'waiting for the gateway'}`],
+    ['overdue', 'Instalments overdue', 'red', (x) => `${x.label}: ${money(x.owing)} was due ${fmtDate(x.dueAt)}`],
+  ].filter(([k]) => (data[k] || []).length);
+  if (!groups.length) return null;
+  return (
+    <Panel title="Needs attention" icon="alert" tone="amber">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {groups.map(([k, label, tone, line]) => (
+          <div key={k}>
+            <div className="adm-row" style={{ marginBottom: 6 }}><b>{label}</b><Chip tone={tone}>{data[k].length}</Chip></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {data[k].slice(0, 8).map((x, i) => (
+                <div key={`${k}-${x._id || x.applicationId}-${i}`} className="adm-row adm-row--between" style={{ flexWrap: 'wrap', fontSize: '.86rem' }}>
+                  <Person name={x.studentName} sub={x.applicationNumber} to={`${BASE}/applications/${x.applicationId}`} />
+                  <span className="adm-muted">{line(x)}</span>
+                </div>
+              ))}
+              {data[k].length > 8 ? <span className="adm-muted" style={{ fontSize: '.8rem' }}>and {data[k].length - 8} more</span> : null}
+            </div>
+          </div>
+        ))}
+        <Note tone="gray" icon="info">Unfinished online payments and unsettled refunds are also checked with the gateway by the server every few minutes.</Note>
+      </div>
+    </Panel>
   );
 }

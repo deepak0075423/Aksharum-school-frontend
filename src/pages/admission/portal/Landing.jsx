@@ -14,7 +14,7 @@ import { Panel, Btn, Field, Input, Select, TextArea, Chip, Ico, Note } from '../
 import { fmtDate, money, errMsg } from '../meta';
 
 function Enquiry({ slug, rounds, captcha }) {
-  const [f, setF] = useState({ name: '', email: '', phone: '', class: '', message: '' });
+  const [f, setF] = useState({ name: '', email: '', phone: '', class: '', message: '', consent: false });
   const human = useHumanCheck(captcha);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -35,8 +35,12 @@ function Enquiry({ slug, rounds, captcha }) {
         <Select value={f.class} onChange={set('class')}><option value="">Any</option>{classes.map((c) => <option key={c._id} value={c._id}>{c.className}</option>)}</Select>
       </Field>
       <Field label="Your question" className="adm-span2"><TextArea rows={3} value={f.message} onChange={set('message')} maxLength={1000} /></Field>
+      <label className="adm-span2" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '.86rem', lineHeight: 1.45 }}>
+        <input type="checkbox" checked={f.consent} onChange={(e) => setF((x) => ({ ...x, consent: e.target.checked }))} style={{ marginTop: 3 }} />
+        <span>I agree to the school using these details to reply to my enquiry, as its privacy notice says.</span>
+      </label>
       {human.on ? <div className="adm-span2">{human.widget}</div> : null}
-      <div className="adm-span2"><Btn type="submit" kind="primary" busy={busy} disabled={!f.name || (!f.email && !f.phone) || !human.ready}>Send enquiry</Btn></div>
+      <div className="adm-span2"><Btn type="submit" kind="primary" busy={busy} disabled={!f.name || (!f.email && !f.phone) || !f.consent || !human.ready}>Send enquiry</Btn></div>
     </form>
   );
 }

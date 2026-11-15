@@ -8,7 +8,9 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { portal as api, openProtected } from '../../../api/admission.api';
-import { Panel, Btn, Chip, Field, Select, TextArea, Note, Spin, ErrorBox, Dialog, Table, useLoad } from '../admUI';
+import { Panel, Btn, Chip, Field, Input, Select, TextArea, Note, Spin, ErrorBox, Dialog, Table, useLoad } from '../admUI';
+import PhoneInput from '../../../components/ui/PhoneInput';
+import { useAuth } from '../../../contexts/AuthContext';
 import { fmtDate, fmtDateTime, errMsg } from '../meta';
 import { usePortal, useApplicantHere } from './PortalShell';
 
@@ -17,7 +19,7 @@ const HINT = {
   access: 'You can also download everything right away with the button above.',
   correction: 'Say what is wrong and what it should be.',
   erasure: 'Your applications are withdrawn and erased. An admitted student\'s record and payment amounts are kept, as the law requires.',
-  withdraw_consent: 'Your open applications are withdrawn at once, and the school stops using your information except where the law requires it to be kept.',
+  withdraw_consent: 'The application you choose below is withdrawn at once — or every open one, if you leave it on all — and the school stops using that information except where the law requires it to be kept.',
   grievance: 'Tell the school what went wrong. If you are not satisfied with its answer, you may take it to the Data Protection Board of India.',
 };
 
@@ -34,6 +36,7 @@ export default function YourData() {
           <p>What {portal.data.school.name} holds about you for admissions, and what you can ask for.</p>
         </div>
       </div>
+      {here ? <Account /> : null}
       {here ? <Mine /> : (
         <Note tone="indigo" icon="lock" action={<Link to={`/${portal.slug}/login`} className="btn btn-primary btn-sm">Sign in</Link>}>
           Sign in to download your information or to ask the school to correct or erase it.
@@ -83,6 +86,46 @@ function Mine() {
       </Panel>
       <AskDialog open={asking} kinds={data.kinds} onClose={() => setAsking(false)} onDone={() => { setAsking(false); reload(); }} />
     </>
+  );
+}
+
+/**
+ * The applicant's own name, mobile and password (Nov 2026 — none of them
+ * could be changed while signed in). The email is the sign-in and stays.
+ */
+function Account() {
+  const { user, reload } = useAuth();
+  const [f, setF] = useState({ name: user?.name || '', phone: user?.phone || '' });
+  const [pw, setPw] = useState({ currentPassword: '', password: '', confirm: '' });
+  const [busy, setBusy] = useState('');
+  const changed = f.name.trim() !== (user?.name || '') || f.phone !== (user?.phone || '');
+  const save = async () => {
+    setBusy('profile');
+    try { await api.updateProfile({ name: f.name.trim(), phone: f.phone }); toast.success('Saved'); await reload?.(); } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
+  };
+  const change = async () => {
+    setBusy('password');
+    try { await api.changePassword({ currentPassword: pw.currentPassword, password: pw.password }); toast.success('Password changed'); setPw({ currentPassword: '', password: '', confirm: '' }); } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
+  };
+  return (
+    <Panel title="Your account" icon="userCircle" sub={`You sign in with ${user?.email || 'your email'}.`}>
+      <div className="adm-grid2">
+        <Field label="Your name" required><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={100} data-text="name" /></Field>
+        <Field label="Mobile"><PhoneInput className="adm-input" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+      </div>
+      <div className="adm-row adm-mt"><Btn kind="primary" busy={busy === 'profile'} disabled={!changed || f.name.trim().length < 2} onClick={save}>Save</Btn></div>
+      <details className="adm-mt">
+        <summary style={{ cursor: 'pointer', fontWeight: 650, fontSize: '.9rem' }}>Change your password</summary>
+        <div className="adm-grid2 adm-mt">
+          <Field label="Present password" required><Input type="password" autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} /></Field>
+          <span />
+          <Field label="New password" required hint="At least 8 characters, with a letter and a number"><Input type="password" autoComplete="new-password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} /></Field>
+          <Field label="New password again" required error={pw.confirm && pw.confirm !== pw.password ? 'The two do not match' : ''}><Input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></Field>
+        </div>
+        <Note tone="gray" icon="info">This is your email&rsquo;s password: if the same email signs in elsewhere in Aksharum, it changes there too.</Note>
+        <div className="adm-row adm-mt"><Btn busy={busy === 'password'} disabled={!pw.currentPassword || pw.password.length < 8 || pw.password !== pw.confirm} onClick={change}>Change password</Btn></div>
+      </details>
+    </Panel>
   );
 }
 

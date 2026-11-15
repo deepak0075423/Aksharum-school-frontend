@@ -55,6 +55,13 @@ export default function PayPage() {
       });
     } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
   };
+  // "I paid, but the page did not say so" — the gateway is asked about the payment started from this link.
+  const check = async () => {
+    setBusy('check');
+    try { const r = await pub.payLinkCheck(portal.slug, token); setPaid(r.data); toast.success('Payment found'); reload(); }
+    catch (e) { toast.error(['NOT_PAID', 'NOTHING_OPEN'].includes(e?.data?.code) ? 'No completed payment was found for this link yet. If money left your account, it is checked again every few minutes — or returned by your bank.' : errMsg(e)); }
+    finally { setBusy(''); }
+  };
   const receipt = () => openProtected(pub.payLinkReceiptUrl(portal.slug, token, paid.paymentId)).catch((e) => toast.error(e.message));
 
   return (
@@ -88,6 +95,7 @@ export default function PayPage() {
           <p className="adm-muted" style={{ fontSize: '.8rem', display: 'flex', gap: 6, alignItems: 'center' }}>
             <Ico name="lock" size={13} />Paid through the school&rsquo;s payment gateway. A payment counts once the gateway confirms it.
           </p>
+          {!paid ? <p className="adm-muted" style={{ fontSize: '.8rem', margin: 0 }}>Already paid and still seeing an amount due? <button type="button" className="adm-linkbtn" disabled={!!busy} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check my payment'}</button></p> : null}
         </div>
       )}
     </div>

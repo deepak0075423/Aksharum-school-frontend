@@ -372,12 +372,14 @@ function ConvertDialog({ open, onClose, app, onDone }) {
       setF({
         section: (v.placement.sections.find((s) => s.free == null || s.free > 0) || {})._id || '',
         studentAccount: v.student.canUseApplicantAccount && !v.student.email ? 'applicant' : 'new',
-        studentEmail: v.student.email || '',
+        // A child with no address of their own: the parent's, with the child's name after a "+", shown to be accepted or typed over.
+        studentEmail: v.student.email || v.student.suggestedEmail || '',
         admissionNumber: '',
         parentMode: 'new', parentId: v.parent.existing?.[0]?._id || '',
         relation: v.parent.relation || 'Father', parentName: v.parent.name || '', parentEmail: v.parent.email || '', parentPhone: v.parent.phone || '',
         activation: v.options.activation || 'immediate',
-        fees: !!v.options.fees.available, transport: !!(v.options.transport.available && v.options.transport.requested),
+        // A free seat (RTE, or a free quota) is not put on the fee structure unless ticked here.
+        fees: !!v.options.fees.available && !v.options.fees.freeSeat, creditAdmissionFee: true, transport: !!(v.options.transport.available && v.options.transport.requested),
         hostelId: '', medical: !!(v.options.medical.available && v.options.medical.has),
       });
     }).catch((e) => setErr(errMsg(e)));
@@ -392,7 +394,7 @@ function ConvertDialog({ open, onClose, app, onDone }) {
         admissionNumber: f.admissionNumber.trim(),
         parent: f.parentMode === 'existing' ? { mode: 'existing', userId: f.parentId } : { mode: 'new', relation: f.relation, name: f.parentName.trim(), email: f.parentEmail.trim(), phone: f.parentPhone.trim() },
         activation: f.activation,
-        options: { fees: f.fees, transport: f.transport, medical: f.medical, ...(f.hostelId ? { hostel: { hostelId: f.hostelId } } : {}) },
+        options: { fees: f.fees, creditAdmissionFee: f.creditAdmissionFee, transport: f.transport, medical: f.medical, ...(f.hostelId ? { hostel: { hostelId: f.hostelId } } : {}) },
       };
       const r = await admin.convert(app._id, body);
       toast.success(r.message || 'Enrolled');
@@ -430,10 +432,13 @@ function ConvertDialog({ open, onClose, app, onDone }) {
             <div className="adm-mt" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {p.student.canUseApplicantAccount ? (
                 <label className="adm-check"><input type="radio" checked={f.studentAccount === 'applicant'} onChange={() => set('studentAccount', 'applicant')} /><span>Turn the applicant's account ({p.student.applicantEmail}) into the student's</span></label>
-              ) : null}
+              ) : p.student.applicantBusy ? <span className="adm-muted" style={{ fontSize: '.8rem' }}>The applicant&rsquo;s account cannot become the student&rsquo;s: {p.student.applicantBusy}.</span> : null}
               <label className="adm-check"><input type="radio" checked={f.studentAccount === 'new'} onChange={() => set('studentAccount', 'new')} /><span>Give the student a sign-in of their own</span></label>
               {f.studentAccount === 'new' ? (
-                <Field label="Student's sign-in email" required><Input type="email" value={f.studentEmail || ''} onChange={(e) => set('studentEmail', e.target.value)} maxLength={200} /></Field>
+                <Field label="Student's sign-in email" required
+                  hint={p.student.suggestedEmail && f.studentEmail === p.student.suggestedEmail ? 'Suggested: the parent\'s address with the child\'s name after a “+” — mail to it reaches the parent\'s inbox. Change it if the child has an address of their own.' : ''}>
+                  <Input type="email" value={f.studentEmail || ''} onChange={(e) => set('studentEmail', e.target.value)} maxLength={200} />
+                </Field>
               ) : null}
             </div>
           </section>
@@ -461,7 +466,10 @@ function ConvertDialog({ open, onClose, app, onDone }) {
           <section>
             <h3 style={{ fontSize: '.95rem', marginBottom: 8 }}>Along with the account</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {o.fees.available ? <Check checked={f.fees} onChange={(v) => set('fees', v)}>Assign fees{o.fees.structure ? ` — ${o.fees.structure.name} (${money(o.fees.structure.totalAmount)})` : ' (no fee structure found for this class yet)'}</Check> : null}
+              {o.fees.available ? <Check checked={f.fees} onChange={(v) => set('fees', v)}>Assign fees{o.fees.structure ? ` — ${o.fees.structure.name} (${money(o.fees.structure.totalAmount)})` : ' (no fee structure found for this class yet)'}{o.fees.freeSeat ? ` — ${o.fees.quota?.name || 'a quota'} seat, free` : ''}</Check> : null}
+              {o.fees.available && f.fees && o.fees.admissionHead ? (
+                <Check checked={f.creditAdmissionFee} onChange={(v) => set('creditAdmissionFee', v)}>Credit the {money(o.fees.admissionHead.credit)} paid at admission against {o.fees.admissionHead.name}, so it is not charged twice</Check>
+              ) : null}
               {o.transport.available && o.transport.requested ? <Check checked={f.transport} onChange={(v) => set('transport', v)}>Send a transport request{o.transport.address ? ` — pickup at ${o.transport.address}` : ''}</Check> : null}
               {o.hostel.available && o.hostel.requested ? (
                 <Field label="Hostel admission" hint="The family asked for a hostel place.">
@@ -772,7 +780,12 @@ function FeesTab({ d, reload }) {
   const [unwaive, setUnwaive] = useState(null);
   const [refunding, setRefunding] = useState(null);
   const [linking, setLinking] = useState(null); // kind
+  const [busy, setBusy] = useState('');
   const refunds = d.fees.refunds || [];
+  const act = async (key, fn, done) => {
+    setBusy(key);
+    try { const r = await fn(); toast.success(done(r)); reload(); } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
+  };
   const refundedOn = (p) => refunds.filter((r) => r.payment === p._id && r.status !== 'failed').reduce((s, r) => s + Number(r.amount), 0);
   const card = (kind, b) => (
     <Panel key={kind} title={KIND_LABEL[kind]} icon="wallet" right={<FeeChip status={b.status} />}>
@@ -785,6 +798,8 @@ function FeesTab({ d, reload }) {
           {(d.waivers || []).length && app.status !== 'enrolled' ? <Btn size="sm" icon="percent" onClick={() => setWaive(kind)}>Apply waiver</Btn> : null}
           {kind === 'application_fee' || ['offer_issued', 'accepted', 'payment_pending', 'confirmed', 'enrolled'].includes(app.status)
             ? <Btn size="sm" icon="send" onClick={() => setLinking(kind)}>Payment link…</Btn> : null}
+          <Btn size="sm" kind="ghost" busy={busy === `links:${kind}`}
+            onClick={() => window.confirm('Cancel every payment link sent for this application? Families will need a new one.') && act(`links:${kind}`, () => admin.cancelPayLinks(app._id), () => 'Payment links cancelled')}>Cancel links</Btn>
         </div>
       ) : null}
     </Panel>
@@ -795,7 +810,12 @@ function FeesTab({ d, reload }) {
         {card('application_fee', d.fees.application)}
         {card('admission_fee', d.fees.admission)}
       </div>
-      {d.fees.openOrder ? <Note tone="indigo" icon="info">An online payment was started on {fmtDateTime(d.fees.openOrder.createdAt)} and has not come back from the gateway. The family can check it from their page; it is never marked paid without the gateway's confirmation.</Note> : null}
+      {d.fees.openOrder ? (
+        <Note tone="indigo" icon="info" action={<Btn size="sm" busy={busy === 'check'} onClick={() => act('check', () => admin.checkPayment(app._id, d.fees.openOrder.kind), (r) => `Confirmed with the gateway — receipt ${r.data.receiptNumber}`)}>Check with the gateway</Btn>}>
+          An online payment of {money(d.fees.openOrder.amount)} was started on {fmtDateTime(d.fees.openOrder.createdAt)} and has not come back from the gateway.
+          {d.fees.openOrder.checkedAt ? ` Last checked ${fmtDateTime(d.fees.openOrder.checkedAt)} — the server keeps asking for two days.` : ' The server asks the gateway about it every few minutes.'} It is never marked paid without the gateway's confirmation.
+        </Note>
+      ) : null}
       {(d.fees.waivers || []).length ? (
         <Panel title="Waivers" icon="percent" pad={false}>
           <Table dense rowKey={(w) => `${w.kind}-${w.key}`} rows={d.fees.waivers} columns={[
@@ -815,10 +835,17 @@ function FeesTab({ d, reload }) {
             { key: 'a', label: 'Amount', align: 'right', render: (p) => { const r = refundedOn(p); return <>{money(p.amount)}{r > 0 ? <div className="adm-muted" style={{ fontSize: '.74rem' }}>{money(r)} refunded</div> : null}</>; } },
             { key: 'm', label: 'Mode', render: (p) => <>{(PAY_MODES.find((m) => m.value === p.mode)?.label) || (p.mode === 'online' ? 'Online' : p.mode)}{p.reference ? <div className="adm-muted" style={{ fontSize: '.74rem' }}>{p.reference}</div> : null}</> },
             { key: 'd', label: 'Paid', render: (p) => fmtDate(p.paidAt || p.createdAt) },
-            { key: 's', label: 'Status', render: (p) => <Chip tone={p.status === 'paid' ? 'green' : p.status === 'void' ? 'gray' : 'amber'} title={p.voidReason}>{p.status === 'void' ? 'Cancelled' : p.status}</Chip> },
+            { key: 's', label: 'Status', render: (p) => (
+              <>
+                <Chip tone={p.status === 'paid' ? 'green' : p.status === 'void' ? 'gray' : 'amber'} title={p.voidReason}>{p.status === 'void' ? 'Cancelled' : p.status}</Chip>
+                {p.status === 'paid' && p.clearance === 'pending' ? <div><Chip tone="amber">Not cleared yet</Chip></div> : null}
+                {p.status === 'paid' && p.clearance === 'cleared' ? <div className="adm-muted" style={{ fontSize: '.74rem' }}>Cleared {fmtDate(p.clearedAt)}</div> : null}
+              </>
+            ) },
             { key: 'x', label: '', render: (p) => (
               <div className="adm-row" style={{ gap: 2, flexWrap: 'nowrap' }}>
                 {['paid', 'void'].includes(p.status) ? <IconBtn icon="eye" label="Receipt" onClick={() => openFile(admin.receiptUrl(app._id, p._id))} /> : null}
+                {p.status === 'paid' && p.clearance === 'pending' ? <IconBtn icon="checkCircle" label="The bank has paid it — mark cleared" onClick={() => act(`clear:${p._id}`, () => admin.clearPayment(app._id, p._id), () => 'Marked cleared')} /> : null}
                 {p.status === 'paid' && Number(p.amount) - refundedOn(p) > 0.001 ? <IconBtn icon="reply" label="Refund" onClick={() => setRefunding({ ...p, left: Math.round((Number(p.amount) - refundedOn(p)) * 100) / 100 })} /> : null}
                 {p.status === 'paid' && p.mode !== 'online' && app.status !== 'enrolled' && !refundedOn(p) ? <IconBtn icon="closeCircle" kind="danger" label="Cancel receipt" onClick={() => setVoiding(p)} /> : null}
               </div>
@@ -838,10 +865,10 @@ function FeesTab({ d, reload }) {
       ) : null}
       <RecordPayment open={!!pay} kind={pay} due={pay ? d.fees[pay === 'application_fee' ? 'application' : 'admission'].due : 0} onClose={() => setPay(null)} app={app} onDone={reload} />
       <ApplyWaiver open={!!waive} kind={waive} waivers={d.waivers || []} onClose={() => setWaive(null)} app={app} onDone={reload} />
-      <RefundDialog payment={refunding} app={app} onClose={() => setRefunding(null)} onDone={reload} />
+      <RefundDialog payment={refunding} app={app} guide={d.fees.refundGuide} onClose={() => setRefunding(null)} onDone={reload} />
       <PayLinkDialog kind={linking} app={app} due={linking ? d.fees[linking === 'application_fee' ? 'application' : 'admission'].due : 0} onClose={() => setLinking(null)} onDone={reload} />
       <ConfirmDialog open={!!voiding} onClose={() => setVoiding(null)} title={`Cancel receipt ${voiding?.receiptNumber || ''}?`} confirmLabel="Cancel receipt" reason
-        message="The receipt stays on record, marked cancelled, and the amount is due again."
+        message={voiding?.clearance === 'pending' ? 'For a cheque or draft the bank did not pay, say so in the reason. The receipt stays on record, marked cancelled, and the amount is due again — a confirmed admission goes back to waiting for the fee.' : 'The receipt stays on record, marked cancelled, and the amount is due again — a confirmed admission goes back to waiting for the fee.'}
         onConfirm={async (why) => { try { await admin.voidPayment(app._id, voiding._id, why); toast.success('Receipt cancelled'); reload(); } catch (e) { toast.error(errMsg(e)); throw e; } }} />
       <ConfirmDialog open={!!unwaive} onClose={() => setUnwaive(null)} title={`Remove ${unwaive?.name || 'the waiver'}?`} confirmLabel="Remove waiver" reason
         onConfirm={async (why) => { try { await admin.removeWaiver(app._id, { kind: unwaive.kind, waiverKey: unwaive.key, reason: why }); toast.success('Waiver removed'); reload(); } catch (e) { toast.error(errMsg(e)); throw e; } }} />
@@ -871,7 +898,7 @@ function Instalments({ plan }) {
  * gateway — its answer is shown as it comes, never assumed — and money taken
  * at the counter is recorded as given back by cash, cheque, transfer or UPI.
  */
-function RefundDialog({ payment, app, onClose, onDone }) {
+function RefundDialog({ payment, app, guide, onClose, onDone }) {
   const [f, setF] = useState({});
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (payment) setF({ amount: String(payment.left), mode: payment.mode === 'online' ? 'gateway' : 'cash', reference: '', reason: '' }); }, [payment]);
@@ -894,6 +921,13 @@ function RefundDialog({ payment, app, onClose, onDone }) {
         {online ? 'The gateway sends the money back to the card, account or UPI it came from. Its answer is recorded as it comes.' : 'For money given back at the school. The family is told, and the amount counts as due again.'}
         {' '}At most {money(payment.left)} of this payment can be refunded.
       </Note>
+      {guide && payment.kind === 'admission_fee' ? (
+        <div className="adm-mt">
+          <Note tone="amber" icon="percent" action={<Btn size="sm" onClick={() => setF({ ...f, amount: String(Math.min(guide.amount, payment.left)) })}>Use {money(Math.min(guide.amount, payment.left))}</Btn>}>
+            The school&rsquo;s refund rule: {guide.days} day{guide.days === 1 ? '' : 's'} since the admission fee was paid, so <b>{guide.percent}%</b> of {money(guide.paid)} — {money(guide.amount)} — is given back. A guide; the amount is yours to set.
+          </Note>
+        </div>
+      ) : null}
       <div className="adm-grid2 adm-mt">
         <Field label="Amount (₹)" required><Input type="number" min="0.01" step="0.01" max={payment.left} value={f.amount ?? ''} onChange={(e) => setF({ ...f, amount: e.target.value })} /></Field>
         {online ? null : (

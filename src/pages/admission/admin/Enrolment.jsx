@@ -111,7 +111,7 @@ function Bulk({ round, cls }) {
               {(data.sections || []).map((s) => <option key={s._id} value={s._id}>{s.sectionName}</option>)}
             </Select>
           ) },
-          { key: 'e', label: 'Student sign-in email', render: (r, i) => <Input type="email" value={r.studentEmail} placeholder="Needed" onChange={(e) => set(i, { studentEmail: e.target.value })} aria-label="Student email" style={{ minWidth: 200 }} /> },
+          { key: 'e', label: 'Student sign-in email', render: (r, i) => <><Input type="email" value={r.studentEmail} placeholder="Needed" onChange={(e) => set(i, { studentEmail: e.target.value, emailSuggested: false })} aria-label="Student email" style={{ minWidth: 200 }} />{r.emailSuggested ? <div className="adm-muted" style={{ fontSize: '.72rem' }}>Suggested from the parent&rsquo;s address</div> : null}</> },
           { key: 'pa', label: 'Parent', render: (r, i) => (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 230 }}>
               {r.parent.existing?.length ? (

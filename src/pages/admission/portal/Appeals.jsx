@@ -6,7 +6,7 @@
  */
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { portal as api } from '../../../api/admission.api';
+import { portal as api, openProtected } from '../../../api/admission.api';
 import { useLoad, Panel, Btn, Chip, Note, Dialog, Field, Select, TextArea } from '../admUI';
 import { fmtDate, errMsg } from '../meta';
 
@@ -20,6 +20,10 @@ export default function Appeals({ appId, onChanged }) {
   const o = data.options;
   const can = o.enabled && o.left > 0 && (o.recheck.length || o.decision);
   if (!can && !data.appeals.length) return null;
+  // A file with the appeal (a photo of the answer sheet, a certificate) — while the school has not answered.
+  const attach = async (a, file) => {
+    try { await api.attachToAppeal(appId, a._id, file); toast.success('File added'); reload(); } catch (e) { toast.error(errMsg(e)); }
+  };
   const withdraw = async (a) => {
     if (!window.confirm(`Withdraw appeal ${a.number}?`)) return;
     try { await api.withdrawAppeal(appId, a._id); toast.success('Withdrawn'); reload(); onChanged?.(); } catch (e) { toast.error(errMsg(e)); }
@@ -41,6 +45,19 @@ export default function Appeals({ appId, onChanged }) {
               <Chip tone={STATUS[a.status]?.[1]}>{STATUS[a.status]?.[0]}</Chip>
             </div>
             <p className="adm-muted" style={{ fontSize: '.84rem', margin: '6px 0 0' }}>You wrote: “{a.reason}”</p>
+            {(a.files || []).length || ['open', 'in_review'].includes(a.status) ? (
+              <div className="adm-row" style={{ marginTop: 6, gap: 8, flexWrap: 'wrap' }}>
+                {(a.files || []).map((f) => (
+                  <button key={f.id} type="button" className="adm-linkbtn" style={{ fontSize: '.82rem' }} onClick={() => openProtected(api.appealFileUrl(appId, a._id, f.id)).catch((e) => toast.error(e.message))}>{f.name}</button>
+                ))}
+                {['open', 'in_review'].includes(a.status) && (a.files || []).length < 3 ? (
+                  <label className="adm-linkbtn" style={{ fontSize: '.82rem', cursor: 'pointer' }}>
+                    + Attach a file (PDF, JPG or PNG, up to 5 MB)
+                    <input type="file" hidden accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) attach(a, f); }} />
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
             {a.decision ? <Note tone={a.status === 'upheld' ? 'green' : 'gray'} icon="info">The school&rsquo;s answer ({fmtDate(a.decidedAt)}): {a.decision}</Note>
               : ['open', 'in_review'].includes(a.status) ? <p className="adm-muted" style={{ fontSize: '.8rem', margin: '6px 0 0' }}>The school answers by {fmtDate(a.dueAt)}.{a.status === 'open' ? <> <button type="button" className="adm-linkbtn" onClick={() => withdraw(a)}>Withdraw</button></> : null}</p> : null}
           </div>
@@ -75,6 +92,7 @@ function AskDialog({ kind, options, appId, onClose, onDone }) {
             </Select>
           </Field>
         ) : <Note tone="indigo" icon="info">You are asking the school to look again at its decision: <b>{options.decision.label}</b>.</Note>}
+        <p className="adm-muted" style={{ fontSize: '.8rem', margin: 0 }}>You can attach files to the appeal once it is sent.</p>
         <Field label="Why" required hint={`Say what you think is wrong. The school answers in writing within ${options.answerDays} days.`}>
           <TextArea rows={4} maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>

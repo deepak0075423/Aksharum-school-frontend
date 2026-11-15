@@ -48,8 +48,9 @@ export default function Branches() {
                 { key: 'a', label: 'Application', render: (x) => <><b>{x.studentName}</b><div className="adm-muted adm-num" style={{ fontSize: '.74rem' }}>{x.applicationNumber} · {x.className}</div></> },
                 { key: 'w', label: 'Branch', render: (x) => (x.direction === 'in' ? `From ${x.fromSchoolName}` : `To ${x.toSchoolName}`) },
                 { key: 'r', label: 'Why', render: (x) => <>{x.reason}{x.answer ? <div className="adm-muted" style={{ fontSize: '.74rem' }}>Answer: {x.answer}</div> : null}</> },
-                { key: 's', label: 'Status', render: (x) => <><Chip tone={STATUS[x.status]?.[1]}>{STATUS[x.status]?.[0]}</Chip><div className="adm-muted" style={{ fontSize: '.72rem' }}>{fmtDateTime(x.decidedAt || x.createdAt)}</div></> },
-                { key: 'x', label: '', render: (x) => (x.status === 'pending' && x.direction === 'in' ? <Btn size="sm" kind="primary" onClick={() => setDeciding(x)}>Answer</Btn>
+                { key: 's', label: 'Status', render: (x) => <><Chip tone={STATUS[x.status]?.[1]}>{STATUS[x.status]?.[0]}</Chip>{x.status === 'pending' ? <div className="adm-muted" style={{ fontSize: '.72rem' }}>{x.consent === 'given' ? 'The family agreed' : x.consent === 'asked' ? 'Waiting for the family to agree' : ''}</div> : null}<div className="adm-muted" style={{ fontSize: '.72rem' }}>{fmtDateTime(x.decidedAt || x.createdAt)}</div></> },
+                // Nothing of the application reaches this branch before the family agrees, so there is nothing to answer until then.
+                { key: 'x', label: '', render: (x) => (x.status === 'pending' && x.direction === 'in' ? (x.consent === 'asked' ? <Chip tone="gray">Family to agree</Chip> : <Btn size="sm" kind="primary" onClick={() => setDeciding(x)}>Answer</Btn>)
                   : x.status === 'pending' ? <Btn size="sm" kind="ghost" onClick={() => cancel(x)}>Take back</Btn>
                     : x.toApplication && x.direction === 'in' ? <Link to={`${BASE}/applications/${x.toApplication}`}>Open</Link> : null) },
               ]} />

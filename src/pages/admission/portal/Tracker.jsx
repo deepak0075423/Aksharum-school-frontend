@@ -97,6 +97,19 @@ export default function Tracker({ detail, slug, reload, user }) {
       setDeclining(false); setAccepting(false); reload();
     } catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
   };
+  // "I paid, but nothing changed": the school's payment gateway is asked about the payment that was started.
+  const checkPayment = async (kind) => {
+    setBusy(`check:${kind}`);
+    try { const r = await api.payCheck(app._id, kind); toast.success(`Payment found — receipt ${r.data.receiptNumber}`); reload(); }
+    catch (e) { toast.error(e?.data?.code === 'NOT_PAID' ? 'The bank has not taken a payment for this yet. If money has left your account, it will show here within a few minutes — or be returned by your bank.' : errMsg(e)); }
+    finally { setBusy(''); }
+  };
+  // A move to another branch: the family's own yes or no.
+  const answerTransfer = async (agree) => {
+    setBusy(`transfer:${agree ? 'yes' : 'no'}`);
+    try { await api.answerTransfer(app._id, detail.transfer._id, agree); toast.success(agree ? 'Thank you — the other branch can now take the application' : 'The move has been cancelled — nothing was shared'); reload(); }
+    catch (e) { toast.error(errMsg(e)); } finally { setBusy(''); }
+  };
   const startExam = async (exam) => {
     setBusy(`exam:${exam.examId}`);
     try {
@@ -144,10 +157,25 @@ export default function Tracker({ detail, slug, reload, user }) {
           {app.admissionNumber ? <Note tone="green" icon="gradCap">Enrolled with admission number <b>{app.admissionNumber}</b>.{app.signInNote ? ` ${app.signInNote}` : ''}</Note> : null}
         </section>
 
+        {detail.transfer ? (
+          <Panel title={`A move to ${detail.transfer.toSchoolName}`} icon="repeat" tone="indigo">
+            {detail.transfer.needsAnswer ? (
+              <>
+                <p style={{ margin: 0 }}>The school proposes moving this application to <b>{detail.transfer.toSchoolName}</b>{detail.transfer.reason ? <> — “{detail.transfer.reason}”</> : null}.</p>
+                <Note tone="amber" icon="shieldCheck">If you agree, your answers and the documents you uploaded are shared with {detail.transfer.toSchoolName}, which then decides whether to take the application. Nothing is shared unless you agree.</Note>
+                <div className="adm-row adm-mt">
+                  <Btn kind="primary" icon="checkCircle" busy={busy === 'transfer:yes'} onClick={() => answerTransfer(true)}>I agree to the move</Btn>
+                  <Btn kind="ghost" busy={busy === 'transfer:no'} onClick={() => answerTransfer(false)}>No, keep it here</Btn>
+                </div>
+              </>
+            ) : <Note tone="green" icon="checkCircle">You agreed to this move. {detail.transfer.toSchoolName} will answer; you will be told here and by email.</Note>}
+          </Panel>
+        ) : null}
+
         {offer && ['issued', 'accepted'].includes(offer.status) ? (
           <Panel title={offer.status === 'issued' ? 'You have been offered a seat' : 'Offer accepted'} icon="sparkle" tone="teal"
             right={<Btn size="sm" icon="download" onClick={() => open(api.offerUrl(app._id), `offer-${offer.offerNumber}.pdf`)}>Offer letter</Btn>}>
-            <KV cols={3} items={[['Offer', offer.offerNumber], ['Respond by', fmtDateTime(offer.respondBy)], ['Admission fee', money(offer.feeAmount)], ['Pay by', fmtDate(offer.feeDueAt)]]} />
+            <KV cols={3} items={[['Offer', offer.offerNumber], ...(offer.respondBy ? [['Respond by', fmtDateTime(offer.respondBy)]] : []), ['Admission fee', money(offer.feeAmount)], ['Pay by', fmtDate(offer.feeDueAt)]]} />
             {offer.canRespond ? (
               <div className="adm-row adm-mt">
                 <Btn kind="success" icon="checkCircle" busy={busy === 'offer'} onClick={() => (elsewhere.length ? setAccepting(true) : respond(true))}>Accept the offer</Btn>
@@ -163,7 +191,7 @@ export default function Tracker({ detail, slug, reload, user }) {
           <Panel title="Documents to upload" icon="upload" tone="amber">
             <div className="adm-doclist">
               {[...rejected.map((d) => ({ key: d.docKey, name: detail.documents.requirements.find((r) => r.key === d.docKey)?.name || d.docKey, reason: d.rejectionReason, req: detail.documents.requirements.find((r) => r.key === d.docKey) })),
-                ...missing.map((r) => ({ key: r.key, name: r.name, reason: 'Not uploaded yet', req: r }))].map((x) => (
+                ...missing.map((r) => ({ key: r.key, name: r.name, reason: r.dueAt ? `Not uploaded yet — due by ${fmtDate(r.dueAt)}` : 'Not uploaded yet', req: r }))].map((x) => (
                 <div key={x.key} className="adm-upload is-bad">
                   <Ico name="alert" size={20} />
                   <div className="adm-upload__text"><strong>{x.name}</strong><em>{x.reason}</em></div>
@@ -272,6 +300,11 @@ export default function Tracker({ detail, slug, reload, user }) {
                 </React.Fragment>
               );
             })}
+            {fees.openOrder ? (
+              <Note tone="amber" icon="info" action={<Btn size="sm" busy={busy === `check:${fees.openOrder.kind}`} onClick={() => checkPayment(fees.openOrder.kind)}>Check now</Btn>}>
+                An online payment of {money(fees.openOrder.amount)} was started on {fmtDateTime(fees.openOrder.createdAt)} and has not been confirmed. If you paid, check it here — it is also checked by itself every few minutes.
+              </Note>
+            ) : null}
             {fees.application.fee <= 0 && fees.admission.fee <= 0 ? <p className="adm-muted" style={{ fontSize: '.86rem' }}>No fees are due.</p> : null}
             {!fees.online && (fees.application.due > 0 || fees.admission.due > 0) ? <Note tone="gray" icon="info">Pay at the school office; the receipt appears here once recorded.</Note> : null}
             {(fees.refunds || []).map((r) => (
@@ -301,6 +334,16 @@ export default function Tracker({ detail, slug, reload, user }) {
               ))}
             </div>
           ) : <Empty compact icon="files" title="No documents" />}
+          {/* A paper that arrives later (a transfer certificate): anything the application asks for and does not have yet. */}
+          {detail.documents.open ? detail.documents.requirements.filter((r) => !r.required && !detail.documents.files.some((d) => d.docKey === r.key)).map((r) => (
+            <div key={r.key} className="adm-row adm-row--between adm-mt" style={{ flexWrap: 'nowrap' }}>
+              <span className="adm-muted" style={{ fontSize: '.86rem', minWidth: 0 }}>{r.name} <em>· optional</em></span>
+              <label className="adm-btn adm-btn--sm" style={{ cursor: 'pointer' }}>
+                {busy === `doc:${r.key}` ? <span className="adm-spin adm-spin--sm" /> : <Ico name="upload" size={14} />}Add
+                <input type="file" hidden accept={(r.accept || ['pdf', 'jpg', 'jpeg', 'png']).map((a) => `.${a}`).join(',')} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload(r.key, f); }} />
+              </label>
+            </div>
+          )) : null}
         </Panel>
 
         <Panel title="History" icon="history" tone="gray">

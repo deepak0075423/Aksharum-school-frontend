@@ -198,7 +198,8 @@ function VersionsDialog({ open, event, onClose, onRestored }) {
 
 // "Sent" is what the mail server told us: it took the message. Whether it
 // reached the inbox only a bounce report (Getting delivered) can say.
-const LOG_STATUS = { sent: ['Accepted by the mail server', 'green'], failed: ['Refused', 'red'], logged: ['Recorded only', 'amber'], skipped: ['Not sent', 'gray'] };
+// queued / sending: written down and waiting its turn in the send queue (failed ones are tried twice more by themselves).
+const LOG_STATUS = { queued: ['Waiting to send', 'indigo'], sending: ['Sending', 'indigo'], sent: ['Accepted by the mail server', 'green'], failed: ['Refused', 'red'], logged: ['Recorded only', 'amber'], skipped: ['Not sent', 'gray'] };
 
 function Log() {
   const [q, setQ] = useQueryState({ tab: 'log', status: '', event: '', q: '', page: '1' });

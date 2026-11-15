@@ -12,7 +12,7 @@ import PhoneInput from '../../../components/ui/PhoneInput';
 import {
   Page, Head, Panel, Btn, Chip, Spin, ErrorBox, Field, Input, TextArea, Select, Toggle, IconBtn, Note, useLoad,
 } from '../admUI';
-import { errMsg } from '../meta';
+import { errMsg, fmtDate } from '../meta';
 import { useAdmission, useQueryState, useDebounced, StaffChecks } from './parts';
 import { TIE_LABEL } from './Selection';
 
@@ -226,9 +226,26 @@ function PortalTab({ adm }) {
         </div>
       </Panel>
       <Panel title="Privacy and declaration" icon="shieldCheck">
-        <Field label="Privacy notice" hint={`Families agree to it when they register. Changing it makes a new version (now version ${adm.settings.portal.privacyVersion}).`}>
+        <Field label="Privacy notice" hint={`Families agree to it when they register. Changing it makes a new version (now version ${adm.settings.portal.privacyVersion}) that every family agrees to again — earlier wordings are kept.`}>
           <TextArea rows={6} value={p.privacyNotice} onChange={(e) => set({ privacyNotice: e.target.value })} maxLength={8000} />
         </Field>
+        {p.privacyNotice !== adm.settings.portal.privacyNotice ? (
+          <div className="adm-mt">
+            <Toggle checked={!!p.privacyMinor} onChange={(x) => set({ privacyMinor: x })} label="Only the wording changed — families need not agree again"
+              sub="For a spelling put right or a phone number updated. Anything that changes what is collected, why, or who sees it is a new version." />
+          </div>
+        ) : null}
+        {(adm.settings.portal.privacyHistory || []).length ? (
+          <details className="adm-mt">
+            <summary style={{ cursor: 'pointer', fontSize: '.86rem', fontWeight: 650 }}>Earlier wordings ({adm.settings.portal.privacyHistory.length})</summary>
+            {adm.settings.portal.privacyHistory.map((h, i) => (
+              <div key={i} style={{ borderTop: '1px solid var(--border)', padding: '8px 0', fontSize: '.84rem' }}>
+                <b>Version {h.version}</b>{h.minor ? ' (wording only)' : ''} · in use until {fmtDate(h.until)}
+                <p className="adm-muted" style={{ whiteSpace: 'pre-line', margin: '4px 0 0' }}>{h.text}</p>
+              </div>
+            ))}
+          </details>
+        ) : null}
         <Field label="Declaration on submitting" className="adm-mt"><TextArea rows={3} value={p.declaration} onChange={(e) => set({ declaration: e.target.value })} maxLength={2000} /></Field>
       </Panel>
       <SaveBar b={b} />
@@ -337,6 +354,7 @@ function ApplicationsBlock({ v, set }) {
         <Toggle checked={v.duplicateCheck} onChange={(x) => set({ duplicateCheck: x })} label="Warn about possible duplicates" sub="Same student and date of birth, or the same contact, this year" />
         <Toggle checked={v.allowWithdraw} onChange={(x) => set({ allowWithdraw: x })} label="Families can withdraw an application" />
         <Toggle checked={v.allowReapplyAfterRejection} onChange={(x) => set({ allowReapplyAfterRejection: x })} label="A family may apply again after a rejection" />
+        <Toggle checked={v.enforceAge !== false} onChange={(x) => set({ enforceAge: x })} label="Check each class's age rule on submitting" sub="Age, or date of birth, as set on the round. Off: shown to families, not checked" />
       </div>
     </Panel>
   );
@@ -428,6 +446,7 @@ function SelectionBlock({ v, set }) {
           <Field label="An offer stays open for (days)"><Input type="number" min="1" max="60" step="1" value={v.offerValidityDays} onChange={(e) => set({ offerValidityDays: Number(e.target.value) || 7 })} /></Field>
           <Toggle checked={v.allowApplicantResponse} onChange={(x) => set({ allowApplicantResponse: x })} label="Families accept or decline on the portal" sub="Otherwise the office records their answer" />
           <Toggle checked={v.autoPromoteWaitlist} onChange={(x) => set({ autoPromoteWaitlist: x })} label="Move the waiting list up automatically" sub="When an offer is declined, expires or is withdrawn" />
+          <Toggle checked={v.twoPersonApproval !== false} onChange={(x) => set({ twoPersonApproval: x })} label="Two people for a list or a set of results" sub="Whoever sends it for approval does not approve it — unless the school has only one admission administrator" />
         </div>
       </div>
       <Field label="New lists show families, by default" className="adm-mt">
@@ -467,7 +486,32 @@ function FeesBlock({ v, set, adm }) {
         </div>
         <Field label="Note printed on receipts" className="adm-mt"><Input value={v.receiptNote} onChange={(e) => set({ receiptNote: e.target.value })} maxLength={300} /></Field>
       </Panel>
+      <RefundRules v={v} set={set} />
     </>
+  );
+}
+
+/** How much of the admission fee is given back when a family leaves — shown in the refund dialog as a guide. */
+function RefundRules({ v, set }) {
+  const rs = v.refundRules || [];
+  const setR = (i, patch) => set({ refundRules: rs.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
+  return (
+    <Panel title="Refund rule" icon="reply" sub="How much of the admission fee is given back when a family leaves, by days since it was paid. Read from the top; later than the last line, nothing. A guide shown in the refund dialog — nothing is refunded by itself.">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rs.map((r, i) => (
+          <div key={i} className="adm-row" style={{ flexWrap: 'wrap' }}>
+            <span>Within</span>
+            <Input type="number" min="1" max="730" step="1" style={{ width: 90 }} value={r.withinDays} onChange={(e) => setR(i, { withinDays: Number(e.target.value) || 1 })} aria-label="Days" />
+            <span>days of paying:</span>
+            <Input type="number" min="0" max="100" step="1" style={{ width: 90 }} value={r.percent} onChange={(e) => setR(i, { percent: Number(e.target.value) })} aria-label="Per cent" />
+            <span>% back</span>
+            <IconBtn icon="trash" kind="danger" label="Remove" onClick={() => set({ refundRules: rs.filter((_, j) => j !== i) })} />
+          </div>
+        ))}
+        {rs.length < 8 ? <Btn size="sm" kind="ghost" icon="plus" style={{ alignSelf: 'flex-start' }} onClick={() => set({ refundRules: [...rs, { withinDays: (rs[rs.length - 1]?.withinDays || 0) + 15, percent: rs.length ? Math.max(0, (rs[rs.length - 1].percent || 0) - 25) : 100 }] })}>Add a line</Btn> : null}
+        {!rs.length ? <span className="adm-muted" style={{ fontSize: '.84rem' }}>No rule — the office decides each refund.</span> : null}
+      </div>
+    </Panel>
   );
 }
 
@@ -480,6 +524,7 @@ function ConversionBlock({ v, set, adm }) {
       <div className="adm-grid2">
         <Toggle checked={v.requireAdmissionFeePaid} onChange={(x) => set({ requireAdmissionFeePaid: x })} label="The admission fee must be paid (or waived) to confirm" />
         <Toggle checked={v.requireDocumentsVerified} onChange={(x) => set({ requireDocumentsVerified: x })} label="Required documents must be verified to confirm" />
+        <Toggle checked={!!v.autoConfirm} onChange={(x) => set({ autoConfirm: x })} label="Confirm by itself once the fee is in" sub="When nothing else is missing and the Confirmation stage needs no approval. Otherwise the office is told it is ready" />
         <Field label="New accounts are">
           <Select value={v.activation} onChange={(e) => set({ activation: e.target.value })}>
             <option value="immediate">Switched on at once</option>
@@ -506,7 +551,10 @@ function EmailBlock({ v, set }) {
         <Field label="Sender name" hint="Empty: the school's name"><Input value={v.fromName} onChange={(e) => set({ fromName: e.target.value })} maxLength={80} /></Field>
         <Field label="Replies go to" hint="Empty: the sending address"><Input type="email" value={v.replyTo} onChange={(e) => set({ replyTo: e.target.value })} maxLength={200} /></Field>
         <Field label="Remind of an exam (hours before)" hint="0: no reminder"><Input type="number" min="0" max="168" step="1" value={v.reminders.examHoursBefore} onChange={(e) => set({ reminders: { ...v.reminders, examHoursBefore: Number(e.target.value) || 0 } })} /></Field>
-        <Field label="Remind of a fee (days before it is due)" hint="0: no reminder"><Input type="number" min="0" max="30" step="1" value={v.reminders.paymentDaysBefore} onChange={(e) => set({ reminders: { ...v.reminders, paymentDaysBefore: Number(e.target.value) || 0 } })} /></Field>
+        <Field label="Remind of a fee (days before it is due)" hint="0: no reminder. An instalment past its date is followed up once as well"><Input type="number" min="0" max="30" step="1" value={v.reminders.paymentDaysBefore} onChange={(e) => set({ reminders: { ...v.reminders, paymentDaysBefore: Number(e.target.value) || 0 } })} /></Field>
+        <Field label="Remind of an unanswered offer (days before it lapses)" hint="0: no reminder"><Input type="number" min="0" max="30" step="1" value={v.reminders.offerDaysBefore ?? 2} onChange={(e) => set({ reminders: { ...v.reminders, offerDaysBefore: Number(e.target.value) || 0 } })} /></Field>
+        <Field label="Remind of an unsubmitted draft (days before the round closes)" hint="0: no reminder"><Input type="number" min="0" max="30" step="1" value={v.reminders.draftDaysBefore ?? 3} onChange={(e) => set({ reminders: { ...v.reminders, draftDaysBefore: Number(e.target.value) || 0 } })} /></Field>
+        <Field label="Remind of documents still owed (days before they are due)" hint="0: no reminder"><Input type="number" min="0" max="30" step="1" value={v.reminders.documentsDaysBefore ?? 3} onChange={(e) => set({ reminders: { ...v.reminders, documentsDaysBefore: Number(e.target.value) || 0 } })} /></Field>
       </div>
     </Panel>
   );

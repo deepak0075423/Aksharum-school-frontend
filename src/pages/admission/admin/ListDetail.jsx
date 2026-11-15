@@ -65,6 +65,9 @@ export default function ListDetail() {
 
       {draft && !lotteryList && unapproved.length ? <Note tone="amber" icon="alert">{unapproved.map((e) => e.name).join(', ')} {unapproved.length === 1 ? 'has' : 'have'} no approved results yet — applicants without an approved result score nothing for it. Approve the results, then rebuild.</Note> : null}
       {list.status === 'approved' && list.publishAt ? <Note icon="calendar">Publishes automatically on {fmtDateTime(list.publishAt)}.</Note> : null}
+      {list.staleReason && ['draft', 'pending_approval', 'approved'].includes(list.status) ? (
+        <Note tone="red" icon="alert">{list.staleReason} The list was ranked on the old figures — {draft ? 'rebuild it' : 'send it back to draft and rebuild it'} before it goes any further.</Note>
+      ) : null}
 
       <Panel title="Next step" icon="target">
         <div className="adm-row">
@@ -162,7 +165,7 @@ export default function ListDetail() {
       <ConfirmDialog open={ask === 'submit'} onClose={() => setAsk(null)} tone="primary" title="Send for approval?" confirmLabel="Send"
         message="The lines are frozen while the list waits; it can be sent back to draft." onConfirm={() => run('submit', () => admin.submitList(list._id), 'Sent for approval')} />
       <ConfirmDialog open={ask === 'approve'} onClose={() => setAsk(null)} tone="success" title="Approve this list?" confirmLabel="Approve"
-        message="Approved lists can be published at once or at a set time." onConfirm={() => run('approve', () => admin.approveList(list._id), 'Approved')} />
+        message="Approved lists can be published at once or at a set time. The person who sent a list for approval cannot approve it themselves, unless the school has a single admission administrator." onConfirm={() => run('approve', () => admin.approveList(list._id), 'Approved')} />
       <ConfirmDialog open={ask === 'return'} onClose={() => setAsk(null)} title="Send the list back to draft?" confirmLabel="Send back" reason reasonLabel="What needs changing"
         onConfirm={(note) => run('return', () => admin.returnList(list._id, note), 'Back in draft')} />
       <ConfirmDialog open={ask === 'close'} onClose={() => setAsk(null)} title="Close this list?" confirmLabel="Close list"

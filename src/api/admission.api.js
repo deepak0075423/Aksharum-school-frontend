@@ -26,6 +26,8 @@ export const pub = {
   payLink:        (slug, token) => api.get(`${P(slug)}/pay/${token}`),
   payLinkOrder:   (slug, token, part) => api.post(`${P(slug)}/pay/${token}/order`, { part }),
   payLinkVerify:  (slug, token, data) => api.post(`${P(slug)}/pay/${token}/verify`, data),
+  // "I paid, but the page did not say so": the gateway is asked about the link's open order.
+  payLinkCheck:   (slug, token) => api.post(`${P(slug)}/pay/${token}/check`, {}, { meta: { quiet: true } }),
   payLinkReceiptUrl: (slug, token, paymentId) => `${P(slug)}/pay/${token}/receipt/${paymentId}`,
 };
 
@@ -53,6 +55,11 @@ export const portal = {
   payOrder:    (id, kind, part) => api.post(`${A(id)}/pay`, { kind, part }),
   payVerify:   (id, data) => api.post(`${A(id)}/pay/verify`, data),
   reconcile:   (id, paymentId) => api.post(`${A(id)}/payments/${paymentId}/reconcile`),
+  // Asks the gateway about the latest online payment that was started and not confirmed.
+  payCheck:    (id, kind) => api.post(`${A(id)}/pay/check`, { kind }, { meta: { quiet: true } }),
+  updateProfile: (data) => api.put('/admission/portal/profile', data),
+  changePassword: (data) => api.post('/admission/portal/password', data),
+  answerTransfer: (id, transferId, agree) => api.post(`${A(id)}/transfers/${transferId}/respond`, { agree }),
   receiptUrl:  (id, paymentId) => `${A(id)}/payments/${paymentId}/receipt`,
   respond:     (id, accept, note, withdrawOthers = false) => api.post(`${A(id)}/offer/respond`, { accept, note, withdrawOthers }),
   lists:       (id) => api.get(`${A(id)}/lists`),
@@ -61,11 +68,12 @@ export const portal = {
   scoreUrl:    (id, examId) => `${A(id)}/exams/${examId}/scorecard.pdf`,
   offerUrl:    (id) => `${A(id)}/offer-letter.pdf`,
   startExam:   (id, examId) => api.post(`${A(id)}/exams/${examId}/start`),
-  attempt:     (id, attemptId) => api.get(`${A(id)}/attempts/${attemptId}`),
+  // `session` names this page: the page that opened the sitting last holds it (one device at a time).
+  attempt:     (id, attemptId, session) => api.get(`${A(id)}/attempts/${attemptId}`, { params: session ? { session } : undefined }),
   saveAnswers: (id, attemptId, data) => api.put(`${A(id)}/attempts/${attemptId}/answers`, data, { meta: { quiet: true }, timeout: 15000 }),
   submitExam:  (id, attemptId, data) => api.post(`${A(id)}/attempts/${attemptId}/submit`, data),
   violation:   (id, attemptId, type) => api.post(`${A(id)}/attempts/${attemptId}/violation`, { type }, { meta: { quiet: true } }),
-  nextSection: (id, attemptId) => api.post(`${A(id)}/attempts/${attemptId}/next-section`),
+  nextSection: (id, attemptId, session) => api.post(`${A(id)}/attempts/${attemptId}/next-section`, { session }),
   privacy:     () => api.get('/admission/portal/privacy'),
   privacyExportUrl: () => '/admission/portal/privacy/export',
   privacyRequest: (data) => api.post('/admission/portal/privacy/requests', data),
@@ -79,12 +87,19 @@ export const portal = {
   visitCalUrl: (bookingId) => `/admission/portal/visit-bookings/${bookingId}/calendar.ics`,
   digilocker:  (id) => api.get(`${A(id)}/digilocker`, { meta: { quiet: true } }),
   digilockerStart: (id) => api.post(`${A(id)}/digilocker/start`),
+  digilockerComplete: (id, data) => api.post(`${A(id)}/digilocker/complete`, data, { timeout: 60000 }),
   digilockerImport: (id, data) => api.post(`${A(id)}/digilocker/import`, data, { timeout: 60000 }),
   group:       () => api.get('/admission/portal/group'),
   groupOrder:  (order) => api.put('/admission/portal/group/preferences', { order }),
   appeals:     (id) => api.get(`${A(id)}/appeals`),
   fileAppeal:  (id, data) => api.post(`${A(id)}/appeals`, data),
   withdrawAppeal: (id, appealId) => api.post(`${A(id)}/appeals/${appealId}/withdraw`),
+  attachToAppeal: (id, appealId, file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post(`${A(id)}/appeals/${appealId}/files`, fd, { timeout: 120000 });
+  },
+  appealFileUrl: (id, appealId, fileId) => `${A(id)}/appeals/${appealId}/files/${fileId}`,
 };
 
 const AD = '/admission/admin';
@@ -175,6 +190,11 @@ export const admin = {
   recordPayment: (id, data) => api.post(`${AD}/applications/${id}/payments`, data),
   voidPayment:   (id, paymentId, reason) => api.post(`${AD}/applications/${id}/payments/${paymentId}/void`, { reason }),
   refund:        (id, paymentId, data) => api.post(`${AD}/applications/${id}/payments/${paymentId}/refund`, data),
+  checkPayment:  (id, kind) => api.post(`${AD}/applications/${id}/payments/check`, { kind }),
+  clearPayment:  (id, paymentId) => api.post(`${AD}/applications/${id}/payments/${paymentId}/clear`),
+  cancelPayLinks:(id) => api.post(`${AD}/applications/${id}/pay-links/cancel`),
+  paymentsAttention: () => api.get(`${AD}/payments/attention`, { meta: { quiet: true } }),
+  appealFileUrl: (id, fileId) => `${AD}/appeals/${id}/files/${fileId}`,
   examSlots:     (examId) => api.get(`${AD}/exams/${examId}/slots`),
   health:        () => api.get(`${AD}/health`, { meta: { quiet: true } }),
   enrolPlan:     (params) => api.get(`${AD}/enrolment/plan${qs(params)}`),

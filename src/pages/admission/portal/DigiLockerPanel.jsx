@@ -15,15 +15,25 @@ export default function DigiLockerPanel({ appId, requirements = [], onFetched })
   const { data, reload } = useLoad(() => api.digilocker(appId), [appId]);
   const [busy, setBusy] = useState('');
   const [pick, setPick] = useState({});
+  // Back from DigiLocker: this page — signed in as the application's owner —
+  // finishes the connection with the code the browser came back with. Nothing
+  // is connected by arriving here alone.
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get('digilocker');
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('digilocker');
     if (!q) return;
-    if (q === 'connected') toast.success('DigiLocker connected — choose the documents to use');
-    else toast.error('DigiLocker could not be connected — try again');
+    const state = params.get('dl_state');
+    const code = params.get('dl_code');
     const url = new URL(window.location.href);
-    url.searchParams.delete('digilocker');
+    ['digilocker', 'dl_state', 'dl_code'].forEach((k) => url.searchParams.delete(k));
     window.history.replaceState(null, '', url.toString());
-  }, []);
+    if (q !== 'return' || !state || !code) { toast.error('DigiLocker could not be connected — try again'); return; }
+    setBusy('connect');
+    api.digilockerComplete(appId, { state, code })
+      .then(() => { toast.success('DigiLocker connected — choose the documents to use'); reload(); })
+      .catch((e) => toast.error(errMsg(e, 'DigiLocker could not be connected — try again')))
+      .finally(() => setBusy(''));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!data?.available) return null;
   const connect = async () => {
     setBusy('connect');

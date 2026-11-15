@@ -355,7 +355,11 @@ export function ResultsBoard({ examId, onChanged, showName = false }) {
 
   useEffect(() => {
     if (!data) return;
-    setRows(Object.fromEntries(data.board.map((b) => [b.candidateId, { marks: { ...(b.marks || {}) }, absent: !!b.absent, remarks: b.remarks || '' }])));
+    // An interview panel of two or more: a member edits their own sheet; the result is the panel's average.
+    setRows(Object.fromEntries(data.board.map((b) => {
+      const own = b.panel?.onPanel ? b.panel.mine : null;
+      return [b.candidateId, own ? { marks: { ...(own.marks || {}) }, absent: !!own.absent, remarks: own.remarks || '' } : { marks: { ...(b.marks || {}) }, absent: !!b.absent, remarks: b.remarks || '' }];
+    })));
     setDirty(false);
   }, [data]);
 
@@ -367,7 +371,9 @@ export function ResultsBoard({ examId, onChanged, showName = false }) {
   const saveMarks = async () => {
     setBusy('save');
     try {
-      const list = data.board.filter((b) => !b.resultStatus || !['approved', 'published'].includes(b.resultStatus)).map((b) => ({ candidate: b.candidateId, ...rows[b.candidateId] }));
+      // A candidate a panel is marking is left to the panel: their own sheets make the result.
+      const list = data.board.filter((b) => (!b.resultStatus || !['approved', 'published'].includes(b.resultStatus)) && !(b.panel && !b.panel.onPanel && b.panel.entered > 0 && !rows[b.candidateId]?.absent))
+        .map((b) => ({ candidate: b.candidateId, ...rows[b.candidateId] }));
       const r = await admin.marks(examId, list);
       if (r.data.problems?.length) r.data.problems.slice(0, 4).forEach((p) => toast.error(p));
       toast.success(`${r.data.saved} saved`);
@@ -419,7 +425,12 @@ export function ResultsBoard({ examId, onChanged, showName = false }) {
           empty={<Empty icon="users" title="No candidates yet">Schedule candidates first.</Empty>}
           columns={[
             { key: 'roll', label: 'Roll no.', render: (b) => <span className="adm-num">{b.rollNumber}</span> },
-            { key: 'student', label: 'Student', render: (b) => <><b>{b.studentName}</b><div className="adm-muted" style={{ fontSize: '.74rem' }}>{b.applicationNumber}</div></> },
+            { key: 'student', label: 'Student', render: (b) => (
+              <>
+                <b>{b.studentName}</b><div className="adm-muted" style={{ fontSize: '.74rem' }}>{b.applicationNumber}</div>
+                {b.panel ? <div className="adm-muted" style={{ fontSize: '.72rem' }} title="Each panel member marks on their own; the result is the average">Panel: {b.panel.entered} of {b.panel.size} marked{b.panel.onPanel ? ' · your own marks below' : ''}</div> : null}
+              </>
+            ) },
             ...(offline ? [
               { key: 'absent', label: 'Absent', render: (b) => <input type="checkbox" aria-label="Absent" disabled={locked || ['approved', 'published'].includes(b.resultStatus)} checked={!!rows[b.candidateId]?.absent} onChange={(e) => mark(b.candidateId, { absent: e.target.checked })} /> },
               ...subjects.map((s) => ({

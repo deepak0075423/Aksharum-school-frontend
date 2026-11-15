@@ -46,6 +46,11 @@ export default function ExamRoom() {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  // One page at a time: this page names itself, and the page that opened the
+  // sitting last holds it. When another device or tab opens it, this one is
+  // told on its next save and stops — until the candidate takes it back here.
+  const session = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`);
+  const [elsewhere, setElsewhere] = useState(false);
   const seq = useRef(0);
   const dirty = useRef(false);
   const saveTimer = useRef(null);
@@ -56,7 +61,8 @@ export default function ExamRoom() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.attempt(id, attemptId);
+      const r = await api.attempt(id, attemptId, session.current);
+      setElsewhere(false);
       setView(r.data);
       setAnswers(r.data.answers || {});
       seq.current = Number(r.data.saveSeq) || 0;
@@ -71,7 +77,7 @@ export default function ExamRoom() {
     seq.current += 1;
     setState('saving');
     try {
-      const r = await api.saveAnswers(id, attemptId, { seq: seq.current, answers: latest.current });
+      const r = await api.saveAnswers(id, attemptId, { seq: seq.current, answers: latest.current, session: session.current });
       if (r.data?.serverNow) setOffset(new Date(r.data.serverNow).getTime() - Date.now());
       if (r.data?.stale && r.data?.saveSeq) seq.current = Math.max(seq.current, Number(r.data.saveSeq));
       if (r.data?.status && r.data.status !== 'in_progress') { await load(); return; }
@@ -79,6 +85,7 @@ export default function ExamRoom() {
     } catch (e) {
       dirty.current = true;
       if (e?.data?.code === 'SUBMITTED' || e?.data?.code === 'TIME_UP') { await load(); return; }
+      if (e?.data?.code === 'OPEN_ELSEWHERE') { dirty.current = false; setElsewhere(true); setState('saved'); return; }
       setState('offline');
     }
   }, [id, attemptId, view?.status, load]);
@@ -123,13 +130,14 @@ export default function ExamRoom() {
     setBusy(true);
     try {
       seq.current += 1;
-      const r = await api.submitExam(id, attemptId, { seq: seq.current, answers: latest.current });
+      const r = await api.submitExam(id, attemptId, { seq: seq.current, answers: latest.current, session: session.current });
       dirty.current = false;
       setTimedOut(auto);
       setView(r.data);
       setConfirm(false);
       if (!auto) toast.success('Your answers have been submitted');
     } catch (e) {
+      if (e?.data?.code === 'OPEN_ELSEWHERE') { setConfirm(false); setElsewhere(true); return; }
       if (auto) await load(); else toast.error(errMsg(e));
     } finally { setBusy(false); }
   }, [id, attemptId, load]);
@@ -155,13 +163,13 @@ export default function ExamRoom() {
     setBusy(true);
     try {
       if (dirty.current) await save();
-      const r = await api.nextSection(id, attemptId);
+      const r = await api.nextSection(id, attemptId, session.current);
       setView(r.data);
       setAnswers(r.data.answers || {});
       setI(0);
       setFinishing(false);
       toast.success(r.data.status === 'in_progress' ? 'On to the next section' : 'Your answers have been submitted');
-    } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+    } catch (e) { if (e?.data?.code === 'OPEN_ELSEWHERE') { setFinishing(false); setElsewhere(true); } else toast.error(errMsg(e)); } finally { setBusy(false); }
   };
 
   const qs = view?.questions || [];
@@ -181,6 +189,21 @@ export default function ExamRoom() {
 
   if (error) return <div className="adm-exam"><div style={{ padding: 40 }}><ErrorBox error={error} onRetry={load} /></div></div>;
   if (!view) return <div className="adm-exam"><Spin label="Opening your exam…" /></div>;
+
+  if (elsewhere && view.status === 'in_progress') {
+    return (
+      <div className="adm-exam">
+        <div style={{ maxWidth: 560, margin: '60px auto', padding: 20 }}>
+          <div className="adm-authcard" role="alert">
+            <h1>This exam is open somewhere else</h1>
+            <p>{view.exam.name} has been opened on another device or in another tab. It can be worked on in one place at a time, so this page has stopped. The clock is still running.</p>
+            <p className="adm-muted">Continue where it is open — or take it back here. Answers saved so far are kept either way.</p>
+            <Btn kind="primary" onClick={load}>Continue here instead</Btn>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view.status !== 'in_progress') {
     return (
@@ -270,7 +293,7 @@ export default function ExamRoom() {
             <span><i style={{ boxShadow: 'inset 0 -3px 0 #f59e0b' }} />Flagged</span>
           </div>
           {view.exam.instructions ? <details><summary style={{ cursor: 'pointer', fontSize: '.84rem', fontWeight: 650 }}>Instructions</summary><p className="adm-muted" style={{ fontSize: '.82rem', whiteSpace: 'pre-line', marginTop: 6 }}>{view.exam.instructions}</p></details> : null}
-          <p className="adm-muted" style={{ fontSize: '.74rem', margin: 0 }}>This page notes when it is left, when full screen is left, and copying or pasting. The school sees these notes; they never change your score.</p>
+          <p className="adm-muted" style={{ fontSize: '.74rem', margin: 0 }}>This page notes when it is left, when full screen is left, copying or pasting, and the exam being opened on a second device. The school sees these notes; they never change your score.</p>
         </aside>
       </div>
       <Dialog open={finishing} onClose={() => setFinishing(false)} title={`Finish ${section?.name || 'this section'}?`} width={440}

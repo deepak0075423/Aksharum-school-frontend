@@ -9,7 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { admin } from '../../../api/admission.api';
+import { admin, openProtected } from '../../../api/admission.api';
 import Tabs from '../../../components/ui/Tabs';
 import {
   Page, Head, Panel, Btn, Chip, Table, Empty, ErrorBox, Spin, Dialog, Field, Input, TextArea, Select, Toggle, Note, KV, Tiles, Tile, useLoad,
@@ -87,9 +87,11 @@ function AppealSettings({ a, onSaved }) {
 
 function AppealDialog({ id, onClose, onDone }) {
   const { data: d, loading, error, reload } = useLoad(() => admin.appeal(id), [id]);
-  const [f, setF] = useState({ outcome: '', decision: '', internalNote: '', reopenTo: '', marks: {} });
+  const [f, setF] = useState({ outcome: '', decision: '', internalNote: '', reopenTo: '', marks: {}, autoScore: '', manualScore: '' });
   const [busy, setBusy] = useState('');
-  useEffect(() => { if (d?.result) setF((x) => ({ ...x, marks: { ...(d.result.marks || {}) } })); }, [d]);
+  useEffect(() => { if (d?.result) setF((x) => ({ ...x, marks: { ...(d.result.marks || {}) }, autoScore: d.result.autoScore ?? '', manualScore: d.result.manualScore ?? '' })); }, [d]);
+  // The only place an upheld appeal can go is where the workflow lets it: one choice is chosen for you.
+  useEffect(() => { if (d?.reopenTo?.length === 1) setF((x) => ({ ...x, reopenTo: d.reopenTo[0].key })); }, [d]);
   if (loading && !d) return <Dialog open onClose={onClose} title="Appeal"><Spin /></Dialog>;
   if (error && !d) return <Dialog open onClose={onClose} title="Appeal"><ErrorBox error={error} onRetry={reload} /></Dialog>;
   const a = d.appeal;
@@ -103,7 +105,8 @@ function AppealDialog({ id, onClose, onDone }) {
     try {
       await admin.decideAppeal(a._id, {
         outcome: f.outcome, decision: f.decision.trim(), internalNote: f.internalNote.trim(),
-        ...(f.outcome === 'upheld' && a.kind === 'recheck' ? { marks: f.marks } : {}),
+        // An online exam has a score, not subject marks: the auto-marked part and the evaluator's part.
+        ...(f.outcome === 'upheld' && a.kind === 'recheck' ? (d.exam?.mode === 'online' ? { autoScore: f.autoScore, manualScore: f.manualScore } : { marks: f.marks }) : {}),
         ...(f.outcome === 'upheld' && a.kind === 'decision' ? { reopenTo: f.reopenTo } : {}),
       });
       toast.success('Answered — the family is told');
@@ -120,6 +123,12 @@ function AppealDialog({ id, onClose, onDone }) {
           ['Filed', fmtDateTime(a.createdAt)], [waiting ? 'Answer by' : 'Answered', fmtDate(waiting ? a.dueAt : a.decidedAt)],
         ]} />
         <Note tone="indigo" icon="userCircle">The family wrote: “{a.reason}”</Note>
+        {(a.files || []).length ? (
+          <div className="adm-row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <span className="adm-muted" style={{ fontSize: '.84rem' }}>Attached:</span>
+            {a.files.map((x) => <button key={x.id} type="button" className="adm-linkbtn" onClick={() => openProtected(admin.appealFileUrl(a._id, x.id)).catch((e) => toast.error(e.message))}>{x.name}</button>)}
+          </div>
+        ) : null}
         {d.exam && d.result ? (
           <Panel title={`${d.exam.name} — the result as it stands`} icon="fileCheck" pad={false}>
             <Table dense rowKey={(x) => x.key} rows={d.exam.subjects || []} columns={[
@@ -127,6 +136,17 @@ function AppealDialog({ id, onClose, onDone }) {
               { key: 'm', label: 'Marks', render: (x) => `${d.result.marks?.[x.key] ?? '—'} / ${x.maxMarks}` },
               ...(waiting && f.outcome === 'upheld' ? [{ key: 'c', label: 'Corrected', render: (x) => <Input type="number" min="0" max={x.maxMarks} step="0.5" style={{ width: 90 }} value={f.marks[x.key] ?? ''} onChange={(e) => setF({ ...f, marks: { ...f.marks, [x.key]: e.target.value } })} aria-label={`Corrected ${x.name}`} /> }] : []),
             ]} />
+            {d.exam.mode === 'online' ? (
+              <div style={{ padding: '10px 14px', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <span style={{ fontSize: '.84rem' }}>Auto-marked <b>{d.result.autoScore ?? '—'}</b> · evaluator&rsquo;s marks <b>{d.result.manualScore ?? '—'}</b> · out of {d.exam.maxMarks}</span>
+                {waiting && f.outcome === 'upheld' ? (
+                  <>
+                    <Field label="Corrected auto-marked score"><Input type="number" min="0" max={d.exam.maxMarks} step="0.5" style={{ width: 120 }} value={f.autoScore} onChange={(e) => setF({ ...f, autoScore: e.target.value })} /></Field>
+                    <Field label="Corrected evaluator's marks"><Input type="number" min="0" max={d.exam.maxMarks} step="0.5" style={{ width: 120 }} value={f.manualScore} onChange={(e) => setF({ ...f, manualScore: e.target.value })} /></Field>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
             <div style={{ padding: '8px 14px', fontSize: '.84rem' }}>Total <b>{d.result.total}</b>{d.result.grade ? ` · grade ${d.result.grade}` : ''} · {d.result.passed ? 'qualified' : 'not qualified'}{(d.result.corrections || []).length ? ` · corrected ${(d.result.corrections || []).length} time(s) before` : ''}</div>
           </Panel>
         ) : null}
@@ -148,6 +168,7 @@ function AppealDialog({ id, onClose, onDone }) {
                   <option value="">Choose a stage…</option>
                   {d.reopenTo.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
                 </Select>
+                {!d.reopenTo.length ? <p className="adm-muted" style={{ fontSize: '.8rem', margin: '4px 0 0' }}>The application has moved on since the appeal — there is nowhere to reopen it to.</p> : null}
               </Field>
             ) : null}
             {f.outcome === 'upheld' && a.kind === 'recheck' ? <Note tone="amber" icon="info">The corrected marks are recorded on the result with this appeal&rsquo;s number, and published again to the family.</Note> : null}

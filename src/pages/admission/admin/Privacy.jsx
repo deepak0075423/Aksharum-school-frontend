@@ -175,6 +175,7 @@ function Retention() {
           </Field>
           <Field label="Enquiries are deleted after (months)"><Input type="number" min="1" max="60" step="1" value={r.enquiryMonths} onChange={(e) => setR({ enquiryMonths: Number(e.target.value) || 1 })} /></Field>
           <Field label="Email and message logs are deleted after (months)"><Input type="number" min="1" max="24" step="1" value={r.deliveryLogMonths} onChange={(e) => setR({ deliveryLogMonths: Number(e.target.value) || 1 })} /></Field>
+          <Field label="An enrolled student's application drops its Aadhaar numbers and sensitive answers after (months)" hint="The student record keeps what the school needs"><Input type="number" min="1" max="120" step="1" value={r.enrolledMonths ?? 12} onChange={(e) => setR({ enrolledMonths: Number(e.target.value) || 1 })} /></Field>
         </div>
       </Panel>
       <Panel title="Who answers privacy questions" icon="userCircle" sub="Shown to families on the portal, beside the privacy notice and under “Your data”.">
