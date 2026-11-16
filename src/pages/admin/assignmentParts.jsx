@@ -89,8 +89,8 @@ export const Crumbs = ({ trail = [], here, home }) => {
   return null;
 };
 
-const STATUS_TONE = { active: 'yes', overdue: 'bad', archived: 'slate' };
-const STATUS_TEXT = { active: 'Active', overdue: 'Overdue', archived: 'Archived' };
+const STATUS_TONE = { active: 'yes', overdue: 'bad', archived: 'slate', draft: 'warn' };
+const STATUS_TEXT = { active: 'Active', overdue: 'Overdue', archived: 'Archived', draft: 'Draft' };
 
 export const DetailHero = ({ doc, actions }) => (
   <header className="adhero">

@@ -103,6 +103,7 @@ function DocumentDetailPage() {
       versions:  teacherApi.getDocumentVersions,
       restore:   teacherApi.restoreDocumentVersion,
       readers:   teacherApi.getDocumentReaders,
+      publish:   teacherApi.publishDocument,
     }
     : {
       detail:    adminApi.getAssignmentDetail,
@@ -120,6 +121,7 @@ function DocumentDetailPage() {
       versions:  adminApi.getDocumentVersions,
       restore:   adminApi.restoreDocumentVersion,
       readers:   adminApi.getDocumentReaders,
+      publish:   adminApi.publishDocument,
     };
 
   const setTab = (v) => {
@@ -348,10 +350,25 @@ function DocumentDetailPage() {
   const duplicate = async () => {
     try {
       const r = await api.duplicate(id);
-      toast.success('Copy created');
+      toast.success('Copy made as a draft — nobody sees it until you share it');
       navigate(`${home}/${unwrap(r)._id}`);
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
+    }
+  };
+
+  // A draft goes onto its audience's shelves — and they are told — only here.
+  const [sharing, setSharing] = useState(false);
+  const publish = async () => {
+    setSharing(true);
+    try {
+      await api.publish(id);
+      toast.success('Shared — everyone it is for has been told');
+      await load(false);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -639,6 +656,27 @@ function DocumentDetailPage() {
       </section>
 
       {error && <Alert variant="danger">{error}</Alert>}
+
+      {/* A copy waits here until it has been made this week's. */}
+      {doc.isDraft && (
+        <div className="addraft" role="status">
+          <Icon name="info" size={18} />
+          <p>
+            <b>This is a draft.</b> Nobody it is shared with can see it yet, and nobody has been told about it.
+            {doc.canManage ? ' Edit it — the title, the due date, the file — then share it.' : ''}
+          </p>
+          {doc.canManage && (
+            <div className="addraft__acts">
+              <button type="button" className="btn btn-secondary" onClick={() => navigate(`${home}?edit=${id}`)}>
+                <Icon name="pencil" size={15} /> Edit
+              </button>
+              <button type="button" className="btn btn-primary" onClick={publish} disabled={sharing}>
+                <Icon name="upload" size={15} /> {sharing ? 'Sharing…' : 'Share now'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Overview ───────────────────────────────────────────────────────── */}
       {view === 'overview' && (

@@ -111,6 +111,7 @@ export const archiveDocument        = (id, archived = true) => api.post(`/teache
 export const getDocumentVersions    = (id)      => api.get(`/teacher/documents/${id}/versions`);
 export const restoreDocumentVersion = (id, vid) => api.post(`/teacher/documents/${id}/versions/${vid}/restore`);
 export const getDocumentReaders     = (id)      => api.get(`/teacher/documents/${id}/readers`);
+export const publishDocument        = (id)      => api.post(`/teacher/documents/${id}/publish`);
 export const getHolidays         = () => api.get('/teacher/holidays');
 export const getClassHolidays    = () => api.get('/teacher/class-holidays');
 export const getResultBoard   = () => api.get('/teacher/results/board');

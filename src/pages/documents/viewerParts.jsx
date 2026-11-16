@@ -247,6 +247,7 @@ export function DocCard({ doc, onOpen, badges, actions, dense }) {
           <span className="dvcard__title">
             {unread ? <span className="dvnew">New</span> : null}
             {doc.title}
+            {doc.isDraft ? <span className="dvpill dvpill--amber">Draft</span> : null}
             {doc.isArchived ? <span className="dvpill dvpill--slate">Archived</span> : null}
           </span>
           {doc.description ? <span className="dvcard__sub">{doc.description}</span> : null}
@@ -692,6 +693,81 @@ export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ── The question breakdown ───────────────────────────────────────────────────
+
+/** The marking form's own line for what the named questions leave over. */
+const RESERVED_QUESTION = 'other marks';
+
+/** What is wrong with a question list, in words — or nothing. */
+export function questionsProblem(questions) {
+  const labels = (questions || []).map((q) => String(q.label || '').trim().toLowerCase());
+  if (labels.some((l) => !l)) return 'Every question needs a name';
+  if (new Set(labels).size !== labels.length) return 'Two questions share a name';
+  if (labels.includes(RESERVED_QUESTION)) return '“Other marks” is kept for what the questions leave over — call the question something else';
+  return '';
+}
+
+/**
+ * Break the marks down by question — `[{ label, maxMarks }]`.
+ *
+ * Optional: without it an assignment is marked as one number, which is most of
+ * them; with it, marking asks for a score per question and the analytics can
+ * say which question the class lost marks on. The office's form has had this
+ * all along; the teacher who actually sets and marks the work did not.
+ */
+export function QuestionBreakdown({ questions, onChange, outOf, error }) {
+  const total = questions.reduce((n, q) => n + (Number(q.maxMarks) || 0), 0);
+  const of    = Number(outOf) || 0;
+  const set   = (i, part) => onChange(questions.map((q, x) => (x === i ? { ...q, ...part } : q)));
+  return (
+    <div className="shq">
+      <header>
+        <div>
+          <b>Break the marks down by question</b>
+          <small>Optional. Marking then asks for a score per question.</small>
+        </div>
+        <button type="button" className="btn btn-secondary btn-sm"
+          onClick={() => onChange([...questions, { label: `Q${questions.length + 1}`, maxMarks: '' }])}>
+          <Icon name="plus" size={14} /> Add question
+        </button>
+      </header>
+
+      {questions.length > 0 && (
+        <>
+          <ul className="shq__list">
+            {questions.map((q, i) => (
+              <li key={i}>
+                <input data-text="title" className="form-control" maxLength={20} value={q.label}
+                  aria-label={`Question ${i + 1} name`} placeholder={`Q${i + 1}`}
+                  onChange={(e) => set(i, { label: e.target.value })} />
+                <input step="any" className="form-control" type="number" min="0" value={q.maxMarks}
+                  aria-label={`Question ${i + 1} marks`} placeholder="Marks"
+                  onChange={(e) => set(i, { maxMarks: e.target.value })} />
+                <button type="button" className="dvact" onClick={() => onChange(questions.filter((_, x) => x !== i))}
+                  title={`Remove ${q.label || `question ${i + 1}`}`}
+                  aria-label={`Remove ${q.label || `question ${i + 1}`}`}>
+                  <Icon name="close" size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className={`shq__sum${of && total !== of ? ' is-off' : ''}`}>
+            {total} across {questions.length} question{questions.length === 1 ? '' : 's'}
+            {of ? ` · out of ${of}` : ''}
+            {/* Said, not enforced: a paper marked out of 50 with 45 in named
+                questions and 5 for presentation is a real paper — the 5 are
+                given as "Other marks" when it is marked. */}
+            {of && total !== of
+              ? <em>{total > of ? 'more than the total above' : `${Math.round((of - total) * 100) / 100} left over — given as “Other marks” when marking`}</em>
+              : null}
+          </p>
+        </>
+      )}
+      {error ? <p className="sherr"><Icon name="alert" size={13} />{error}</p> : null}
     </div>
   );
 }

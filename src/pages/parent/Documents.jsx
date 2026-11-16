@@ -17,12 +17,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getDocuments, markDocumentRead, markDocumentsRead } from '../../api/parent.api';
+import {
+  getDocuments, markDocumentRead, markDocumentsRead,
+  getDocumentComments, addDocumentComment, updateDocumentComment, deleteDocumentComment,
+} from '../../api/parent.api';
 import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
-  ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile,
+  ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile, DocComments,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
 
@@ -197,7 +200,9 @@ export default function ParentDocuments() {
       <DocDrawer
         doc={live}
         onClose={() => { focusRef.current = null; setOpen(null); }}
-        extra={live?.isAssignment && (
+        extra={live && (
+          <>
+          {live.isAssignment && (
           <section className="dvdrawer__sec">
             <h4>{who ? 'How it is going' : 'Each of your children'}</h4>
             <ul className="dvkidlist">
@@ -235,6 +240,13 @@ export default function ParentDocuments() {
               Work is handed in from your child’s own account.
             </p>
           </section>
+          )}
+
+          {/* A parent can ask about what was shared, and read what was
+              answered — it used to be read-only for them. */}
+          <DocComments docId={live._id} load={getDocumentComments} post={addDocumentComment}
+            update={updateDocumentComment} remove={deleteDocumentComment} />
+          </>
         )}
         foot={live?.files?.[0] && <OpenFile files={live.files} caption={live.title} />}
       />

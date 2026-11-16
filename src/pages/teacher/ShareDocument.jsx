@@ -18,7 +18,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal } from '../../components/ui/index';
-import { FileDrop, KeptFiles, DOC_TYPES } from '../documents/viewerParts';
+import { FileDrop, KeptFiles, DOC_TYPES, QuestionBreakdown, questionsProblem } from '../documents/viewerParts';
+import { ASSIGNMENT_TYPES } from '../admin/assignmentParts';
 
 const TYPE_ICON = {
   notice: 'megaphone', circular: 'files', study_material: 'bookOpen',
@@ -39,7 +40,7 @@ const NEEDS_FILE = 'Attach the assignment or its instructions — students need 
 export const EMPTY = {
   title: '', description: '', docType: 'notice', category: '', subject: '',
   sectionIds: [], isAssignment: false, allowSubmission: true,
-  dueDate: '', totalMarks: '',
+  assignmentType: 'homework', dueDate: '', totalMarks: '', questions: [],
 };
 
 /** The form's own state, prefilled from a document when one is being edited. */
@@ -59,8 +60,12 @@ export function formFor(doc, sections) {
       .filter((id) => sections.some((x) => String(x._id) === id)),
     isAssignment: !!doc.isAssignment,
     allowSubmission: doc.allowSubmission !== false,
+    assignmentType: doc.assignmentType || 'homework',
     dueDate: doc.dueDate ? String(doc.dueDate).slice(0, 10) : '',
     totalMarks: doc.totalMarks == null ? '' : String(doc.totalMarks),
+    questions: (doc.questions || []).map((q) => ({
+      label: q.label, maxMarks: q.maxMarks == null ? '' : String(q.maxMarks),
+    })),
   };
 }
 
@@ -134,6 +139,10 @@ export default function ShareDocument({
     // Work that is handed in needs the paper it is handed in against. Files
     // already on the document count, for as long as they are not removed.
     if (form.isAssignment && !files.length && !kept.length) e.files = NEEDS_FILE;
+    if (form.isAssignment) {
+      const q = questionsProblem(form.questions);
+      if (q) e.questions = q;
+    }
     return e;
   }, [form, files, kept, locked, dueWas]);
 
@@ -293,7 +302,14 @@ export default function ShareDocument({
 
           {form.isAssignment && (
             <div className="shassign">
-              <div className="shrow">
+              <div className="shrow shrow--3">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="sh-kind">Kind of work</label>
+                  <select id="sh-kind" className="form-control" value={form.assignmentType}
+                    onChange={(e) => set({ assignmentType: e.target.value })}>
+                    {ASSIGNMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="sh-due">Due date</label>
                   <input id="sh-due" type="date" className={`form-control${show('dueDate') ? ' is-bad' : ''}`}
@@ -309,6 +325,12 @@ export default function ShareDocument({
                   <Err>{show('totalMarks')}</Err>
                 </div>
               </div>
+
+              {/* The teacher sets and marks the work, so the breakdown a mark
+                  is made of is theirs to set too — only the office's form had it. */}
+              <QuestionBreakdown questions={form.questions} outOf={form.totalMarks}
+                onChange={(questions) => set({ questions })} error={show('questions')} />
+
               <label className="shtoggle shtoggle--sub">
                 <input type="checkbox" checked={form.allowSubmission}
                   onChange={(e) => set({ allowSubmission: e.target.checked })} />

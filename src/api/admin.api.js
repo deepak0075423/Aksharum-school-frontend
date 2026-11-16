@@ -274,6 +274,8 @@ export const getDocumentClasses  = ()       => api.get('/admin/documents/classes
 export const getDocumentVersions    = (id)      => api.get(`/admin/documents/${id}/versions`);
 export const restoreDocumentVersion = (id, vid) => api.post(`/admin/documents/${id}/versions/${vid}/restore`);
 export const getDocumentReaders     = (id)      => api.get(`/admin/documents/${id}/readers`);
+// Share a draft — a duplicate starts as one, seen by nobody it is aimed at.
+export const publishDocument        = (id)      => api.post(`/admin/documents/${id}/publish`);
 export const uploadDocument  = (data)       => api.post('/admin/documents', data);
 export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`, data);
 export const deleteDocument  = (id)         => api.delete(`/admin/documents/${id}`);

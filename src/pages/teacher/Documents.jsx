@@ -20,7 +20,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, uploadDocument, updateDocument, deleteDocument, getDocumentCategories,
-  markDocumentRead, markDocumentsRead, archiveDocument,
+  markDocumentRead, markDocumentsRead, archiveDocument, publishDocument,
 } from '../../api/teacher.api';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -110,6 +110,18 @@ export default function TeacherDocuments() {
     setUrlParams(next, { replace: true });
   }, [urlParams, meta]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A copy starts as a draft, seen by nobody it is aimed at. Sharing it is
+  // what puts it on their shelves and tells them.
+  const shareDraft = async (d) => {
+    try {
+      await publishDocument(d._id);
+      toast.success('Shared — everyone it is for has been told');
+      refetch();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    }
+  };
+
   // Their own to put away and take back out. Archived, it leaves every
   // reader's shelf and stays on this one, marked.
   const toggleArchive = async (d) => {
@@ -135,8 +147,10 @@ export default function TeacherDocuments() {
       // alone", so an assignment un-ticked would otherwise stay one.
       fd.append('isAssignment', form.isAssignment ? 'true' : 'false');
       fd.append('allowSubmission', form.isAssignment && form.allowSubmission ? 'true' : 'false');
+      fd.append('assignmentType', form.assignmentType);
       fd.append('dueDate', form.isAssignment && form.dueDate ? form.dueDate : '');
       fd.append('totalMarks', form.isAssignment && form.totalMarks ? form.totalMarks : '');
+      fd.append('questions', JSON.stringify(form.isAssignment ? form.questions : []));
       // One document across every section it was set for, not a copy per
       // section — it is marked in one place.
       fd.append('sectionIds', JSON.stringify(form.sectionIds));
@@ -302,6 +316,11 @@ export default function TeacherDocuments() {
             </button>
             {live.mine && (
               <>
+                {live.isDraft && (
+                  <button type="button" className="btn btn-primary" onClick={() => shareDraft(live)}>
+                    <Icon name="upload" size={15} /> Share now
+                  </button>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={() => toggleArchive(live)}>
                   <Icon name={live.isArchived ? 'refresh' : 'package'} size={15} />
                   {live.isArchived ? 'Restore' : 'Archive'}

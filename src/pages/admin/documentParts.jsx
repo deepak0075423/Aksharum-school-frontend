@@ -498,7 +498,10 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
                 <button type="button" className="doctitle" onClick={() => onOpen(r)}>
                   <FileMark file={r.files?.[0]} />
                   <span className="doctitle__text">
-                    <span className="doctitle__name">{r.title}</span>
+                    <span className="doctitle__name">
+                      {r.title}
+                      {r.isDraft ? <span className="docpill docpill--amber doctitle__flag">Draft</span> : null}
+                    </span>
                     {r.description
                       ? <span className="doctitle__sub" title={r.description}>{r.description}</span>
                       : null}
@@ -538,7 +541,10 @@ export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) 
             <TypePill type={r.docType} />
             <RowMenu>{menu(r)}</RowMenu>
           </header>
-          <button type="button" className="doccard__title" onClick={() => onOpen(r)}>{r.title}</button>
+          <button type="button" className="doccard__title" onClick={() => onOpen(r)}>
+            {r.title}
+            {r.isDraft ? <span className="docpill docpill--amber doctitle__flag">Draft</span> : null}
+          </button>
           {r.description ? <p className="doccard__sub">{r.description}</p> : null}
           <dl className="doccard__meta">
             <div><dt>Shared with</dt><dd><SharedWith shared={r.sharedWith} /></dd></div>
@@ -655,6 +661,7 @@ export function DocumentDrawer({ doc, onClose, onOpen, onEdit, onArchive, onDele
           <div className="docdrawer__tags">
             <span className={`docpill docpill--${t.tone}`}>{t.label}</span>
             {doc.category ? <span className="docpill docpill--slate">{doc.category}</span> : null}
+            {doc.isDraft ? <span className="docpill docpill--amber">Draft</span> : null}
             {doc.isArchived ? <span className="docpill docpill--no">Archived</span> : null}
           </div>
         </div>

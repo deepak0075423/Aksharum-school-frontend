@@ -16,7 +16,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/ui/icons';
 import { Button, Modal } from '../../components/ui/index';
-import { Avatar, FileDrop, KeptFiles } from '../documents/viewerParts';
+import { Avatar, FileDrop, KeptFiles, QuestionBreakdown, questionsProblem } from '../documents/viewerParts';
 import { DOC_TYPES } from './documentParts';
 import { ASSIGNMENT_TYPES } from './assignmentParts';
 
@@ -47,8 +47,6 @@ const AUDIENCES = [
 /** Who an assignment cannot go to, in the form and by the server alike. */
 const STAFF_AUDIENCES = ['all_teachers', 'specific_teachers'];
 const STAFF_ONLY = 'Only students hand work in — pick classes, sections or the whole school for an assignment';
-/** The marking form's own line for what the named questions leave over. */
-const RESERVED_QUESTION = 'other marks';
 
 /** What a file-less assignment is told, in the form and by the server alike. */
 const NEEDS_FILE = 'Attach the assignment or its instructions — students need a file to work from';
@@ -208,18 +206,6 @@ export default function ShareDocument({
     return n ? `${n} section${n === 1 ? '' : 's'} across ${inClasses} class${inClasses === 1 ? '' : 'es'}` : null;
   }, [form.targetType, form.classIds, form.sectionIds, form.teacherIds, classes]);
 
-  // ── The question breakdown ─────────────────────────────────────────────────
-  const qTotal = form.questions.reduce((n, q) => n + (Number(q.maxMarks) || 0), 0);
-  const outOf  = Number(form.totalMarks) || 0;
-
-  const addQuestion = () => set({
-    questions: [...form.questions, { label: `Q${form.questions.length + 1}`, maxMarks: '' }],
-  });
-  const setQuestion = (i, patch) => set({
-    questions: form.questions.map((q, x) => (x === i ? { ...q, ...patch } : q)),
-  });
-  const dropQuestion = (i) => set({ questions: form.questions.filter((_, x) => x !== i) });
-
   // ── Validation ─────────────────────────────────────────────────────────────
   const errors = useMemo(() => {
     const e = {};
@@ -239,10 +225,8 @@ export default function ShareDocument({
       if (form.dueDate && form.dueDate !== dueWas && new Date(`${form.dueDate}T23:59:59`) < new Date()) {
         e.dueDate = 'That date has already passed';
       }
-      const labels = form.questions.map((q) => q.label.trim().toLowerCase());
-      if (form.questions.some((q) => !q.label.trim())) e.questions = 'Every question needs a name';
-      else if (new Set(labels).size !== labels.length)  e.questions = 'Two questions share a name';
-      else if (labels.includes(RESERVED_QUESTION))      e.questions = '“Other marks” is kept for what the questions leave over — call the question something else';
+      const q = questionsProblem(form.questions);
+      if (q) e.questions = q;
     }
     return e;
   }, [form, files, kept, dueWas]);
@@ -554,53 +538,11 @@ export default function ShareDocument({
                 </div>
               </div>
 
-              {/* Optional, and the only place it can be set. Without questions an
-                  assignment is marked as one number, which is most of them; with
-                  them, the analytics tab can say which question the class lost
-                  marks on. */}
-              <div className="shq">
-                <header>
-                  <div>
-                    <b>Break the marks down by question</b>
-                    <small>Optional. Marking then asks for a score per question.</small>
-                  </div>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={addQuestion}>
-                    <Icon name="plus" size={14} /> Add question
-                  </button>
-                </header>
-
-                {form.questions.length > 0 && (
-                  <>
-                    <ul className="shq__list">
-                      {form.questions.map((q, i) => (
-                        <li key={i}>
-                          <input data-text="title" className="form-control" maxLength={20} value={q.label}
-                            aria-label={`Question ${i + 1} name`} placeholder={`Q${i + 1}`}
-                            onChange={(e) => setQuestion(i, { label: e.target.value })} />
-                          <input step="any" className="form-control" type="number" min="0" value={q.maxMarks}
-                            aria-label={`Question ${i + 1} marks`} placeholder="Marks"
-                            onChange={(e) => setQuestion(i, { maxMarks: e.target.value })} />
-                          <button type="button" className="dvact" onClick={() => dropQuestion(i)}
-                            title={`Remove ${q.label || `question ${i + 1}`}`}
-                            aria-label={`Remove ${q.label || `question ${i + 1}`}`}>
-                            <Icon name="close" size={14} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className={`shq__sum${outOf && qTotal !== outOf ? ' is-off' : ''}`}>
-                      {qTotal} across {form.questions.length} question{form.questions.length === 1 ? '' : 's'}
-                      {outOf ? ` · out of ${outOf}` : ''}
-                      {/* Said, not enforced: a paper marked out of 50 with 45 in
-                          named questions and 5 for presentation is a real paper. */}
-                      {outOf && qTotal !== outOf
-                        ? <em>{qTotal > outOf ? 'more' : 'less'} than the total above</em>
-                        : null}
-                    </p>
-                  </>
-                )}
-                <Err>{show('questions')}</Err>
-              </div>
+              {/* Optional. Without questions an assignment is marked as one
+                  number, which is most of them; with them, the analytics tab
+                  can say which question the class lost marks on. */}
+              <QuestionBreakdown questions={form.questions} outOf={form.totalMarks}
+                onChange={(questions) => set({ questions })} error={show('questions')} />
 
               <label className="shtoggle shtoggle--sub">
                 <input type="checkbox" checked={form.allowSubmission}
