@@ -13,14 +13,14 @@
 import React, { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getMyDocuments, uploadMyDocument } from '../../api/employeeDirectory.api';
-import { Spinner } from '../../components/ui/index';
+import { getMyDocuments, uploadMyDocument, getMyRequests, createMyRequest } from '../../api/employeeDirectory.api';
+import { Button, Modal, Select, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import { useFileViewer } from '../documents/FileViewer';
 import { ErrorState, fmtDate } from './parts';
 import { PageTop } from './employeeParts';
-import { DOC_STATE, DocState } from './documentParts';
+import { DOC_STATE, DocState, REQUEST_STATE } from './documentParts';
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png';
 
@@ -168,9 +168,86 @@ export default function MyDocuments() {
           </div>
 
           <p className="edoc-foot"><Icon name="info" size={13} /> PDF, JPG or PNG, up to 5 MB. A document the office has verified can only be changed by them.</p>
+
+          <Corrections />
         </>
       )}
       {viewer.node}
     </div>
+  );
+}
+
+/**
+ * "Something on my record is wrong."
+ *
+ * Staff cannot edit their own record — the office keeps it — so this is the
+ * note that reaches the office, and where the answer comes back.
+ */
+function Corrections() {
+  const { data, refetch } = useFetch(getMyRequests, []);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ area: 'personal', message: '' });
+  const [busy, setBusy] = useState(false);
+  const requests = data?.requests || [];
+  const areas = data?.areas || [];
+
+  const send = async () => {
+    if (form.message.trim().length < 10) { toast.error('Say what needs correcting, and what it should be'); return; }
+    setBusy(true);
+    try {
+      await createMyRequest(form);
+      toast.success('Sent to the school office — you will be notified when they answer');
+      setOpen(false);
+      setForm({ area: 'personal', message: '' });
+      refetch();
+    } catch (err) { toast.error(err?.response?.data?.message || err.message || 'Could not send it'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <section className="card" style={{ marginTop: 20 }}>
+      <div className="card-header">
+        <div>
+          <h2>Something on your record wrong?</h2>
+          <p className="text-muted text-sm" style={{ marginTop: 2 }}>
+            Your name, address, bank details and the rest are kept by the school office. Tell them what to correct.
+          </p>
+        </div>
+        <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
+          <Icon name="pencil" size={15} /> Ask for a correction
+        </button>
+      </div>
+      {requests.length > 0 && (
+        <div className="card-body">
+          {requests.map((r) => (
+            <div key={r._id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <b>{r.areaLabel}</b> <span className="text-muted text-sm">· {fmtDate(r.createdAt)}</span>
+                <div style={{ marginTop: 2 }}>&ldquo;{r.message}&rdquo;</div>
+                {r.reply && <div className="text-muted text-sm" style={{ marginTop: 4 }}>The office: &ldquo;{r.reply}&rdquo;</div>}
+              </div>
+              <span className={`edoc-pill edoc-pill--${REQUEST_STATE[r.status]?.tone || 'amber'}`}>{REQUEST_STATE[r.status]?.label || r.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Modal open={open} onClose={busy ? () => {} : () => setOpen(false)} title="Ask the office to correct your record"
+        footer={<>
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+          <Button loading={busy} onClick={send}>Send to the office</Button>
+        </>}>
+        <Select label="What is it about" value={form.area} onChange={(e) => setForm((f) => ({ ...f, area: e.target.value }))}>
+          {areas.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+        </Select>
+        <div className="form-group">
+          <label className="form-label required" htmlFor="mydoc-ask">What is wrong, and what should it be</label>
+          <textarea id="mydoc-ask" data-text="sentence" className="form-control" rows={4} maxLength={600}
+            value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+            placeholder="e.g. My current address has changed to 14 Lake Road, Pune 411001" />
+          <span className="form-hint">{600 - form.message.length} characters left. Do not put a full Aadhaar or bank account number here — hand those to the office.</span>
+        </div>
+      </Modal>
+    </section>
   );
 }

@@ -13,11 +13,14 @@
  *
  * Everything arrives in a single call, so search, sorting and paging are local.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getDepartments } from '../../api/employeeDirectory.api';
-import { Empty } from '../../components/ui/index';
+import {
+  getDepartments, getMeta, createDepartment, updateDepartment, moveDepartment, removeDepartment,
+} from '../../api/employeeDirectory.api';
+import { Button, Confirm, Empty, Modal, Select } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { Chips, ErrorState, SkeletonCards, useDirectoryBase } from './parts';
 import {
@@ -58,6 +61,26 @@ export default function Departments() {
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(12);
   const [open,   setOpen]   = useState('');   // the department listing its members
+  // The dialog in front: { mode: 'add' | 'edit' | 'move', department }.
+  const [dialog, setDialog] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const { data: meta } = useFetch(getMeta, []);
+  const done = () => { setDialog(null); setRemoving(null); refetch(); };
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await removeDepartment(removing._id);
+      toast.success(`${removing.name} removed from the list`);
+      done();
+    } catch (err) { toast.error(err.message || 'Could not remove it'); }
+    finally { setBusy(false); }
+  };
+  const addButton = (
+    <button type="button" className="btn btn-primary" onClick={() => setDialog({ mode: 'add' })}>
+      <Icon name="plus" size={16} /> Add department
+    </button>
+  );
 
   const list  = useMemo(() => data?.departments || [], [data]);
   const stats = useMemo(() => summarise(list), [list]);
@@ -95,7 +118,7 @@ export default function Departments() {
   const clearAll = () => { setSearch(''); setType(''); setPage(1); };
   const pick = (v) => { setType(type === v ? '' : v); setPage(1); };
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="page edl">
         <Crumbs base={base} here="Departments" />
@@ -119,9 +142,11 @@ export default function Departments() {
     return (
       <div className="page edl">
         <Crumbs base={base} here="Departments" />
-        <PageTop title="Departments" />
-        <Empty icon="🏢" title="No employees yet"
-          message="Departments appear here as soon as an employee has one set on their record." />
+        <PageTop title="Departments">{addButton}</PageTop>
+        <Empty icon="🏢" title="No departments yet"
+          message="Add the school's departments here, then place staff in them from the employee list." />
+        <DepartmentDialog dialog={dialog} departments={list} managers={meta?.filters?.managers || []}
+          onClose={() => setDialog(null)} onDone={done} />
       </div>
     );
   }
@@ -132,12 +157,13 @@ export default function Departments() {
 
       <PageTop
         title="Departments"
-        subtitle="Grouped from the department on each employee record — there is no separate department list to keep in step.">
+        subtitle="The school's departments, who heads each one, and who is in it.">
+        {addButton}
         <Link className="btn btn-secondary" to={`${base}/employees`}>
           <Icon name="users" size={16} /> All employees
         </Link>
         {stats.unassigned > 0 && (
-          <Link className="btn btn-primary" to={`${base}/employees?department=Unassigned`}>
+          <Link className="btn btn-secondary" to={`${base}/employees?department=Unassigned&accountStatus=all`}>
             <Icon name="userPlus" size={16} /> Place {stats.unassigned} unassigned
           </Link>
         )}
@@ -199,7 +225,8 @@ export default function Departments() {
                 <div className="depgrid">
                   {shown.map((d) => (
                     <DepartmentCard key={d.name} department={d} base={base}
-                      open={open === d.name} onToggle={(n) => setOpen(open === n ? '' : n)} />
+                      open={open === d.name} onToggle={(n) => setOpen(open === n ? '' : n)}
+                      onManage={(x) => setDialog({ mode: 'edit', department: x })} />
                   ))}
                 </div>
               )
@@ -227,31 +254,49 @@ export default function Departments() {
                               <div className="depname">
                                 <Icon name={d.name === UNASSIGNED ? 'alert' : 'building'} size={15} />
                                 <b>{d.name}</b>
+                                {d.name !== UNASSIGNED && d.listed === false && (
+                                  <span className="badge badge-warning" style={{ marginLeft: 6 }}
+                                    title="Typed on a staff record, but not on the school's list of departments">Not on the list</span>
+                                )}
                               </div>
+                              {d.head && <div className="ed-sub">Head: {d.head.name}{d.head.inactive ? ' (deactivated)' : ''}</div>}
                             </td>
-                            <td className="depcol-type"><TypeChip type={typeOf(d)} /></td>
+                            <td className="depcol-type">{d.total > 0 ? <TypeChip type={typeOf(d)} /> : <span className="ed-none">Empty</span>}</td>
                             <td className="depcol-mix"><StaffMix department={d} /></td>
                             <td className="depcol-n"><b>{d.total}</b></td>
                             <td className="depcol-n">{d.active}</td>
                             <td><Chips items={d.designations} max={2} empty="—" /></td>
                             <td className="edl-table__acts">
                               <div className="edl-rowacts">
+                                {/* Everyone the row counts, deactivated accounts included. */}
                                 <Link className="btn btn-secondary btn-sm"
-                                  to={`${base}/employees?department=${encodeURIComponent(d.name)}`}>
+                                  to={`${base}/employees?department=${encodeURIComponent(d.name)}&accountStatus=all`}>
                                   View
                                 </Link>
                                 <RowMenu>
-                                  <MenuItem icon="users" onClick={() => setOpen(open === d.name ? '' : d.name)}>
-                                    {open === d.name ? 'Hide members' : `List ${d.members.length} members`}
-                                  </MenuItem>
+                                  {d.members.length > 0 && (
+                                    <MenuItem icon="users" onClick={() => setOpen(open === d.name ? '' : d.name)}>
+                                      {open === d.name ? 'Hide members' : `List ${d.members.length} members`}
+                                    </MenuItem>
+                                  )}
                                   <MenuItem icon="folder"
-                                    to={`${base}/employees?department=${encodeURIComponent(d.name)}`}>
+                                    to={`${base}/employees?department=${encodeURIComponent(d.name)}&accountStatus=all`}>
                                     Open in directory
                                   </MenuItem>
-                                  <MenuSep />
-                                  <MenuItem icon="pencil" to={`${base}/employees`}>
-                                    Rename on a profile
-                                  </MenuItem>
+                                  {d.name !== UNASSIGNED && <MenuSep />}
+                                  {d.name !== UNASSIGNED && (
+                                    <MenuItem icon="pencil" onClick={() => setDialog({ mode: 'edit', department: d })}>
+                                      {d._id ? 'Rename, head & description' : 'Add it to the list'}
+                                    </MenuItem>
+                                  )}
+                                  {d.total > 0 && (
+                                    <MenuItem icon="users" onClick={() => setDialog({ mode: 'move', department: d })}>
+                                      Move its staff to another…
+                                    </MenuItem>
+                                  )}
+                                  {d._id && d.total === 0 && (
+                                    <MenuItem icon="trash" danger onClick={() => setRemoving(d)}>Remove from the list</MenuItem>
+                                  )}
                                 </RowMenu>
                               </div>
                             </td>
@@ -277,6 +322,110 @@ export default function Departments() {
       </section>
 
       <HowPanel base={base} unassigned={stats.unassigned} />
+
+      <DepartmentDialog dialog={dialog} departments={list} managers={meta?.filters?.managers || []}
+        onClose={() => setDialog(null)} onDone={done}
+        onMove={(d) => setDialog({ mode: 'move', department: d })}
+        onRemove={(d) => { setDialog(null); setRemoving(d); }} />
+      <Confirm open={!!removing} onClose={() => setRemoving(null)} onConfirm={remove} loading={busy}
+        title="Remove this department?" confirmLabel="Remove"
+        message={`${removing?.name || ''} has nobody in it, and will be taken off the school's list.`} />
     </div>
+  );
+}
+
+/**
+ * Add a department, change one (its name, head and description), or move its
+ * staff into another. A rename is carried onto everyone in it by the server;
+ * a move is how two spellings of one department become one.
+ */
+function DepartmentDialog({ dialog, departments, managers, onClose, onDone, onMove, onRemove }) {
+  const [form, setForm] = useState({ name: '', description: '', head: '' });
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const d = dialog?.department;
+  useEffect(() => {
+    if (!dialog) return;
+    setForm({ name: d?.name || '', description: d?.description || '', head: d?.head?._id || '' });
+    setTo('');
+  }, [dialog]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!dialog) return null;
+  const put = (k) => (ev) => setForm((f) => ({ ...f, [k]: ev.target.value }));
+
+  if (dialog.mode === 'move') {
+    const others = departments.filter((x) => x.name !== d.name && x.name !== UNASSIGNED);
+    const move = async () => {
+      setBusy(true);
+      try {
+        const res = await moveDepartment({ from: d.name, to: to || 'Unassigned' });
+        const out = res?.data ?? res;
+        toast.success(`${out.moved} ${out.moved === 1 ? 'person' : 'people'} moved to ${out.to}`);
+        onDone();
+      } catch (err) { toast.error(err.message || 'Could not move them'); }
+      finally { setBusy(false); }
+    };
+    return (
+      <Modal open onClose={busy ? () => {} : onClose} title={`Move everyone out of ${d.name}`}
+        footer={<>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button loading={busy} onClick={move}>Move {d.total} {d.total === 1 ? 'person' : 'people'}</Button>
+        </>}>
+        <Select label="Move them to" value={to} onChange={(ev) => setTo(ev.target.value)}>
+          <option value="">No department (unassigned)</option>
+          {others.map((x) => <option key={x.name} value={x.name}>{x.name} · {x.total} now</option>)}
+        </Select>
+        <p className="form-hint" style={{ marginTop: 10 }}>
+          All {d.total} {d.total === 1 ? 'person' : 'people'} in {d.name} — deactivated accounts included — take the new
+          department on their record, and {d.name} is taken off the list. Use this to merge two spellings of one department.
+        </p>
+      </Modal>
+    );
+  }
+
+  const adding = dialog.mode === 'add' || !d?._id;
+  const save = async () => {
+    if (!form.name.trim()) { toast.error('Give the department a name'); return; }
+    setBusy(true);
+    try {
+      if (adding) await createDepartment(form);
+      else await updateDepartment(d._id, form);
+      toast.success(adding ? `${form.name.trim()} is on the list` : 'Department updated');
+      onDone();
+    } catch (err) { toast.error(err.message || 'Could not save'); }
+    finally { setBusy(false); }
+  };
+  const renaming = !adding && form.name.trim() && form.name.trim() !== d.name;
+  return (
+    <Modal open onClose={busy ? () => {} : onClose}
+      title={dialog.mode === 'add' ? 'Add a department' : adding ? `Add ${d.name} to the list` : `Manage ${d.name}`}
+      footer={<>
+        {!adding && d.total > 0 && onMove && (
+          <Button variant="secondary" onClick={() => onMove(d)} disabled={busy}>Move its staff…</Button>
+        )}
+        {!adding && d.total === 0 && onRemove && (
+          <Button variant="danger" onClick={() => onRemove(d)} disabled={busy}>Remove</Button>
+        )}
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button loading={busy} onClick={save}>{adding ? 'Add department' : 'Save'}</Button>
+      </>}>
+      <div className="form-group">
+        <label className="form-label required" htmlFor="dep-name">Name</label>
+        <input id="dep-name" data-text="title" className="form-control" maxLength={60} autoFocus
+          value={form.name} onChange={put('name')} placeholder="e.g. Mathematics" />
+        {renaming && d.total > 0 && (
+          <span className="form-hint">The {d.total} {d.total === 1 ? 'person' : 'people'} in {d.name} will be moved to the new name with it.</span>
+        )}
+      </div>
+      <Select label="Head of department" value={form.head} onChange={put('head')}>
+        <option value="">Nobody yet</option>
+        {managers.map((m) => <option key={m._id} value={m._id}>{m.label}{m.designation ? ` — ${m.designation}` : ''}</option>)}
+        {form.head && !managers.some((m) => m._id === form.head) && <option value={form.head}>{d?.head?.name || 'Current head'} (deactivated)</option>}
+      </Select>
+      <div className="form-group">
+        <label className="form-label" htmlFor="dep-desc">Description</label>
+        <input id="dep-desc" data-text="sentence" className="form-control" maxLength={200}
+          value={form.description} onChange={put('description')} placeholder="What this department looks after" />
+      </div>
+    </Modal>
   );
 }

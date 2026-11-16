@@ -69,7 +69,7 @@ export const MenuAction = ({ icon, children, onClick, to, href, danger }) => {
  * tab is opened — who, what they do, and whether their account is live — and
  * the actions sit beside it rather than at the bottom of a menu.
  */
-export const ProfileHeader = ({ o, base, modules, onEdit, onToggle, toggling }) => {
+export const ProfileHeader = ({ o, base, modules, onEdit, onToggle, toggling, canManage, onPdf, printing }) => {
   const active = o.employmentStatus !== 'inactive' && o.isActive !== false;
   return (
     <header className="ephero">
@@ -93,9 +93,13 @@ export const ProfileHeader = ({ o, base, modules, onEdit, onToggle, toggling }) 
       </div>
 
       <div className="ephero__acts">
-        <button type="button" className="btn btn-secondary" onClick={onEdit}>
-          <Icon name="pencil" size={16} /> Edit
-        </button>
+        {/* The wizard and the account switch are the school administrator's
+            (Admin → Teachers) — not drawn for anyone they would only refuse. */}
+        {canManage && (
+          <button type="button" className="btn btn-secondary" onClick={onEdit}>
+            <Icon name="pencil" size={16} /> Edit
+          </button>
+        )}
         {o.officialEmail && (
           <a className="btn btn-secondary" href={`mailto:${o.officialEmail}`}>
             <Icon name="mail" size={16} /> Email
@@ -110,11 +114,14 @@ export const ProfileHeader = ({ o, base, modules, onEdit, onToggle, toggling }) 
           {o.officialPhone && (
             <MenuAction icon="phone" href={`tel:${String(o.officialPhone).replace(/\s/g, '')}`}>Call</MenuAction>
           )}
+          <MenuAction icon="download" onClick={onPdf}>{printing ? 'Building the PDF…' : 'Download as PDF'}</MenuAction>
           <MenuAction icon="users" to={`${base}/employees`}>Back to the directory</MenuAction>
-          <div className="epmore__sep" />
-          <MenuAction icon="power" danger={active} onClick={onToggle}>
-            {toggling ? 'Working…' : active ? 'Deactivate employee' : 'Activate employee'}
-          </MenuAction>
+          {canManage && <div className="epmore__sep" />}
+          {canManage && (
+            <MenuAction icon="power" danger={active} onClick={onToggle}>
+              {toggling ? 'Working…' : active ? 'Deactivate employee' : 'Activate employee'}
+            </MenuAction>
+          )}
         </MoreMenu>
         <Link className="btn btn-primary" to={`${base}/employees`}>
           <Icon name="chevronLeft" size={15} /> Back to Employees
@@ -177,6 +184,7 @@ const AREA_OF = {
   qualification: 'education',
 
   employmentType: 'employment', joiningDate: 'employment', employeeId: 'employment',
+  designation: 'employment', department: 'employment',
   totalExperience: 'employment', previousSchool: 'employment', lastDesignation: 'employment',
   resignationLetterFile: 'employment',
 
@@ -274,7 +282,7 @@ export const PhotoCard = ({ o, onOpen }) => (
 );
 
 /** The things done to an employee rather than read about them. */
-export const QuickActions = ({ o, base, modules, onToggle, toggling, onEdit }) => {
+export const QuickActions = ({ o, base, modules, onToggle, toggling, onEdit, canManage }) => {
   const active = o.employmentStatus !== 'inactive' && o.isActive !== false;
   return (
     <section className="card epcard">
@@ -283,7 +291,7 @@ export const QuickActions = ({ o, base, modules, onToggle, toggling, onEdit }) =
         <h2>Quick actions</h2>
       </header>
       <div className="epcard__body epquick">
-        <button type="button" onClick={onEdit}><Icon name="pencil" size={16} /> Edit the record</button>
+        {canManage && <button type="button" onClick={onEdit}><Icon name="pencil" size={16} /> Edit the record</button>}
         {modules?.chat && (
           <Link to={`/chat?user=${o._id}`}><Icon name="chat" size={16} /> Message on chat</Link>
         )}
@@ -294,10 +302,12 @@ export const QuickActions = ({ o, base, modules, onToggle, toggling, onEdit }) =
           <a href={`mailto:${o.officialEmail}`}><Icon name="mail" size={16} /> Send an email</a>
         )}
         <Link to={`${base}/employees`}><Icon name="users" size={16} /> View in the directory</Link>
-        <button type="button" className={active ? 'is-danger' : ''} onClick={onToggle} disabled={toggling}>
-          <Icon name="power" size={16} />
-          {toggling ? 'Working…' : active ? 'Deactivate employee' : 'Activate employee'}
-        </button>
+        {canManage && (
+          <button type="button" className={active ? 'is-danger' : ''} onClick={onToggle} disabled={toggling}>
+            <Icon name="power" size={16} />
+            {toggling ? 'Working…' : active ? 'Deactivate employee' : 'Activate employee'}
+          </button>
+        )}
       </div>
     </section>
   );

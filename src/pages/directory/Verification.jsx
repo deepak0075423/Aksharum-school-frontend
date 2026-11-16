@@ -22,6 +22,7 @@ import useFetch from '../../hooks/useFetch';
 import {
   getVerificationQueue, setVerification, downloadReport, getEmployee, revealField,
   getDocumentDesk, reviewEmployeeDocument, sendDocumentReminders,
+  getChangeRequests, closeChangeRequest,
 } from '../../api/employeeDirectory.api';
 import { Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -31,7 +32,9 @@ import {
   BySection, EmployeeCell, Lightbox, MissingDocuments, ProgressCell, REVEALS, Reviewer,
   SectionProgress, StateBadge, VerificationRing, stateOf, summarise,
 } from './verificationParts';
-import { DocumentQueue, RejectDialog, ReminderBoard, ReminderDialog } from './documentParts';
+import {
+  DocumentQueue, RejectDialog, ReminderBoard, ReminderDialog, RequestBoard, RequestDialog,
+} from './documentParts';
 
 const PAGE_SIZES = [12, 24, 48, 96];
 
@@ -52,13 +55,14 @@ export default function Verification() {
   const { base } = useDirectoryBase();
   const { data, loading, error, refetch } = useFetch(getVerificationQueue, []);
   const desk = useFetch(getDocumentDesk, []);
+  const asks = useFetch(getChangeRequests, []);
 
   // ?employee=<id> opens that reviewer straight away, so the dashboard's
   // "pending verification" tile can link to one person. With ?tab=documents
   // (a "document re-submitted" notification) it narrows the document queue to
   // that person instead.
   const [params, setParams] = useSearchParams();
-  const startTab = ['documents', 'reminders', 'sections', 'missing'].includes(params.get('tab')) ? params.get('tab') : 'employees';
+  const startTab = ['documents', 'reminders', 'requests', 'sections', 'missing'].includes(params.get('tab')) ? params.get('tab') : 'employees';
   const [open, setOpen] = useState(() => (startTab === 'employees' ? params.get('employee') || '' : ''));
   const [focus, setFocus] = useState(() => (startTab === 'documents' ? params.get('employee') || '' : ''));
   const [seen, setSeen] = useState(() => new Set());
@@ -73,6 +77,16 @@ export default function Verification() {
   // section is opened rather than pre-loaded with the row.
   const [revealed, setRevealed] = useState({});
   const [doc, setDoc] = useState(null);   // the document opened over the page
+  // The files this reviewer has opened. A document is decided on only after it
+  // has been looked at — the same rule the section's Verify button holds.
+  const [openedDocs, setOpenedDocs] = useState(() => new Set());
+  const openDoc = (d) => {
+    if (d?.id) setOpenedDocs((o) => new Set(o).add(d.id));
+    setDoc(d);
+  };
+  const [askFilter, setAskFilter] = useState('open');
+  const [answering, setAnswering] = useState(null);   // { request, status }
+  const [answerBusy, setAnswerBusy] = useState(false);
 
   const [tab,    setTab]    = useState(startTab);
   const [docFilter, setDocFilter] = useState(() => (startTab === 'documents' && params.get('employee') ? 'all' : 'todo'));
@@ -99,9 +113,17 @@ export default function Verification() {
     // Reviewing a section means reading its values, so an administrative screen
     // shows them in full — via the endpoint that records each read.
     const [employeeId, sectionKey] = key.split(':');
-    const fields = REVEALS[sectionKey] || [];
+    // A section this reader may not see is not asked for (the server would
+    // refuse, and the refusal would still be noise in the log).
+    const closed = employees.find((x) => x._id === employeeId)?.sections.find((x) => x.section === sectionKey)?.restricted;
+    const fields = closed ? [] : (REVEALS[sectionKey] || []);
+    // A number that is not on file has nothing to read in full: once the
+    // record is here, a blank masked value is not asked for at all.
+    const d = details[employeeId];
+    const masked = d ? { ...d.governmentIds, bankAccountNumber: d.bank?.accountNumber } : null;
     for (const field of fields) {
       if (revealed[employeeId]?.[field] !== undefined) continue;
+      if (masked && !masked[field]) continue;
       revealField(employeeId, field)
         .then((res) => {
           const v = (res?.data ?? res)?.value;
@@ -143,6 +165,7 @@ export default function Verification() {
     const next = new URLSearchParams(params);
     if (t === 'employees') next.delete('tab'); else next.set('tab', t);
     if (t !== 'documents') { next.delete('employee'); setFocus(''); }
+    setSearch('');
     setParams(next, { replace: true });
   };
 
@@ -173,19 +196,40 @@ export default function Verification() {
       const out = res?.data ?? res;
       const n = out.sent?.length || 0;
       if (n) toast.success(n === 1 ? `Reminder sent to ${out.sent[0].name}` : `${n} reminders sent`);
-      if (out.skipped?.length) toast(`${out.skipped.length} skipped — nothing outstanding`, { icon: 'ℹ️' });
+      if (out.skipped?.length) {
+        toast(`${out.skipped.length} not sent — ${out.skipped.slice(0, 2).map((x) => `${x.name}: ${x.reason.toLowerCase()}`).join('; ')}${out.skipped.length > 2 ? '…' : ''}`,
+          { icon: 'ℹ️', duration: 7000 });
+      }
       setReminding(null);
       desk.refetch();
     } catch (err) { toast.error(err.message || 'Could not send the reminders'); }
     finally { setSending(false); }
   };
 
+  const answer = async (reply) => {
+    setAnswerBusy(true);
+    try {
+      await closeChangeRequest(answering.request._id, { status: answering.status, reply });
+      toast.success(answering.status === 'done'
+        ? `${answering.request.employeeName} has been told it is dealt with`
+        : `${answering.request.employeeName} has been told why it was declined`);
+      setAnswering(null);
+      asks.refetch();
+    } catch (err) { toast.error(err.message || 'Could not save that'); }
+    finally { setAnswerBusy(false); }
+  };
+
+  // The tabs that are a list a file can mirror. Documents, Reminders and
+  // Requests have no report behind them, so they offer no export.
+  const exportable = ['employees', 'sections', 'missing'].includes(tab);
   const exportQueue = async () => {
     setExporting(true);
     toast.loading('Building the spreadsheet…', { id: 'verexp' });
     try {
-      // The report that matches the tab, so the file and the screen agree.
-      await downloadReport(tab === 'missing' ? 'missing-documents' : 'pending-verification', 'xlsx');
+      // The report that matches the tab, so the file and the screen agree:
+      // "waiting on uploads" is the people with a required document missing.
+      if (tab === 'missing') await downloadReport('missing-documents', 'xlsx', { owed: 'missing', accountStatus: 'active' });
+      else await downloadReport('pending-verification', 'xlsx', { accountStatus: 'active' });
       toast.success('Downloaded', { id: 'verexp' });
     } catch (e) {
       toast.error(e?.message || 'Could not build the file', { id: 'verexp' });
@@ -215,6 +259,16 @@ export default function Verification() {
     });
   }, [employees, term, state, section, sort]);
 
+  // A link to one person (?employee=) opens their row — which has to be on the
+  // page being shown. Done once, when the queue first arrives.
+  const jumped = React.useRef(false);
+  useEffect(() => {
+    if (jumped.current || !open || !filtered.length) return;
+    jumped.current = true;
+    const at = filtered.findIndex((x) => x._id === open);
+    if (at >= 0) setPage(Math.floor(at / limit) + 1);
+  }, [filtered, open, limit]);
+
   const pages = Math.max(1, Math.ceil(filtered.length / limit));
   const start = (Math.min(page, pages) - 1) * limit;
   const shown = filtered.slice(start, start + limit);
@@ -236,7 +290,7 @@ export default function Verification() {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="page edl">
         <Crumbs base={base} here="Verification" />
@@ -264,14 +318,16 @@ export default function Verification() {
       <PageTop
         title="Profile Verification"
         subtitle="Check each employee's paperwork and sign it off, section by section. A section is only verifiable once its evidence has been opened.">
-        <button type="button" className="btn btn-secondary" onClick={exportQueue} disabled={exporting}>
-          <Icon name="download" size={16} /> Export {tab === 'missing' ? 'missing documents' : 'the queue'}
-        </button>
+        {exportable && (
+          <button type="button" className="btn btn-secondary" onClick={exportQueue} disabled={exporting}>
+            <Icon name="download" size={16} /> Export {tab === 'missing' ? 'who is waiting on uploads' : 'the pending list'}
+          </button>
+        )}
       </PageTop>
 
       <div className="edl-stats">
         <StatTile icon={<Icon name="users" size={22} />} tone="indigo" value={stats.total}
-          label="Employees" caption="With a profile to check"
+          label="Employees" caption="Working here, with a profile to check"
           on={!state} onClick={() => { setState(''); setSection(''); setPage(1); }} />
         <StatTile icon={<Icon name="checkCircle" size={22} />} tone="green" value={stats.verified}
           label="Fully verified" caption={`${stats.pct}% of the school`}
@@ -282,13 +338,13 @@ export default function Verification() {
         <StatTile icon={<Icon name="alert" size={22} />} tone={stats.blocked ? 'pink' : 'blue'}
           value={stats.blocked} label="Waiting on an upload"
           captionTone={stats.blocked ? 'down' : undefined}
-          caption={stats.blocked ? 'Nothing to check yet' : 'Nothing is blocked'}
+          caption={stats.blocked ? 'A required document is missing' : 'Nothing is blocked'}
           on={state === 'blocked'} onClick={() => { setState(state === 'blocked' ? '' : 'blocked'); setPage(1); }} />
       </div>
 
       {/* The rail describes sections; the two document tabs work on documents
           and people, and need the width for their tables. */}
-      <div className={`orggrid${tab === 'documents' || tab === 'reminders' ? ' orggrid--solo' : ''}`}>
+      <div className={`orggrid${['documents', 'reminders', 'requests'].includes(tab) ? ' orggrid--solo' : ''}`}>
         <section className="card edl-card-wrap">
           <div className="orgtabs">
             <button type="button" className={`orgtab${tab === 'employees' ? ' is-on' : ''}`}
@@ -304,6 +360,11 @@ export default function Verification() {
               aria-pressed={tab === 'reminders'} onClick={() => pickTab('reminders')}>
               <Icon name="bell" size={16} /> Reminders
               {deskCounts.followUpDue > 0 && <em>{deskCounts.followUpDue}</em>}
+            </button>
+            <button type="button" className={`orgtab${tab === 'requests' ? ' is-on' : ''}`}
+              aria-pressed={tab === 'requests'} onClick={() => pickTab('requests')}>
+              <Icon name="chat" size={16} /> Requests
+              {asks.data?.counts?.open > 0 && <em>{asks.data.counts.open}</em>}
             </button>
             <button type="button" className={`orgtab${tab === 'sections' ? ' is-on' : ''}`}
               aria-pressed={tab === 'sections'} onClick={() => pickTab('sections')}>
@@ -374,7 +435,7 @@ export default function Verification() {
                                   <td colSpan={5}>
                                     <Reviewer employee={e} detail={details[e._id]}
                                       loadingDetail={loadingDetail && !details[e._id]}
-                                      revealed={revealed[e._id]} onOpenDoc={setDoc}
+                                      revealed={revealed[e._id]} onOpenDoc={openDoc}
                                       seen={seen} onSeen={mark} busy={busy} onVerify={verify}
                                       docBusy={docBusy}
                                       onVerifyDoc={(d) => decide(d, 'verified')}
@@ -395,6 +456,23 @@ export default function Verification() {
                 limit={limit} count={shown.length} noun="employee"
                 onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} sizes={PAGE_SIZES}
               />
+            </>
+          )}
+
+          {tab === 'requests' && (
+            <>
+              <div className="edl-bar">
+                <SearchBox value={search} onChange={setSearch} placeholder="Search by employee or what was asked…" />
+              </div>
+              <div className="edl-body">
+                {asks.loading && !asks.data ? <SkeletonRows rows={5} cols={4} />
+                  : asks.error ? <ErrorState error={asks.error} onRetry={asks.refetch} />
+                    : (
+                      <RequestBoard requests={asks.data?.requests || []} counts={asks.data?.counts}
+                        filter={askFilter} onFilter={setAskFilter} search={search} base={base}
+                        onAnswer={(request, status) => setAnswering({ request, status })} />
+                    )}
+              </div>
             </>
           )}
 
@@ -421,7 +499,7 @@ export default function Verification() {
                     : tab === 'documents'
                       ? (
                         <DocumentQueue employees={deskEmployees} focus={focus} filter={docFilter} onFilter={setDocFilter}
-                          search={search} busyKey={docBusy} base={base} onOpen={setDoc}
+                          search={search} busyKey={docBusy} base={base} onOpen={openDoc} opened={openedDocs}
                           onVerify={(d) => decide(d, 'verified')} onReject={setRejecting} />
                       )
                       : (
@@ -447,7 +525,7 @@ export default function Verification() {
           )}
         </section>
 
-        {tab !== 'documents' && tab !== 'reminders' && (
+        {!['documents', 'reminders', 'requests'].includes(tab) && (
         <aside className="card orgrail">
           <header className="orgrail__head">
             <h2>Where the school stands</h2>
@@ -470,6 +548,7 @@ export default function Verification() {
       <RejectDialog target={rejecting} busy={!!docBusy} onClose={() => setRejecting(null)}
         onConfirm={(comment) => decide(rejecting, 'rejected', comment)} />
       <ReminderDialog employees={reminding} busy={sending} onClose={() => setReminding(null)} onSend={remind} />
+      <RequestDialog target={answering} busy={answerBusy} onClose={() => setAnswering(null)} onConfirm={answer} />
     </div>
   );
 }

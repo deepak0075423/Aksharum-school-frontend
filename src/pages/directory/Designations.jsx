@@ -50,15 +50,18 @@ const readView = () => {
 };
 
 export default function Designations() {
-  const { base, isDirectoryAdmin } = useDirectoryBase();
+  const { base, canManageAccounts } = useDirectoryBase();
   const held = useFetch(getDesignations, []);
-  // The master list is an administrative endpoint. A teacher gets the roll-up
-  // alone, and every column that comes from the Designation record is simply
-  // absent rather than guessed at.
+  // The master list (and what each designation opens) is the school
+  // administrator's — Admin → Designations. A teacher who administers the
+  // directory is refused it, and without it nothing can be said about which
+  // designations are "defined": that reader gets the headcounts alone, never a
+  // page of "Not configured" drawn from a list that failed to load.
   const master = useFetch(
-    () => (isDirectoryAdmin ? getDesignationMatrix() : Promise.resolve(null)),
-    [isDirectoryAdmin],
+    () => (canManageAccounts ? getDesignationMatrix() : Promise.resolve(null)),
+    [canManageAccounts],
   );
+  const hasMaster = canManageAccounts && !!master.data && !master.error;
 
   const [search, setSearch] = useState('');
   // ?state= arrives from Organization Structure's "Designations" tile, which
@@ -76,10 +79,11 @@ export default function Designations() {
 
   const heldList = useMemo(() => held.data?.designations || [], [held.data]);
   const modules  = useMemo(() => (master.data?.modules || []).filter((m) => m.enabled), [master.data]);
-  const rows     = useMemo(
-    () => merge(master.data?.designations || [], heldList),
-    [master.data, heldList],
-  );
+  const rows     = useMemo(() => {
+    const merged = merge(master.data?.designations || [], heldList);
+    // No master to compare against: a held designation is simply held.
+    return hasMaster ? merged : merged.map((r) => ({ ...r, state: 'normal', defined: true }));
+  }, [master.data, heldList, hasMaster]);
   const gap   = useMemo(() => gapOf(heldList), [heldList]);
   const stats = useMemo(() => summarise(rows, gap), [rows, gap]);
 
@@ -158,7 +162,7 @@ export default function Designations() {
         <Link className="btn btn-secondary" to={`${base}/employees`}>
           <Icon name="users" size={16} /> All employees
         </Link>
-        {isDirectoryAdmin && (
+        {canManageAccounts && (
           <Link className="btn btn-primary" to="/admin/designations">
             <Icon name="settings" size={16} /> Manage &amp; set access
           </Link>
@@ -168,7 +172,7 @@ export default function Designations() {
       <div className="edl-stats">
         <StatTile icon={<Icon name="badge" size={22} />} tone="indigo" value={stats.designations}
           label="Designations"
-          caption={isDirectoryAdmin ? `${stats.defined} on the master list` : 'Held across the school'}
+          caption={hasMaster ? `${stats.defined} on the master list` : 'Held across the school'}
           on={!state} onClick={() => { setState(''); setPage(1); }} />
         <StatTile icon={<Icon name="users" size={22} />} tone="green" value={stats.employees}
           label="Employees" caption={`${stats.active} of them active`}
@@ -236,9 +240,9 @@ export default function Designations() {
                         <th className="dsgcol-n">Employees</th>
                         <th className="dsgcol-n">Active</th>
                         <th className="dsgcol-faces">Members</th>
-                        {isDirectoryAdmin && <th className="dsgcol-access">Module access</th>}
+                        {hasMaster && <th className="dsgcol-access">Module access</th>}
                         <th className="dsgcol-state">State</th>
-                        {isDirectoryAdmin && <th className="dsgcol-date">Created</th>}
+                        {hasMaster && <th className="dsgcol-date">Created</th>}
                         <th className="edl-table__acts">Actions</th>
                       </tr>
                     </thead>
@@ -261,15 +265,15 @@ export default function Designations() {
                             <td className="dsgcol-n"><b>{r.total}</b></td>
                             <td className="dsgcol-n">{r.active}</td>
                             <td className="dsgcol-faces"><Faces members={r.members} base={base} /></td>
-                            {isDirectoryAdmin && (
+                            {hasMaster && (
                               <td className="dsgcol-access"><AccessSummary access={accessOf(r.permissions, modules)} /></td>
                             )}
                             <td className="dsgcol-state"><StateChip row={r} /></td>
-                            {isDirectoryAdmin && <td className="dsgcol-date">{fmtDay(r.createdAt)}</td>}
+                            {hasMaster && <td className="dsgcol-date">{fmtDay(r.createdAt)}</td>}
                             <td className="edl-table__acts">
                               <div className="edl-rowacts">
                                 <Link className="btn btn-secondary btn-sm"
-                                  to={`${base}/employees?designation=${encodeURIComponent(r.name)}`}>View</Link>
+                                  to={`${base}/employees?designation=${encodeURIComponent(r.name)}&accountStatus=all`}>View</Link>
                                 <RowMenu>
                                   {r.members.length > 0 && (
                                     <MenuItem icon="users" onClick={() => setOpen(open === r.name ? '' : r.name)}>
@@ -277,11 +281,11 @@ export default function Designations() {
                                     </MenuItem>
                                   )}
                                   <MenuItem icon="folder"
-                                    to={`${base}/employees?designation=${encodeURIComponent(r.name)}`}>
+                                    to={`${base}/employees?designation=${encodeURIComponent(r.name)}&accountStatus=all`}>
                                     Open in directory
                                   </MenuItem>
-                                  {isDirectoryAdmin && <MenuSep />}
-                                  {isDirectoryAdmin && (
+                                  {canManageAccounts && <MenuSep />}
+                                  {canManageAccounts && (
                                     <MenuItem icon="settings" to="/admin/designations">
                                       {r.defined ? 'Configure module access' : 'Add it to the list'}
                                     </MenuItem>
@@ -292,7 +296,7 @@ export default function Designations() {
                           </tr>
                           {open === r.name && (
                             <tr className="dsgrow--members">
-                              <td colSpan={isDirectoryAdmin ? 9 : 7}>
+                              <td colSpan={hasMaster ? 9 : 7}>
                                 <div className="dsgmembers">
                                   {r.members.map((m) => (
                                     <Link key={m._id} to={`${base}/employees/${m._id}`} className="dsgmember">
@@ -320,7 +324,7 @@ export default function Designations() {
         />
       </section>
 
-      <AboutPanel isAdmin={isDirectoryAdmin} undefinedCount={stats.undefined_}
+      <AboutPanel isAdmin={canManageAccounts} undefinedCount={stats.undefined_}
         unassigned={stats.unassigned} base={base} />
     </div>
   );

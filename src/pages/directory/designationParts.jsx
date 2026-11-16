@@ -181,7 +181,8 @@ export const fmtDay = (d) => (d
 // ── The card ─────────────────────────────────────────────────────────────────
 
 export function DesignationCard({ row, access, base, onMembers, open }) {
-  const to = `${base}/employees?designation=${encodeURIComponent(row.name)}`;
+  // Everyone the card counts, deactivated accounts included.
+  const to = `${base}/employees?designation=${encodeURIComponent(row.name)}&accountStatus=all`;
   return (
     <article className={`dsgcard${row.state === 'undefined_' ? ' dsgcard--warn' : ''}${!row.isActive ? ' dsgcard--off' : ''}`}>
       <header className="dsgcard__head">
@@ -255,7 +256,7 @@ export const AboutPanel = ({ isAdmin, undefinedCount, unassigned, base }) => (
       </p>
       <div className="dsgabout__acts">
         {unassigned > 0 && (
-          <Link to={`${base}/employees?designation=Unassigned`} className="btn btn-secondary">
+          <Link to={`${base}/employees?designation=Unassigned&accountStatus=all`} className="btn btn-secondary">
             {unassigned} without a designation <Icon name="arrowRight" size={15} />
           </Link>
         )}

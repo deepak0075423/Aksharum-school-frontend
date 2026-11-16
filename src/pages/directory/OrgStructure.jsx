@@ -47,7 +47,8 @@ export default function OrgStructure() {
   const byDep = useMemo(() => data?.byDepartment || [], [data]);
   const byDes = useMemo(() => byDesignation(byDep), [byDep]);
 
-  const people   = useMemo(() => flatten(tree), [tree]);
+  // Employees only: an administrator at the head of the chart is not one.
+  const people   = useMemo(() => flatten(tree).filter((n) => !n.isSchoolAdmin), [tree]);
   const coverage = useMemo(() => coverageOf(tree), [tree]);
   const withStaff = byDep.filter((d) => d.department !== UNASSIGNED);
 
@@ -154,7 +155,8 @@ export default function OrgStructure() {
       {!data?.hasReportingLines && (
         <Alert variant="info">
           No reporting manager has been set on anybody yet, so there is no chain to draw — everyone sits
-          at the top. Set one on an employee&rsquo;s <b>Employment</b> tab and the tree builds itself.
+          at the top. Set one on an employee&rsquo;s <b>Employment</b> tab (a school administrator can be
+          chosen, to head the chart) and the tree builds itself.
         </Alert>
       )}
 

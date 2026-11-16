@@ -119,7 +119,7 @@ export default function Reports() {
 
       <PageTop
         title="Reports"
-        subtitle="Ten views of your school's employee records. Filter one, read it here, then take the same rows away as a file.">
+        subtitle="Your school's employee records, one view at a time. Filter one, read it here, then take the same rows away as a file.">
         <button type="button" className="btn btn-secondary" onClick={() => grab('csv')} disabled={!!busy}>
           <Icon name="download" size={16} /> CSV
         </button>
@@ -152,7 +152,7 @@ export default function Reports() {
         <Tile icon="checkCircle" tone="amber" value={totals.pendingVerification} label="Pending verification"
           captionTone={totals.pendingVerification ? 'down' : undefined}
           caption={totals.pendingVerification ? 'Still to be signed off' : 'All signed off'}
-          to={`${base}/employees?verification=pending&accountStatus=all`} />
+          to={`${base}/employees?verification=pending`} />
       </div>
 
       <ReportTabs reports={reports} active={active}

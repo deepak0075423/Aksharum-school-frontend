@@ -170,14 +170,20 @@ const CardFact = ({ icon, children, title }) => (
  * might navigate from instead. The name and the button are the ways in.
  */
 export function EmployeeCard({ e, base, onCopy }) {
-  const status = e.employmentStatus || 'active';
+  // Account state is sent to administrators only. For a colleague lookup the
+  // card carries what that reader does know: teaching or not.
+  const status = e.employmentStatus;
   return (
     <article className="edl-card" data-focus-id={e._id}>
       <div className="edl-card__top">
         <Avatar name={e.name} src={e.profileImage} size={46} />
-        <span className={`badge badge-${STATUS_TONE[status] || 'muted'}`}>
-          {STATUS_LABEL[status] || status}
-        </span>
+        {status ? (
+          <span className={`badge badge-${STATUS_TONE[status] || 'muted'}`}>
+            {STATUS_LABEL[status] || status}
+          </span>
+        ) : e.staffType ? (
+          <span className="badge badge-muted">{e.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'}</span>
+        ) : null}
       </div>
 
       <Link to={`${base}/employees/${e._id}`} className="edl-card__name">{e.name}</Link>

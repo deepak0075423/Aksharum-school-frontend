@@ -127,13 +127,14 @@ export const Members = ({ members = [], base }) => (
  * "Unassigned" comes through here too, drawn as the gap it is: the same figures,
  * but the action is to place those people rather than to browse them.
  */
-export function DepartmentCard({ department: d, base, open, onToggle }) {
+export function DepartmentCard({ department: d, base, open, onToggle, onManage }) {
   const type = typeOf(d);
   const gap  = d.name === UNASSIGNED;
   const t    = TYPE[type];
   // "Unassigned" is a real filter value on the employee list — it means the
   // people with no department, which is exactly this bucket.
-  const to   = `${base}/employees?department=${encodeURIComponent(d.name)}`;
+  // Everyone the card counts, deactivated accounts included.
+  const to   = `${base}/employees?department=${encodeURIComponent(d.name)}&accountStatus=all`;
 
   return (
     <article className={`depcard${gap ? ' depcard--gap' : ''}`}>
@@ -141,7 +142,10 @@ export function DepartmentCard({ department: d, base, open, onToggle }) {
         <span className={`depcard__mark tint-${t.tone}`}><Icon name={gap ? 'alert' : 'building'} size={19} /></span>
         <div className="depcard__id">
           <h3>{d.name}</h3>
-          <TypeChip type={type} />
+          {d.total > 0 ? <TypeChip type={type} /> : <span className="badge badge-muted">Nobody in it yet</span>}
+          {!gap && d.listed === false && (
+            <span className="badge badge-warning" style={{ marginLeft: 6 }} title="Typed on a staff record, but not on the school's list of departments">Not on the list</span>
+          )}
         </div>
         <span className="depcard__total" title={`${d.total} on the books`}>
           <b>{d.total}</b>
@@ -154,6 +158,7 @@ export function DepartmentCard({ department: d, base, open, onToggle }) {
       <dl className="depcard__facts">
         <div><dt>Active</dt><dd>{d.active}</dd></div>
         <div><dt>Designations</dt><dd>{d.designations.length || '—'}</dd></div>
+        {!gap && <div><dt>Head</dt><dd>{d.head ? `${d.head.name}${d.head.inactive ? ' (deactivated)' : ''}` : '—'}</dd></div>}
       </dl>
 
       {d.designations.length > 0 && (
@@ -163,8 +168,8 @@ export function DepartmentCard({ department: d, base, open, onToggle }) {
       {gap && (
         <p className="depcard__note">
           <Icon name="alert" size={14} />
-          These {d.total === 1 ? 'person has' : 'people have'} no department on their record. Set one on
-          the Employment tab of a profile and they move into it.
+          These {d.total === 1 ? 'person has' : 'people have'} no department on their record. Tick them on
+          the employee list and use &ldquo;Set department&rdquo;, or set one on a profile&rsquo;s Employment tab.
         </p>
       )}
 
@@ -172,9 +177,16 @@ export function DepartmentCard({ department: d, base, open, onToggle }) {
         <Link to={to} className="btn btn-primary btn-sm">
           {gap ? 'Place them' : 'View members'} <Icon name="arrowRight" size={14} />
         </Link>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => onToggle(d.name)}>
-          {open ? 'Hide list' : `List ${d.members.length}`}
-        </button>
+        {d.members.length > 0 && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onToggle(d.name)}>
+            {open ? 'Hide list' : `List ${d.members.length}`}
+          </button>
+        )}
+        {!gap && onManage && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onManage(d)}>
+            <Icon name="pencil" size={13} /> Manage
+          </button>
+        )}
       </footer>
 
       {open && <Members members={d.members} base={base} />}
@@ -197,16 +209,17 @@ export const HowPanel = ({ base, unassigned }) => (
     <div className="depabout__body">
       <h2>How departments work here</h2>
       <p>
-        A department is not a record of its own — it is the value on each employee&rsquo;s Employment tab,
-        grouped. Type a new one on somebody&rsquo;s profile and the department appears; move the last
-        person out and it goes. Renaming one means changing it on the people in it.
+        The school keeps a list of its departments: add one before anybody is in it, give it a head,
+        rename it (everyone in it follows), or move its staff into another one — which is also how two
+        spellings of the same department are merged. A name that was typed on a staff record but is
+        not on the list shows as &ldquo;Not on the list&rdquo; until it is added or its people are moved.
       </p>
       <div className="depabout__acts">
         <Link to={`${base}/employees`} className="btn btn-secondary">
           Open the employee list <Icon name="arrowRight" size={15} />
         </Link>
         {unassigned > 0 && (
-          <Link to={`${base}/employees?department=Unassigned`} className="btn btn-secondary">
+          <Link to={`${base}/employees?department=Unassigned&accountStatus=all`} className="btn btn-secondary">
             {unassigned} without a department <Icon name="arrowRight" size={15} />
           </Link>
         )}

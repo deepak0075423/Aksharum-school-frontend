@@ -27,10 +27,9 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Badge, Button, Spinner } from '../../components/ui/index';
-import { Avatar, VERIFY_TONE, fileUrl } from './parts';
+import { Avatar, VERIFY_TONE, STAGE_LABEL, fileUrl, useBlobUrl } from './parts';
 import { DocActions, DocState } from './documentParts';
 import { VIZ } from '../analytics/palette';
-import { withFileToken } from '../../utils/fileAccess';
 import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
 import { experienceText } from '../../utils/validators';
 
@@ -60,8 +59,9 @@ export const summarise = (employees = []) => {
     ...by,
     pending: total - by.verified,
     pct: total ? Math.round((by.verified / total) * 1000) / 10 : 0,
-    // Employees whose document-backed sections have nothing on file — they
-    // cannot be verified at all until something is uploaded.
+    // Employees with a REQUIRED document still to arrive — those sections
+    // cannot be signed off until it does. (An optional paper nobody uploaded
+    // blocks nothing.)
     blocked: employees.filter((e) => e.sections.some((s) => s.missingDocuments)).length,
   };
 };
@@ -260,9 +260,10 @@ export const fieldsFor = (section, d, revealed = {}) => {
       ['Department', val(d.employment?.department)],
       ['Staff type', d.employment?.staffType === 'teaching' ? 'Teaching'
         : d.employment?.staffType ? 'Non-teaching' : ''],
-      ['Employment type', val(d.employment?.employmentType)],
+      ['Employment type', d.employment?.employmentType === 'fresher' ? 'Fresher'
+        : d.employment?.employmentType === 'experienced' ? 'Experienced' : ''],
       ['Reporting manager', val(d.employment?.reportingManager?.name)],
-      ['Employment status', val(d.employment?.employmentStatus)],
+      ['Employment stage', val(STAGE_LABEL[d.employment?.employmentStage])],
     ];
     default: return [];
   }
@@ -288,6 +289,10 @@ export const DocPreview = ({ doc, onOpen }) => {
   const url = fileUrl(doc.url);
   const image = isImage(url);
   const pdf   = isPdf(url);
+  // A PDF is shown from a blob of its bytes: the API will not be framed by
+  // another origin, so a frame pointed straight at the file stays blank
+  // wherever the app and the API are two hosts (see useBlobUrl).
+  const frame = useBlobUrl(url, pdf);
   return (
     <figure className="verdocview">
       <figcaption>
@@ -306,15 +311,26 @@ export const DocPreview = ({ doc, onOpen }) => {
           </button>
         )
         : pdf
-          ? <iframe src={`${url}#toolbar=0&navpanes=0`} title={doc.label} />
+          ? (frame.url
+            ? <iframe src={`${frame.url}#toolbar=0&navpanes=0`} title={doc.label} />
+            : (
+              <div className="verdocview__none">
+                {frame.failed
+                  ? <><Icon name="alert" size={14} /> This PDF could not be loaded. Refresh the page and try again.</>
+                  : <><Spinner size="sm" /> Loading the PDF…</>}
+              </div>
+            ))
           : (
             <p className="verdocview__none">
-              <Icon name="alert" size={14} /> This file cannot be shown here — open the profile to read it.
+              <Icon name="alert" size={14} /> This file type cannot be shown here. Ask for it again as a PDF or a photo — it cannot be accepted unseen.
             </p>
           )}
     </figure>
   );
 };
+
+/** Whether the reviewer can actually see this file on the page. */
+export const viewable = (doc) => isImage(doc?.url || '') || isPdf(doc?.url || '');
 
 /**
  * A document, over the page.
@@ -336,6 +352,9 @@ export function Lightbox({ doc, onClose }) {
     };
   }, [doc, onClose]);
 
+  // Same reason as DocPreview: a PDF is framed from a blob, never from the API's address.
+  const frame = useBlobUrl(doc?.url || '', !!doc && !doc.image);
+
   if (!doc) return null;
   return createPortal(
     <div className="verlight" role="dialog" aria-modal="true" aria-label={doc.label} onClick={onClose}>
@@ -348,8 +367,14 @@ export function Lightbox({ doc, onClose }) {
       {/* Stops a click on the document itself from closing what it opened. */}
       <div className="verlight__stage" onClick={(e) => e.stopPropagation()}>
         {doc.image
-          ? <img src={withFileToken(doc.url)} alt={doc.label} />
-          : <iframe src={withFileToken(doc.url)} title={doc.label} />}
+          ? <img src={doc.url} alt={doc.label} />
+          : frame.url
+            ? <iframe src={frame.url} title={doc.label} />
+            : (
+              <p className="verdocview__none" style={{ color: '#fff' }}>
+                {frame.failed ? 'This document could not be loaded. Close it and try again.' : 'Loading the document…'}
+              </p>
+            )}
       </div>
     </div>,
     document.body,
@@ -394,7 +419,9 @@ export const Evidence = ({ section: s, detail, loading, revealed, onOpenDoc, emp
               {onVerifyDoc && (
                 <div className="verdocs__decide">
                   <DocState state={d.state} />
-                  <DocActions compact busyKey={docBusy}
+                  {/* Shown right here, so it has been seen — unless it is a file
+                      the page cannot draw, which can be rejected but not accepted. */}
+                  <DocActions compact busyKey={docBusy} lockVerify={!viewable(d)}
                     doc={{ ...d, employee: employee._id, employeeName: employee.name }}
                     onVerify={onVerifyDoc} onReject={onRejectDoc} />
                   {(d.state === 'rejected' || d.state === 'resubmitted') && d.comment && (
@@ -429,27 +456,35 @@ export const Evidence = ({ section: s, detail, loading, revealed, onOpenDoc, emp
 export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, revealed, onOpenDoc, seen, onSeen, busy, onVerify, docBusy, onVerifyDoc, onRejectDoc }) => {
   const key     = `${e._id}:${s.section}`;
   const opened  = seen.has(key);
+  // A required document has not arrived: nothing can be signed until it does.
   const blocked = s.missingDocuments;
   const done    = s.status === 'verified';
+  // Not this reader's to see or sign: bank details without payroll access, or
+  // their own record.
+  const closed  = !!s.restricted;
   // A document-backed section is signed off once each of its documents has
   // been accepted on its own (the server holds the same rule).
   const undecided = s.documents.filter((d) => d.state && d.state !== 'verified');
+  // Whatever else the server would refuse it for (its key values not on file).
+  const problem = !done && !blocked && !undecided.length ? (s.problem || '') : '';
 
   return (
-    <div className={`verrow${blocked ? ' verrow--blocked' : ''}${opened ? ' verrow--open' : ''}`}>
+    <div className={`verrow${blocked || closed ? ' verrow--blocked' : ''}${opened ? ' verrow--open' : ''}`}>
       <div className="verrow__top">
         <div className="verrow__id">
           <b>{s.label}</b>
           <small>
-            {blocked
-              ? 'Nothing uploaded — there is nothing to check yet'
-              : s.documents.length
-                ? `${s.documents.length} document${s.documents.length === 1 ? '' : 's'} on file`
-                : 'Recorded values, shown below'}
+            {closed
+              ? s.restrictedWhy
+              : blocked
+                ? `Still waiting for ${s.missingRequired.join(', ')}`
+                : s.documents.length
+                  ? `${s.documents.length} document${s.documents.length === 1 ? '' : 's'} on file`
+                  : 'Recorded values, shown below'}
           </small>
         </div>
 
-        {!blocked && !done && (
+        {!closed && !done && (
           <button type="button" className={`verrow__open${opened ? ' is-on' : ''}`}
             onClick={() => onSeen(key)} aria-expanded={opened}>
             <Icon name={opened ? 'checkCircle' : 'eye'} size={14} />
@@ -467,14 +502,15 @@ export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, 
         <div className="verrow__acts">
           {done
             ? <span className="verrow__done"><Icon name="checkCircle" size={14} /> Signed off</span>
-            : (
+            : closed ? null : (
               <Button size="sm" variant="success"
-                disabled={blocked || !opened || undecided.length > 0}
+                disabled={blocked || !opened || undecided.length > 0 || !!problem}
                 loading={busy === key}
                 title={blocked
-                  ? 'Nothing has been uploaded for this section yet'
+                  ? `Waiting for ${s.missingRequired.join(', ')}`
                   : !opened ? 'Show the evidence first'
-                    : undecided.length ? `Verify each document first (${undecided.map((d) => d.label).join(', ')})` : undefined}
+                    : undecided.length ? `Verify each document first (${undecided.map((d) => d.label).join(', ')})`
+                      : problem || undefined}
                 onClick={() => onVerify(e._id, s.section)}>
                 {s.documents.length ? 'Verify section' : 'Verify'}
               </Button>
@@ -482,14 +518,24 @@ export const ReviewSection = ({ employee: e, section: s, detail, loadingDetail, 
         </div>
       </div>
 
-      {opened && !blocked && (
+      {!done && !closed && s.note && (
+        <p className="verrow__gate"><Icon name="info" size={13} /> {s.note}</p>
+      )}
+      {opened && !closed && (
         <Evidence section={s} detail={detail} loading={loadingDetail}
           revealed={revealed} onOpenDoc={onOpenDoc}
           employee={e} docBusy={docBusy} onVerifyDoc={onVerifyDoc} onRejectDoc={onRejectDoc} />
       )}
-      {opened && !blocked && !done && undecided.length > 0 && (
+      {opened && !closed && !done && undecided.length > 0 && (
         <p className="verrow__gate">
           <Icon name="info" size={13} /> Verify or reject each document above; the section can be signed off once all of them are accepted.
+        </p>
+      )}
+      {opened && !closed && !done && (blocked || problem) && (
+        <p className="verrow__gate">
+          <Icon name="alert" size={13} /> {blocked
+            ? `${s.label} cannot be signed off until ${s.missingRequired.join(', ')} ${s.missingRequired.length === 1 ? 'is' : 'are'} uploaded — remind the employee, or upload it on their profile.`
+            : problem}
         </p>
       )}
     </div>
@@ -535,7 +581,7 @@ export const BySection = ({ totals, employees, base, open, onToggle }) => (
           {stuck.length > 0 && (
             <p className="versec__stuck">
               <Icon name="alert" size={13} />
-              {stuck.length} cannot be verified yet — nothing uploaded.
+              {stuck.length} cannot be verified yet — a required document has not been uploaded.
             </p>
           )}
           <button type="button" className="versec__toggle" onClick={() => onToggle(s.section)}>
@@ -575,7 +621,7 @@ export const MissingDocuments = ({ employees, base }) => {
     return (
       <div className="verempty">
         <Icon name="checkCircle" size={26} />
-        <p>Every document-backed section has something on file.</p>
+        <p>Every required document is on file.</p>
         <span>Nothing here is waiting on an upload.</span>
       </div>
     );
@@ -591,11 +637,11 @@ export const MissingDocuments = ({ employees, base }) => {
             <small>{[e.employeeId, e.designation, e.department].filter(Boolean).join(' · ') || 'No employment details'}</small>
           </div>
           <div className="verchips">
-            {missing.map((s) => (
-              <span key={s.section} className="verchip verchip--blocked">
-                <Icon name="alert" size={11} /> {s.label}
+            {missing.flatMap((s) => (s.missingRequired || [s.label]).map((label) => (
+              <span key={`${s.section}:${label}`} className="verchip verchip--blocked">
+                <Icon name="alert" size={11} /> {label}
               </span>
-            ))}
+            )))}
           </div>
           <Link to={`${base}/employees/${e._id}`} className="btn btn-secondary btn-sm">Open profile</Link>
         </li>

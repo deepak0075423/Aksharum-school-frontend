@@ -54,6 +54,11 @@ export const lightboxDoc = (d, who) => {
   return { label: who ? `${d.label} — ${who}` : d.label, url, image: isImage(d.url), pdf: isPdf(d.url) };
 };
 
+/** One file in one slot — what "this reviewer has opened it" is recorded against. */
+export const docId = (d) => `${d.employee}:${d.key}:${d.fileName}`;
+/** Whether the page can show the file at all (a PDF or a photo). */
+export const canShow = (d) => isImage(d.url) || isPdf(d.url);
+
 const ago = (d) => {
   if (!d) return '';
   const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
@@ -111,18 +116,28 @@ export function RejectDialog({ target, busy, onClose, onConfirm }) {
 }
 
 /** Verify / Reject for one document, or what was decided. */
-export const DocActions = ({ doc, busyKey, onVerify, onReject, compact }) => {
+/**
+ * Verify / Reject for one document, or what was decided.
+ *
+ * `locked`     the reviewer has not opened the file yet — a decision on a scan
+ *              nobody looked at is not a review, so neither button works.
+ * `lockVerify` the file is of a kind the page cannot show: it can be turned
+ *              down (and asked for again as a PDF or photo) but not accepted.
+ */
+export const DocActions = ({ doc, busyKey, onVerify, onReject, locked, lockVerify }) => {
   const k = `${doc.employee}:${doc.key}`;
   if (!doc.fileName) return null;
   if (doc.state === 'verified') return <span className="edoc-done"><Icon name="checkCircle" size={14} /> Accepted</span>;
   if (doc.state === 'rejected') return <span className="edoc-wait"><Icon name="clock" size={14} /> Waiting for a new upload</span>;
+  const why = locked ? 'Open the document first' : undefined;
   return (
     <div className="edoc-acts">
-      <Button size="sm" variant="success" loading={busyKey === `${k}:verified`} disabled={!!busyKey}
+      <Button size="sm" variant="success" loading={busyKey === `${k}:verified`} disabled={!!busyKey || locked || lockVerify}
+        title={lockVerify ? 'This file cannot be shown here, so it cannot be accepted' : why}
         onClick={() => onVerify(doc)}>
-        <Icon name="check" size={14} /> {compact ? 'Verify' : 'Verify'}
+        <Icon name="check" size={14} /> Verify
       </Button>
-      <Button size="sm" variant="danger" disabled={!!busyKey} onClick={() => onReject(doc)}>
+      <Button size="sm" variant="danger" disabled={!!busyKey || locked} title={why} onClick={() => onReject(doc)}>
         <Icon name="close" size={14} /> Reject
       </Button>
     </div>
@@ -144,7 +159,7 @@ const REVIEW_FILTERS = [
  * through paperwork rather than through people. Re-submitted files lead: an
  * employee has already been waiting on those once.
  */
-export function DocumentQueue({ employees, focus, filter, onFilter, search, busyKey, onOpen, onVerify, onReject, base }) {
+export function DocumentQueue({ employees, focus, filter, onFilter, search, busyKey, onOpen, onVerify, onReject, base, opened = new Set() }) {
   const rows = useMemo(() => employees.flatMap((e) => e.documents
     .filter((d) => d.fileName || d.state === 'rejected')
     .map((d) => ({ ...d, employee: e._id, employeeName: e.name, photo: e.profileImage, sub: [e.employeeId, e.designation].filter(Boolean).join(' · ') }))), [employees]);
@@ -211,9 +226,9 @@ export function DocumentQueue({ employees, focus, filter, onFilter, search, busy
                   <td>
                     {r.fileName
                       ? (
-                        <button type="button" className="edoc-file" onClick={() => onOpen(lightboxDoc(r, r.employeeName))}
+                        <button type="button" className="edoc-file" onClick={() => onOpen({ ...lightboxDoc(r, r.employeeName), id: docId(r) })}
                           title="Open the document">
-                          <Icon name="eye" size={14} /> {r.label}
+                          <Icon name={opened.has(docId(r)) ? 'checkCircle' : 'eye'} size={14} /> {r.label}
                         </button>
                       )
                       : <span className="edoc-file is-none">{r.label}</span>}
@@ -229,7 +244,10 @@ export function DocumentQueue({ employees, focus, filter, onFilter, search, busy
                     {r.state === 'pending' && <span>Not reviewed yet</span>}
                   </td>
                   <td className="edl-table__acts">
-                    <DocActions doc={r} busyKey={busyKey} onVerify={onVerify} onReject={onReject} />
+                    {/* A file the page cannot show opens nothing: it is never
+                        "opened", so it can only be turned down. */}
+                    <DocActions doc={r} busyKey={busyKey} onVerify={onVerify} onReject={onReject}
+                      locked={canShow(r) && !opened.has(docId(r))} lockVerify={!canShow(r)} />
                   </td>
                 </tr>
               ))}
@@ -267,9 +285,14 @@ const OwedChips = ({ items }) => (
  * step for each: a first reminder, a follow-up once one has gone unanswered
  * for a few days, or nothing — it was answered.
  */
-export function ReminderBoard({ employees, followUpAfterDays, filter, onFilter, search, base, onRemind }) {
+export function ReminderBoard({ employees: everyone, followUpAfterDays, filter, onFilter, search, base, onRemind }) {
   const [picked, setPicked] = useState(() => new Set());
   const [open, setOpen] = useState('');
+  // One department at a time: the counts, the list and "Remind everyone due"
+  // all narrow to it, so a reminder can go to the Science staff alone.
+  const [department, setDepartment] = useState('');
+  const departments = useMemo(() => [...new Set(everyone.map((e) => e.department).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [everyone]);
+  const employees = useMemo(() => (department ? everyone.filter((e) => e.department === department) : everyone), [everyone, department]);
 
   const counts = useMemo(() => ({
     owing: employees.filter((e) => e.outstanding.length).length,
@@ -304,6 +327,13 @@ export function ReminderBoard({ employees, followUpAfterDays, filter, onFilter, 
           ))}
         </div>
         <div className="edoc-remind__acts">
+          {departments.length > 1 && (
+            <select className="form-control" style={{ width: 'auto' }} aria-label="Department" value={department}
+              onChange={(ev) => { setDepartment(ev.target.value); setPicked(new Set()); }}>
+              <option value="">All departments</option>
+              {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
           {chosen.length > 0 && (
             <Button size="sm" onClick={() => onRemind(chosen)}>
               <Icon name="bell" size={14} /> Remind selected ({chosen.length})
@@ -460,6 +490,124 @@ export function ReminderDialog({ employees, busy, onClose, onSend }) {
           <input type="checkbox" checked={email} onChange={(ev) => setEmail(ev.target.checked)} />
           <span>Also send it by email <small>An in-app and phone notification is always sent.</small></span>
         </label>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Correction requests ──────────────────────────────────────────────────────
+
+const REQUEST_FILTERS = [
+  { value: 'open',     label: 'Waiting' },
+  { value: 'done',     label: 'Dealt with' },
+  { value: 'declined', label: 'Declined' },
+];
+export const REQUEST_STATE = {
+  open:     { label: 'Waiting for the office', tone: 'amber' },
+  done:     { label: 'Dealt with',             tone: 'green' },
+  declined: { label: 'Declined',               tone: 'red'   },
+};
+
+/**
+ * "Please correct my details" — what staff have asked the office to change on
+ * their own record. The office makes the change on the teacher form (or
+ * declines, saying why) and marks the request; the employee is told either way.
+ */
+export function RequestBoard({ requests, counts = {}, filter, onFilter, search, base, onAnswer }) {
+  const term = search.trim().toLowerCase();
+  const shown = requests.filter((r) => r.status === filter
+    && (!term || `${r.employeeName} ${r.areaLabel} ${r.message}`.toLowerCase().includes(term)));
+  return (
+    <div className="edoc-queue">
+      <div className="edoc-filters" role="tablist" aria-label="Which requests">
+        {REQUEST_FILTERS.map((f) => (
+          <button key={f.value} type="button" role="tab" aria-selected={filter === f.value}
+            className={`edoc-filter${filter === f.value ? ' is-on' : ''}`} onClick={() => onFilter(f.value)}>
+            {f.label} <em>{counts[f.value] || 0}</em>
+          </button>
+        ))}
+      </div>
+      {!shown.length ? (
+        <div className="verempty">
+          <Icon name="checkCircle" size={26} />
+          <p>{filter === 'open' ? 'No correction is waiting.' : 'Nothing here.'}</p>
+          <span>{filter === 'open' ? 'When a member of staff asks for their record to be corrected, it appears here.' : 'Try another filter.'}</span>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="table edl-table edoc-table">
+            <thead>
+              <tr><th>Employee</th><th>About</th><th>What they asked</th><th>Asked on</th><th className="edl-table__acts">Actions</th></tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r._id}>
+                  <td><Link to={`${base}/employees/${r.employee}`} className="edoc-who"><span><b>{r.employeeName}</b></span></Link></td>
+                  <td>{r.areaLabel}</td>
+                  <td className="edoc-notes">
+                    <span>&ldquo;{r.message}&rdquo;</span>
+                    {r.status !== 'open' && (
+                      <span style={{ display: 'block', marginTop: 4 }}>
+                        {r.status === 'done' ? 'Dealt with' : 'Declined'}{r.closedByName ? ` by ${r.closedByName}` : ''} · {fmtDate(r.closedAt)}
+                        {r.reply ? <> — <i>&ldquo;{r.reply}&rdquo;</i></> : null}
+                      </span>
+                    )}
+                  </td>
+                  <td>{fmtDate(r.createdAt)}</td>
+                  <td className="edl-table__acts">
+                    {r.status === 'open' ? (
+                      <div className="edoc-acts">
+                        <Button size="sm" variant="success" onClick={() => onAnswer(r, 'done')}><Icon name="check" size={14} /> Done</Button>
+                        <Button size="sm" variant="secondary" onClick={() => onAnswer(r, 'declined')}>Decline</Button>
+                      </div>
+                    ) : <span className={`edoc-pill edoc-pill--${REQUEST_STATE[r.status].tone}`}>{REQUEST_STATE[r.status].label}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The office's answer to one request: done (a note is optional) or declined (a reason is not). */
+export function RequestDialog({ target, busy, onClose, onConfirm }) {
+  const [reply, setReply] = useState('');
+  const [tried, setTried] = useState(false);
+  useEffect(() => { if (target) { setReply(''); setTried(false); } }, [target]);
+  if (!target) return null;
+  const declining = target.status === 'declined';
+  const short = declining && reply.trim().length < 5;
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} maxWidth={520}
+      title={declining ? 'Decline this request?' : 'Mark this request as dealt with?'}
+      footer={<>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button variant={declining ? 'danger' : 'primary'} loading={busy} disabled={busy}
+          onClick={() => { setTried(true); if (!short) onConfirm(reply.trim()); }}>
+          {declining ? 'Decline' : 'Mark as done'}
+        </Button>
+      </>}>
+      <div className="edoc-reject">
+        <p className="edoc-reject__what"><b>{target.request.employeeName}</b> · {target.request.areaLabel}</p>
+        <p style={{ margin: '0 0 12px' }}>&ldquo;{target.request.message}&rdquo;</p>
+        <label className={`form-label${declining ? ' required' : ''}`} htmlFor="edoc-reply">
+          {declining ? 'Why it cannot be changed' : 'A note for the employee (optional)'}
+        </label>
+        <textarea id="edoc-reply" data-text="sentence" className={`form-control${tried && short ? ' is-bad' : ''}`} rows={3} maxLength={400}
+          autoFocus value={reply} onChange={(e) => setReply(e.target.value)}
+          placeholder={declining ? 'e.g. The name has to match your Aadhaar card' : 'e.g. Updated — please check your profile'} />
+        {tried && short && <p className="edoc-err"><Icon name="alert" size={13} /> Give a reason — the employee is shown it.</p>}
+        <p className="edoc-reject__warn">
+          <Icon name="info" size={14} />
+          <span>
+            {declining
+              ? `${target.request.employeeName} will be told the request was declined, with this reason.`
+              : `Make the change on the employee's record first (Admin → Teachers → Edit). ${target.request.employeeName} will be told it has been dealt with.`}
+          </span>
+        </p>
       </div>
     </Modal>
   );

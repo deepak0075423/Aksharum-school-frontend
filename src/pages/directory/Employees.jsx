@@ -15,12 +15,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getMeta, getEmployees, downloadReport } from '../../api/employeeDirectory.api';
-import { Badge, Empty } from '../../components/ui/index';
+import { getMeta, getEmployees, downloadReport, bulkEmployment } from '../../api/employeeDirectory.api';
+import { Badge, Button, Empty, Modal, Select } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   Avatar, Chips, SkeletonRows, SkeletonCards, ErrorState, Blank, fmtDate,
-  STATUS_TONE, STATUS_LABEL, useDirectoryBase,
+  STATUS_TONE, STATUS_LABEL, STAGE_LABEL, useDirectoryBase,
 } from './parts';
 import {
   ActiveChips, Crumbs, EmployeeCard, Field, ListFoot, MenuItem, MenuSep,
@@ -38,6 +38,8 @@ const EMPTY = {
   reportingManager: '', verification: '', completion: '',
   // 'year' = joined since the academic year began (the Reports "New joiners" tile).
   joined: '',
+  // Where the employment stands (probation, notice…), and who owes the office a document.
+  stage: '', owed: '',
   // Active by default. 'all' and 'inactive' are one pick away, and Clear returns
   // here rather than to "everyone", so the list keeps its meaning.
   accountStatus: 'active',
@@ -57,11 +59,15 @@ const SORTS = [
   { value: 'department:asc',   label: 'Department' },
   { value: 'completion:asc',   label: 'Least complete profile' },
 ];
+// What a colleague lookup may sort by: only what its rows carry (the server
+// ignores the rest for that reader anyway).
+const OPEN_SORTS = ['name:asc', 'name:desc', 'employeeId:asc', 'designation:asc', 'department:asc'];
+const PAGE_DEFAULT = 12;
 
 export default function Employees() {
-  const { base, isDirectoryAdmin } = useDirectoryBase();
+  const { base, isDirectoryAdmin, canManageAccounts } = useDirectoryBase();
   const navigate = useNavigate();
-  const [urlParams] = useSearchParams();
+  const [urlParams, setUrlParams] = useSearchParams();
 
   // A link from the overview can pre-apply a filter.
   const [filters, setFilters] = useState(() => {
@@ -73,8 +79,8 @@ export default function Employees() {
     return seed;
   });
   const [draft, setDraft] = useState(filters.search);
-  const [page,  setPage]  = useState(1);
-  const [limit, setLimit] = useState(12);
+  const [page,  setPage]  = useState(() => Math.max(1, Number(urlParams.get('page')) || 1));
+  const [limit, setLimit] = useState(() => (PAGE_SIZES.includes(Number(urlParams.get('limit'))) ? Number(urlParams.get('limit')) : PAGE_DEFAULT));
   const [sort,  setSort]  = useState(() => {
     const by  = urlParams.get('sortBy');
     const dir = urlParams.get('sortDir') || 'asc';
@@ -83,6 +89,9 @@ export default function Employees() {
   const [showMore, setShowMore] = useState(false);
   const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || 'card');
   const [exporting, setExporting] = useState(false);
+  // Rows ticked for a change made to many people at once (administrators, list view).
+  const [picked, setPicked] = useState(() => new Set());
+  const [bulk, setBulk] = useState(null);   // 'department' | 'manager'
 
   // The chosen layout is the reader's, so it outlives the page.
   useEffect(() => { localStorage.setItem(VIEW_KEY, view); }, [view]);
@@ -92,8 +101,13 @@ export default function Employees() {
   useEffect(() => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      setFilters((f) => (f.search === draft.trim() ? f : { ...f, search: draft.trim() }));
-      setPage(1);
+      // Only a search that actually changed goes back to page one — the page
+      // the address arrived with must survive the box settling on mount.
+      setFilters((f) => {
+        if (f.search === draft.trim()) return f;
+        setPage(1);
+        return { ...f, search: draft.trim() };
+      });
     }, 350);
     return () => clearTimeout(timer.current);
   }, [draft]);
@@ -108,6 +122,18 @@ export default function Employees() {
   }, [filters, page, limit, sortBy, sortDir]);
   const key = JSON.stringify(params);
 
+  // The filters, the sort and the page live in the address: Back from a
+  // profile returns to the same list, and a link to it can be shared.
+  useEffect(() => {
+    const next = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v && v !== EMPTY[k]) next.set(k, v);
+    if (filters.accountStatus !== EMPTY.accountStatus) next.set('accountStatus', filters.accountStatus);
+    if (sort !== 'name:asc') { next.set('sortBy', sortBy); next.set('sortDir', sortDir); }
+    if (page > 1) next.set('page', String(page));
+    if (limit !== PAGE_DEFAULT) next.set('limit', String(limit));
+    if (next.toString() !== urlParams.toString()) setUrlParams(next, { replace: true });
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { data, loading, error, refetch } = useFetch(() => getEmployees(params), [key]);
 
   // The last page that actually arrived. Holding it while the next request is in
@@ -115,6 +141,11 @@ export default function Employees() {
   const [shown, setShown] = useState(null);
   useEffect(() => { if (data) setShown(data); }, [data]);
   const pageData = data || shown;
+  // The server answers with the last page when the one asked for is past the
+  // end (the list shrank); follow it, so the pager and the rows agree.
+  useEffect(() => { if (data?.page && data.page !== page) setPage(data.page); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A tick belongs to the rows it was made on.
+  useEffect(() => { setPicked(new Set()); }, [key]);
 
   const set = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
   const clearAll = () => { setFilters(EMPTY); setDraft(''); setPage(1); };
@@ -151,7 +182,7 @@ export default function Employees() {
     employmentType: 'Employment', status: 'Status', subject: 'Subject',
     classId: 'Class', sectionId: 'Section', joiningYear: 'Joined',
     reportingManager: 'Reports to', verification: 'Verification', completion: 'Profile',
-    accountStatus: 'Account', joined: 'Joined',
+    accountStatus: 'Account', joined: 'Joined', stage: 'Employment', owed: 'Documents',
   };
   const valueFor = (k, v) => {
     if (k === 'classId')   return (opts.classes  || []).find((c) => c._id === v)?.label || v;
@@ -160,6 +191,8 @@ export default function Employees() {
     if (k === 'reportingManager') return (opts.managers || []).find((m) => m._id === v)?.label || v;
     if (k === 'staffType') return v === 'teaching' ? 'Teaching' : 'Non-Teaching';
     if (k === 'joined') return 'This academic year';
+    if (k === 'stage') return v === 'none' ? 'Not stated' : (STAGE_LABEL[v] || v);
+    if (k === 'owed') return v === 'missing' ? 'Not uploaded' : 'Owed to the office';
     return String(v).replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
   };
   const chips = Object.entries(filters)
@@ -178,6 +211,10 @@ export default function Employees() {
   const toggleAccount = (want) => set('accountStatus', filters.accountStatus === want ? 'all' : want);
   const toggleStaff   = (want) => set('staffType',     filters.staffType === want ? '' : want);
 
+  const sorts = isDirectoryAdmin ? SORTS : SORTS.filter((x) => OPEN_SORTS.includes(x.value));
+  const allPicked = employees.length > 0 && employees.every((e) => picked.has(e._id));
+  const tick = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
   return (
     <div className="page edl">
       <Crumbs base={base} here="All Employees" />
@@ -185,7 +222,10 @@ export default function Employees() {
       <PageTop
         title="All Employees"
         subtitle="Browse and manage your school’s staff — subjects, classes and how to reach them.">
-        {isDirectoryAdmin && (
+        {/* Adding and importing are the school administrator's own screens
+            (Admin → Teachers); a teacher who administers the directory is not
+            let into them, so the two buttons are theirs alone. */}
+        {canManageAccounts && (
           <>
             <Link className="btn btn-primary" to="/admin/teachers?new=1">
               <Icon name="plus" size={16} /> Add Employee
@@ -193,26 +233,40 @@ export default function Employees() {
             <Link className="btn btn-secondary" to="/admin/teachers?import=1">
               <Icon name="upload" size={16} /> Import
             </Link>
-            <button type="button" className="btn btn-secondary" onClick={exportList} disabled={exporting}>
-              <Icon name="download" size={16} /> Export
-            </button>
           </>
+        )}
+        {isDirectoryAdmin && (
+          <button type="button" className="btn btn-secondary" onClick={exportList} disabled={exporting}>
+            <Icon name="download" size={16} /> Export
+          </button>
         )}
       </PageTop>
 
       {/* The tiles describe the school, and each one sets the filter it names. */}
       <div className="edl-stats">
-        <StatTile icon={<Icon name="users" size={22} />} tone="indigo" value={stats.employees}
-          label="Total Employees"
-          captionTone={stats.growthPct > 0 ? 'up' : undefined}
-          caption={stats.growthPct == null ? 'On the books today' : `↑ ${stats.growthPct}% joined this year`}
-          on={filters.accountStatus === 'all'} onClick={() => set('accountStatus', 'all')} />
-        <StatTile icon={<Icon name="userCircle" size={22} />} tone="green" value={stats.active}
-          label="Active Employees" caption={share(stats.active ?? 0)}
-          on={filters.accountStatus === 'active'} onClick={() => toggleAccount('active')} />
-        <StatTile icon={<Icon name="power" size={22} />} tone="pink" value={stats.inactive}
-          label="Inactive Employees" caption={share(stats.inactive ?? 0)}
-          on={filters.accountStatus === 'inactive'} onClick={() => toggleAccount('inactive')} />
+        {/* A colleague lookup lists the staff who work here: for that reader
+            the total IS the list, and account state is not theirs to browse. */}
+        {isDirectoryAdmin ? (
+          <StatTile icon={<Icon name="users" size={22} />} tone="indigo" value={stats.employees}
+            label="Total Employees"
+            captionTone={stats.growthPct > 0 ? 'up' : undefined}
+            caption={stats.growthPct == null ? 'On the books today' : `↑ ${stats.growthPct}% joined this year`}
+            on={filters.accountStatus === 'all'} onClick={() => set('accountStatus', 'all')} />
+        ) : (
+          <StatTile icon={<Icon name="users" size={22} />} tone="indigo" value={stats.employees}
+            label="Employees" caption="Working here now"
+            on={!filters.staffType} onClick={() => set('staffType', '')} />
+        )}
+        {isDirectoryAdmin && (
+          <StatTile icon={<Icon name="userCircle" size={22} />} tone="green" value={stats.active}
+            label="Active Employees" caption={share(stats.active ?? 0)}
+            on={filters.accountStatus === 'active'} onClick={() => toggleAccount('active')} />
+        )}
+        {isDirectoryAdmin && (
+          <StatTile icon={<Icon name="power" size={22} />} tone="pink" value={stats.inactive}
+            label="Inactive Employees" caption={share(stats.inactive ?? 0)}
+            on={filters.accountStatus === 'inactive'} onClick={() => toggleAccount('inactive')} />
+        )}
         <StatTile icon={<Icon name="teacher" size={22} />} tone="blue" value={stats.teaching}
           label="Teaching Staff" caption={share(stats.teaching ?? 0)}
           on={filters.staffType === 'teaching'}
@@ -245,18 +299,25 @@ export default function Employees() {
 
         {showMore && (
           <MorePanel onReset={clearAll}>
-            <Field label="Account">
-              <Pick value={filters.accountStatus} onChange={(v) => set('accountStatus', v)}
-                defaultValue="active" label="Account state" options={[
-                  { value: 'active', label: 'Active accounts' },
-                  { value: 'inactive', label: 'Inactive accounts' },
-                  { value: 'all', label: 'All accounts' },
-                ]} />
+            {isDirectoryAdmin && (
+              <Field label="Account">
+                <Pick value={filters.accountStatus} onChange={(v) => set('accountStatus', v)}
+                  defaultValue="active" label="Account state" options={[
+                    { value: 'active', label: 'Active accounts' },
+                    { value: 'inactive', label: 'Inactive accounts' },
+                    { value: 'all', label: 'All accounts' },
+                  ]} />
+              </Field>
+            )}
+            <Field label="Staff type">
+              <Pick value={filters.staffType} onChange={(v) => set('staffType', v)}
+                all="All staff" label="Staff type" options={opts.staffTypes || []} />
             </Field>
             {isDirectoryAdmin && (
-              <Field label="Staff type">
-                <Pick value={filters.staffType} onChange={(v) => set('staffType', v)}
-                  all="All staff" label="Staff type" options={opts.staffTypes || []} />
+              <Field label="Employment">
+                <Pick value={filters.stage} onChange={(v) => set('stage', v)}
+                  all="Any stage" label="Employment stage"
+                  options={[...(opts.stages || []), { value: 'none', label: 'Not stated' }]} />
               </Field>
             )}
             <Field label="Subject">
@@ -294,13 +355,24 @@ export default function Employees() {
                   ]} />
               </Field>
             )}
-            <Field label="Profile">
-              <Pick value={filters.completion} onChange={(v) => set('completion', v)}
-                all="Any completeness" label="Profile completion" options={[
-                  { value: 'incomplete', label: 'Incomplete' },
-                  { value: 'complete', label: 'Complete' },
-                ]} />
-            </Field>
+            {isDirectoryAdmin && (
+              <Field label="Profile">
+                <Pick value={filters.completion} onChange={(v) => set('completion', v)}
+                  all="Any completeness" label="Profile completion" options={[
+                    { value: 'incomplete', label: 'Incomplete' },
+                    { value: 'complete', label: 'Complete' },
+                  ]} />
+              </Field>
+            )}
+            {isDirectoryAdmin && (
+              <Field label="Documents">
+                <Pick value={filters.owed} onChange={(v) => set('owed', v)}
+                  all="Any" label="Documents owed" options={[
+                    { value: 'any', label: 'Owes the office a document' },
+                    { value: 'missing', label: 'A required one not uploaded' },
+                  ]} />
+              </Field>
+            )}
           </MorePanel>
         )}
 
@@ -318,12 +390,27 @@ export default function Employees() {
               Sort by
               <select className="form-control" value={sort} aria-label="Sort employees"
                 onChange={(e) => { setSort(e.target.value); setPage(1); }}>
-                {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {sorts.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </label>
             <ViewToggle value={view} onChange={setView} />
           </div>
         </div>
+
+        {isDirectoryAdmin && view === 'table' && picked.size > 0 && (
+          <div className="edl-results" role="region" aria-label="Change the selected employees">
+            <span className="edl-results__count">{picked.size} selected</span>
+            <div className="edl-results__right" style={{ gap: 8 }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setBulk('department')}>
+                <Icon name="building" size={14} /> Set department
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setBulk('manager')}>
+                <Icon name="users" size={14} /> Set reporting manager
+              </button>
+              <button type="button" className="edl-hint__btn" onClick={() => setPicked(new Set())}>Clear selection</button>
+            </div>
+          </div>
+        )}
 
         {error && <ErrorState error={error} onRetry={refetch} title="Could not load employees" />}
 
@@ -357,6 +444,12 @@ export default function Employees() {
                 <table className="table edl-table">
                   <thead>
                     <tr>
+                      {isDirectoryAdmin && (
+                        <th style={{ width: 34 }}>
+                          <input type="checkbox" aria-label="Select everyone on this page" checked={allPicked}
+                            onChange={() => setPicked(allPicked ? new Set() : new Set(employees.map((e) => e._id)))} />
+                        </th>
+                      )}
                       <th>Employee</th>
                       <th>Role</th>
                       {isDirectoryAdmin && <th>Type &amp; Status</th>}
@@ -369,6 +462,11 @@ export default function Employees() {
                   <tbody>
                     {employees.map((e) => (
                       <tr key={e._id} data-focus-id={e._id}>
+                        {isDirectoryAdmin && (
+                          <td>
+                            <input type="checkbox" aria-label={`Select ${e.name}`} checked={picked.has(e._id)} onChange={() => tick(e._id)} />
+                          </td>
+                        )}
                         <td>
                           <div className="ed-emp">
                             <Avatar name={e.name} src={e.profileImage} size={38} />
@@ -395,6 +493,9 @@ export default function Employees() {
                                 {e.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'}
                               </Badge>
                               <Badge variant={STATUS_TONE[e.employmentStatus]}>{STATUS_LABEL[e.employmentStatus]}</Badge>
+                              {e.employmentStage && e.employmentStage !== 'confirmed' && (
+                                <Badge variant="muted">{STAGE_LABEL[e.employmentStage]}</Badge>
+                              )}
                             </div>
                           </td>
                         )}
@@ -455,6 +556,63 @@ export default function Employees() {
         )}
       </section>
 
+      <BulkDialog kind={bulk} ids={[...picked]} opts={opts}
+        onClose={() => setBulk(null)}
+        onDone={() => { setBulk(null); setPicked(new Set()); refetch(); }} />
     </div>
+  );
+}
+
+/**
+ * One change, for everybody ticked. Each person is checked on their own by the
+ * server (a manager cannot report to themselves, a loop is refused), and the
+ * ones that could not take the change are named rather than stopping the rest.
+ */
+function BulkDialog({ kind, ids, opts, onClose, onDone }) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setValue(''); }, [kind]);
+  if (!kind) return null;
+  const department = kind === 'department';
+  const save = async () => {
+    setBusy(true);
+    try {
+      const res = await bulkEmployment(department ? { ids, department: value } : { ids, reportingManager: value });
+      const out = res?.data ?? res;
+      toast.success(`${out.updated} employee${out.updated === 1 ? '' : 's'} updated`);
+      if (out.skipped?.length) {
+        toast(`${out.skipped.length} not changed — ${out.skipped.slice(0, 2).map((x) => `${x.name}: ${x.reason}`).join('; ')}${out.skipped.length > 2 ? '…' : ''}`,
+          { icon: 'ℹ️', duration: 7000 });
+      }
+      onDone();
+    } catch (err) { toast.error(err.message || 'Could not save'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Modal open onClose={busy ? () => {} : onClose}
+      title={`${department ? 'Set the department' : 'Set the reporting manager'} for ${ids.length} employee${ids.length === 1 ? '' : 's'}`}
+      footer={<>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button loading={busy} onClick={save}>Apply to {ids.length}</Button>
+      </>}>
+      {department ? (
+        <Select label="Department" value={value} onChange={(e) => setValue(e.target.value)}>
+          <option value="">No department (unassigned)</option>
+          {(opts.departments || []).filter((d) => d !== 'Unassigned').map((d) => <option key={d} value={d}>{d}</option>)}
+        </Select>
+      ) : (
+        <Select label="Reports to" value={value} onChange={(e) => setValue(e.target.value)}>
+          <option value="">Nobody (clear the reporting manager)</option>
+          {(opts.managers || []).map((m) => (
+            <option key={m._id} value={m._id}>{m.label}{m.designation ? ` — ${m.designation}` : ''}</option>
+          ))}
+        </Select>
+      )}
+      <p className="form-hint" style={{ marginTop: 10 }}>
+        {department
+          ? 'A new department is added on the Departments page first, then chosen here.'
+          : 'Anyone this cannot apply to — the manager themselves, or somebody above them — is left as they are and named.'}
+      </p>
+    </Modal>
   );
 }

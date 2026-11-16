@@ -34,8 +34,11 @@ export const flatten = (nodes = []) => nodes.flatMap((n) => [n, ...flatten(n.chi
  * below a root has a manager by definition.
  */
 export const coverageOf = (tree = []) => {
-  const all = flatten(tree);
-  const mapped = all.length - tree.filter((r) => !(r.children || []).length).length;
+  // The school's administrators head the chart but are not staff records, so
+  // they are not counted on either side of the fraction.
+  const all = flatten(tree).filter((n) => !n.isSchoolAdmin);
+  const lone = tree.filter((r) => !r.isSchoolAdmin && !(r.children || []).length).length;
+  const mapped = all.length - lone;
   return {
     total:  all.length,
     mapped: Math.max(0, mapped),

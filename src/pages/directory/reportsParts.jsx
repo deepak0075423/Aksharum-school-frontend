@@ -31,13 +31,23 @@ export const REPORT_META = {
   'active-inactive': { icon: 'power', tone: 'amber',
     desc: 'Employment status across the school — active, on leave and inactive.' },
   'new-joiners': { icon: 'userPlus', tone: 'green',
-    desc: 'Everyone who joined during the running academic year.' },
+    desc: 'Everyone who joined during the running academic year — the same people the New joiners tile counts.' },
+  'service-length': { icon: 'clock', tone: 'blue',
+    desc: 'How long each person working here has served, longest first.' },
+  birthdays: { icon: 'calendarDays', tone: 'pink',
+    desc: 'Birthdays through the year, by month — the day and month only.' },
+  'by-gender': { icon: 'users', tone: 'purple',
+    desc: 'Headcount by gender, split by teaching and non-teaching staff.' },
+  'by-qualification': { icon: 'bookOpen', tone: 'teal',
+    desc: 'Headcount by highest qualification on file.' },
+  exits: { icon: 'power', tone: 'amber',
+    desc: 'Everyone serving notice or who has left, with their last working day and reason.' },
   'profile-completion': { icon: 'activity', tone: 'indigo',
     desc: 'How much of each record is on file, and what is still missing.' },
   'pending-verification': { icon: 'checkCircle', tone: 'amber',
-    desc: 'Employees with sections still waiting to be signed off.' },
+    desc: 'Employees working here with sections still waiting to be signed off.' },
   'missing-documents': { icon: 'files', tone: 'pink',
-    desc: 'Documents a record still needs before it can be verified.' },
+    desc: 'Who still owes the office a document — a required one not uploaded, or one that was rejected.' },
 };
 
 export const metaFor = (key) => REPORT_META[key] || { icon: 'chart', tone: 'indigo', desc: '' };
@@ -80,7 +90,12 @@ export const SortHead = ({ label, index, sort, onSort }) => {
 export const sortRows = (rows, { by, dir }) => {
   if (by == null) return rows;
   const num = (v) => {
-    const s = String(v ?? '').replace(/[, ]/g, '');
+    const raw = String(v ?? '').trim();
+    // A date as the reports print it (31-01-2027) sorts by the calendar, not
+    // by its first two digits.
+    const date = /^(\d{2})-(\d{2})-(\d{4})$/.exec(raw);
+    if (date) return Number(`${date[3]}${date[2]}${date[1]}`);
+    const s = raw.replace(/[, ]/g, '');
     return s !== '' && !Number.isNaN(Number(s)) ? Number(s) : null;
   };
   const out = [...rows].sort((a, b) => {
@@ -130,7 +145,7 @@ export const ExportNote = ({ filtered, anyFilter }) => (
   <p className="edrnote">
     <Icon name={anyFilter ? 'filter' : 'download'} size={14} />
     {anyFilter
-      ? <>Filtered. CSV, Excel and Print all carry these filters, so the file holds the same {filtered} {filtered === 1 ? 'row' : 'rows'} shown here.</>
+      ? <>Filtered. CSV and Excel both carry these filters, so the file holds the same {filtered} {filtered === 1 ? 'row' : 'rows'} shown here.</>
       : <>Nothing is filtered, so an export holds all {filtered} {filtered === 1 ? 'row' : 'rows'}. Narrow the report and the file narrows with it.</>}
   </p>
 );

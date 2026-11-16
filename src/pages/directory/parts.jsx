@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
 import { Empty } from '../../components/ui/index';
-import { withFileToken } from '../../utils/fileAccess';
+import { withFileToken, fetchFile } from '../../utils/fileAccess';
 
 // Shared pieces of the Employee Directory. Everything here is built from the
 // existing design system — no new UI framework, no new colour scale.
@@ -11,8 +11,49 @@ import { withFileToken } from '../../utils/fileAccess';
 export function useDirectoryBase() {
   const { user } = useAuth();
   const { isAdmin } = useModules();
-  const admin = user?.role === 'school_admin' || isAdmin('employeeDirectory');
-  return { base: admin ? '/admin/employee-directory' : '/teacher/employee-directory', isDirectoryAdmin: admin };
+  const schoolAdmin = user?.role === 'school_admin';
+  const admin = schoolAdmin || isAdmin('employeeDirectory');
+  return {
+    base: admin ? '/admin/employee-directory' : '/teacher/employee-directory',
+    isDirectoryAdmin: admin,
+    // The account itself — add, edit in the wizard, deactivate, designations —
+    // belongs to the school administrator's own screens (Admin → Teachers,
+    // Designations). A teacher who administers the directory is not let into
+    // those, so the buttons that lead there are not drawn for them.
+    canManageAccounts: schoolAdmin,
+    // Whether this reader may open another module's admin area (a link there
+    // is only drawn when it will not end in "Forbidden").
+    canOpen: (moduleKey) => schoolAdmin || isAdmin(moduleKey),
+  };
+}
+
+/**
+ * A private PDF, as an address a frame can show.
+ *
+ * The API refuses to be framed by another origin (X-Frame-Options, and
+ * frame-ancestors 'self'), and in production the app and the API are two
+ * hosts — so an <iframe> pointed straight at a scan stays blank. The bytes are
+ * fetched instead and shown from a blob, which belongs to this page. Returns
+ * `{ url, failed }`; `url` is '' while it loads.
+ */
+export function useBlobUrl(src, enabled = true) {
+  const [state, setState] = useState({ url: '', failed: false });
+  useEffect(() => {
+    if (!src || !enabled) { setState({ url: '', failed: false }); return undefined; }
+    let gone = false;
+    let made = '';
+    setState({ url: '', failed: false });
+    fetchFile(src)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+      .then((data) => {
+        if (gone) return;
+        made = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+        setState({ url: made, failed: false });
+      })
+      .catch(() => { if (!gone) setState({ url: '', failed: true }); });
+    return () => { gone = true; if (made) URL.revokeObjectURL(made); };
+  }, [src, enabled]);
+  return state;
 }
 
 export const fmtDate = (d) => {
@@ -24,14 +65,32 @@ export const fmtDate = (d) => {
 
 export const STATUS_TONE = { active: 'success', on_leave: 'warning', inactive: 'muted' };
 export const STATUS_LABEL = { active: 'Active', on_leave: 'On Leave', inactive: 'Inactive' };
-export const VERIFY_TONE = { verified: 'success', pending: 'warning', rejected: 'danger', resubmitted: 'info' };
+export const VERIFY_TONE = { verified: 'success', pending: 'warning', rejected: 'danger', resubmitted: 'info', missing: 'muted' };
+export const STAGE_LABEL = {
+  probation: 'On probation', confirmed: 'Confirmed', notice: 'Serving notice',
+  resigned: 'Resigned', terminated: 'Terminated', retired: 'Retired',
+};
+export const STAGE_TONE = { probation: 'warning', confirmed: 'success', notice: 'warning', resigned: 'muted', terminated: 'danger', retired: 'muted' };
+
+/** "4 y 2 m" between two dates, or '' when there is nothing to measure. */
+export const serviceText = (from, to) => {
+  if (!from) return '';
+  const a = new Date(from); const b = to ? new Date(to) : new Date();
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return '';
+  let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  if (b.getDate() < a.getDate()) months -= 1;
+  if (months < 0) return '';
+  return months < 12 ? `${months} month${months === 1 ? '' : 's'}` : `${Math.floor(months / 12)} y ${months % 12} m`;
+};
 
 export const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
 // Private folders get the reader's file token on the address (utils/fileAccess).
 export const fileUrl = (path) => withFileToken(!path ? '' : /^https?:/.test(path) ? path : `${uploadBase}${path}`);
 
-/** Initials avatar, falling back to the account photo when there is one. */
+/** The account photo, or initials when there is none — or when it will not load. */
 export function Avatar({ name, src, size = 40 }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [src]);
   const initials = String(name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const style = {
@@ -42,12 +101,12 @@ export function Avatar({ name, src, size = 40 }) {
   };
   // A page of cards is a page of photos; fetch them as they come into view and
   // decode off the main thread so the list stays responsive while it fills.
-  if (src) {
+  if (src && !broken) {
     return (
       <img
         src={fileUrl(src)} alt={name} style={style}
         loading="lazy" decoding="async"
-        onError={(e) => { e.target.style.display = 'none'; }}
+        onError={() => setBroken(true)}
       />
     );
   }
