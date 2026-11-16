@@ -8,11 +8,17 @@ import { BreadcrumbProvider } from '../../contexts/BreadcrumbContext';
 import Breadcrumb from './Breadcrumb';
 import useFocusHighlight from '../../hooks/useFocusHighlight';
 import ModuleRouteGuard from '../ModuleRouteGuard';
+import { YearViewNotice } from './YearSwitcher';
+import { onViewYearChange } from '../../utils/yearView';
 
 export default function AppLayout() {
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [animKey, setAnimKey] = useState(0);
+  // The year switcher changed the academic year in view: the page on screen is
+  // mounted afresh, so everything it shows is read again for that year.
+  const [yearKey, setYearKey] = useState(0);
+  useEffect(() => onViewYearChange(() => setYearKey((k) => k + 1)), []);
   const location    = useLocation();
   const prevPath    = useRef(location.pathname);
 
@@ -67,10 +73,11 @@ export default function AppLayout() {
         <div key={animKey} className="page-transition">
           {/* Drawn here, not by the pages: a crumb each page writes for itself
               is a crumb most pages forget. */}
+          <YearViewNotice />
           <Breadcrumb />
           {/* Inside the layout on purpose: a page refused because its module is
               off should still leave you your sidebar to get somewhere else. */}
-          <ModuleRouteGuard><Outlet /></ModuleRouteGuard>
+          <ModuleRouteGuard key={yearKey}><Outlet /></ModuleRouteGuard>
         </div>
       </main>
     </div>

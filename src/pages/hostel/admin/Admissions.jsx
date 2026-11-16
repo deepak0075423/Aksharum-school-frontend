@@ -265,8 +265,8 @@ export default function Admissions() {
       <FilterBar>
         <FSearch value={state.search} onChange={(v) => set({ search: v })} placeholder="Search student name or application no..." grow={3} width="300px" />
         <FSelect value={state.status} onChange={(v) => set({ status: v })} all="All statuses" options={STATUS_FILTER} />
-        <FSelect value={state.academicYear} onChange={(v) => set({ academicYear: v })} all="All academic years"
-          options={years.map((y) => ({ value: y._id, label: y.yearName }))} />
+        <FSelect value={state.academicYear} onChange={(v) => set({ academicYear: v })} all="This academic year"
+          options={[{ value: 'all', label: 'All academic years' }, ...years.map((y) => ({ value: y._id, label: y.yearName }))]} />
         <FSelect value={state.class} onChange={(v) => set({ class: v })} all="All classes"
           options={(meta?.classes || []).map((c) => ({ value: c._id, label: c.className }))} />
         <FSelect value={state.hostel} onChange={(v) => set({ hostel: v })} all="All hostels"

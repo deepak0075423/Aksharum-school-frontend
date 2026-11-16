@@ -308,7 +308,7 @@ export default function InventoryBudgets() {
             <>
               <Filters inner>
                 <Field label="Academic Year" pick>
-                  <Select value={academicYear} onChange={setFilter(setAcademicYear)} options={d.filters?.years || []} placeholder="All years" />
+                  <Select value={academicYear} onChange={setFilter(setAcademicYear)} options={[{ value: 'all', label: 'All years' }, ...(d.filters?.years || [])]} placeholder="This year" />
                 </Field>
                 <Field label="Department" pick>
                   <Select value={department} onChange={setFilter(setDepartment)} options={d.filters?.departments || []} placeholder="All departments" />

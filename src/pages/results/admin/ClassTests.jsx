@@ -14,7 +14,7 @@
  * subject in that section (its teacher left, or is away), and delete a test set
  * by mistake — never one whose marks were approved, which stays on record.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/admin.api';
@@ -151,6 +151,7 @@ export default function ClassTests() {
   usePageCrumbs([{ label: 'Class Tests' }]);
   const [tab, setTab] = useState('all');
   const [filters, setFilters] = useState(NONE);
+  const yearSettled = useRef(false);              // true once the year filter shows the year on screen
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -165,14 +166,23 @@ export default function ClassTests() {
     const out = { tab, page, limit };
     if (q) out.search = q;
     Object.entries(filters).forEach(([k, v]) => { if (v !== '') out[k] = v; });
+    // One academic year's tests — the current one until another is picked.
+    // '' is "All Years" here and is asked for by name once the filter shows a year.
+    if (yearSettled.current) out.academicYear = filters.academicYear || 'all';
     return out;
   }, [tab, page, limit, q, filters]);
   const { body, loading, error, reload } = useBoard(api.getClassTestsAsOffice, query);
   const rows = body?.data || [];
   const tabs = body?.tabs || {};
   const f = body?.filters || { years: [], classes: [], subjects: [] };
+  const currentYear = (f.years || []).find((y) => y.current)?._id || '';
+  useEffect(() => {
+    if (yearSettled.current || !body?.filters) return;
+    yearSettled.current = true;
+    setFilters((s) => (s.academicYear ? s : { ...s, academicYear: currentYear }));
+  }, [body, currentYear]);
   const setFilter = (k, v) => { setFilters((s) => ({ ...s, [k]: v })); setPage(1); };
-  const narrowed = !!q || Object.values(filters).some((v) => v !== '');
+  const narrowed = !!q || Object.entries(filters).some(([k, v]) => v !== '' && !(k === 'academicYear' && v === currentYear));
 
   const approve = async (test) => {
     setApproving(true);
@@ -210,7 +220,7 @@ export default function ClassTests() {
             options={f.classes.map((c) => ({ value: String(c.classNumber), label: c.className }))} />
           <SelectField label="Subject" width={200} value={filters.subject} onChange={(v) => setFilter('subject', v)} all="All Subjects"
             options={f.subjects.map((x) => ({ value: x._id, label: x.subjectName }))} />
-          <Btn className="rs-filters__reset" icon="reset" iconSize={19} onClick={() => { setFilters(NONE); setSearch(''); setPage(1); }}>Reset</Btn>
+          <Btn className="rs-filters__reset" icon="reset" iconSize={19} onClick={() => { setFilters({ ...NONE, academicYear: currentYear }); setSearch(''); setPage(1); }}>Reset</Btn>
         </div>
 
         <div className="rs-tablearea">

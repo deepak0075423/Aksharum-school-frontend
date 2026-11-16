@@ -13,6 +13,7 @@ import { enableWebPush, isWebPushOn } from '../../utils/webPush';
 import AccountSwitcher from '../AccountSwitcher';
 import Icon from '../ui/icons';
 import GlobalSearch from './GlobalSearch';
+import YearSwitcher from './YearSwitcher';
 import pageTitle from '../../utils/pageTitle';
 
 function playNotifSound() {
@@ -271,6 +272,8 @@ export default function Header({ onMenuClick, onCollapseClick }) {
 
       {/* Actions */}
       <div className="header__actions">
+        {/* Which academic year every screen is showing. */}
+        <YearSwitcher />
         {/* Bell */}
         <div className="dropdown" ref={bellRef}>
           <button className="header__btn" title="Notifications" onClick={openBell}

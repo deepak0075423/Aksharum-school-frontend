@@ -21203,3 +21203,72 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .addraft p { flex: 1 1 320px; font-size: .86rem; line-height: 1.5; margin: 0; }
 .addraft__acts { display: flex; gap: 8px; margin-left: auto; }
 .doctitle__flag { margin-left: 8px; vertical-align: middle; }
+
+
+/* ── Academic year switcher (header) ───────────────────────────────────────
+   Which academic year every screen is showing. Reads as one of the header's
+   controls; turns amber while a year other than the school's current one is
+   in view, with a notice under the header saying so. */
+.yearsw__btn {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  height:        40px;
+  padding:       0 10px 0 12px;
+  border:        1px solid var(--border);
+  border-radius: 99px;
+  background:    var(--bg-card);
+  color:         var(--text-muted);
+  cursor:        pointer;
+  transition:    background var(--transition), border-color var(--transition), color var(--transition);
+  white-space:   nowrap;
+}
+.yearsw__btn:hover { background: var(--bg); color: var(--primary); }
+.yearsw__text  { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.yearsw__label { font-size: .62rem; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.yearsw__value { font-size: .86rem; font-weight: 600; color: var(--text); }
+.yearsw__caret { color: var(--text-muted); }
+.yearsw__btn.is-elsewhere { border-color: #f0b429; background: #fff8e6; }
+.yearsw__btn.is-elsewhere .yearsw__value { color: #8a5a00; }
+.yearsw__menu  { min-width: 210px; padding: 4px 0; }
+.yearsw__head  { padding: 8px 16px 6px; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.yearsw__item  { border: none; background: none; text-align: left; font: inherit; font-size: .9rem; }
+.yearsw__item.is-on { font-weight: 600; color: var(--primary); }
+.yearsw__name  { flex: 1; }
+.yearsw__tag   { font-size: .68rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--bg); color: var(--text-muted); }
+.yearsw__check { color: var(--primary); }
+
+.yearnote {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  margin:        12px 24px 0;
+  padding:       10px 14px;
+  border:        1px solid #f0b429;
+  border-radius: var(--radius-lg);
+  background:    #fff8e6;
+  color:         #6b4500;
+  font-size:     .86rem;
+}
+.yearnote > span { flex: 1; min-width: 0; }
+.yearnote__back {
+  flex-shrink:   0;
+  padding:       6px 12px;
+  border:        1px solid #d99a06;
+  border-radius: 99px;
+  background:    #fff;
+  color:         #6b4500;
+  font:          inherit;
+  font-size:     .8rem;
+  font-weight:   600;
+  cursor:        pointer;
+}
+.yearnote__back:hover { background: #fff1cc; }
+
+@media (max-width: 768px) {
+  .yearsw__label { display: none; }
+  .yearsw__btn   { padding: 0 8px 0 10px; gap: 6px; }
+  .yearnote      { margin: 10px 16px 0; flex-wrap: wrap; }
+  .yearnote > span { flex: 1 1 calc(100% - 30px); }
+  .yearnote__back  { margin-left: 26px; }
+}

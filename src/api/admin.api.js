@@ -351,7 +351,7 @@ export const aptitudeQuestionApi = {
 // Results
 // The list answers `{ data: [...], total, pages, tabs }` — rows beside their
 // paging and tab counts — so read the whole reply, not `useFetch().data`.
-export const getResultOverview  = () => api.get('/admin/results/overview');
+export const getResultOverview  = (params) => api.get('/admin/results/overview', { params });
 export const getFormalExams = (params) => api.get('/admin/results/exams', { params });
 export const createFormalExam = (data) => api.post('/admin/results/exams', data);
 export const getFormalExam  = (id) => api.get(`/admin/results/exams/${id}`);

@@ -113,7 +113,9 @@ export default function Documents() {
         sort,
         search: term || undefined,
         target: target || undefined,
-        academicYear: year || undefined,
+        // '' is "All years" on this screen; the list's own default is the
+        // academic year in view, so every year has to be asked for by name.
+        academicYear: year || 'all',
       });
       setRows(res.data || []);
       setMeta({ total: res.total || 0, pages: res.pages || 1 });

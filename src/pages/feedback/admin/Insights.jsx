@@ -288,8 +288,8 @@ export default function Insights() {
         {view === 'trends' ? (
           <div className="fbhero__filters">
             <Pick value={draft.academicYear} onChange={(v) => setDraft({ ...draft, academicYear: v })}
-              all="All years" label="Academic year"
-              options={(meta.data?.academicYears || []).map((y) => ({ value: y._id, label: y.yearName }))} />
+              all="This year" label="Academic year"
+              options={[{ value: 'all', label: 'All years' }, ...(meta.data?.academicYears || []).map((y) => ({ value: y._id, label: y.yearName }))]} />
             <select className={`fbsel${campaignId ? ' is-on' : ''}`} value={campaignId} aria-label="Campaign"
               onChange={(e) => setCampaignId(e.target.value)}>
               <option value="">All campaigns</option>
@@ -661,7 +661,8 @@ export default function Insights() {
               <Field label="Academic Year">
                 <select value={draft.academicYear} aria-label="Academic Year"
                   onChange={(e) => setDraft({ ...draft, academicYear: e.target.value })}>
-                  <option value="">All</option>
+                  <option value="">This year</option>
+                  <option value="all">All years</option>
                   {(meta.data?.academicYears || []).map((y) => (
                     <option key={y._id} value={y._id}>{y.yearName}</option>
                   ))}

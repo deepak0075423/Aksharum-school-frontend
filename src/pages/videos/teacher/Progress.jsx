@@ -91,7 +91,7 @@ export default function TeacherVideoProgress() {
           <>
             <section className="card">
               <div className="ltools">
-                {o.years.length > 1 ? select('Academic year', 'academicYear', o.years, 'All years') : null}
+                {o.years.length > 1 ? select('Academic year', 'academicYear', [{ _id: 'all', name: 'All years' }, ...o.years], 'This year') : null}
                 {select('Class', 'class', o.classes, 'All classes')}
                 {select('Section', 'section', sections, 'All sections')}
                 {select('Subject', 'subject', o.subjects, 'All subjects')}

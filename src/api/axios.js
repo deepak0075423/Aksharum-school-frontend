@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { viewYearHeader } from '../utils/yearView';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -9,6 +10,10 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // The academic year being looked at (the switcher in the header) — every
+  // read is answered for that year. Absent = the school's active year.
+  const year = viewYearHeader();
+  if (year) config.headers['X-Academic-Year'] = year;
   // The Medical Room's "confirm it is you" token, for its staff pages (pages/medical/stepUp.jsx).
   if (String(config.url || '').startsWith('/medical/')) {
     try { const up = sessionStorage.getItem('medicalStepUp'); if (up) config.headers['X-Medical-Step-Up'] = up; } catch { /* storage off */ }

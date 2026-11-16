@@ -78,6 +78,7 @@ export default function ResultsHome() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [showFilters, setShowFilters] = useState(readPref);
+  const yearSettled = useRef(false);            // true once the year filter shows the year on screen
 
   const [picked, setPicked] = useState(() => new Set());
   const [form, setForm] = useState(null);          // { exam } to edit, {} to create
@@ -106,11 +107,24 @@ export default function ResultsHome() {
     if (q) out.search = q;
     if (view) out.view = view;
     Object.entries(filters).forEach(([k, v]) => { if (v !== '') out[k] = v; });
+    // The list is one academic year's — the current one until another is
+    // picked. '' is "All Years" on this screen, and has to be asked for by name
+    // once the screen has settled on a year; before that the server's own
+    // default (the year in view) stands.
+    if (yearSettled.current) out.academicYear = filters.academicYear || 'all';
     return out;
   }, [tab, page, limit, q, view, filters]);
 
   const { body, loading, error, reload } = useBoard(api.getFormalExams, query);
-  const overview = useFetch(api.getResultOverview, []);
+  // The tiles count the year the list shows.
+  const overviewYear = yearSettled.current ? (filters.academicYear || 'all') : undefined;
+  const overview = useFetch(() => api.getResultOverview(overviewYear ? { academicYear: overviewYear } : undefined), [overviewYear]);
+  const currentYear = (overview.data?.years || []).find((y) => y.current)?._id || '';
+  useEffect(() => {
+    if (yearSettled.current || !overview.data?.years) return;
+    yearSettled.current = true;
+    setFilters((f) => (f.academicYear ? f : { ...f, academicYear: currentYear }));
+  }, [overview.data, currentYear]);
   const tiles = overview.data?.tiles || {};
   const rows = useMemo(() => body?.data || [], [body]);
   const tabs = body?.tabs || {};
@@ -145,14 +159,15 @@ export default function ResultsHome() {
     setFilters((f) => (f.status && !statusOptions(k).some((o) => o.value === f.status) ? { ...f, status: '' } : f));
   };
   const setFilter = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
-  const activeFilters = Object.values(filters).filter((v) => v !== '').length;
+  // The current year is where the screen starts, not a filter somebody set.
+  const activeFilters = Object.entries(filters).filter(([k, v]) => v !== '' && !(k === 'academicYear' && v === currentYear)).length;
   const narrowed = activeFilters > 0 || !!q || !!view;
-  const reset = () => { setFilters(NO_FILTERS); setSearch(''); setView(''); setPage(1); };
+  const reset = () => { setFilters({ ...NO_FILTERS, academicYear: currentYear }); setSearch(''); setView(''); setPage(1); };
   const toggleFilters = () => setShowFilters((s) => { try { localStorage.setItem(PREF, s ? 'closed' : 'open'); } catch { /* private mode */ } return !s; });
 
   // A tile shows the rows behind its number: two are a tab, two are a view over every tab.
   const tileTo = (target) => {
-    setFilters(NO_FILTERS); setSearch(''); setPage(1);
+    setFilters((f) => ({ ...NO_FILTERS, academicYear: f.academicYear })); setSearch(''); setPage(1);
     if (target === 'attention' || target === 'progress') { setTab('all'); setView(target); } else { setView(''); setTab(target); }
   };
 

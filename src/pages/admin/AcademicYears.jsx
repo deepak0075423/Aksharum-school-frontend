@@ -51,8 +51,13 @@ const Head = ({ children, hint }) => (
 
 export default function AcademicYears() {
   const { user: me } = useAuth();
-  const { data, loading, error, refetch } = useFetch(api.getAcademicYears);
-  const years = useMemo(() => data || [], [data]);
+  const { data, loading, error, refetch: reload } = useFetch(api.getAcademicYears);
+  // This screen is about the years themselves, so it shows each year's stored
+  // status (`realStatus`) — not the status as the rest of the app reads it
+  // while the header's year switcher is on another year.
+  const years = useMemo(() => (data || []).map((y) => ({ ...y, status: y.realStatus || y.status })), [data]);
+  // The switcher in the header lists these years too: tell it when they change.
+  const refetch = () => { window.dispatchEvent(new Event('academic-years:changed')); return reload(); };
 
   const [tab,    setTab]    = useState('all');
   const [search, setSearch] = useState('');

@@ -80,8 +80,8 @@ export default function ResultAnalytics() {
 
       {/* One row, above everything it scopes. */}
       <div className="rs-afilters">
-        <SelectField label="Academic Year" width={200} value={f.academicYear} onChange={(v) => set('academicYear', v)} all="All Years"
-          options={filters.years.map((y) => ({ value: y._id, label: `${y.yearName}${y.current ? ' (Current)' : ''}` }))} />
+        <SelectField label="Academic Year" width={200} value={f.academicYear} onChange={(v) => set('academicYear', v)} all="This Year"
+          options={[{ value: 'all', label: 'All Years' }, ...filters.years.map((y) => ({ value: y._id, label: `${y.yearName}${y.current ? ' (Current)' : ''}` }))]} />
         <SelectField label="Class" width={190} value={f.classNumber} onChange={(v) => set('classNumber', v)} all="All Classes"
           options={filters.classes.map((c) => ({ value: String(c.classNumber), label: c.className }))} />
         <SelectField label="Exam Type" width={190} value={f.examType} onChange={(v) => set('examType', v)} all="All Types" options={filters.examTypes} />
