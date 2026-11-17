@@ -22,7 +22,8 @@ import ImportYearStructureModal from '../../components/ImportYearStructureModal'
 import { newestYear } from '../../utils/listOrder';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs,
+  useListLayout, LayoutToggle } from './listParts';
 import {
   CountCell, InUseDialog, PHASE, RolloverPanel, SessionCell, SetActiveDialog, StatusCell,
   YearCell, YearDrawer, YearForm, phaseOf, todayDay,
@@ -60,6 +61,8 @@ export default function AcademicYears() {
   // The switcher in the header lists these years too: tell it when they change.
   const refetch = () => { window.dispatchEvent(new Event('academic-years:changed')); return reload(); };
 
+  // List or Card (cards only on a phone), remembered.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.academicYears.layout');
   const [tab,    setTab]    = useState('all');
   const [search, setSearch] = useState('');
   const [term,   setTerm]   = useState('');
@@ -274,6 +277,8 @@ export default function AcademicYears() {
             {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
           </select>
 
+          <LayoutToggle value={layout} onChange={setLayout} />
+
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
@@ -290,7 +295,8 @@ export default function AcademicYears() {
 
         {/* Cards on a phone (components/ui/PhoneCards): every column a line
             of its own, so nothing scrolls sideways. */}
-        <PhoneCards title="Academic Year" side="Status" keep={['Session', 'Classes', 'Students']}>
+        <PhoneCards title="Academic Year" side="Status" keep={['Session', 'Classes', 'Students']}
+          cards={shownLayout === 'card'}>
           <ListTable
             columns={columns}
             rows={shown}

@@ -17,6 +17,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
+import usePhone from '../../../hooks/usePhone';
 import * as api from '../../../api/feedback.api';
 import Icon from '../../../components/ui/icons';
 import { Spinner } from '../../../components/ui/index';
@@ -193,6 +194,9 @@ export default function Insights() {
   const [state, setState] = useState('');
   const [sort, setSort] = useState('rating');
   const [layout, setLayout] = useState('table');
+  // Teachers are always cards on a phone; Table / Card is a desktop choice.
+  const phone = usePhone();
+  const teacherLayout = phone ? 'card' : layout;
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
   // Reports' own order: '' is the server's, or the column a tile asked for.
@@ -489,14 +493,16 @@ export default function Insights() {
               {/* Order and layout travel together, at the right end of the bar. */}
               <span className="fbtools__end">
                 <SortBy value={sort} onChange={setSort} options={TEACHER_SORTS} />
-                <ViewToggle value={layout} onChange={setLayout} options={[
-                  { value: 'table', label: 'Table', icon: 'grid' },
-                  { value: 'card', label: 'Card', icon: 'layers' },
-                ]} />
+                {!phone && (
+                  <ViewToggle value={layout} onChange={setLayout} options={[
+                    { value: 'table', label: 'Table', icon: 'grid' },
+                    { value: 'card', label: 'Card', icon: 'layers' },
+                  ]} />
+                )}
               </span>
             </Toolbar>
 
-            {layout === 'card' ? (
+            {teacherLayout === 'card' ? (
               <div className="fbtplwrap">
                 {shown.length ? (
                   <div className="fbtcards">

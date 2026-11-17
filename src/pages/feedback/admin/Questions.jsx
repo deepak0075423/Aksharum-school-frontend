@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/feedback.api';
+import usePhone from '../../../hooks/usePhone';
 import Icon from '../../../components/ui/icons';
 import { Spinner } from '../../../components/ui/index';
 import {
@@ -84,6 +85,9 @@ export default function Questions() {
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState('newest');
   const [layout, setLayout] = useState('list');
+  // Templates are always cards on a phone; List / Card is a desktop choice.
+  const phone = usePhone();
+  const tplLayout = phone ? 'card' : layout;
   const [page, setPage] = useState(1);
   const limit = 10;
 
@@ -544,7 +548,7 @@ export default function Questions() {
             <SortBy value={sort} onChange={(v) => { setSort(v); setPage(1); }}
               options={view === 'bank' ? BANK_SORTS : view === 'categories' ? CAT_SORTS : TPL_SORTS} />
 
-            {view === 'templates' && (
+            {view === 'templates' && !phone && (
               <ViewToggle value={layout} onChange={setLayout} options={[
                 { value: 'list', label: 'List', icon: 'list' },
                 { value: 'card', label: 'Card', icon: 'grid' },
@@ -556,7 +560,7 @@ export default function Questions() {
         {view === 'templates' ? (
           <div className="fbtplwrap">
             {shown.length ? (
-              <div className={`fbtpls${layout === 'card' ? ' fbtpls--card' : ''}`}>
+              <div className={`fbtpls${tplLayout === 'card' ? ' fbtpls--card' : ''}`}>
                 {shown.map((t) => (
                   <TemplateCard key={t._id} tpl={t} base={base}
                     onEdit={() => {

@@ -15,6 +15,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
+import usePhone from '../../hooks/usePhone';
 import * as api from '../../api/admin.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Confirm, Empty, Spinner } from '../../components/ui/index';
@@ -49,7 +50,8 @@ const TABS = [
 // pick it again every time they open the page.
 const VIEW_KEY = 'admin.classes.view';
 const readView = () => {
-  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
+  // List unless Card was chosen before (stored as 'grid', its old name).
+  try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'; } catch { return 'list'; }
 };
 
 /** A column heading with the sentence explaining it hanging off an ⓘ. */
@@ -84,6 +86,10 @@ export default function Classes() {
   const [term,   setTerm]   = useState('');
   const [sort,   setSort]   = useState('grade');
   const [view,   setView]   = useState(readView);
+  // On a phone the classes are always cards: the table needs a desktop's width.
+  // The saved choice is left alone — a desktop that picked List keeps it.
+  const phone = usePhone();
+  const shownView = phone ? 'grid' : view;
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(15);
 
@@ -360,12 +366,14 @@ export default function Classes() {
 
           {/* Two ways to read the same rows: cards for how full and how ready a
               class is, the table for comparing every class at once. */}
-          <div className="clsview" role="group" aria-label="View">
-            <button type="button" className={view === 'grid' ? 'is-on' : ''} onClick={() => setView('grid')}
-              aria-pressed={view === 'grid'}><Icon name="grid" size={15} /> Grid</button>
-            <button type="button" className={view === 'list' ? 'is-on' : ''} onClick={() => setView('list')}
-              aria-pressed={view === 'list'}><Icon name="menu" size={15} /> List</button>
-          </div>
+          {!phone && (
+            <div className="clsview" role="group" aria-label="View">
+              <button type="button" className={view === 'list' ? 'is-on' : ''} onClick={() => setView('list')}
+                aria-pressed={view === 'list'}><Icon name="menu" size={15} /> List</button>
+              <button type="button" className={view === 'grid' ? 'is-on' : ''} onClick={() => setView('grid')}
+                aria-pressed={view === 'grid'}><Icon name="grid" size={15} /> Card</button>
+            </div>
+          )}
 
           <span className="ltools__sep" />
 
@@ -383,7 +391,7 @@ export default function Classes() {
           </div>
         </div>
 
-        {view === 'grid'
+        {shownView === 'grid'
           ? (
             <div className="clsbody">
               {loading

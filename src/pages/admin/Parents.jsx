@@ -8,6 +8,7 @@
  * reach them, and switches an account on or off.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import PhoneCards from '../../components/ui/PhoneCards';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
@@ -22,7 +23,7 @@ import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
   FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
   Who, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions, HelpPanel,
-  PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, ago, Blank,
+  PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, ago, Blank, useListLayout, LayoutToggle,
 } from './listParts';
 
 const SORTS = [
@@ -50,6 +51,8 @@ export default function Parents() {
   const { user: me } = useAuth();
   const { isEnabled } = useModules();
 
+  // List or Card (cards only on a phone), remembered per page.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.parents.layout');
   const [page, setPage]   = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
@@ -219,6 +222,7 @@ export default function Parents() {
           <FiltersButton open={showFilters} count={filterCount}
             onClick={() => setShowFilters((v) => !v)} />
 
+          <LayoutToggle value={layout} onChange={setLayout} />
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
@@ -253,21 +257,25 @@ export default function Parents() {
             onClick={() => bulkSetActive(false)}>Deactivate</button>
         </SelectionBar>
 
-        <ListTable
-          columns={columns}
-          rows={rows}
-          loading={loading}
-          selection={selection}
-          startIndex={(page - 1) * limit}
-          emptyIcon={anyFilter ? '🔍' : '👪'}
-          emptyTitle={anyFilter ? 'No parents match these filters' : 'No parents yet'}
-          emptyMessage={anyFilter
-            ? 'Try a different class, status or search term.'
-            : 'A parent account is created when a child is admitted — the admission form’s family step makes it.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : <Link to="/admin/students" className="btn btn-primary">Go to Students</Link>}
-        />
+        {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
+            a few lines, then the row's actions — nothing scrolls sideways. */}
+        <PhoneCards title="Parent" side="Status" keep={['Children', 'Relationship', 'Phone']} cards={shownLayout === 'card'}>
+          <ListTable
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            selection={selection}
+            startIndex={(page - 1) * limit}
+            emptyIcon={anyFilter ? '🔍' : '👪'}
+            emptyTitle={anyFilter ? 'No parents match these filters' : 'No parents yet'}
+            emptyMessage={anyFilter
+              ? 'Try a different class, status or search term.'
+              : 'A parent account is created when a child is admitted — the admission form’s family step makes it.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : <Link to="/admin/students" className="btn btn-primary">Go to Students</Link>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={page} pages={data?.pages || 1} total={data?.total || 0}

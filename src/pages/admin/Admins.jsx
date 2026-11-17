@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import PhoneCards from '../../components/ui/PhoneCards';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -12,7 +13,7 @@ import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
   FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
   Who, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions, HelpPanel,
-  PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, ago,
+  PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, ago, useListLayout, LayoutToggle,
 } from './listParts';
 
 const SORTS = [
@@ -33,6 +34,8 @@ const EMPTY = { status: '', added: '', sort: 'name' };
 export default function Admins() {
   const { user: me } = useAuth();
 
+  // List or Card (cards only on a phone), remembered per page.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.admins.layout');
   const [page, setPage]   = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
@@ -217,6 +220,7 @@ export default function Admins() {
           <FiltersButton open={showFilters} count={filterCount}
             onClick={() => setShowFilters((v) => !v)} />
 
+          <LayoutToggle value={layout} onChange={setLayout} />
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
@@ -247,21 +251,25 @@ export default function Admins() {
             onClick={() => bulkSetActive(false)}>Deactivate</button>
         </SelectionBar>
 
-        <ListTable
-          columns={columns}
-          rows={rows}
-          loading={loading}
-          selection={selection}
-          startIndex={(page - 1) * limit}
-          emptyIcon={anyFilter ? '🔍' : '🛡️'}
-          emptyTitle={anyFilter ? 'No admins match these filters' : 'No admins yet'}
-          emptyMessage={anyFilter
-            ? 'Try a different status or search term.'
-            : 'Invite someone to help run the school. They are emailed a one-time password.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : <Button onClick={() => setInv(true)}>+ Add Admin</Button>}
-        />
+        {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
+            a few lines, then the row's actions — nothing scrolls sideways. */}
+        <PhoneCards title="Admin" side="Status" keep={['Role', 'Phone', 'Last Active']} cards={shownLayout === 'card'}>
+          <ListTable
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            selection={selection}
+            startIndex={(page - 1) * limit}
+            emptyIcon={anyFilter ? '🔍' : '🛡️'}
+            emptyTitle={anyFilter ? 'No admins match these filters' : 'No admins yet'}
+            emptyMessage={anyFilter
+              ? 'Try a different status or search term.'
+              : 'Invite someone to help run the school. They are emailed a one-time password.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : <Button onClick={() => setInv(true)}>+ Add Admin</Button>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={page} pages={data?.pages || 1} total={data?.total || 0}

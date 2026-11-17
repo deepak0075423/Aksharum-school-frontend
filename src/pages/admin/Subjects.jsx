@@ -13,6 +13,7 @@
  * which the server works out and returns per row.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import PhoneCards from '../../components/ui/PhoneCards';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -23,7 +24,8 @@ import ImportYearStructureModal from '../../components/ImportYearStructureModal'
 import { newestYear } from '../../utils/listOrder';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs} from './listParts';
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, ListTabs, useListLayout, LayoutToggle,
+} from './listParts';
 import {
   DeleteDialog, InUseDialog, NextStepsPanel, StatusCell, SubjectCell, SubjectDrawer,
   SubjectForm, SubjectTeachersDialog, TeacherChips, TypeBadge, TYPES, UsageCell, catalogueTeachers, teacherCount,
@@ -54,6 +56,8 @@ const Head = ({ children, hint }) => (
 export default function Subjects() {
   const { user: me } = useAuth();
   const { data: years, loading: yearsLoading } = useFetch(api.getAcademicYears);
+  // List or Card (cards only on a phone), remembered per page.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.subjects.layout');
   const [year, setYear] = useState('');
 
   // Start on the year the school is working in, and fall back to the newest.
@@ -344,6 +348,7 @@ export default function Subjects() {
             {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
           </select>
 
+          <LayoutToggle value={layout} onChange={setLayout} />
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
@@ -359,29 +364,33 @@ export default function Subjects() {
           </div>
         </div>
 
-        <ListTable
-          columns={columns}
-          rows={shown}
-          loading={loading}
-          startIndex={start}
-          emptyIcon={anyFilter ? '🔍' : '📚'}
-          emptyTitle={anyFilter
-            ? 'No subjects match these filters'
-            : `No subjects in ${yearName} yet`}
-          emptyMessage={anyFilter
-            ? 'Try another tab, type or search term.'
-            : 'Each year has its own list. Copy last year’s across, or add the first one by hand.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                {(years || []).length > 1 && (
-                  <Button onClick={() => setImportOpen(true)}>Import from another year</Button>
-                )}
-                <Button variant="secondary" onClick={() => { setFormErr(''); setEditing('new'); }}>Add a subject</Button>
-              </div>
-            )}
-        />
+        {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
+            a few lines, then the row's actions — nothing scrolls sideways. */}
+        <PhoneCards title="Subject" side="Status" keep={['Type', 'Teachers', `Used in ${yearName}`]} cards={shownLayout === 'card'}>
+          <ListTable
+            columns={columns}
+            rows={shown}
+            loading={loading}
+            startIndex={start}
+            emptyIcon={anyFilter ? '🔍' : '📚'}
+            emptyTitle={anyFilter
+              ? 'No subjects match these filters'
+              : `No subjects in ${yearName} yet`}
+            emptyMessage={anyFilter
+              ? 'Try another tab, type or search term.'
+              : 'Each year has its own list. Copy last year’s across, or add the first one by hand.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : (
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  {(years || []).length > 1 && (
+                    <Button onClick={() => setImportOpen(true)}>Import from another year</Button>
+                  )}
+                  <Button variant="secondary" onClick={() => { setFormErr(''); setEditing('new'); }}>Add a subject</Button>
+                </div>
+              )}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={filtered.length}

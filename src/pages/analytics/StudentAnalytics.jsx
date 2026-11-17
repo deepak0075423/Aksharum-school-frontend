@@ -14,6 +14,8 @@
  * is not shown a fee column, an empty fee panel, or a "has dues" filter.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import PhoneCards from '../../components/ui/PhoneCards';
+import { useListLayout, LayoutToggle } from '../admin/listParts';
 import { Link } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
 import { useAuth } from '../../contexts/AuthContext';
@@ -71,6 +73,8 @@ export default function StudentAnalytics() {
   const isTeacher = user?.role === 'teacher';
   const base = isTeacher ? '/teacher/student-analytics' : '/admin/student-analytics';
 
+  // List or Card for the roster (cards only on a phone), remembered.
+  const [layout, setLayout, shownLayout] = useListLayout('analytics.roster.layout');
   const [classId,   setClassId]   = useState('');
   const [sectionId, setSectionId] = useState('');
   const [search,    setSearch]    = useState('');
@@ -415,6 +419,7 @@ export default function StudentAnalytics() {
             <h2>Students <span className="ancount">{roster?.total ?? 0}</span></h2>
             <p>Open a student for their full module-by-module dashboard.</p>
           </div>
+          <LayoutToggle value={layout} onChange={setLayout} />
         </header>
 
         {rosterLoading
@@ -428,6 +433,10 @@ export default function StudentAnalytics() {
                   : null} />
             )
             : (
+              // Cards on a phone (components/ui/PhoneCards): the student, then the
+              // figures this page exists for, then View.
+              <PhoneCards title="Student" keep={['Class', 'Roll', 'Attendance', 'Avg. result', 'Fees', 'Library']}
+                cards={shownLayout === 'card'}>
               <div className="table-wrap">
                 <table className="table antable">
                   <thead>
@@ -465,7 +474,7 @@ export default function StudentAnalytics() {
                         )}
                         {modules.fees && <td className="ancol-fee"><FeeCell row={r} /></td>}
                         {modules.library && <td className="ancol-lib"><LibraryCell row={r} /></td>}
-                        <td className="ancol-act">
+                        <td className="ancol-act ltable__acts">
                           <Link to={`${base}/${r._id}`} className="btn btn-secondary btn-sm">View</Link>
                         </td>
                       </tr>
@@ -473,6 +482,7 @@ export default function StudentAnalytics() {
                   </tbody>
                 </table>
               </div>
+              </PhoneCards>
             )}
 
         {students.length > 0 && (

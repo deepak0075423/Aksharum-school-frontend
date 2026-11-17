@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import PhoneCards from '../../components/ui/PhoneCards';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
@@ -17,7 +18,7 @@ import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
   FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
   Who, Stack, Chips, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
-  HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, Breakdown,
+  HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, Breakdown, useListLayout, LayoutToggle,
 } from './listParts';
 import { experienceText } from '../../utils/validators';
 
@@ -47,6 +48,8 @@ export default function Teachers() {
   const { user }    = useAuth();
   const { isEnabled } = useModules();
 
+  // List or Card (cards only on a phone), remembered per page.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.teachers.layout');
   const [page, setPage]   = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
@@ -279,6 +282,7 @@ export default function Teachers() {
           <FiltersButton open={showFilters} count={filterCount}
             onClick={() => setShowFilters((v) => !v)} />
 
+          <LayoutToggle value={layout} onChange={setLayout} />
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
@@ -324,21 +328,25 @@ export default function Teachers() {
           {/* Deactivating is per-teacher on purpose — see bulkActivate. */}
         </SelectionBar>
 
-        <ListTable
-          columns={columns}
-          rows={rows}
-          loading={loading}
-          selection={selection}
-          startIndex={(page - 1) * limit}
-          emptyIcon={anyFilter ? '🔍' : '🧑‍🏫'}
-          emptyTitle={anyFilter ? 'No teachers match these filters' : 'No teachers yet'}
-          emptyMessage={anyFilter
-            ? 'Try a different designation, subject or search term.'
-            : 'Add your first teacher, or bring the whole staff list in from a spreadsheet.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : <Button onClick={() => setCreate(true)}>+ Add Teacher</Button>}
-        />
+        {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
+            a few lines, then the row's actions — nothing scrolls sideways. */}
+        <PhoneCards title="Teacher" side="Status" keep={['Designation', 'Subjects', 'Phone', 'Joining Date']} cards={shownLayout === 'card'}>
+          <ListTable
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            selection={selection}
+            startIndex={(page - 1) * limit}
+            emptyIcon={anyFilter ? '🔍' : '🧑‍🏫'}
+            emptyTitle={anyFilter ? 'No teachers match these filters' : 'No teachers yet'}
+            emptyMessage={anyFilter
+              ? 'Try a different designation, subject or search term.'
+              : 'Add your first teacher, or bring the whole staff list in from a spreadsheet.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : <Button onClick={() => setCreate(true)}>+ Add Teacher</Button>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={page} pages={data?.pages || 1} total={data?.total || 0}

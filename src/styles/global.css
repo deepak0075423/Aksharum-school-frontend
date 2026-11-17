@@ -21654,3 +21654,132 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .fbmorebtn { width: 100%; justify-content: center; }
 }
 .fbmorecell:has(.fbmorebtn.is-open) { padding-top: 0; align-items: flex-start; }
+
+/* PhoneCards: a row's opened detail (ListTable `renderExpanded`, e.g. a
+   designation's module access) is its own card under the row — every cell of a
+   PhoneCards row is hidden unless named, which drew it as an empty box. */
+@media (max-width: 640px) {
+  .phc table > tbody > tr.ltable__exp { display: block; margin-top: -4px; padding: 12px 14px; }
+  .phc table > tbody > tr.ltable__exp > td { display: block; width: 100%; padding: 0; }
+  /* A value written as two loose lines (lstack main + sub, e.g. a teacher's
+     designation and its staff type): the sub-line sits under the value, not
+     across the card from it. */
+  .phc table > tbody > tr > td.phc-keep { flex-wrap: wrap; row-gap: 2px; }
+  .phc table > tbody > tr > td.phc-keep > .lstack__main { margin-left: auto; }
+  .phc table > tbody > tr > td.phc-keep > .lstack__sub { flex: 1 0 100%; text-align: right; }
+  .phc table > tbody > tr > td.ancol-act { text-align: right; }
+}
+
+/* ── PhoneCards, Card view on a wide screen (`<PhoneCards cards>`) ──────────
+   The same card as on a phone — heading + status, a few label/value lines,
+   the row's actions — laid out several across. A page's List / Card switch
+   (listParts LayoutToggle) turns it on; a phone always shows cards anyway. */
+.phc--cards .table-wrap, .phc--cards .lvtable__wrap { overflow: visible; }
+.phc--cards table { display: block; width: 100%; }
+.phc--cards table > thead { display: none; }
+.phc--cards table > tbody {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px; padding: 16px; align-items: start;
+}
+.phc--cards table > tbody > tr {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  margin: 0; padding: 14px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.phc--cards table > tbody > tr:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
+.phc--cards table > tbody > tr:hover > td { background: none; }
+.phc--cards table > tbody > tr.is-picked { border-color: var(--primary); }
+.phc--cards table > tbody > tr > td {
+  display: none; padding: 0; border: 0; max-width: none; width: auto; min-width: 0;
+  font-size: .84rem; text-align: left; white-space: normal; background: none;
+}
+.phc--cards table > tbody > tr > td.phc-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
+.phc--cards table > tbody > tr > td.phc-title b { white-space: normal; overflow-wrap: anywhere; }
+.phc--cards table > tbody > tr > td.phc-side  { display: block; order: 2; flex: 0 0 auto; }
+.phc--cards table > tbody > tr > td.ltable__tick { display: block; order: 0; flex: 0 0 auto; }
+.phc--cards table > tbody > tr > td.phc-keep {
+  display: flex; order: 3; width: 100%; align-items: flex-start; justify-content: space-between; gap: 4px 14px;
+  flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--border);
+}
+.phc--cards table > tbody > tr > td.phc-keep::before {
+  content: attr(data-label); flex-shrink: 0;
+  font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-muted); padding-top: 2px;
+}
+.phc--cards table > tbody > tr > td.phc-keep > * { min-width: 0; text-align: right; }
+.phc--cards table > tbody > tr > td.phc-keep > .lstack__main { margin-left: auto; }
+.phc--cards table > tbody > tr > td.phc-keep > .lstack__sub { flex: 1 0 100%; text-align: right; }
+.phc--cards table > tbody > tr > td.ltable__acts, .phc--cards table > tbody > tr > td.lvt-acts {
+  display: block; order: 4; width: 100%; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.phc--cards table > tbody > tr > td.ltable__acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
+.phc--cards table > tbody > tr > td.ancol-act { text-align: right; }
+/* An opened row's detail spans the grid under its card. */
+.phc--cards table > tbody > tr.ltable__exp { grid-column: 1 / -1; display: block; }
+.phc--cards table > tbody > tr.ltable__exp > td { display: block; width: 100%; padding: 0; }
+/* A phone keeps its single column with the phone spacing. */
+@media (max-width: 640px) {
+  .phc--cards table > tbody { display: block; padding: 0; }
+  .phc--cards table > tbody > tr { margin: 0 12px 12px; }
+  .phc--cards table > tbody > tr:first-child { margin-top: 12px; }
+}
+
+/* The List / Card switch sits beside a heading on Student Analytics; the
+   heading's `> div { flex: 1 }` stretched it across the panel. */
+.anpanel__head > .clsview { flex: 0 0 auto; align-self: center; }
+
+/* Academic Years in Card view on a laptop: the same card as on a phone. The
+   narrower layouts drop Session (≤1360px) and Students (≤1100px) from the
+   table; on a card they come back as lines. */
+.aypage .phc--cards .ltable td.aycol-session.phc-keep,
+.aypage .phc--cards .ltable td.aycol-students.phc-keep { display: flex; }
+.aypage .phc--cards .ltable > tbody > tr > td { padding: 0; }
+.aypage .phc--cards .ltable > tbody > tr > td.phc-keep { padding-top: 8px; }
+.aypage .phc--cards .ltable > tbody > tr > td.ltable__acts { padding-top: 10px; }
+.aypage .phc--cards .ltable > tbody > tr > td.phc-title { flex: 1 1 190px; }
+.aypage .phc--cards .aywho__name { white-space: nowrap; }
+.aypage .phc--cards .aystatus { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.aypage .phc--cards .aycount { align-items: flex-end; }
+.aypage .phc--cards .aysession { display: flex; flex-direction: column; align-items: flex-end; }
+.aypage .phc--cards .aysession__dates { flex-wrap: wrap; justify-content: flex-end; }
+.aypage .phc--cards .aybar { width: 150px; max-width: 100%; }
+
+/* ── Summary tiles on a phone (Nov 18) ─────────────────────────────────────
+   Teachers, Students, Parents, Admins, Designations, Academic Years, Classes,
+   Subjects, Reports (all `.lstats`), Student Analytics (`.antiles`) and the
+   Teacher Feedback screens (`.fbstats`): two tiles to a row; an odd tile out
+   takes the whole last row (3 = 2 + 1, 5 = 2 + 2 + 1); every row is the
+   height of the tallest tile, so all tiles are the same size; and inside a
+   tile the icon sits above the figure so a half-width tile never squeezes its
+   words into a column beside the icon. */
+/* `.lstats` is always two across between a phone and 1100px, so the odd tile
+   out spans its row there too (the other tile rows can be three across). */
+@media (min-width: 641px) and (max-width: 1100px) {
+  .lstats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .lstats, .antiles, .fbstats, .fbstats--3, .fbstats--5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 10px;
+  }
+  .lstats > :last-child:nth-child(odd),
+  .antiles > :last-child:nth-child(odd),
+  .fbstats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  .lstat, .antile, .fbstat {
+    flex-direction: column; align-items: flex-start; justify-content: flex-start;
+    gap: 10px; padding: 14px; min-width: 0; height: 100%;
+  }
+  .lstat__icon, .antile__icon, .fbstat__icon { width: 38px; height: 38px; border-radius: 11px; }
+  .lstat__icon svg, .antile__icon svg, .fbstat__icon svg { width: 19px; height: 19px; }
+  .lstat__body, .antile__body, .fbstat__body { width: 100%; min-width: 0; }
+  .lstat__value, .antile__value, .fbstat__value { font-size: 1.35rem; line-height: 1.15; }
+  .lstat__label, .antile__label, .fbstat__label { font-size: .8rem; line-height: 1.3; margin-top: 2px; }
+  .lstat__cap, .antile__cap, .fbstat__cap { font-size: .7rem; line-height: 1.35; }
+  .antile__none { font-size: .9rem; line-height: 1.4; }
+  /* Long figures (money) shrink rather than overflow a half-width tile. */
+  .lstat__value, .antile__value, .fbstat__value { overflow-wrap: anywhere; }
+}

@@ -36,7 +36,7 @@ function columnLabels(thead) {
   return grid[grid.length - 1] || [];
 }
 
-export default function PhoneCards({ title, side, keep = [], children, className = '' }) {
+export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false }) {
   const ref = useRef(null);
   const spec = `${title}|${side}|${keep.join('|')}`;
   useLayoutEffect(() => {
@@ -65,5 +65,7 @@ export default function PhoneCards({ title, side, keep = [], children, className
     watch.observe(root, { childList: true, subtree: true });
     return () => watch.disconnect();
   }, [spec]);   // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={ref} className={`phc ${className}`.trim()}>{children}</div>;
+  // `cards`: the card layout at every width (a page's Card view), laid out
+  // several across on a wide screen. Without it the cards are a phone-only view.
+  return <div ref={ref} className={`phc${cards ? ' phc--cards' : ''} ${className}`.trim()}>{children}</div>;
 }

@@ -11,6 +11,7 @@
  * the pager are all local: there is nothing to fetch when the tab changes.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import PhoneCards from '../../components/ui/PhoneCards';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../api/admin.api';
@@ -22,7 +23,8 @@ import { MODULES } from '../../utils/modules';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, Blank, ListTabs,
-  Breakdown} from './listParts';
+  Breakdown, useListLayout, LayoutToggle,
+} from './listParts';
 import {
   AccessDetail, AccessSummary, DesignationCell, DesignationDrawer, DesignationEditor,
   Holders, HoldersModal, countBy, levelOf,
@@ -58,6 +60,8 @@ const Head = ({ children, hint }) => (
 export default function Designations() {
   const { user: me } = useAuth();
 
+  // List or Card (cards only on a phone), remembered per page.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.designations.layout');
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
   const [modules, setModules] = useState([]);
@@ -378,6 +382,7 @@ export default function Designations() {
             {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
           </select>
 
+          <LayoutToggle value={layout} onChange={setLayout} />
           <span className="ltools__sep" />
 
           <div className="ltools__acts">
@@ -385,24 +390,28 @@ export default function Designations() {
           </div>
         </div>
 
-        <ListTable
-          columns={columns}
-          rows={shown}
-          startIndex={(Math.min(page, pages) - 1) * limit}
-          expandedId={expanded}
-          renderExpanded={(r) => (
-            <AccessDetail modules={enabled} permissions={r.permissions}
-              onEdit={() => setEditing(r)} />
-          )}
-          emptyIcon={anyFilter ? '🔍' : '🎫'}
-          emptyTitle={anyFilter ? 'No designations match these filters' : 'No designations yet'}
-          emptyMessage={anyFilter
-            ? 'Try another tab, module or search term.'
-            : 'Add a designation to configure the module access it grants.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : <Button onClick={() => setAdding(true)}>+ Add Designation</Button>}
-        />
+        {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
+            a few lines, then the row's actions — nothing scrolls sideways. */}
+        <PhoneCards title="Designation" side="Status" keep={['Users', 'Module Access']} cards={shownLayout === 'card'}>
+          <ListTable
+            columns={columns}
+            rows={shown}
+            startIndex={(Math.min(page, pages) - 1) * limit}
+            expandedId={expanded}
+            renderExpanded={(r) => (
+              <AccessDetail modules={enabled} permissions={r.permissions}
+                onEdit={() => setEditing(r)} />
+            )}
+            emptyIcon={anyFilter ? '🔍' : '🎫'}
+            emptyTitle={anyFilter ? 'No designations match these filters' : 'No designations yet'}
+            emptyMessage={anyFilter
+              ? 'Try another tab, module or search term.'
+              : 'Add a designation to configure the module access it grants.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : <Button onClick={() => setAdding(true)}>+ Add Designation</Button>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={filtered.length}

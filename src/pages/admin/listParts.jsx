@@ -21,6 +21,7 @@ import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { DrawerHead as UiDrawerHead, DrawerSection as UiDrawerSection } from '../../components/ui/Drawer';
 import { withFileToken } from '../../utils/fileAccess';
+import usePhone from '../../hooks/usePhone';
 
 // Uploads are served from the backend root while VITE_API_URL points at /api.
 const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
@@ -341,6 +342,38 @@ export function useSelection(rows, resetKey) {
  * Designations shows every module and the level it grants there. Pages that
  * pass neither prop are unaffected.
  */
+/**
+ * List or Card for a list page, remembered per page in this browser.
+ *
+ * Returns [chosen, setChosen, shown]: `shown` is what to draw — always 'card'
+ * on a phone, where a table cannot fit; the desktop choice is kept for when
+ * the screen is wide again. Storage is a convenience: blocked storage simply
+ * means the page opens on List.
+ */
+export function useListLayout(key) {
+  const read = () => {
+    try { return localStorage.getItem(key) === 'card' ? 'card' : 'list'; } catch { return 'list'; }
+  };
+  const [layout, setLayout] = useState(read);
+  const phone = usePhone();
+  useEffect(() => { try { localStorage.setItem(key, layout); } catch { /* private mode */ } }, [key, layout]);
+  return [layout, setLayout, phone ? 'card' : layout];
+}
+
+/** The List / Card switch (the Classes page's look). Not offered on a phone — cards only there. */
+export function LayoutToggle({ value, onChange }) {
+  const phone = usePhone();
+  if (phone) return null;
+  return (
+    <div className="clsview" role="group" aria-label="Layout">
+      <button type="button" className={value === 'list' ? 'is-on' : ''} aria-pressed={value === 'list'}
+        onClick={() => onChange('list')}><Icon name="menu" size={15} /> List</button>
+      <button type="button" className={value === 'card' ? 'is-on' : ''} aria-pressed={value === 'card'}
+        onClick={() => onChange('card')}><Icon name="grid" size={15} /> Card</button>
+    </div>
+  );
+}
+
 export function ListTable({
   columns, rows, loading, selection, startIndex = 0,
   emptyIcon, emptyTitle, emptyMessage, emptyAction,
