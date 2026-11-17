@@ -78,14 +78,14 @@ export function StarInput({ value, onChange, name }) {
   const [hover, setHover] = React.useState(null);
   const shown = hover ?? value ?? 0;
   return (
-    <div className="fbstars">
-      <div role="radiogroup" aria-label={name} className="fbstars__row" onMouseLeave={() => setHover(null)}>
+    <div className="fbstarin">
+      <div role="radiogroup" aria-label={name} className="fbstarin__row" onMouseLeave={() => setHover(null)}>
         {[1, 2, 3, 4, 5].map((n) => {
           const lit = n <= shown;
           return (
             <button key={n} type="button" role="radio" aria-checked={value === n}
               aria-label={`${n} star${n === 1 ? '' : 's'} — ${RATING_LABELS[n]}`} title={`${n} star${n === 1 ? '' : 's'} — ${RATING_LABELS[n]}`}
-              className={`fbstars__star${lit ? ' is-lit' : ''}${hover != null ? ' is-preview' : ''}`}
+              className={`fbstarin__star${lit ? ' is-lit' : ''}${hover != null ? ' is-preview' : ''}`}
               onMouseEnter={() => setHover(n)} onFocus={() => setHover(n)} onBlur={() => setHover(null)}
               onClick={() => onChange(value === n ? null : n)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d={STAR_PATH} /></svg>
@@ -93,7 +93,7 @@ export function StarInput({ value, onChange, name }) {
           );
         })}
       </div>
-      <span className={`fbstars__word${shown ? ' is-on' : ''}`} aria-live="polite">
+      <span className={`fbstarin__word${shown ? ' is-on' : ''}`} aria-live="polite">
         {shown
           ? <><b>{shown} / 5</b> {RATING_LABELS[shown]}</>
           : 'Tap a star — 1 is Poor, 5 is Excellent'}
@@ -104,7 +104,7 @@ export function StarInput({ value, onChange, name }) {
 
 /** Read-only stars for a stored rating — the same star as the input. */
 export const StarRow = ({ value, size = 16 }) => (
-  <span className="fbstars__ro" aria-label={`${value ?? 0} out of 5 stars`} style={{ '--fbstar': `${size}px` }}>
+  <span className="fbstarin__ro" aria-label={`${value ?? 0} out of 5 stars`} style={{ '--fbstar': `${size}px` }}>
     {[1, 2, 3, 4, 5].map((n) => (
       <svg key={n} viewBox="0 0 24 24" aria-hidden="true" className={n <= (value || 0) ? 'is-lit' : ''}><path d={STAR_PATH} /></svg>
     ))}

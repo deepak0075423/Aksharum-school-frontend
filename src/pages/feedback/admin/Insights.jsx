@@ -847,7 +847,7 @@ export default function Insights() {
               loading={report.loading}
               startIndex={start}
               rows={shown}
-              columns={reportColumns(report.data?.columns, base, navigate)}
+              columns={reportColumns(report.data?.columns, base, navigate, applied.campaign || '')}
               empty={<EmptyState icon="📄" title="No data"
                 message="No records match the selected filters." />}
             />
@@ -1037,31 +1037,63 @@ const Sparkline = ({ value }) => {
  * A report's columns come from the server, so the table and the export can
  * never drift apart. Only the rendering of a few known keys is ours.
  */
-const reportColumns = (cols, base, navigate) => [...(cols || [])
-  // The Note column carries "Insufficient responses" into a spreadsheet. On
-  // screen that sentence already rides inside the rating cell, so a second
-  // column of it would be a column of repeats.
-  .filter((c) => c.key !== 'note')
-  .map((c) => ({
+/**
+ * A report's columns come from the server, so the table and the export can
+ * never drift apart. On screen a few of them are folded together so the table
+ * fits its card at a laptop width (it used to run ~400px past it, hiding the
+ * ratings and the View button behind a sideways scroll). The files keep every
+ * column — they flatten through the server's list, not this one.
+ *
+ *   teacher + employee ID + department → one Teacher cell (name, then ID · department)
+ *   campaign + term                    → one Campaign cell
+ *   start + end                        → one Window cell
+ *   responses + assigned               → "51 / 123"
+ */
+const SHORT = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '');
+const reportColumns = (cols, base, navigate, campaign) => {
+  const list = cols || [];
+  const has = (k) => list.some((c) => c.key === k);
+  const folded = new Set(['note']);
+  if (has('teacher')) { folded.add('employeeId'); folded.add('department'); }
+  if (has('campaign') && has('term')) folded.add('term');
+  if (has('startDate') && has('endDate')) folded.add('endDate');
+  if (has('responses') && has('assigned')) folded.add('assigned');
+  const open = (id) => navigate(`${base}/teachers/${id}${campaign ? `?campaign=${campaign}` : ''}`);
+
+  return [...list.filter((c) => !folded.has(c.key)).map((c) => ({
     key: c.key,
-    label: c.label,
+    label: c.key === 'startDate' && has('endDate') ? 'Window' : c.label,
     render: (r) => {
       if (c.key === 'avgRating') {
         // `note` is the server's own reason the figure is missing — almost
-        // always the response floor. Printed here instead of a number, never
-        // beside one.
+        // always the response floor. Shown in place of a number, never beside one.
         return r.avgRating == null
-          ? <span className="fblocked" title={r.note || 'Not enough responses'}>{r.note || 'No responses'}</span>
+          ? <span className="fblocked" title={r.note || 'Not enough responses yet'}>{(r.responses || 0) > 0 ? 'Withheld' : 'No responses'}</span>
           : <Rating value={r.avgRating} sub={undefined} />;
       }
-      if (c.key === 'responseRate') return <Bar value={r.responseRate} />;
+      if (c.key === 'responseRate') return <Bar value={r.responseRate} width={54} />;
+      if (c.key === 'responses' && has('assigned')) {
+        return <span className="fbrepn"><b>{r.responses ?? 0}</b> / {r.assigned ?? 0}</span>;
+      }
       if (c.key === 'teacher') {
+        const sub = [r.employeeId, r.department].filter(Boolean).join(' · ') || 'Teacher';
         return r._id
-          ? <Who name={r.teacher} to={`${base}/teachers/${r._id}`} tone={toneAt(r._rowIndex || 0)} sub="Teacher" />
-          : <Stack main={r.teacher} />;
+          ? <Who name={r.teacher} to={`${base}/teachers/${r._id}${campaign ? `?campaign=${campaign}` : ''}`} tone={toneAt(r._rowIndex || 0)} sub={sub} />
+          : <Stack main={r.teacher} sub={sub} />;
+      }
+      if (c.key === 'campaign' && has('term')) return <Stack main={r.campaign} sub={r.term || undefined} />;
+      if (c.key === 'startDate' && has('endDate')) {
+        return r.startDate ? <span className="fbdate">{SHORT(r.startDate)} – {SHORT(r.endDate)}</span> : <Dash />;
       }
       if (c.key === 'subjects') {
-        return r.subjects ? <Tag tone="purple">{r.subjects}</Tag> : <Dash />;
+        const all = String(r.subjects || '').split(',').map((x) => x.trim()).filter(Boolean);
+        if (!all.length) return <Dash />;
+        return (
+          <span className="fbtagrow" title={all.join(', ')}>
+            {all.slice(0, 2).map((x) => <Tag key={x} tone="purple">{x}</Tag>)}
+            {all.length > 2 ? <Tag tone="slate">+{all.length - 2}</Tag> : null}
+          </span>
+        );
       }
       if (c.key === 'status') return <Tag tone="slate">{r.status}</Tag>;
       const v = r[c.key];
@@ -1070,19 +1102,20 @@ const reportColumns = (cols, base, navigate) => [...(cols || [])
   })),
   // Status and View are on-screen only: they are derived from the row, and the
   // export flattens through the server's columns, so neither reaches a file.
-  ...((cols || []).some((c) => c.key === 'avgRating') ? [{
+  ...(has('avgRating') ? [{
     key: '_status', label: 'Status',
     render: (r) => (r.avgRating != null
       ? <Tag tone={r.avgRating >= 4 ? 'green' : r.avgRating >= 3 ? 'amber' : 'red'}>{ratingWord(r.avgRating)}</Tag>
-      : (r.responses || 0) > 0 ? <Tag tone="pink">Needs More</Tag> : <Tag tone="amber">Insufficient</Tag>),
+      : (r.responses || 0) > 0 ? <Tag tone="pink">Needs more</Tag> : <Tag tone="amber">Insufficient</Tag>),
   }] : []),
-  ...((cols || []).some((c) => c.key === 'teacher') ? [{
+  ...(has('teacher') ? [{
     key: '_act', className: 'fbtable__acts', label: 'Actions',
     render: (r) => (r._id
-      ? <TextBtn icon="eye" onClick={() => navigate(`${base}/teachers/${r._id}`)}>View</TextBtn>
+      ? <TextBtn icon="eye" onClick={() => open(r._id)}>View</TextBtn>
       : <Dash />),
   }] : []),
-];
+  ];
+};
 
 const avgOf = (rows) => {
   const have = (rows || []).filter((r) => r.avgRating != null);

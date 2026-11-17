@@ -21357,37 +21357,37 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 /* ── Teacher Feedback — Nov 18 2026 fixes ──────────────────────────────────── */
 /* Star rating (the 1–5 Stars question type): five stars, fill up to the one
    chosen; hovering previews the fill in a lighter amber. */
-.fbstars { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.fbstars__row { display: inline-flex; align-items: center; gap: 4px; }
-.fbstars__star {
+.fbstarin { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.fbstarin__row { display: inline-flex; align-items: center; gap: 4px; }
+.fbstarin__star {
   width: 46px; height: 46px; padding: 4px; border: none; background: none; cursor: pointer;
   border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
   transition: transform .12s ease, background .12s ease;
 }
-.fbstars__star svg { width: 100%; height: 100%; display: block; }
-.fbstars__star path {
+.fbstarin__star svg { width: 100%; height: 100%; display: block; }
+.fbstarin__star path {
   fill: #fff; stroke: #cbd5e1; stroke-width: 1.4; stroke-linejoin: round;
   transition: fill .12s ease, stroke .12s ease;
 }
-.fbstars__star.is-lit path { fill: #f59e0b; stroke: #d97706; }
-.fbstars__star.is-lit.is-preview path { fill: #fcd34d; stroke: #f59e0b; }
-.fbstars__star:hover { transform: scale(1.08); background: #fffbeb; }
-.fbstars__star:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-.fbstars__word { font-size: .84rem; color: var(--text-muted); min-width: 150px; }
-.fbstars__word.is-on { color: #b45309; font-weight: 600; }
-.fbstars__word b { color: var(--text); margin-right: 4px; }
-.fbstars__ro { display: inline-flex; gap: 2px; }
-.fbstars__ro svg { width: var(--fbstar, 16px); height: var(--fbstar, 16px); }
-.fbstars__ro path { fill: #e2e8f0; }
-.fbstars__ro .is-lit path { fill: #f59e0b; }
+.fbstarin__star.is-lit path { fill: #f59e0b; stroke: #d97706; }
+.fbstarin__star.is-lit.is-preview path { fill: #fcd34d; stroke: #f59e0b; }
+.fbstarin__star:hover { transform: scale(1.08); background: #fffbeb; }
+.fbstarin__star:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.fbstarin__word { font-size: .84rem; color: var(--text-muted); min-width: 150px; }
+.fbstarin__word.is-on { color: #b45309; font-weight: 600; }
+.fbstarin__word b { color: var(--text); margin-right: 4px; }
+.fbstarin__ro { display: inline-flex; gap: 2px; }
+.fbstarin__ro svg { width: var(--fbstar, 16px); height: var(--fbstar, 16px); }
+.fbstarin__ro path { fill: #e2e8f0; }
+.fbstarin__ro .is-lit path { fill: #f59e0b; }
 @media (max-width: 520px) {
-  .fbstars__star { width: 40px; height: 40px; }
-  .fbstars { gap: 8px; }
+  .fbstarin__star { width: 40px; height: 40px; }
+  .fbstarin { gap: 8px; }
 }
 /* The student form's narrow-screen rule squeezes every radiogroup's buttons;
    the stars keep their own size. */
-.fbquestion .fbstars [role="radiogroup"] { gap: 4px !important; flex-wrap: nowrap !important; }
-.fbquestion .fbstars [role="radiogroup"] > button { flex: 0 0 auto !important; }
+.fbquestion .fbstarin [role="radiogroup"] { gap: 4px !important; flex-wrap: nowrap !important; }
+.fbquestion .fbstarin [role="radiogroup"] > button { flex: 0 0 auto !important; }
 
 /* Thank-you: another campaign is offered as a question, never opened. */
 .fbthanks__done--soft { color: var(--text-muted) !important; font-weight: 500; }
@@ -21463,3 +21463,154 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .fbtb svg.is-flipped { transform: rotate(180deg); }
 .fbtools__end { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .fbtools__end .fbsort { margin-left: 0; }
+
+/* Reports table, folded to fit (Nov 18): "51 / 123" responses. */
+.fbrepn { white-space: nowrap; color: var(--text-muted); }
+.fbrepn b { color: var(--text); font-weight: 700; }
+/* Teacher page below the floor: where the responses stand, and the teacher's campaigns. */
+.fbprog { list-style: none; margin: 0; padding: 0; }
+.fbprog li { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px dashed var(--border); }
+.fbprog li:first-child { border-top: none; }
+.fbprog li.is-on { background: #faf9ff; margin: 0 -10px; padding: 10px; border-radius: 10px; border-top-color: transparent; }
+.fbprog__who { flex: 1; min-width: 0; }
+.fbprog__who b { display: block; font-size: .86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fbprog__who small { display: block; font-size: .74rem; color: var(--text-muted); }
+.fbprog__n { font-size: .8rem; font-weight: 600; min-width: 52px; text-align: right; }
+.fbprog__here { font-size: .72rem; font-weight: 700; color: var(--primary); padding: 4px 9px; border-radius: 7px; background: #eef2ff; }
+
+/* ── Teacher Feedback on a phone (Nov 18) ──────────────────────────────────────
+   Nothing in the module scrolls sideways at phone width: every table becomes a
+   list of cards (the first column as the card's heading, every other cell a
+   "label · value" line, actions along the bottom), view switches wrap into rows,
+   tiles go two across, and a panel's buttons drop under its title. */
+@media (max-width: 640px) {
+  .fbpage { padding: 14px 12px 24px; gap: 14px; }
+
+  .fbhero { gap: 12px; padding: 14px; }
+  .fbhero__mark { width: 44px; height: 44px; border-radius: 12px; }
+  .fbhero__mark svg { width: 21px; height: 21px; }
+  .fbhero__text { flex: 1 1 0; min-width: 0; }
+  .fbhero__text h1 { font-size: 1.3rem; }
+  .fbhero__text p { font-size: .8rem; }
+  .fbhero__acts { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .fbhero__acts > *, .fbhero__stack { max-width: 100%; }
+  .fbhero__stack { width: 100%; }
+  .fbsel--hero { width: 100%; }
+
+  .fbvt { display: flex; flex-wrap: wrap; width: 100%; }
+  .fbvt button { flex: 1 1 auto; justify-content: center; padding: 7px 10px; }
+
+  .fbstats, .fbstats--5, .fbstats--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .fbstat { padding: 12px; }
+  .fbstat__value { font-size: 1.35rem; }
+  .fbstat__label { font-size: .78rem; }
+  .fbstat__cap { font-size: .7rem; }
+
+  .fbpanel__head { flex-wrap: wrap; padding: 14px 14px 0; }
+  .fbpanel__head > div { flex: 1 1 0; }
+  .fbpanel__right { width: 100%; justify-content: flex-start; }
+  .fbpanel__body { padding: 12px 14px 14px; }
+
+  .fbtools { padding: 12px; gap: 8px; }
+  .fbtools > .fbsearch, .fbtools--fit .fbsearch:not(.fbsearch--wide), .fbsearch--wide { flex: 1 1 100%; min-width: 0; }
+  .fbtools .fbsel, .fbtools--fit .fbsel { flex: 1 1 140px; max-width: none; min-width: 0; }
+  .fbtools__gap { display: none; }
+  .fbsort, .fbtools__end { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .fbsort .fbsel { flex: 1 1 auto; }
+  .fbtools__end .fbsort { width: auto; flex: 1 1 auto; }
+  .fbtools__title { flex: 1 1 100%; }
+
+  /* Tables as a compact LIST, not cards: each row is the lead cell (and its
+     actions) on one line, then every other cell as a small inline
+     "LABEL value" fact, wrapping. Dividers, no boxes — the Card layouts
+     (teacher cards, template cards) stay the boxed view. */
+  .fbtable__wrap { overflow: visible; }
+  .fbtable, .fbtable > tbody { display: block; width: 100%; }
+  .fbtable > thead { display: none; }
+  .fbtable > tbody > tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 5px 14px;
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+  }
+  .fbtable > tbody > tr:last-child { border-bottom: none; }
+  /* Forces the facts onto the line after the lead and its actions. */
+  .fbtable > tbody > tr:not(.fbtable__exp)::after { content: ''; order: -1; flex: 0 0 100%; height: 0; }
+  .fbtable > tbody > tr > td {
+    display: inline-flex; align-items: center; gap: 5px; width: auto; min-width: 0; max-width: 100%;
+    padding: 0; border: none; font-size: .78rem; text-align: left; background: none !important;
+  }
+  .fbtable > tbody > tr > td::before {
+    content: attr(data-label); flex-shrink: 0;
+    font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-light);
+  }
+  .fbtable > tbody > tr > td[data-label=""]::before,
+  .fbtable > tbody > tr > td.fbtable__lead::before,
+  .fbtable > tbody > tr > td.fbtable__tick::before,
+  .fbtable > tbody > tr > td.fbtable__acts::before { content: none; }
+  .fbtable > tbody > tr > td.fbtable__num { display: none; }
+  .fbtable > tbody > tr > td.fbtable__tick { order: -2; }
+  .fbtable > tbody > tr > td.fbtable__lead { order: -1; flex: 1 1 0; font-size: .84rem; }
+  .fbtable > tbody > tr > td.fbtable__acts { order: -1; flex: 0 0 auto; }
+  .fbtable > tbody > tr > td > * { min-width: 0; }
+  .fbtable > tbody > tr > td .fbacts { gap: 4px; }
+  .fbtable > tbody > tr > td .fbacts .fbib, .fbtable > tbody > tr > td .fbmenu > button { width: 30px; height: 30px; }
+  /* A bar is a desktop picture; in a list line the percentage says it. */
+  .fbtable > tbody > tr > td .fbbar__track, .fbtable > tbody > tr > td .fbregprog__bar { display: none; }
+  .fbtable > tbody > tr > td .fbtag, .fbtable > tbody > tr > td .fbtagrow > * { font-size: .7rem; }
+  /* One line per fact: a rating's "based on N" sub-line and an empty "—" fact
+     are what made a list row as tall as a card. */
+  .fbtable > tbody > tr > td:not(.fbtable__lead) .fbrating > small { display: none; }
+  .fbtable > tbody > tr > td:not(.fbtable__lead):has(> .fbdash:only-child),
+  .fbtable > tbody > tr > td:not(.fbtable__lead):has(> .fbrating.is-none > .fbdash:only-child) { display: none; }
+  .fbtable > tbody > tr > td .fbrating { flex-direction: row; gap: 4px; }
+  /* Three or more actions would squeeze the lead into a narrow column: they go
+     to the end of the facts line instead, and the lead keeps the full width. */
+  .fbtable > tbody > tr > td.fbtable__acts:has(.fbacts > :is(.fbib, .fbtb) ~ :is(.fbib, .fbtb) ~ :is(.fbib, .fbtb)) { order: 1; margin-left: auto; }
+  .fbtable > tbody > tr > td.fbtable__lead small {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .fbtable > tbody > tr.fbtable__exp { display: block; padding: 0 14px 12px; }
+  .fbtable > tbody > tr.fbtable__exp > td { display: block; padding: 0; }
+  .fbtable > tbody > tr.fbtable__exp > td::before { content: none; }
+  .fbtable > tbody > tr.is-open { border-bottom: none; }
+  .fbtable .fbq { min-width: 0; max-width: none; }
+
+  .fbfoot { flex-direction: column; align-items: stretch; gap: 10px; }
+  .fbfoot .fbpager { justify-content: center; }
+
+  /* A note's button drops under its text instead of squeezing it into a column. */
+  .fbnote { flex-wrap: wrap; }
+  .fbnote p { flex: 1 1 calc(100% - 40px); }
+  .fbnote__act { margin-left: auto; }
+
+  /* Templates, List layout: flat rows with dividers and one small facts line;
+     the Card layout keeps its boxes. */
+  .fbtpls:not(.fbtpls--card) { gap: 0; }
+  .fbtpls:not(.fbtpls--card) .fbtpl {
+    border: none; border-bottom: 1px solid var(--border); border-radius: 0;
+    padding: 12px 2px; grid-template-columns: 36px minmax(0, 1fr); gap: 4px 12px; background: none;
+  }
+  .fbtpls:not(.fbtpls--card) .fbtpl:last-child { border-bottom: none; }
+  .fbtpls:not(.fbtpls--card) .fbtpl__icon { width: 36px; height: 36px; border-radius: 10px; }
+  .fbtpls:not(.fbtpls--card) .fbtpl__body > p { -webkit-line-clamp: 1; }
+  .fbtpls:not(.fbtpls--card) .fbtpl__chips { margin-top: 6px; }
+  .fbtpls:not(.fbtpls--card) .fbtpl__meta {
+    grid-column: 2; padding: 0; border: none; gap: 4px 14px; flex-wrap: wrap; align-items: center;
+  }
+  .fbtpls:not(.fbtpls--card) .fbtpl__meta > div:not(.fbmenu) { display: inline-flex; align-items: center; gap: 5px; }
+  .fbtpls:not(.fbtpls--card) .fbtpl__meta > div > label {
+    margin: 0; font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-light);
+  }
+  .fbtpls:not(.fbtpls--card) .fbtpl__meta > div > span { font-size: .76rem; }
+  .fbtpls:not(.fbtpls--card) .fbtpl { position: relative; }
+  .fbtpls:not(.fbtpls--card) .fbtpl__body { padding-right: 36px; }
+  /* The "…" button itself — not ":last-child": the open menu is drawn right
+     after the button, so it became the last child, took this position and the
+     button fell back into the row (the menu then opened out of sight). */
+  .fbtpls:not(.fbtpls--card) .fbtpl__meta > .fbib { position: absolute; top: 10px; right: 0; }
+  .fbtpls--card .fbtpl { padding: 16px; }
+}
+
+/* The toggle's real checkbox stays a zero-size, invisible control — a field rule
+   (`.fbfield input { width: 100% }`) stretched it across the panel, an invisible
+   360px tap target on a phone. */
+.fbfield .fbtoggle > input, .fbtoggle > input { width: 0; height: 0; min-width: 0; padding: 0; border: 0; margin: 0; }

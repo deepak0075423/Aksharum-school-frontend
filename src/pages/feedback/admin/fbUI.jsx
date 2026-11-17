@@ -346,7 +346,15 @@ export function Table({
                     </td>
                   )}
                   {numbered ? <td className="fbtable__num">{startIndex + i + 1}</td> : null}
-                  {columns.map((c) => <td key={c.key} className={c.className}>{c.render(r)}</td>)}
+                  {/* data-label + the lead class are for phones, where each row
+                      becomes a card: the first column is its heading, every
+                      other cell a "label · value" line (global.css). */}
+                  {columns.map((c, ci) => (
+                    <td key={c.key} data-label={typeof c.label === 'string' ? c.label : ''}
+                      className={[c.className, ci === 0 ? 'fbtable__lead' : ''].filter(Boolean).join(' ') || undefined}>
+                      {c.render(r)}
+                    </td>
+                  ))}
                 </tr>
                 {open && (
                   <tr className="fbtable__exp">

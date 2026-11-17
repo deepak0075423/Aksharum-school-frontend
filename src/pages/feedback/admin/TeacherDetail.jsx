@@ -91,12 +91,62 @@ export default function TeacherDetail() {
               caption="Set on the campaign" />
           </Stats>
 
-          <div className="fbcard">
-            <EmptyState icon="🔒" title="Results are withheld"
-              message={s.responses === 0
-                ? 'Nobody has answered about this teacher yet. Nothing is hidden — there is nothing there.'
-                : `${s.responses} of ${s.minimumResponses} responses. An average built from so few students would let any one of them be worked out, so no figure, no category and no comment is shown until the floor is reached. This applies to the teacher, the principal and the admin alike.`} />
-          </div>
+          {/* The rating is withheld, but the page still answers "where does it
+              stand": which campaign has results, and who has yet to answer. */}
+          {(() => {
+            const open = (data.history || []).find((h) => !h.locked && h._id !== data.campaign?._id);
+            return (
+              <NoteBar tone="amber" icon="key"
+                title={s.responses === 0 ? 'No responses yet in this campaign' : `Results withheld — ${s.responses} of ${s.minimumResponses} responses`}
+                action={open ? (
+                  <button type="button" className="fbtb fbtb--primary" onClick={() => setCampaignId(open._id)}>
+                    See {open.name}{open.term ? ` · ${open.term}` : ''} <Icon name="arrowRight" size={14} />
+                  </button>
+                ) : null}>
+                {s.responses === 0
+                  ? 'Nobody has answered about this teacher in this campaign yet. Nothing is hidden — there is nothing there.'
+                  : 'An average from so few students would let any one of them be worked out, so no figure, category or comment is shown until the floor is reached — for the teacher, the principal and the admin alike.'}
+                {open ? ' Another campaign this year has results you can read.' : ''}
+              </NoteBar>
+            );
+          })()}
+
+          <Row split="2">
+            <Panel icon="users" tone="blue" title="Where the responses stand"
+              subtitle="Students asked and answered, by section and subject — counts only, never answers">
+              {data.progress?.length ? (
+                <ul className="fbprog">
+                  {data.progress.map((g) => (
+                    <li key={`${g.section}|${g.subject}`}>
+                      <span className="fbprog__who"><b>{g.section}</b><small>{g.subject || 'General'}</small></span>
+                      <Bar value={g.assigned ? Math.round((g.responses / g.assigned) * 100) : 0} width={110} />
+                      <span className="fbprog__n">{g.responses} / {g.assigned}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <Muted>Nobody was asked about this teacher in this campaign.</Muted>}
+            </Panel>
+
+            <Panel icon="megaphone" tone="purple" title="This teacher's campaigns"
+              subtitle="Every campaign this year that asked about them">
+              <ul className="fbprog">
+                {(data.history || []).map((h) => (
+                  <li key={h._id} className={h._id === data.campaign?._id ? 'is-on' : ''}>
+                    <span className="fbprog__who">
+                      <b>{h.name}</b>
+                      <small>{[h.term, `${h.responses} of ${h.assigned} answered`].filter(Boolean).join(' · ')}</small>
+                    </span>
+                    {h.locked
+                      ? <span className="fblocked" title={`Needs ${h.minimumResponses} responses`}>Withheld · {h.responses}/{h.minimumResponses}</span>
+                      : <Rating value={h.rating} sub={undefined} />}
+                    {h._id === data.campaign?._id
+                      ? <span className="fbprog__here">Showing</span>
+                      : <button type="button" className="fbtb fbtb--sm" onClick={() => setCampaignId(h._id)}>Open</button>}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </Row>
 
           <NoteBar tone="purple" icon="key">
             The floor is set per campaign. Raising it protects students in small sections; lowering it can
