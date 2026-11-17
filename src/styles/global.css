@@ -21688,9 +21688,12 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
-.phc--cards table > tbody > tr:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
-.phc--cards table > tbody > tr:hover > td { background: none; }
-.phc--cards table > tbody > tr.is-picked { border-color: var(--primary); }
+/* Hover lift only where there is a real pointer — on a touch screen the last
+   card tapped keeps :hover, which used to make it look different from the
+   other selected cards. */
+@media (hover: hover) {
+  .phc--cards table > tbody > tr:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
+}
 .phc--cards table > tbody > tr > td {
   display: none; padding: 0; border: 0; max-width: none; width: auto; min-width: 0;
   font-size: .84rem; text-align: left; white-space: normal; background: none;
@@ -21782,4 +21785,26 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .antile__none { font-size: .9rem; line-height: 1.4; }
   /* Long figures (money) shrink rather than overflow a half-width tile. */
   .lstat__value, .antile__value, .fbstat__value { overflow-wrap: anywhere; }
+}
+
+/* ── A selected card (Nov 18) ──────────────────────────────────────────────
+   In a card layout the selection belongs to the card: a primary border and one
+   even tint across the whole card, the same on every selected card. The table
+   rule `.ltable tr.is-picked td` paints each CELL instead, which on a card gave
+   patchy shaded blocks — and the card last tapped kept :hover, whose rule
+   cleared them, so it alone stayed white. Cells in a card never carry a
+   background of their own (selected, hovered or otherwise). */
+.phc.phc--cards table > tbody > tr > td,
+.phc.phc--cards table > tbody > tr:hover > td,
+.phc.phc--cards table > tbody > tr.is-picked > td { background: transparent; }
+.phc.phc--cards table > tbody > tr.is-picked,
+.phc.phc--cards table > tbody > tr.is-picked:hover {
+  border-color: var(--primary); background: #f8f7ff; box-shadow: 0 0 0 3px rgba(79, 70, 229, .10);
+}
+@media (max-width: 640px) {
+  /* :nth-child(n) only lifts the rule above the table's own cell colours. */
+  .phc table > tbody > tr > td:nth-child(n) { background: transparent; }
+  .phc table > tbody > tr.is-picked {
+    border-color: var(--primary); background: #f8f7ff; box-shadow: 0 0 0 3px rgba(79, 70, 229, .10);
+  }
 }
