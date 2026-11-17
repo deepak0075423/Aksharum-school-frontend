@@ -102,6 +102,21 @@ const REPORT_FILTERS = {
   response_rate: [...SCOPE, ...PLACE],
   trend:         ['academicYear', 'term', 'dateFrom', 'dateTo', 'teacher', 'subject', ...PLACE],
 };
+/**
+ * The filters a report shows before "More filters": Report, Academic Year and
+ * Campaign always, plus the one the report is about. Everything else waits
+ * behind the button. Section joins Class up front once a class is chosen — it
+ * means nothing without one.
+ */
+const UP_FRONT = {
+  teacher:       ['teacher'],
+  campaign:      ['term'],
+  class:         ['class'],
+  subject:       ['subject'],
+  department:    ['term'],
+  response_rate: ['class'],
+  trend:         ['teacher', 'subject'],
+};
 const filtersFor = (type, f) => Object.fromEntries(
   (REPORT_FILTERS[type] || SCOPE).map((k) => [k, f[k] ?? '']),
 );
@@ -196,6 +211,7 @@ export default function Insights() {
   const [draft, setDraft] = useState(EMPTY);
   const [applied, setApplied] = useState(EMPTY);
   const [exporting, setExporting] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);   // "More filters" on the Reports form
 
   const meta = useFetch(() => api.getMeta(), []);
   // The campaign pickers list the campaigns of the year the filters are about
@@ -349,6 +365,15 @@ export default function Insights() {
     ? (meta.data?.academicYears || []).find((y) => y._id === draft.academicYear)?.yearName
     : meta.data?.activeYear?.yearName;
   const shows = new Set(REPORT_FILTERS[reportType] || SCOPE);
+  // Up front: the report's own filter(s) (and Section once a class is chosen).
+  const upFront = new Set([...(UP_FRONT[reportType] || []), ...(draft.class && (UP_FRONT[reportType] || []).includes('class') ? ['section'] : [])]);
+  /** Is this filter on screen: offered by the report, and either up front or "More filters" is open. */
+  const showsField = (k) => shows.has(k === 'dates' ? 'dateFrom' : k) && (moreOpen || upFront.has(k));
+  // Filters behind "More filters" that hold a value — counted on the button, so
+  // a filter that is in force is never out of sight without saying so.
+  const tucked = ['teacher', 'subject', 'class', 'section', 'term', 'dates']
+    .filter((k) => shows.has(k === 'dates' ? 'dateFrom' : k) && !upFront.has(k))
+    .filter((k) => (k === 'dates' ? draft.dateFrom || draft.dateTo : draft[k]));
   /** Another report: keep only the filters it has, so nothing hidden still applies. */
   const pickReport = (type) => {
     setReportType(type);
@@ -772,7 +797,7 @@ export default function Insights() {
                   </select>
                 </Field>
               )}
-              {shows.has('teacher') && (
+              {showsField('teacher') && (
                 <Field label="Teacher">
                   <select value={draft.teacher} aria-label="Teacher"
                     onChange={(e) => setDraft({ ...draft, teacher: e.target.value })}>
@@ -781,7 +806,7 @@ export default function Insights() {
                   </select>
                 </Field>
               )}
-              {shows.has('subject') && (
+              {showsField('subject') && (
                 <Field label="Subject">
                   <select value={draft.subject} aria-label="Subject"
                     onChange={(e) => setDraft({ ...draft, subject: e.target.value })}>
@@ -790,7 +815,7 @@ export default function Insights() {
                   </select>
                 </Field>
               )}
-              {shows.has('class') && (
+              {showsField('class') && (
                 <Field label="Class">
                   <select value={draft.class} aria-label="Class"
                     onChange={(e) => setDraft({ ...draft, class: e.target.value, section: '' })}>
@@ -799,7 +824,7 @@ export default function Insights() {
                   </select>
                 </Field>
               )}
-              {shows.has('section') && (
+              {showsField('section') && (
                 <Field label="Section" hint={draft.class ? undefined : 'Choose a class first.'}>
                   <select value={draft.section} aria-label="Section" disabled={!draft.class}
                     title={draft.class ? undefined : 'Choose a class first'}
@@ -809,10 +834,13 @@ export default function Insights() {
                   </select>
                 </Field>
               )}
+              {showsField('term') && (
               <Field label="Term">
                 <input value={draft.term} placeholder="e.g. Term 1" aria-label="Term"
                   onChange={(e) => setDraft({ ...draft, term: e.target.value })} />
               </Field>
+              )}
+              {showsField('dates') && (
               <div className="fbfield--span2">
               <Field label="Date Range" hint="Filters on the campaign's start date.">
                 <span className="fbrange">
@@ -824,6 +852,16 @@ export default function Insights() {
                     onChange={(e) => setDraft({ ...draft, dateTo: e.target.value })} />
                 </span>
               </Field>
+              </div>
+              )}
+              <div className="fbmorecell">
+                <button type="button" className={`fbmorebtn${moreOpen ? ' is-open' : ''}`}
+                  aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)}>
+                  <Icon name="filter" size={14} />
+                  {moreOpen ? 'Fewer filters' : 'More filters'}
+                  {!moreOpen && tucked.length ? <em title={`${tucked.length} hidden filter(s) in use`}>{tucked.length}</em> : null}
+                  <Icon name="chevronDown" size={14} className={moreOpen ? 'is-flipped' : ''} />
+                </button>
               </div>
             </div>
             <div className="fbdirty">

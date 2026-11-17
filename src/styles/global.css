@@ -21614,3 +21614,43 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
    (`.fbfield input { width: 100% }`) stretched it across the panel, an invisible
    360px tap target on a phone. */
 .fbfield .fbtoggle > input, .fbtoggle > input { width: 0; height: 0; min-width: 0; padding: 0; border: 0; margin: 0; }
+
+/* Report filters — the date range (Nov 18). It is one field holding two dates,
+   so it is exactly as tall as the selects beside it and each date takes half of
+   it, left-aligned. `.fbfield input` reached the two inner inputs: their own
+   padding made the box taller, a fixed 116px clipped "dd/mm/yyyy", and
+   space-between pushed them to the far ends. */
+.fbfield .fbrange {
+  display: flex; width: 100%; gap: 8px; justify-content: flex-start;
+  padding: 0 12px; border-radius: var(--radius);
+}
+.fbfield .fbrange:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
+.fbfield .fbrange input {
+  flex: 1 1 0; min-width: 0; width: auto; padding: 0; margin: 0; height: 34px; line-height: 34px;
+  border: none; border-radius: 0; background: none; box-shadow: none;
+  font-size: .85rem; color: var(--text);
+}
+.fbfield .fbrange input:focus { box-shadow: none; }
+.fbfield .fbrange > span { flex-shrink: 0; }
+
+/* Report filters: the few up front, the rest behind "More filters" (Nov 18).
+   The button sits in the grid's next cell, level with the selects; its count is
+   the hidden filters that hold a value. */
+.fbmorecell { display: flex; align-items: flex-end; min-height: 100%; padding-top: 22px; }
+.fbmorebtn {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px;
+  border: 1px dashed #c7d2fe; border-radius: var(--radius); background: #f8f9ff;
+  font: inherit; font-size: .84rem; font-weight: 600; color: var(--primary); cursor: pointer; white-space: nowrap;
+}
+.fbmorebtn:hover { border-style: solid; background: #eef2ff; }
+.fbmorebtn.is-open { border-style: solid; background: var(--bg-card); color: var(--text-muted); border-color: var(--border); }
+.fbmorebtn em {
+  font-style: normal; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px;
+  background: var(--primary); color: #fff; font-size: .7rem; display: inline-flex; align-items: center; justify-content: center;
+}
+.fbmorebtn svg.is-flipped { transform: rotate(180deg); }
+@media (max-width: 640px) {
+  .fbmorecell { padding-top: 0; }
+  .fbmorebtn { width: 100%; justify-content: center; }
+}
+.fbmorecell:has(.fbmorebtn.is-open) { padding-top: 0; align-items: flex-start; }
