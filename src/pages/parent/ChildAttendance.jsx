@@ -15,7 +15,7 @@ import { useSearchParams } from 'react-router-dom';
 import useFetch from '../../hooks/useFetch';
 import { getChildAttendanceOverview, getChildCorrections } from '../../api/parent.api';
 import { Spinner } from '../../components/ui/index';
-import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
+import { ChildSwitch, useChild, rememberedChild } from '../../components/parent/ChildSwitch';
 import { Empty, Frame, todayKey } from '../../components/attendance/parts';
 import {
   Alerts, DayDetail, HowItWorksCard, InsightCard, MonthCard, MonthGrid, MonthPicker,
@@ -30,7 +30,8 @@ const TABS = [
 export default function ChildAttendance() {
   const [params, setParams] = useSearchParams();
   const linkDate = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : '';
-  const wanted = params.get('child') || '';
+  // The same child the switch below shows: ?child=, else this tab's last pick.
+  const wanted = params.get('child') || rememberedChild();
   const [tab, setTab] = useState(TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'overview');
   const [month, setMonth] = useState((linkDate || todayKey()).slice(0, 7));
   const [day, setDay] = useState(linkDate || todayKey());
@@ -47,10 +48,12 @@ export default function ChildAttendance() {
 
   const onTab = (value) => {
     setTab(value);
-    const next = new URLSearchParams();
-    if (wanted) next.set('child', wanted);
-    if (value !== 'overview') next.set('tab', value);
-    setParams(next, { replace: true });
+    // Only the tab changes — the child (and any linked date) stay as they are.
+    setParams((cur) => {
+      const next = new URLSearchParams(cur);
+      if (value !== 'overview') next.set('tab', value); else next.delete('tab');
+      return next;
+    }, { replace: true });
   };
   const onMonth = (m) => {
     setMonth(m);

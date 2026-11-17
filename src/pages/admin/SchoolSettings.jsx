@@ -290,18 +290,21 @@ export default function SchoolSettings() {
   // ── Sections ───────────────────────────────────────────────────────────────
   // Payments and receipts only exist for a school that charges for something.
   const money = modulesReady && (isEnabled('fees') || isEnabled('library') || isEnabled('hostel') || isEnabled('admission'));
+  // The cookie policy is the admission portal's (its consent banner, policy
+  // page and visitor answers) — a school without Admission has no use for it.
+  const privacy = modulesReady && isEnabled('admission');
 
   const tabs = useMemo(() => [
     { key: 'general',  label: 'General',      icon: 'building' },
     { key: 'identity', label: 'Numbering',    icon: 'idCard' },
     { key: 'days',     label: 'Working Days', icon: 'calendarDays' },
     { key: 'mail',     label: 'Email',        icon: 'mail' },
-    { key: 'privacy',  label: 'Privacy & cookies', icon: 'shield' },
+    ...(privacy ? [{ key: 'privacy', label: 'Privacy & cookies', icon: 'shield' }] : []),
     ...(money ? [
       { key: 'payments', label: 'Payments', icon: 'creditCard' },
       { key: 'receipts', label: 'Receipts', icon: 'files' },
     ] : []),
-  ], [money]);
+  ], [money, privacy]);
 
   // A section that disappears when the module list lands must not leave the
   // page showing nothing.
@@ -554,12 +557,14 @@ export default function SchoolSettings() {
 
       {/* The school's cookie policy: the admission portal's consent banner, the
           policy page, and the answers visitors gave. Its own record and Save. */}
-      <div className="setgrid" hidden={hide('privacy')}>
-        <SelfSaveNote>
-          The cookie policy is its own record and is saved from the button under it.
-        </SelfSaveNote>
-        <CookiePolicyCard />
-      </div>
+      {privacy && (
+        <div className="setgrid" hidden={hide('privacy')}>
+          <SelfSaveNote>
+            The cookie policy is its own record and is saved from the button under it.
+          </SelfSaveNote>
+          <CookiePolicyCard />
+        </div>
+      )}
 
       {/* Both live here rather than inside a module: fees and library fines
           charge through the same merchant account, and a school configures it

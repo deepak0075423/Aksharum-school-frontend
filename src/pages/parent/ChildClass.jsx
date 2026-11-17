@@ -10,7 +10,8 @@
  * The endpoint used to read the *first* child only, so a second child's class
  * was invisible and nothing said a second child existed.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useChildId } from '../../components/parent/ChildSwitch';
 import useFetch from '../../hooks/useFetch';
 import { useModules } from '../../contexts/ModulesContext';
 import { getChildClass } from '../../api/parent.api';
@@ -26,12 +27,13 @@ const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || 'your child';
 export default function ParentChildClass() {
   const { data, loading } = useFetch(getChildClass);
   const { isEnabled } = useModules();
-  const [who, setWho] = useState('');
   const updatesRef = useRef(null);
 
   const children = useMemo(() => data?.children || [], [data]);
+  // The child chosen on any parent page — the dashboard's pick carries here.
+  const [who, setWho] = useChildId(children);
   const child    = useMemo(
-    () => children.find((c) => c._id === who) || children[0] || null,
+    () => children.find((c) => String(c._id) === String(who)) || children[0] || null,
     [children, who],
   );
 

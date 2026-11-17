@@ -14,6 +14,7 @@ import AccountSwitcher from '../AccountSwitcher';
 import Icon from '../ui/icons';
 import GlobalSearch from './GlobalSearch';
 import YearSwitcher from './YearSwitcher';
+import MeAvatar from './MeAvatar';
 import pageTitle from '../../utils/pageTitle';
 
 function playNotifSound() {
@@ -240,7 +241,6 @@ export default function Header({ onMenuClick, onCollapseClick }) {
     : user?.role === 'school_admin' ? 'admin'
     : user?.role || 'admin';
 
-  const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   const title = pageTitle(location.pathname);
   // The global search reads the admin list endpoints, so it is only offered to
@@ -384,11 +384,7 @@ export default function Header({ onMenuClick, onCollapseClick }) {
           <button className="header__user" title={user?.name} type="button"
             onClick={() => { setDropOpen(o => !o); setBellOpen(false); }}
             aria-haspopup="menu" aria-expanded={dropOpen}>
-            <span className="header__avatar">
-              {user?.profileImage
-                ? <img src={user.profileImage} alt="" />
-                : initials}
-            </span>
+            <MeAvatar user={user} className="header__avatar" />
             <span className="header__user-text">
               <span className="header__user-name">{user?.name}</span>
               <span className="header__user-role">{roleTitle(user)}</span>

@@ -4791,6 +4791,48 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
   .aycol-year    { width: 170px; }
   .aycol-session { width: 220px; }
 }
+/* No sideways scroll (Nov 2026). The table used to keep every column and
+   scroll inside .table-wrap below ~1290px — so on a smaller laptop, or a
+   zoomed browser, the actions sat off-screen. Columns step out instead, in
+   order of what the row already says elsewhere: the session dates (the year
+   cell carries the start month and "ends in …"), then the student count. The
+   eye on each row opens all of it. Media queries track the window, and the
+   page is the window less the 260px sidebar. */
+.aypage .ltable td, .aypage .ltable th { padding-left: 14px; padding-right: 14px; }
+@media (max-width: 1360px) {
+  .aypage .ltable th.aycol-session, .aypage .ltable td.aycol-session { display: none; }
+}
+@media (max-width: 1100px) {
+  .aypage .ltable th.aycol-students, .aypage .ltable td.aycol-students { display: none; }
+  .aypage .ltable td, .aypage .ltable th { padding-left: 10px; padding-right: 10px; }
+}
+
+/* On a phone the table is cards (components/ui/PhoneCards): the year as the
+   heading, its status beside it, then Session, Classes and Students each on a
+   line of their own — all of the row on screen, nothing scrolling sideways.
+   The two columns the narrower layouts step out above come back as lines. */
+@media (max-width: 640px) {
+  .aypage .phc .ltable td.aycol-session.phc-keep,
+  .aypage .phc .ltable td.aycol-students.phc-keep { display: flex; }
+  .aypage .phc .ltable > tbody > tr > td { padding: 0; }
+  .aypage .phc .ltable > tbody > tr > td.phc-keep { padding-top: 8px; }
+  .aypage .phc .ltable > tbody > tr > td.ltable__acts { padding-top: 10px; }
+  /* The year keeps its line; the status drops beneath it when both will not fit. */
+  .aypage .phc .ltable > tbody > tr > td.phc-title { flex: 1 1 190px; }
+  .aypage .phc .aywho__name { white-space: nowrap; }
+  .aypage .phc .aystatus { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .aypage .phc .aycount { align-items: flex-end; }
+  .aypage .phc .aysession { display: flex; flex-direction: column; align-items: flex-end; }
+  .aypage .phc .aysession__dates { flex-wrap: wrap; justify-content: flex-end; }
+  .aypage .phc .aybar { width: 150px; max-width: 100%; }
+
+  /* The four year tabs as a 2×2 grid instead of a strip that scrolls. */
+  .aypage .uitabs--inset {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible; gap: 2px;
+  }
+  .aypage .uitabs--inset .uitab { justify-content: center; min-width: 0; }
+}
 @media (max-width: 768px) {
   .aybar { max-width: none; }
   .aystatus { flex-direction: row; align-items: center; flex-wrap: wrap; }
@@ -7691,6 +7733,27 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
 /* ── Tab bodies ────────────────────────────────────────────────────────────── */
 .sdbody { display: flex; flex-direction: column; gap: 16px; }
 .sdgrid { display: grid; gap: 16px; align-items: start; }
+/* Cards side by side are one height (Nov 2026) — a short Enrolment card beside
+   a long Personal one read as a broken layout. The body takes the slack, so a
+   short card's rows stay at its top and an empty state stays centred. */
+.sdgrid--auto, .sdgrid--two, .sdgrid--three { align-items: stretch; }
+.sdgrid--auto > .sdpanel, .sdgrid--two > .sdpanel, .sdgrid--three > .sdpanel { height: 100%; }
+.sdgrid--auto > .sdpanel > .sdpanel__body, .sdgrid--two > .sdpanel > .sdpanel__body,
+.sdgrid--three > .sdpanel > .sdpanel__body { flex: 1 1 auto; }
+
+/* The student's sections on an even grid: same-size pills, aligned rows, and
+   room around each so the active pill's shadow and focus ring are not cut off
+   by the strip's own edge (it scrolled, so it clipped). */
+.uitabs.sdtabgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(134px, 1fr));
+  gap: 8px;
+  overflow: visible;
+  padding: 2px;
+}
+.uitabs.sdtabgrid .uitab { justify-content: center; min-width: 0; padding-left: 10px; padding-right: 10px; }
+.uitabs.sdtabgrid .uitab__label { overflow: hidden; text-overflow: ellipsis; }
+.sdprint-section { display: none; }
 .sdgrid--auto  { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .sdgrid--two   { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
 .sdgrid--three { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
@@ -7962,6 +8025,24 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
   .sdtop__actions .btn { flex: 1; justify-content: center; }
   .sdresume { flex-direction: column; }
   .sdresume img, .sdresume__blank { width: 100%; height: 150px; }
+}
+
+/* ── Print ─────────────────────────────────────────────────────────────────
+   The paper is the record, not the screen: no buttons, no tab strip (it used
+   to print as a filled "General" button jammed against the header card) — the
+   open section's name stands in for it. An A4 page is too narrow for three
+   cards a row, so two, and no card is split across a page break. */
+@media print {
+  .sdpg .sdtop__actions, .sdpg .sdtabgrid { display: none !important; }
+  .sdpg .sdprint-section {
+    display: block; margin: 16px 0 10px; padding-bottom: 6px;
+    font-size: 13pt; font-weight: 700; border-bottom: 1px solid #ddd;
+  }
+  .sdpg .sdtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .sdpg .sdtile { break-inside: avoid; box-shadow: none; }
+  .sdpg .sdtile > svg:last-child { display: none; }
+  .sdpg .sdgrid--two, .sdpg .sdgrid--three, .sdpg .sdgrid--auto { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .sdpg .sdpanel { break-inside: avoid; box-shadow: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

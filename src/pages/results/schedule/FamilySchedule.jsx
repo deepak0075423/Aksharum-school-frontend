@@ -21,7 +21,7 @@ import toast from 'react-hot-toast';
 import { savePdf } from '../reportCards/savePdf';
 import * as studentApi from '../../../api/student.api';
 import * as parentApi from '../../../api/parent.api';
-import { ChildSwitch, useChild } from '../../../components/parent/ChildSwitch';
+import { ChildSwitch, useChild, rememberedChild } from '../../../components/parent/ChildSwitch';
 import { PageHead, Btn, Badge, Empty, Ico, KidSchool, plural, fmtRange, useBoard } from '../rsUI';
 import { classLine } from '../resultMeta';
 import { NextPaper, shortDay, relDay, timeRange, duration, downloadIcs } from './scheduleParts';
@@ -34,7 +34,8 @@ const WHEN = {
 
 export default function FamilySchedule({ parent = false }) {
   const [params] = useSearchParams();
-  const wanted = parent ? params.get('child') || '' : '';
+  // ?child=, else the child picked on another parent page in this tab.
+  const wanted = parent ? params.get('child') || rememberedChild() : '';
   const fetcher = useMemo(() => (parent ? (q) => parentApi.getExamSchedule(q.child) : () => studentApi.getExamSchedule()), [parent]);
   const { body, loading, error, reload } = useBoard(fetcher, { child: wanted });
   const d = body?.data;

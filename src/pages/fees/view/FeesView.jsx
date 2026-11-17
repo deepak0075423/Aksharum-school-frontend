@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import * as feesApi from '../../../api/fees.api';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useChildId } from '../../../components/parent/ChildSwitch';
 import { loadRazorpay } from '../../../utils/razorpay';
 import { Modal } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
@@ -46,7 +47,11 @@ export default function FeesView({ role = 'student' }) {
   const isParent = role === 'parent';
 
   const [children, setChildren] = useState([]);
-  const [childId, setChildId] = useState('');
+  // The child chosen on any parent page (?child= or this tab's last pick); one
+  // no longer linked here falls back to the first.
+  const [pickedChild, setChildId] = useChildId(children);
+  const childId = children.some(c => String(c._id) === String(pickedChild))
+    ? String(pickedChild) : (children[0] ? String(children[0]._id) : '');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,8 +74,7 @@ export default function FeesView({ role = 'student' }) {
       .then(res => {
         const kids = res?.data || [];
         setChildren(kids);
-        if (kids.length) setChildId(String(kids[0]._id));
-        else { setLoading(false); setError('No child is linked to your account yet. The school office can link one for you.'); }
+        if (!kids.length) { setLoading(false); setError('No child is linked to your account yet. The school office can link one for you.'); }
       })
       .catch(e => { setLoading(false); setError(e.message || 'Could not load your children'); });
   }, [isParent]);

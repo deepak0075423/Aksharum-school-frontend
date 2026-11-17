@@ -11,6 +11,7 @@ import {
   Highlight, QuickTile, PerformanceOverview, SubjectMarks, ResultHighlight, EventRow,
 } from '../../components/dashboard/studentParts';
 import { ChildPicker, AttendanceOverview, AnnouncementBanner } from './dashboardParts';
+import { useChildId } from '../../components/parent/ChildSwitch';
 
 /**
  * Every shortcut a parent can keep on Quick Access, filtered by the module map
@@ -47,10 +48,14 @@ const serverDay = (iso) => {
 
 export default function ParentDashboard() {
   const { user }                               = useAuth();
-  const [childId, setChildId]                  = useState('');
+  // The child on screen is the one chosen on every parent page (?child= or the
+  // tab's last pick) — so Class Info, Attendance, Fees … open on the same child.
+  const [kids, setKids]                        = useState([]);
+  const [childId, setChildId]                  = useChildId(kids);
   // Switching child refetches: the detail block is computed per child server-side.
   const { data, loading: dashLoading }         = useFetch(
     () => getDashboard(childId ? { childId } : undefined), [childId]);
+  useEffect(() => { if (data?.children) setKids(data.children); }, [data]);
   const { data: modules, loading: modLoading } = useFetch(getModules);
   const { data: schoolConfig }                 = useFetch(getSchoolConfig);
   const [holidays, setHolidays]                = useState([]);
@@ -125,7 +130,10 @@ export default function ParentDashboard() {
     available,
   });
 
-  if (dashLoading || modLoading) return <div className="loading-page"><Spinner /></div>;
+  // Only the first load blanks the page. Switching child keeps the page up
+  // while the next child's figures arrive — it used to drop to a full-page
+  // spinner, which read as the whole page reloading.
+  if ((dashLoading && !data) || (modLoading && !modules)) return <div className="loading-page"><Spinner /></div>;
 
   const saturdayConfig = schoolConfig
     ? { working: schoolConfig.saturdayWorking, mode: schoolConfig.saturdayMode, halfDay: schoolConfig.saturdayHalfDay }
@@ -180,7 +188,9 @@ export default function ParentDashboard() {
           </section>
 
           {/* Which child, when there is more than one */}
-          <ChildPicker children={children} value={selected} onChange={setChildId} />
+          <ChildPicker children={children}
+            value={children.some((c) => String(c._id) === String(childId)) ? childId : selected}
+            onChange={setChildId} />
 
           {children.length === 0 && (
             <Panel title="No child linked">

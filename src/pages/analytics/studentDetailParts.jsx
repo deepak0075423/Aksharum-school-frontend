@@ -134,8 +134,16 @@ export const Avatar = ({ name, src, size = 40 }) => (
 );
 
 /** The module tabs, in the order a school reads a student. */
+// The sections sit on an even grid — every pill the same size, so a strip that
+// runs to a second row (a narrow window, DevTools open) still lines up instead
+// of leaving a ragged tail. On paper there is nothing to click: the strip is
+// left off and the open section's name printed as a heading in its place.
 export const TabStrip = ({ tabs, active, onPick }) => (
-  <Tabs variant="pill" items={tabs} value={active} onChange={onPick} label="Student sections" />
+  <>
+    <Tabs variant="pill" items={tabs} value={active} onChange={onPick} label="Student sections"
+      className="sdtabgrid" />
+    <h2 className="sdprint-section">{tabs.find((t) => t.key === active)?.label || ''}</h2>
+  </>
 );
 
 // ── Figures ──────────────────────────────────────────────────────────────────

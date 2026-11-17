@@ -274,9 +274,11 @@ export default function SectionDetail() {
       const res = await api.assignStudentsToSection(id, picked);
       const d = res?.data ?? res;
       if (d?.enrolled?.length) {
+        const movedN = (d.moved || []).length;
+        const freshN = d.enrolled.length - movedN;
         toast.success(d.enrolled.length === 1
-          ? `${d.enrolled[0].name} enrolled`
-          : `${d.enrolled.length} students enrolled`);
+          ? (movedN ? `${d.enrolled[0].name} moved here from ${d.moved[0].from}` : `${d.enrolled[0].name} enrolled`)
+          : [freshN && `${freshN} enrolled`, movedN && `${movedN} moved from another section`].filter(Boolean).join(', '));
       }
       // Partial success is the normal case for a batch — say what did not go in
       // rather than closing on a silent half-result.
@@ -814,7 +816,10 @@ export default function SectionDetail() {
             <div className="sdpool">
               {visibleCandidates.map((st) => {
                 const checked = picked.includes(st._id);
-                const blocked = !st.assignable;
+                // In another section this year: can still be picked — adding
+                // moves them here for this year (other years stay as they are).
+                const moving = !st.assignable && (st.movable ?? true);
+                const blocked = !st.assignable && !moving;
                 return (
                   <label key={st._id} className={`sdpool__row${checked ? ' is-picked' : ''}${blocked ? ' is-blocked' : ''}`}>
                     <input type="checkbox" checked={checked} disabled={blocked}
@@ -825,7 +830,11 @@ export default function SectionDetail() {
                         {st.email}{st.admissionNumber ? ` · Adm. ${st.admissionNumber}` : ''}
                       </div>
                     </div>
-                    {blocked
+                    {moving
+                      ? <span className="sdpool__tag" title={`Adding moves them out of ${st.enrolledIn} for this academic year`}>
+                          Moves from {st.enrolledIn}
+                        </span>
+                      : blocked
                       ? <span className="sdpool__tag">{st.enrolledIn}</span>
                       : st.sameClass
                         ? <Badge variant="success">This class</Badge>
@@ -841,7 +850,7 @@ export default function SectionDetail() {
                   padding: '8px 0 0', fontSize: '.78rem' }}>
                 {showTaken
                   ? 'Hide students enrolled elsewhere'
-                  : `Show ${takenCount} student${takenCount === 1 ? '' : 's'} enrolled in another section`}
+                  : `Show ${takenCount} student${takenCount === 1 ? '' : 's'} in another section this year (pick to move them here)`}
               </button>
             )}
             {pool?.truncated && (

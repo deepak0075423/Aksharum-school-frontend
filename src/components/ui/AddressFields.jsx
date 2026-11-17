@@ -1,6 +1,7 @@
 import React from 'react';
 import * as api from '../../api/admin.api';
 import { STATES_AND_UTS, isPincode } from '../../utils/indiaStates';
+import { snapToOption } from '../../utils/formOptions';
 import { Spinner } from './index';
 
 const Err = ({ msg }) => msg
@@ -52,12 +53,14 @@ export default function AddressFields({
       setForm(f => ({
         ...f,
         [kCountry]: d.country || 'India',
-        [kState]:   d.state   || f[kState],
+        // Spelled as the dropdown spells it, or the box would look unpicked
+        // while holding a value the server then refuses.
+        [kState]:   snapToOption(d.state, STATES_AND_UTS) || f[kState],
         // Don't clobber a city the admin already typed unless we have a better one
         [kCity]:    d.city    || f[kCity],
       }));
       setAreas(d.areas || []);
-      setErrs(e => ({ ...e, [kPincode]: undefined, [kState]: undefined, [kCity]: undefined }));
+      setErrs(e => ({ ...e, [kPincode]: undefined, [kState]: undefined, [kCity]: undefined, [kCountry]: undefined }));
       setPinNote(d.source === 'india-post'
         ? `Matched ${d.district || d.state}`
         : 'Offline match — please check the city');
@@ -132,7 +135,7 @@ export default function AddressFields({
         </div>
         <div className="form-group">
           <label className={lbl}>Country</label>
-          <input data-text="place" className={`form-control${errs[kCountry] ? ' error' : ''}`} placeholder="India"
+          <input data-text="place" className={`form-control${errs[kCountry] ? ' error' : ''}`} placeholder="e.g. India"
             disabled={disabled} value={form[kCountry] ?? 'India'} onChange={onField(kCountry)} />
           <Err msg={errs[kCountry]} />
         </div>

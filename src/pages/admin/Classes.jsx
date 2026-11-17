@@ -200,8 +200,9 @@ export default function Classes() {
     setAssigning(true);
     try {
       const res = await api.autoAssignStudents(year || undefined);
-      const { assigned, skipped = 0, sections: secs } = res.data;
+      const { assigned, updated = 0, skipped = 0, sections: secs } = res.data;
       toast.success(`${assigned} student${assigned === 1 ? '' : 's'} assigned to ${secs} section${secs === 1 ? '' : 's'}`
+        + `${updated ? `, ${updated} moved to match their changed section` : ''}`
         + `${skipped ? `, ${skipped} already enrolled` : ''}`);
       setAssign(false);
       refetch();
@@ -474,7 +475,7 @@ export default function Classes() {
         onConfirm={autoAssign}
         loading={assigning}
         title="Assign Students to Sections"
-        message={`Every student already sitting in a section is enrolled into the section of the same name in ${yearDoc?.yearName || 'this year'} — Class 5 A into Class 5 A. Anyone already enrolled there, or with no matching section, is left alone. Continue?`}
+        message={`Every student already sitting in a section is enrolled into the section of the same name in ${yearDoc?.yearName || 'this year'} — Class 5 A into Class 5 A. Students this button placed before are moved if their section has changed since; anyone placed there by hand, or with no matching section, is left alone. Continue?`}
       />
     </div>
   );

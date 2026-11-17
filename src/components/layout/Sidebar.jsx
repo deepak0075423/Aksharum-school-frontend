@@ -8,6 +8,7 @@ import logoIcon from '../../assets/logo-icon.svg';
 import { schoolLogoUrl } from '../../utils/branding';
 import Icon from '../ui/icons';
 import { roleTitle } from '../../utils/roleTitle';
+import MeAvatar from './MeAvatar';
 // The tree itself lives in navTree.js, so the rail and the app's breadcrumb
 // are drawn from one description of the site rather than two.
 import { NAV_MAP, homeFor } from './navTree';
@@ -19,8 +20,8 @@ const NavIcon = ({ name }) => (
 // Where the footer's Settings row goes. Only an admin has school settings to
 // reach; everyone else lands on their own profile, which is where their
 // settings actually live.
+// (A school admin gets no footer row — "School Settings" is in their rail.)
 const SETTINGS_TO = {
-  school_admin: '/admin/school-settings',
   super_admin:  '/profile',
 };
 
@@ -227,10 +228,8 @@ export default function Sidebar({ onLinkClick, collapsed }) {
           )}
 
           <Link to="/profile" className="sidebar__me" onClick={onLinkClick}>
-            <div className="avatar avatar-sm sidebar__me-avatar"
-              style={{ fontSize: user?.profileIcon ? '1rem' : '.8rem' }}>
-              {user?.profileIcon ? user.profileIcon : user?.name?.[0]?.toUpperCase()}
-            </div>
+            <MeAvatar user={user} className="avatar avatar-sm sidebar__me-avatar"
+              style={{ fontSize: user?.profileIcon && !user?.profileImage ? '1rem' : '.72rem', overflow: 'hidden' }} />
             <div className="sidebar__me-text">
               <div className="sidebar__me-name">{user?.name}</div>
               <div className="sidebar__me-role">{roleTitle(user)}</div>
@@ -238,11 +237,15 @@ export default function Sidebar({ onLinkClick, collapsed }) {
             <Icon name="chevronDown" size={15} />
           </Link>
 
-          <NavLink to={settingsTo} onClick={onLinkClick}
-            className={({ isActive }) => `sidebar__link sidebar__settings${isActive ? ' active' : ''}`}>
-            <NavIcon name="settings" />
-            <span className="sidebar__link-text">Settings</span>
-          </NavLink>
+          {/* A school admin already has "School Settings" in the rail, and this
+              row opened the very same page — two entries for one screen. */}
+          {user?.role !== 'school_admin' && (
+            <NavLink to={settingsTo} onClick={onLinkClick}
+              className={({ isActive }) => `sidebar__link sidebar__settings${isActive ? ' active' : ''}`}>
+              <NavIcon name="settings" />
+              <span className="sidebar__link-text">Settings</span>
+            </NavLink>
+          )}
         </div>
       )}
     </nav>

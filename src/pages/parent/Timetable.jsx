@@ -14,6 +14,7 @@
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useChildId, rememberedChild } from '../../components/parent/ChildSwitch';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import { getTimetable, downloadTimetable } from '../../api/parent.api';
@@ -40,7 +41,8 @@ export default function ParentTimetable() {
   // refreshes, or sends the link to the other parent, keeps the child they were
   // looking at instead of silently reverting to the eldest.
   const [params, setParams] = useSearchParams();
-  const childId = params.get('child') || '';
+  // ?child=, else the child picked on another parent page in this tab.
+  const childId = params.get('child') || rememberedChild();
 
   const { data, loading } = useFetch(() => getTimetable(childId ? { child: childId } : {}), [childId]);
   const [view, setView] = useState('week');
@@ -60,10 +62,13 @@ export default function ParentTimetable() {
   // The server picks a child when the URL names none. Put its answer back in
   // the URL so every later read asks for the same one.
   useEffect(() => {
-    if (child && !childId) setParams({ child: String(child._id) }, { replace: true });
-  }, [child, childId, setParams]);
+    if (child && !params.get('child')) {
+      setParams((cur) => { const p = new URLSearchParams(cur); p.set('child', String(child._id)); return p; }, { replace: true });
+    }
+  }, [child, params, setParams]);
 
-  const pickChild = useCallback((id) => setParams({ child: String(id) }), [setParams]);
+  const [, rememberPick] = useChildId(children);
+  const pickChild = useCallback((id) => rememberPick(id), [rememberPick]);
 
   const bySlot = useMemo(() => {
     const map = new Map();
@@ -113,7 +118,7 @@ export default function ParentTimetable() {
     finally { setBusy(false); }
   };
 
-  if (loading) return <div className="page tt-page"><Loading label="Loading the week…" /></div>;
+  if (loading && !data) return <div className="page tt-page"><Loading label="Loading the week…" /></div>;
 
   if (!children.length) {
     return (

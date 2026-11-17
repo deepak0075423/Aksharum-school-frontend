@@ -110,11 +110,18 @@ export default function StudentAnalytics() {
   const setFilter = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
 
   const sections = scope?.sections || [];
+  // Every class of the year — the server's list, so a class still waiting for
+  // its sections is offered too — in class order (Nursery … Class 12).
   const classes = useMemo(() => {
     const map = new Map();
-    sections.forEach((s) => { if (!map.has(s.classId)) map.set(s.classId, s.className); });
-    return [...map].map(([id, name]) => ({ id, name }));
-  }, [sections]);
+    (scope?.classes || []).forEach((c) => map.set(String(c._id), { id: String(c._id), name: c.className, n: c.classNumber }));
+    sections.forEach((s) => {
+      if (s.classId && !map.has(String(s.classId))) map.set(String(s.classId), { id: String(s.classId), name: s.className, n: s.classNumber });
+    });
+    const num = (v) => (v === null || v === undefined || v === '' ? Infinity : Number(v));
+    return [...map.values()].sort((a, b) => (num(a.n) - num(b.n) || 0)
+      || String(a.name).localeCompare(String(b.name), 'en', { numeric: true }));
+  }, [scope, sections]);
   // Sections follow the class: none to choose until a class is picked, then
   // only that class's. (Every section of every class in one list was long and,
   // with a name like "A" in five classes, hard to read.)

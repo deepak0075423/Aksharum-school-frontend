@@ -4,6 +4,7 @@ import * as api from '../api/admin.api';
 import { Modal, Button, Spinner } from './ui/index';
 import { ClassLevelSelect, ClassNameChoice } from './ClassLevelPicker';
 import { PRE_PRIMARY } from '../utils/classLevels';
+import { runs } from './AddSectionsModal';
 
 /**
  * Build a whole range of classes and their sections in one go.
@@ -166,7 +167,7 @@ export default function BulkClassCreateModal({ open, academicYear, onClose, onCr
                     {row.skipped
                       ? row.skipped
                       : row.sectionsToAdd.length
-                        ? `+ ${row.sectionsToAdd.join(', ')}`
+                        ? `+ ${runs(row.sectionsToAdd)}`
                         : 'nothing to add'}
                   </span>
                 </div>

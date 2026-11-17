@@ -19,7 +19,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as studentApi from '../../../api/student.api';
 import * as parentApi from '../../../api/parent.api';
-import { ChildSwitch, useChild } from '../../../components/parent/ChildSwitch';
+import { ChildSwitch, useChild, rememberedChild } from '../../../components/parent/ChildSwitch';
 import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
 import { PageHead, Btn, SelectField, Empty, Ico, KidSchool, useBoard } from '../rsUI';
 import ReportCardSheet from './ReportCardSheet';
@@ -30,7 +30,8 @@ export default function FamilyReportCard({ parent = false }) {
   const nav = useNavigate();
   usePageCrumbs([{ label: 'Report Card' }]);
   const [params] = useSearchParams();
-  const wanted = parent ? params.get('child') || '' : '';
+  // ?child=, else the child picked on another parent page in this tab.
+  const wanted = parent ? params.get('child') || rememberedChild() : '';
   const [year, setYear] = useState('');
   const [term, setTerm] = useState('');
   const fetcher = useMemo(() => (parent ? (q) => parentApi.getReportCard(q.child, q.year, q.term) : (q) => studentApi.getReportCard(q.year, q.term)), [parent]);

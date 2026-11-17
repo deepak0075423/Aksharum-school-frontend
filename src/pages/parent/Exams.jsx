@@ -8,7 +8,8 @@
  * on results. A parent sees the score and how the answers split; the
  * question-by-question paper stays with the student.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useChildId } from '../../components/parent/ChildSwitch';
 import useFetch from '../../hooks/useFetch';
 import { getExams } from '../../api/parent.api';
 import { Empty, Spinner } from '../../components/ui/index';
@@ -22,8 +23,11 @@ import {
 } from '../exams/examShared';
 
 export default function ParentExams() {
-  const [child, setChild] = useState('');
+  // The child chosen on any parent page (?child= or this tab's last pick).
+  const [kids, setKids] = useState([]);
+  const [child, setChild] = useChildId(kids);
   const { data, meta, loading, error } = useFetch(() => getExams(child ? { child } : undefined), [child]);
+  useEffect(() => { if (meta?.children) setKids(meta.children); }, [meta]);
   const [open, setOpen] = useState(null);
   const now = useNow(30000);
 

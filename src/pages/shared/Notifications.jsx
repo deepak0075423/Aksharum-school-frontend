@@ -186,7 +186,8 @@ export default function Notifications() {
   const yearName  = year === 'all' ? '' : (years.find((y) => y._id === yearId)?.name || '');
   const pickYear  = (v) => { setYear(v); setPage(1); setViewing(null); };
   // Two or more children and none named yet: start on the first.
-  useEffect(() => { if (choosingChild && kids[0]) pick(kids[0]._id); }, [choosingChild, kids]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Settle on the child picked on another parent page, else the first.
+  useEffect(() => { if (choosingChild && kids[0]) pick(child?._id || kids[0]._id); }, [choosingChild, kids]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickChild = (id) => { pick(id); setPage(1); setViewing(null); };
 
   // Ticked rows. Dropped whenever the query changes, so a delete can never

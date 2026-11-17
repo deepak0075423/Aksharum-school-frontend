@@ -22,7 +22,9 @@ function columnLabels(thead) {
     for (const th of tr.cells) {
       while (grid[r][c] !== undefined) c += 1;
       const head = th.cloneNode(true);
-      head.querySelectorAll('small, input').forEach((x) => x.remove());
+      // A heading's sub-line, its tick box and its ⓘ hint (`.lhead__hint`, a
+      // literal "i") are not part of its name.
+      head.querySelectorAll('small, input, .lhead__hint').forEach((x) => x.remove());
       const text = (th.dataset.label || head.textContent || '').trim();
       for (let i = 0; i < (th.rowSpan || 1); i += 1) {
         grid[r + i] = grid[r + i] || [];

@@ -178,7 +178,7 @@ export default function StudentDetail() {
       </div>
 
       {/* Printing should give the student, not the application around them. */}
-      <style>{'@media print{.sidebar,.header,.breadcrumb,.sdtop__actions,.sdtabs,.sdmore{display:none!important}.page{padding:0}.card{border:1px solid #e2e8f0;break-inside:avoid}}'}</style>
+      <style>{'@media print{.sidebar,.header,.breadcrumb,.sdtop__actions,.sdtabs,.sdtabgrid,.sdmore{display:none!important}.page{padding:0}.card{border:1px solid #e2e8f0;break-inside:avoid}}'}</style>
     </div>
   );
 }

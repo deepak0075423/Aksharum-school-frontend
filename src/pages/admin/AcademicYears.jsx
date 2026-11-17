@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
+import PhoneCards from '../../components/ui/PhoneCards';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon, { SchoolScene, SupportScene } from '../../components/ui/icons';
@@ -196,7 +197,7 @@ export default function AcademicYears() {
     },
     {
       key: 'students',
-      className: 'aycol-num',
+      className: 'aycol-num aycol-students',
       label: <Head hint="Students enrolled in this year's sections.">Students</Head>,
       render: (r) => <CountCell value={r.students} sub={r.subjects ? `${r.subjects} subjects` : 'no subjects'} muted />,
     },
@@ -205,6 +206,7 @@ export default function AcademicYears() {
       className: 'ltable__acts',
       label: 'Actions',
       render: (r) => (
+        // The eye opens everything the narrower layouts leave out of the row.
         <RowActions>
           {r.status !== 'active' && (
             <Button variant="secondary" size="sm" onClick={() => setActivating(r)}>Set Active</Button>
@@ -228,7 +230,7 @@ export default function AcademicYears() {
   if (loading) return <div className="loading-page"><Spinner /></div>;
 
   return (
-    <div className="page listpg">
+    <div className="page listpg aypage">
       <Crumbs here="Academic Years" />
 
       <ListHero
@@ -286,19 +288,23 @@ export default function AcademicYears() {
           </div>
         </div>
 
-        <ListTable
-          columns={columns}
-          rows={shown}
-          startIndex={start}
-          emptyIcon={anyFilter ? '🔍' : '📅'}
-          emptyTitle={anyFilter ? 'No years match these filters' : 'No academic years yet'}
-          emptyMessage={anyFilter
-            ? 'Try another tab or search term.'
-            : 'Add the session your school is running. Classes, subjects and attendance all hang off it.'}
-          emptyAction={anyFilter
-            ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-            : <Button onClick={() => { setFormErr(''); setEditing('new'); }}>+ Add Academic Year</Button>}
-        />
+        {/* Cards on a phone (components/ui/PhoneCards): every column a line
+            of its own, so nothing scrolls sideways. */}
+        <PhoneCards title="Academic Year" side="Status" keep={['Session', 'Classes', 'Students']}>
+          <ListTable
+            columns={columns}
+            rows={shown}
+            startIndex={start}
+            emptyIcon={anyFilter ? '🔍' : '📅'}
+            emptyTitle={anyFilter ? 'No years match these filters' : 'No academic years yet'}
+            emptyMessage={anyFilter
+              ? 'Try another tab or search term.'
+              : 'Add the session your school is running. Classes, subjects and attendance all hang off it.'}
+            emptyAction={anyFilter
+              ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+              : <Button onClick={() => { setFormErr(''); setEditing('new'); }}>+ Add Academic Year</Button>}
+          />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={filtered.length}

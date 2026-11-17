@@ -5,7 +5,8 @@ import { Button, Modal, Spinner } from '../../components/ui/index';
 import ExistingDoc from '../../components/ExistingDoc';
 import AddressFields from '../../components/ui/AddressFields';
 import PhoneInput from '../../components/ui/PhoneInput';
-import { isPincode } from '../../utils/indiaStates';
+import { isPincode, STATES_AND_UTS } from '../../utils/indiaStates';
+import { GENDERS, snapToOption, isOptionOrBlank } from '../../utils/formOptions';
 import { phoneError } from '../../utils/validators';
 import { withFileToken } from '../../utils/fileAccess';
 import { useModules } from '../../contexts/ModulesContext';
@@ -510,22 +511,26 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       setForm(f => ({
         ...f,
         dob: p.dob ? String(p.dob).slice(0, 10) : '',
-        gender: p.gender || '', bloodGroup: p.bloodGroup || '', category: p.category || '',
+        // Snapped onto each dropdown's own spelling ("female" → "Female", "B-" →
+        // "B−"). An off-list value used to show as an unpicked box that still
+        // passed Next.
+        gender: snapToOption(p.gender, GENDERS), bloodGroup: snapToOption(p.bloodGroup, BLOOD_GROUPS),
+        category: snapToOption(p.category, CATEGORIES),
         religion: p.religion || '', nationality: p.nationality || 'Indian',
         emergencyContactName: p.emergencyContactName || '',
         emergencyContactPhone: p.emergencyContactPhone || '',
         emergencyContactRelation: p.emergencyContactRelation || '',
-        address: p.address || '', city: p.city || '', state: p.state || '',
+        address: p.address || '', city: p.city || '', state: snapToOption(p.state, STATES_AND_UTS),
         pincode: p.pincode || '', country: p.country || 'India',
         permanentAddress: p.permanentAddress || '', permanentCity: p.permanentCity || '',
-        permanentState: p.permanentState || '', permanentPincode: p.permanentPincode || '',
+        permanentState: snapToOption(p.permanentState, STATES_AND_UTS), permanentPincode: p.permanentPincode || '',
         permanentCountry: p.permanentCountry || 'India',
         sameAsCurrent: !!p.sameAsCurrent,
         aadhaarNumber: p.aadhaarNumber || '', penNumber: p.penNumber || '', apaarId: p.apaarId || '',
         isTransferStudent: !!p.isTransferStudent,
         previousSchoolName: p.previousSchoolName || '', previousSchoolContact: p.previousSchoolContact || '',
         previousSchoolAddress: p.previousSchoolAddress || '', previousSchoolCity: p.previousSchoolCity || '',
-        previousSchoolState: p.previousSchoolState || '', previousSchoolPincode: p.previousSchoolPincode || '',
+        previousSchoolState: snapToOption(p.previousSchoolState, STATES_AND_UTS), previousSchoolPincode: p.previousSchoolPincode || '',
         previousSchoolCountry: p.previousSchoolCountry || 'India',
         previousSchoolMedium: medium, previousSchoolMediumOther: mediumOther,
         previousSchoolBoard: board,  previousSchoolBoardOther: boardOther,
@@ -559,6 +564,8 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       return e;
     }
     const need = (key, msg) => { if (!String(form[key] ?? '').trim()) e[key] = msg; };
+    // A dropdown's value must be one it can show — see utils/formOptions.
+    const oneOf = (key, options, msg) => { if (!e[key] && !isOptionOrBlank(form[key], options)) e[key] = msg; };
     const phone = (key, label) => { const m = phoneError(form[key], label); if (m) e[key] = m; };
     const needAddress = (prefix, label) => {
       const k = (base) => (prefix ? prefix + base[0].toUpperCase() + base.slice(1) : base);
@@ -567,6 +574,10 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       else if (!isPincode(form[k('pincode')]))      e[k('pincode')] = 'PIN code must be 6 digits';
       need(k('city'),  'City is required');
       need(k('state'), 'State is required');
+      oneOf(k('state'), STATES_AND_UTS, 'Pick the state from the list');
+      // Marked required in all three address blocks, and now checked like it —
+      // an emptied Country box used to pass Next and be saved as "India".
+      need(k('country'), `${label} country is required`);
     };
 
     if (n === 1) {
@@ -582,8 +593,11 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       need('dob', 'Date of birth is required');
       if (form.dob && Number.isNaN(new Date(form.dob).getTime())) e.dob = 'Invalid date of birth';
       need('gender', 'Gender is required');
+      oneOf('gender', GENDERS, 'Pick Male, Female or Other');
       need('bloodGroup', 'Blood group is required');
+      oneOf('bloodGroup', BLOOD_GROUPS, 'Pick the blood group from the list');
       need('category', 'Category is required');
+      oneOf('category', CATEGORIES, 'Pick the category from the list');
       need('nationality', 'Nationality is required');
       need('emergencyContactName', 'Emergency contact name is required');
       need('emergencyContactPhone', 'Emergency contact phone is required');
@@ -626,7 +640,15 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
       if (form.previousSchoolUdise && !/^\d{11}$/.test(form.previousSchoolUdise)) e.previousSchoolUdise = 'The UDISE+ code is 11 digits';
       if (!files.tc && !docs?.tcFile) e.tc = 'Transfer Certificate upload is required';
     }
-    if (n === 6) need('classId', 'Class is required');
+    if (n === 6) {
+      need('classId', 'Class is required');
+      // The class has to be one this list offers (this year's). A class the
+      // list cannot show looked like "Select Class" yet passed Next.
+      if (!e.classId && classes.length && !classes.some(c => c._id === form.classId))
+        e.classId = "Pick the class from this year's list";
+      if (!e.classId && form.currentSection && !sections.some(sec => sec._id === form.currentSection))
+        e.currentSection = 'Pick the section from the list, or leave it to assign later';
+    }
     if (n === 7) {
       if (form.parentMode === 'search' && !form.parentId) {
         e.parentQuery = 'Click "Link" on a search result to attach a parent, or switch to entering their details';
@@ -829,9 +851,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                   <label className="form-label required">Gender</label>
                   <select className={`form-control${errs.gender ? ' error' : ''}`} value={form.gender} onChange={set('gender')}>
                     <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
+                    {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <Err msg={errs.gender} />
                 </div>
@@ -901,6 +921,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                       ...x,
                       permanentAddress: undefined, permanentPincode: undefined,
                       permanentCity: undefined,    permanentState: undefined,
+                      permanentCountry: undefined,
                     }));
                     setForm(f => ({
                       ...f,
@@ -1096,10 +1117,11 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Section</label>
-                  <select className="form-control" value={form.currentSection} onChange={set('currentSection')} disabled={!form.classId}>
+                  <select className={`form-control${errs.currentSection ? ' error' : ''}`} value={form.currentSection} onChange={set('currentSection')} disabled={!form.classId}>
                     <option value="">Assign later</option>
                     {sections.map(s => <option key={s._id} value={s._id}>{s.sectionName}</option>)}
                   </select>
+                  <Err msg={errs.currentSection} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Roll Number</label>

@@ -34,7 +34,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as studentApi from '../../../api/student.api';
 import * as parentApi from '../../../api/parent.api';
-import { ChildSwitch, useChild } from '../../../components/parent/ChildSwitch';
+import { ChildSwitch, useChild, rememberedChild } from '../../../components/parent/ChildSwitch';
 import { PageHead, Tiles, Tile, LineTabs, Btn, Badge, Empty, Ico, KidSchool, plural, fmtDay, fmtStamp, useBoard } from '../rsUI';
 import { Trend, Share } from '../rsCharts';
 import { gradeTone, classLine } from '../resultMeta';
@@ -90,7 +90,9 @@ function YearOverall({ o }) {
 export default function FamilyResults({ parent = false }) {
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const wanted = parent ? params.get('child') || '' : '';
+  // ?child=, else the child picked on another parent page — unless a notice
+  // link names a result (?focus=), whose child the server works out itself.
+  const wanted = parent ? params.get('child') || (params.get('focus') ? '' : rememberedChild()) : '';
   // Read once: the app takes ?focus= off the address as soon as it has flashed
   // the row, and the page must not refetch for a different child when it does.
   const [focus] = useState(() => params.get('focus') || '');

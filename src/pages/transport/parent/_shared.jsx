@@ -7,21 +7,26 @@
  * See [[project_class_pages]] for the bug this shape prevents: an endpoint that
  * quietly read only the FIRST child.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useChildId } from '../../../components/parent/ChildSwitch';
 import toast from 'react-hot-toast';
 import * as api from '../../../api/transport.api';
 import { Avatar, Empty, Loading, Note, TrHead } from '../admin/trUI';
 
 export function useChildPicker() {
   const [children, setChildren] = useState([]);
-  const [studentId, setStudentId] = useState('');
   const [loading, setLoading] = useState(true);
+  // The child chosen on any parent page (?child= or this tab's last pick);
+  // one this list does not hold falls back to the first.
+  const asKids = useMemo(() => children.map((c) => ({ _id: c.studentId })), [children]);
+  const [picked, setStudentId] = useChildId(asKids);
+  const studentId = children.some((c) => String(c.studentId) === String(picked))
+    ? picked : (children[0]?.studentId || '');
 
   useEffect(() => {
     api.parentChildren().then((r) => {
       const list = (r?.data ?? r) || [];
       setChildren(list);
-      if (list.length) setStudentId(list[0].studentId);
     }).catch((e) => toast.error(e?.message || 'Could not load your children'))
       .finally(() => setLoading(false));
   }, []);

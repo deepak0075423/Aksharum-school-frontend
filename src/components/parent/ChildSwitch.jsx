@@ -11,7 +11,7 @@
  * moving between pages or tabs keeps the same child on screen instead of
  * snapping back to the first one.
  */
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Icon from '../ui/icons';
 
@@ -33,21 +33,48 @@ const LAST_CHILD = 'parent.child';
 const remembered = () => { try { return sessionStorage.getItem(LAST_CHILD) || ''; } catch { return ''; } };
 const remember = (id) => { try { sessionStorage.setItem(LAST_CHILD, String(id)); } catch { /* storage off */ } };
 
-export function useChild(children) {
+/** The child last picked in this tab, for a page that asks its server by id. */
+export const rememberedChild = remembered;
+
+/**
+ * The child a parent page is about, as an id — `?child=` first, else the one
+ * last picked in this tab — and a setter that records the choice in both,
+ * keeping the page's other URL filters (a tab, a month) exactly as they are.
+ *
+ * Every parent page uses this one choice. Pages that kept their own used to
+ * open on "the first child" — and the endpoints list children in different
+ * orders, so after picking the second child on the dashboard, Class Info
+ * showed the first again. With nothing picked yet, the child a page falls back
+ * to is remembered, so the next page agrees with it.
+ */
+export function useChildId(children) {
   const [params, setParams] = useSearchParams();
-  const wanted = params.get('child') || remembered();
+  const id = params.get('child') || remembered();
+
+  const setChild = useCallback((next) => {
+    if (next) remember(next);
+    setParams((cur) => {
+      const p = new URLSearchParams(cur);
+      if (next) p.set('child', String(next)); else p.delete('child');
+      return p;
+    }, { replace: true });
+  }, [setParams]);
+
+  useEffect(() => {
+    if (!children?.length || remembered()) return;
+    remember(children[0]._id);
+  }, [children]);
+
+  return [id, setChild];
+}
+
+export function useChild(children) {
+  const [wanted, pick] = useChildId(children);
 
   const child = useMemo(
-    () => children.find((c) => String(c._id) === wanted) || children[0] || null,
+    () => children.find((c) => String(c._id) === String(wanted)) || children[0] || null,
     [children, wanted],
   );
-
-  const pick = (id) => {
-    remember(id);
-    const next = new URLSearchParams(params);
-    next.set('child', String(id));
-    setParams(next, { replace: true });
-  };
 
   return { child, pick };
 }

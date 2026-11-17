@@ -5,7 +5,8 @@ import { Button, Modal } from '../../components/ui/index';
 import AddressFields from '../../components/ui/AddressFields';
 import ExistingDoc from '../../components/ExistingDoc';
 import PhoneInput from '../../components/ui/PhoneInput';
-import { isPincode } from '../../utils/indiaStates';
+import { isPincode, STATES_AND_UTS } from '../../utils/indiaStates';
+import { GENDERS, snapToOption, isOptionOrBlank } from '../../utils/formOptions';
 import { phoneError } from '../../utils/validators';
 import { fatherOrHusbandLabel } from '../../utils/fatherOrHusband';
 import { withFileToken } from '../../utils/fileAccess';
@@ -157,23 +158,26 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
         const iso = (v) => (v ? new Date(v).toISOString().slice(0, 10) : '');
         // Values the intake form offers as a fixed list arrive as free text on
         // an existing record; anything off-list is routed to its "Other" box.
-        const pick = (value, list) => (value && list.includes(value) ? value : (value ? 'Other' : ''));
+        const pick = (value, list) => snapToOption(value, list) || (value ? 'Other' : '');
         const qual = pick(p.qualification, QUALIFICATIONS);
         const degree = pick(p.teachingDegree, TEACHING_DEGREES);
         setOriginalEmail(u.email || '');
         setForm({
           ...EMPTY_TEACHER,
           name: u.name || '', email: u.email || '', phone: u.phone || '',
-          dob: iso(p.dob), gender: p.gender || '', bloodGroup: p.bloodGroup || '',
+          // Snapped onto the dropdowns' own spelling ("male" → "Male", "A-" →
+          // "A−"): an off-list value used to show as a blank box that still
+          // passed Next, and the server refused it only at the final save.
+          dob: iso(p.dob), gender: snapToOption(p.gender, GENDERS), bloodGroup: snapToOption(p.bloodGroup, BLOOD_GROUPS),
           fatherOrHusbandName: p.fatherOrHusbandName || '',
           emergencyContactName: p.emergencyContactName || '',
           emergencyContactPhone: p.emergencyContactPhone || '',
           alternatePhone: p.alternatePhone || '',
           currentAddress: p.currentAddress || '', currentCity: p.currentCity || '',
-          currentState: p.currentState || '', currentPincode: p.currentPincode || '',
+          currentState: snapToOption(p.currentState, STATES_AND_UTS), currentPincode: p.currentPincode || '',
           currentCountry: p.currentCountry || 'India',
           permanentAddress: p.permanentAddress || '', permanentCity: p.permanentCity || '',
-          permanentState: p.permanentState || '', permanentPincode: p.permanentPincode || '',
+          permanentState: snapToOption(p.permanentState, STATES_AND_UTS), permanentPincode: p.permanentPincode || '',
           permanentCountry: p.permanentCountry || 'India',
           aadhaarNumber: p.aadhaarNumber || '', panNumber: p.panNumber || '', uanNumber: p.uanNumber || '',
           qualification: qual, qualificationOther: qual === 'Other' ? p.qualification : '',
@@ -200,6 +204,8 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
   const validateStep = (n) => {
     const e = {};
     const need = (key, msg) => { if (!String(form[key] ?? '').trim()) e[key] = msg; };
+    // A dropdown's value must be one it can show — see utils/formOptions.
+    const oneOf = (key, options, msg) => { if (!e[key] && !isOptionOrBlank(form[key], options)) e[key] = msg; };
     const phone = (key, label) => { const m = phoneError(form[key], label); if (m) e[key] = m; };
     // A file already on the record counts as supplied, so an edit never forces
     // the admin to re-upload paperwork just to fix a typo.
@@ -211,13 +217,19 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
       else if (!isPincode(form[`${prefix}Pincode`]))      e[`${prefix}Pincode`] = 'PIN code must be 6 digits';
       need(`${prefix}City`,  'City is required');
       need(`${prefix}State`, 'State is required');
+      oneOf(`${prefix}State`, STATES_AND_UTS, 'Pick the state from the list');
+      // Marked required on the form, and now checked like it — an emptied
+      // Country box used to pass Next and be quietly saved as "India".
+      need(`${prefix}Country`, 'Country is required');
     };
 
     if (n === 1) {
       need('name', 'Full name is required');
       need('dob', 'Date of birth is required');
       need('gender', 'Gender is required');
+      oneOf('gender', GENDERS, 'Pick Male, Female or Other');
       need('bloodGroup', 'Blood group is required');
+      oneOf('bloodGroup', BLOOD_GROUPS, 'Pick the blood group from the list');
       need('fatherOrHusbandName', `${fatherOrHusbandLabel(form.gender, 'sentence')} is required`);
       need('emergencyContactName', 'Emergency contact name is required');
       need('emergencyContactPhone', 'Emergency contact phone is required');
@@ -244,6 +256,8 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
     }
     if (n === 4) {
       need('qualification', 'Highest qualification is required');
+      oneOf('qualification', QUALIFICATIONS, 'Pick the qualification from the list');
+      oneOf('teachingDegree', TEACHING_DEGREES, 'Pick the teaching degree from the list');
       if (form.qualification === 'Other' && !form.qualificationOther.trim())
         e.qualificationOther = 'Please type the qualification';
       if (form.teachingDegree === 'Other' && !form.teachingDegreeOther.trim())
@@ -305,9 +319,18 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
   };
 
   const submit = async () => {
-    const e = validateStep(7);
-    setErrs(e);
-    if (Object.keys(e).length) return toast.error(Object.values(e)[0]);
+    // Every step is re-checked, and the first one with a problem is opened —
+    // this used to check the last step only, so anything wrong earlier came
+    // back from the server as a bare message after the final click.
+    for (let n = 1; n <= STEPS.length; n += 1) {
+      const e = validateStep(n);
+      if (Object.keys(e).length) {
+        setStep(n);
+        setErrs(e);
+        return toast.error(Object.values(e)[0]);
+      }
+    }
+    setErrs({});
 
     setSaving(true);
     try {
@@ -367,9 +390,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
               <label className="form-label required">Gender</label>
               <select className={`form-control${errs.gender ? ' error' : ''}`} value={form.gender} onChange={set('gender')}>
                 <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
               <Err msg={errs.gender} />
             </div>
@@ -439,6 +460,7 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
                   ...x,
                   permanentAddress: undefined, permanentPincode: undefined,
                   permanentCity: undefined,    permanentState: undefined,
+                  permanentCountry: undefined,
                 }));
                 setForm(f => ({
                   ...f,
@@ -643,6 +665,11 @@ export default function TeacherForm({ open, onClose, onCreated, designations = [
               <label className="form-label">Designation</label>
               <select className="form-control" value={form.designation} onChange={set('designation')}>
                 <option value="">— Select —</option>
+                {/* A designation since renamed or removed stays visible (and is
+                    kept on save) rather than reading as "— Select —". */}
+                {form.designation && !designations.includes(form.designation) && (
+                  <option value={form.designation}>{form.designation} (not in the list)</option>
+                )}
                 {designations.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>

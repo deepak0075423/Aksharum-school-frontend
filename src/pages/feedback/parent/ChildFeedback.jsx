@@ -9,7 +9,8 @@
  * One child at a time. A parent with several children picks one from the
  * switch; a parent with one child never sees a switch at all.
  */
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useChildId } from '../../../components/parent/ChildSwitch';
 import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/parent.api';
 import Icon from '../../../components/ui/icons';
@@ -22,16 +23,13 @@ import { Countdown, ProgressSplit, StatePill, closesIn } from '../shared/rolePar
 export default function ChildFeedback() {
   const { data, loading, error } = useFetch(() => api.getChildrenFeedback(), []);
   const children = data?.children || [];
-  const [childId, setChildId] = useState('');
-
-  // Start on the child with the most still to do — the list comes sorted that way.
-  useEffect(() => {
-    if (children.length && !children.some((c) => c._id === childId)) setChildId(children[0]._id);
-  }, [children, childId]);
+  // The child chosen on any parent page; with none chosen yet, the child with
+  // the most still to do — the list comes sorted that way.
+  const [childId, setChildId] = useChildId(children);
 
   if (loading) return <div className="fbpage fbpage--narrow"><div className="fbloading"><Spinner /></div></div>;
 
-  const child = children.find((c) => c._id === childId) || children[0];
+  const child = children.find((c) => String(c._id) === String(childId)) || children[0];
 
   return (
     <div className="fbpage fbpage--narrow">

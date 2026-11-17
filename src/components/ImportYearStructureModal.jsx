@@ -130,7 +130,7 @@ export default function ImportYearStructureModal({
 
   const total = plan
     ? plan.classesToCreate + plan.sectionsToCreate + (plan.subjectsToCreate ?? 0) + plan.linksToCreate
-      + plan.assignmentsToCreate + plan.classTeachersToSet
+      + plan.assignmentsToCreate + (plan.subjectTeachersToAdd ?? 0) + plan.classTeachersToSet
     : 0;
 
   // Did the source have anything of the kinds that were actually asked for?
@@ -152,9 +152,12 @@ export default function ImportYearStructureModal({
         fromYear, include: parts, includeClassTeachers: withTeachers,
       });
       const d = res?.data ?? res;
-      const made = d.createdClasses + d.createdSections + d.createdLinks + d.createdAssignments;
+      const made = d.createdClasses + d.createdSections + (d.createdSubjects || 0) + d.createdLinks
+        + d.createdAssignments + (d.addedSubjectTeachers || 0) + (d.setClassTeachers || 0);
       toast.success(made
-        ? `Imported ${d.createdClasses} class(es), ${d.createdSections} section(s), ${d.createdLinks} subject link(s) and ${d.createdAssignments} teacher assignment(s)`
+        ? `Imported ${d.createdClasses} class(es), ${d.createdSections} section(s), ${d.createdSubjects || 0} subject(s), `
+          + `${d.createdLinks} subject link(s), ${d.createdAssignments} section teacher assignment(s) and `
+          + `${d.addedSubjectTeachers || 0} teacher(s) onto subjects`
         : 'Nothing to import — that structure is already in this year');
       onImported?.();
       onClose();
@@ -257,9 +260,9 @@ export default function ImportYearStructureModal({
               <Tile n={plan.linksToCreate}    label="Curriculum"
                 hint="Which class teaches which subject"
                 empty={plan.sourceTotals?.curriculum === 0} />
-              <Tile n={plan.assignmentsToCreate} label="Subject teachers"
-                hint="Who teaches a subject in one particular section"
-                empty={plan.sourceTotals?.assignments === 0} />
+              <Tile n={plan.assignmentsToCreate + (plan.subjectTeachersToAdd ?? 0)} label="Subject teachers"
+                hint={`${plan.assignmentsToCreate} in sections · ${plan.subjectTeachersToAdd ?? 0} on the subject list`}
+                empty={plan.sourceTotals?.assignments === 0 && !(plan.subjectTeachersToAdd > 0)} />
               {withTeachers && <Tile n={plan.classTeachersToSet} label="Class teachers"
                 hint="The teacher in charge of a section" />}
             </div>
