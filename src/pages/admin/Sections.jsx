@@ -15,6 +15,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
+import usePhone from '../../hooks/usePhone';
 import * as api from '../../api/admin.api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Badge, Button, Confirm, Empty, Modal, Spinner } from '../../components/ui/index';
@@ -40,7 +41,8 @@ const SORTS = [
 
 const VIEW_KEY = 'admin.sections.view';
 const readView = () => {
-  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
+  // List unless Card was chosen before (stored as 'grid', its old name) — as on Classes.
+  try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'; } catch { return 'list'; }
 };
 
 /** A column heading with the sentence explaining it hanging off an ⓘ. */
@@ -65,6 +67,10 @@ export default function Sections() {
   const [search, setSearch] = useState('');
   const [sort,   setSort]   = useState('name');
   const [view,   setView]   = useState(readView);
+  // On a phone the sections are always cards: the table needs a desktop's width.
+  // The saved choice is left alone for when the screen is wide again.
+  const phone = usePhone();
+  const shownView = phone ? 'grid' : view;
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(15);
 
@@ -330,12 +336,14 @@ export default function Sections() {
             {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
           </select>
 
-          <div className="clsview" role="group" aria-label="View">
-            <button type="button" className={view === 'grid' ? 'is-on' : ''} onClick={() => setView('grid')}
-              aria-pressed={view === 'grid'}><Icon name="grid" size={15} /> Grid</button>
-            <button type="button" className={view === 'list' ? 'is-on' : ''} onClick={() => setView('list')}
-              aria-pressed={view === 'list'}><Icon name="menu" size={15} /> List</button>
-          </div>
+          {!phone && (
+            <div className="clsview" role="group" aria-label="View">
+              <button type="button" className={view === 'list' ? 'is-on' : ''} onClick={() => setView('list')}
+                aria-pressed={view === 'list'}><Icon name="menu" size={15} /> List</button>
+              <button type="button" className={view === 'grid' ? 'is-on' : ''} onClick={() => setView('grid')}
+                aria-pressed={view === 'grid'}><Icon name="grid" size={15} /> Card</button>
+            </div>
+          )}
 
           <span className="ltools__sep" />
 
@@ -359,7 +367,7 @@ export default function Sections() {
           </div>
         </div>
 
-        {view === 'grid'
+        {shownView === 'grid'
           ? (
             <div className="clsbody">
               {!shown.length

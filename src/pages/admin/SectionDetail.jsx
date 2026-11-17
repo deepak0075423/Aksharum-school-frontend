@@ -19,9 +19,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Badge, Button, Confirm, Modal, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import SectionCapacityModal from '../../components/SectionCapacityModal';
+import PhoneCards from '../../components/ui/PhoneCards';
 import {
   Crumbs, ListStats, ListStat, ListTable, ListFooter, SearchField,
-  RowActions, IconAction, RowMenu, MenuItem, MenuSep, PageFoot,
+  RowActions, IconAction, RowMenu, MenuItem, MenuSep, PageFoot, useListLayout, LayoutToggle,
 } from './listParts';
 import { SectionChip, StatusBadge, fillOf } from './sectionParts';
 import {
@@ -60,6 +61,8 @@ export default function SectionDetail() {
   );
 
   // Teacher assignment modal (shared for class teacher + vice teacher)
+  // The roster: List or Card on a laptop, cards only on a phone — remembered.
+  const [layout, setLayout, shownLayout] = useListLayout('admin.sectionRoster.layout');
   const [teacherModal, setTeacherModal]   = useState(false);
   const [teacherRole, setTeacherRole]     = useState('class'); // 'class' | 'vice'
   const [selectedTeacher, setSelectedTeacher] = useState('');
@@ -605,9 +608,15 @@ export default function SectionDetail() {
                 <Icon name="refresh" size={14} /> Reset
               </button>
             )}
+            <LayoutToggle value={layout} onChange={setLayout} />
           </div>
         )}
 
+        {/* Cards on a phone (components/ui/PhoneCards), and on a laptop when Card
+            is chosen: the student and their status, then roll number (its Set
+            button still works), gender and admission number, then the actions. */}
+        <PhoneCards title="Student" side="Status" keep={['Roll No', 'Gender', 'Adm. No']}
+          cards={shownLayout === 'card'}>
         <ListTable
           columns={columns}
           rows={shown}
@@ -621,6 +630,7 @@ export default function SectionDetail() {
             ? <Button variant="secondary" onClick={resetRoster}>Clear filters</Button>
             : <Button onClick={openStudentModal}>Add students</Button>}
         />
+        </PhoneCards>
 
         {enrolled.length > 0 && (
           <ListFooter

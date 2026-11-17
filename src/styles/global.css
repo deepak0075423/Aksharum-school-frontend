@@ -21808,3 +21808,19 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
     border-color: var(--primary); background: #f8f7ff; box-shadow: 0 0 0 3px rgba(79, 70, 229, .10);
   }
 }
+
+/* Section page panels on a narrow screen (Nov 18): the heading's buttons drop
+   under the title at full width. `.sdpanel__head > div { flex: 1 }` (meant for
+   the title block) also caught the buttons' wrapper, so on a phone the title
+   and the buttons each took half the row and "Assign Roll Numbers" ran off the
+   edge. */
+/* On a wide screen the buttons sit at the right end of the heading, not from
+   its middle (the same `flex: 1` gave them half the row there too). */
+.sdpanel__head > .ltools__acts { flex: 0 0 auto; margin-left: auto; }
+@media (max-width: 768px) {
+  /* Only a heading that carries buttons stacks — Student Analytics' panel
+     headings (icon beside title) share this class and keep their row. */
+  .sdpanel__head:has(> .ltools__acts) { flex-direction: column; align-items: stretch; gap: 12px; }
+  .sdpanel__head > .ltools__acts { flex: 0 0 auto; width: 100%; display: flex; flex-wrap: wrap; gap: 8px; margin-left: 0; }
+  .sdpanel__head > .ltools__acts > .btn { flex: 1 1 auto; justify-content: center; }
+}
