@@ -385,7 +385,7 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
 
       {opt && step === 'details' && (
         <>
-          <YearCard year={year} yearName={form.yearName} editing={editing} />
+          <YearCard year={year} yearName={form.yearName} editing={editing} viewing={opt.viewingYear} />
 
           {live && (
             <div className="fbinfo">
@@ -595,8 +595,17 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
 // ── Pieces ───────────────────────────────────────────────────────────────────
 
 /** The year, as a fact rather than a field. */
-const YearCard = ({ year, yearName, editing }) => (
+const YearCard = ({ year, yearName, editing, viewing }) => (
   year ? (
+    <>
+    {viewing && !editing ? (
+      <div className="fbwarn">
+        <Icon name="alert" size={14} />
+        <span>You are looking at <b>{viewing.yearName}</b>. This campaign is saved to <b>{year.yearName}</b>, the year
+          the school is running — its students are the ones who can answer it — and it will be listed under
+          {' '}{year.yearName}, never under {viewing.yearName}.</span>
+      </div>
+    ) : null}
     <div className="fbyear">
       <span className="fbyear__icon tint-indigo"><Icon name="calendarDays" size={20} /></span>
       <div className="fbyear__text">
@@ -610,6 +619,7 @@ const YearCard = ({ year, yearName, editing }) => (
       </div>
       <span className="fbyear__lock"><Icon name="key" size={12} /> Set automatically</span>
     </div>
+    </>
   ) : (
     <div className="fbformerr">
       <Icon name="alert" size={15} />

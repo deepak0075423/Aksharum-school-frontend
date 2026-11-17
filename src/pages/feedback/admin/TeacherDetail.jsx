@@ -23,7 +23,8 @@ export default function TeacherDetail() {
   const { id } = useParams();
   const base = useFeedbackBase();
   const navigate = useNavigate();
-  const [campaignId, setCampaignId] = useState('');
+  // Opened from a campaign's page: start on that campaign (and so its year).
+  const [campaignId, setCampaignId] = useState(() => new URLSearchParams(window.location.search).get('campaign') || '');
 
   const { data, loading, error } = useFetch(
     () => api.getTeacherAnalytics(id, campaignId ? { campaignId } : {}),

@@ -308,7 +308,7 @@ function Teachers({ a, campaign, base }) {
         columns={[
           {
             key: 'teacher', label: 'Teacher',
-            render: (r) => <Who name={r.name} to={`${base}/teachers/${r._id}`} tone={toneAt(rows.indexOf(r))} />,
+            render: (r) => <Who name={r.name} to={`${base}/teachers/${r._id}?campaign=${id}`} tone={toneAt(rows.indexOf(r))} />,
           },
           { key: 'responses', label: 'Responses', render: (r) => `${r.responses} / ${r.assigned}` },
           { key: 'rate', label: 'Response %', render: (r) => <Bar value={r.responseRate} /> },

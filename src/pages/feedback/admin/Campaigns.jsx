@@ -20,6 +20,7 @@ import {
 } from './fbUI';
 import { CampaignPill, homeFor, useFeedbackBase } from './feedbackParts';
 import { CampaignConfirm, CampaignForm, blankCampaign, toCampaignForm } from './campaignParts';
+import { viewYearHeader } from '../../../utils/yearView';
 
 const STATUSES = [
   { value: 'active',    label: 'Collecting now' },
@@ -192,7 +193,14 @@ export default function Campaigns() {
     setSaving(true); setFormErr('');
     try {
       if (f._id) { await api.updateCampaign(f._id, f); toast.success('Campaign saved'); }
-      else       { await api.createCampaign(f); toast.success('Created as a draft — start it when you are ready'); }
+      else {
+        const made = (await api.createCampaign(f)).data;
+        const viewing = viewYearHeader();
+        // Listed under its own year only — if the header shows another, say so.
+        if (viewing && made?.academicYear && String(made.academicYear) !== viewing) {
+          toast.success('Created as a draft in the running academic year — switch the header to that year to see it.', { duration: 6000 });
+        } else toast.success('Created as a draft — start it when you are ready');
+      }
       setForm(null);
       load();
     } catch (e) { setFormErr(e.message); } finally { setSaving(false); }

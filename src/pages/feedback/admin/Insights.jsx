@@ -88,14 +88,19 @@ const EMPTY = {
  * subject — so no filter is ever on screen that the rows do not answer to.
  */
 const SCOPE = ['academicYear', 'campaign', 'term', 'dateFrom', 'dateTo'];
+// Class and Section narrow every report to the students of one class (or one
+// section of it), so every report offers them. Teacher and Subject are offered
+// only where the rows are about teachers or subjects — never beside the
+// class-wise report, where they made the table ambiguous.
+const PLACE = ['class', 'section'];
 const REPORT_FILTERS = {
-  teacher:       [...SCOPE, 'teacher', 'subject'],
-  campaign:      SCOPE,
-  class:         [...SCOPE, 'class'],
-  subject:       [...SCOPE, 'subject'],
-  department:    SCOPE,
-  response_rate: [...SCOPE, 'class', 'section'],
-  trend:         ['academicYear', 'term', 'dateFrom', 'dateTo', 'teacher', 'subject', 'class'],
+  teacher:       [...SCOPE, 'teacher', 'subject', ...PLACE],
+  campaign:      [...SCOPE, ...PLACE],
+  class:         [...SCOPE, ...PLACE],
+  subject:       [...SCOPE, 'subject', ...PLACE],
+  department:    [...SCOPE, ...PLACE],
+  response_rate: [...SCOPE, ...PLACE],
+  trend:         ['academicYear', 'term', 'dateFrom', 'dateTo', 'teacher', 'subject', ...PLACE],
 };
 const filtersFor = (type, f) => Object.fromEntries(
   (REPORT_FILTERS[type] || SCOPE).map((k) => [k, f[k] ?? '']),
@@ -339,6 +344,10 @@ export default function Insights() {
   };
 
   const sectionOpts = pickers.sectionsOf(draft.class);
+  // The year the Class list is drawn from: the one picked, else the current one.
+  const yearLabel = draft.academicYear && draft.academicYear !== 'all'
+    ? (meta.data?.academicYears || []).find((y) => y._id === draft.academicYear)?.yearName
+    : meta.data?.activeYear?.yearName;
   const shows = new Set(REPORT_FILTERS[reportType] || SCOPE);
   /** Another report: keep only the filters it has, so nothing hidden still applies. */
   const pickReport = (type) => {
@@ -785,7 +794,7 @@ export default function Insights() {
                 <Field label="Class">
                   <select value={draft.class} aria-label="Class"
                     onChange={(e) => setDraft({ ...draft, class: e.target.value, section: '' })}>
-                    <option value="">All classes</option>
+                    <option value="">{draft.academicYear === 'all' || !yearLabel ? 'All classes' : `All classes (${yearLabel})`}</option>
                     {pickers.classes.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </Field>

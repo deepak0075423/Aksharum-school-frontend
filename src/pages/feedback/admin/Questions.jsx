@@ -485,7 +485,7 @@ export default function Questions() {
           {/* Counts campaigns built from templates, not templates — so it opens
               each template's uses, and a template opens the campaigns it made. */}
           <Stat icon="repeat" tone="blue" value={counts.reused} label="Times Reused"
-            caption="Across all campaigns" popup onClick={() => setReuseOpen(true)} />
+            caption="By this year's campaigns" popup onClick={() => setReuseOpen(true)} />
         </Stats>
       )}
 
@@ -675,7 +675,7 @@ export default function Questions() {
         onClose={() => setDelT(null)} onConfirm={removeTemplate} />
 
       <TileList open={reuseOpen} onClose={() => setReuseOpen(false)} title="Times Reused"
-        note="How many campaigns were built from each template, archived ones included. Choose one to see them. Campaigns made before templates were recorded are not counted."
+        note="How many of this academic year's campaigns were built from each template, archived ones included. Choose one to see them. Campaigns made before templates were recorded are not counted."
         rows={templates.filter((t) => (t.timesUsed || 0) > 0)
           .sort((a, b) => b.timesUsed - a.timesUsed || a.name.localeCompare(b.name))
           .map((t) => ({
