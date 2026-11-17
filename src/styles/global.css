@@ -16456,7 +16456,7 @@ button.fbstat:hover { border-color: rgba(79,70,229,.35); }
   display: flex; align-items: flex-start; gap: 28px; flex-wrap: wrap;
   padding-left: 22px; border-left: 1px solid var(--border);
 }
-.fbtpl__meta > div > label { display: block; font-size: .72rem; color: var(--text-muted); margin-bottom: 6px; }
+.fbtpl__meta > div > .fbtpl__k { display: block; font-size: .72rem; color: var(--text-muted); margin-bottom: 6px; }
 .fbtpl__meta > div > span  { display: block; font-size: .83rem; font-weight: 600; }
 .fbtpls { display: flex; flex-direction: column; gap: 14px; }
 .fbtpls--card { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
@@ -21422,7 +21422,7 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .fbtpl__chips { margin-top: 8px; gap: 6px; }
 .fbtpl__chip { padding: 2px 9px; font-size: .72rem; border-radius: 7px; gap: 5px; }
 .fbtpl__meta { gap: 22px; padding-left: 18px; align-items: center; flex-wrap: nowrap; }
-.fbtpl__meta > div > label { margin-bottom: 3px; white-space: nowrap; }
+.fbtpl__meta > div > .fbtpl__k { margin-bottom: 3px; white-space: nowrap; }
 .fbtpl__meta > div > span { white-space: nowrap; }
 .fbtpls--card { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
 .fbtpls--card .fbtpl { grid-template-columns: 42px minmax(0, 1fr); align-items: start; row-gap: 12px; }
@@ -21597,7 +21597,7 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
     grid-column: 2; padding: 0; border: none; gap: 4px 14px; flex-wrap: wrap; align-items: center;
   }
   .fbtpls:not(.fbtpls--card) .fbtpl__meta > div:not(.fbmenu) { display: inline-flex; align-items: center; gap: 5px; }
-  .fbtpls:not(.fbtpls--card) .fbtpl__meta > div > label {
+  .fbtpls:not(.fbtpls--card) .fbtpl__meta > div > .fbtpl__k {
     margin: 0; font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-light);
   }
   .fbtpls:not(.fbtpls--card) .fbtpl__meta > div > span { font-size: .76rem; }

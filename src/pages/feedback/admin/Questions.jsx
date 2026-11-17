@@ -718,15 +718,15 @@ const TemplateCard = ({ tpl, onEdit, onToggle, onDelete, base }) => {
       </div>
       <div className="fbtpl__meta">
         <div>
-          <label>Status</label>
+          <small className="fbtpl__k">Status</small>
           <span><OnOff on={tpl.status === 'active'} /></span>
         </div>
         <div>
-          <label>Created on</label>
+          <small className="fbtpl__k">Created on</small>
           <span>{fmtDate(tpl.createdAt) || <Dash />}</span>
         </div>
         <div>
-          <label>Last used</label>
+          <small className="fbtpl__k">Last used</small>
           <span>{tpl.lastUsedAt ? fmtDate(tpl.lastUsedAt) : <Dash />}</span>
         </div>
         <Menu>

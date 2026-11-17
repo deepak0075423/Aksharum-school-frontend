@@ -5,9 +5,13 @@ import { Toaster } from 'react-hot-toast';
 import App from './App.jsx';
 import './styles/global.css';
 import { installTextGuard } from './utils/textGuard';
+import { installFieldIds } from './utils/fieldIds';
 
 // Every text box takes English and never markup, while it is typed in (utils/textRules).
 installTextGuard();
+// Every form field has an id and every label its field (Chrome's DevTools
+// form-field issues) — utils/fieldIds.
+installFieldIds();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
