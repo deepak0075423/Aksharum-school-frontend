@@ -102,14 +102,21 @@ export function sectionsInScope(opt, classes, sections) {
   return byClass.filter((s) => picked.has(s._id) || (classes.length > 0 && !classesWithPicks.has(s.class)));
 }
 
-/** Exactly what fb.generateAssignments would build, counted instead of written. */
-export function computeReach(opt, form) {
+/**
+ * Exactly what fb.generateAssignments would build, counted instead of written.
+ *
+ * `none` names the audience lists the admin has CLEARED (nothing ticked). The
+ * server reads an empty list as "everything", so a cleared list is a form-only
+ * state: it reaches nobody here, and the form will not send it.
+ */
+export function computeReach(opt, form, none = {}) {
   if (!opt?.academicYear) return { sections: 0, students: 0, teachers: 0, evaluations: 0, scope: [] };
-  const scope = sectionsInScope(opt, form.targetClasses, form.targetSections);
+  const scope = none.targetClasses || none.targetSections
+    ? [] : sectionsInScope(opt, form.targetClasses, form.targetSections);
   const inScope = new Map(scope.map((s) => [s._id, s]));
   const subj = new Set(form.targetSubjects);
   const teach = new Set(form.targetTeachers);
-  const links = (opt.links || []).filter((l) => inScope.has(l.section)
+  const links = none.targetSubjects || none.targetTeachers ? [] : (opt.links || []).filter((l) => inScope.has(l.section)
     && (!subj.size || subj.has(l.subject)) && (!teach.size || teach.has(l.teacher)));
   const reached = new Set(links.map((l) => l.section));
   return {
@@ -140,12 +147,15 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
   const [touched, setTouched] = useState({});
   const [dropped, setDropped] = useState(0);
   const [attempt, setAttempt] = useState(0);   // bumped by Retry
+  // Audience lists the admin has cleared ("nothing ticked"). The server reads
+  // an empty list as "all", so this lives in the form only — see computeReach.
+  const [none, setNone] = useState({});
 
   // Options load each time the form opens — a class added in another tab since
   // the page loaded should be pickable without a reload.
   useEffect(() => {
     if (!open) return undefined;
-    setStep('details'); setErrors({}); setTouched({}); setDropped(0); setAttempt(0);
+    setStep('details'); setErrors({}); setTouched({}); setDropped(0); setAttempt(0); setNone({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, form?._id]);
 
@@ -190,7 +200,7 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
 
   const reach = useMemo(() => computeReach(opt, form || {
     targetClasses: [], targetSections: [], targetSubjects: [], targetTeachers: [],
-  }), [opt, form]);
+  }, none), [opt, form, none]);
 
   if (!open || !form) return null;
 
@@ -209,6 +219,10 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
       if (opt && !year && !editing) e.year = 'No active academic year.';
     }
     if (key === 'questions' && !editing && !form.template) e.template = 'Choose the questions this campaign will ask.';
+    if (key === 'audience' && !live) {
+      const cleared = AUDIENCE_NOUNS.filter(([k]) => none[k]).map(([, n]) => n);
+      if (cleared.length) e.audience = `Nothing is ticked under ${cleared.join(' and ')}. Tick at least one, or press Select all.`;
+    }
     if (key === 'schedule') {
       if (!form.startDate) e.startDate = 'Required.';
       if (!form.endDate) e.endDate = 'Required.';
@@ -268,9 +282,47 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
     nf.targetTeachers = nf.targetTeachers.filter((id) => teachers.has(id));
     return nf;
   });
-  const flip = (key, id) => retarget({
-    [key]: form[key].includes(id) ? form[key].filter((x) => x !== id) : [...form[key], id],
-  });
+  /**
+   * Every audience list shows exactly who is in: an empty list (the server's
+   * "everything") is drawn with every chip ticked. So a press on a chip takes
+   * it out or puts it back; when every chip is ticked again the list returns
+   * to "everything"; un-ticking the last one leaves the list cleared.
+   * `allIds` is every chip the list offers right now (not just the searched).
+   */
+  const flip = (key, id, allIds) => {
+    const cur = none[key] ? [] : (form[key].length ? form[key] : allIds);
+    let next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    const cleared = !next.length;
+    if (!cleared && allIds.every((x) => next.includes(x))) next = [];
+    setNone((n) => ({ ...n, [key]: cleared }));
+    retarget({ [key]: next });
+  };
+  /**
+   * Sections are drawn from the scope itself (a class with none of its
+   * sections listed contributes all of them on the server), so a press works
+   * on what is actually ticked. A class whose last section is unticked leaves
+   * the audience as a class too — otherwise the server's rule would quietly
+   * bring every one of its sections back.
+   */
+  const flipSection = (id, shownIds, tickedIds) => {
+    const cur = none.targetSections ? [] : tickedIds;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    if (!next.length) { setNone((n) => ({ ...n, targetSections: true })); retarget({ targetSections: [] }); return; }
+    const classOf = new Map(opt.sections.map((x) => [x._id, x.class]));
+    const shownClasses = [...new Set(shownIds.map((x) => classOf.get(x)))];
+    const kept = shownClasses.filter((c) => next.some((x) => classOf.get(x) === c));
+    const allClasses = [...new Set(opt.sections.map((x) => x.class))];
+    let classes = form.targetClasses;
+    if (kept.length < shownClasses.length) classes = kept.length === allClasses.length ? [] : kept;
+    const inKept = shownIds.filter((x) => kept.includes(classOf.get(x)));
+    const sections = inKept.every((x) => next.includes(x)) ? [] : next;
+    setNone((n) => ({ ...n, targetSections: false, targetClasses: false }));
+    retarget({ targetClasses: classes, targetSections: sections });
+  };
+  /** Tick every chip of a list (the server's "everything"). */
+  const selectAll = (key) => { setNone((n) => ({ ...n, [key]: false })); retarget({ [key]: [] }); };
+  /** Untick every chip, to pick a few by hand. */
+  const clearAll = (key) => { setNone((n) => ({ ...n, [key]: true })); retarget({ [key]: [] }); };
 
   const footerPrimary = editing
     ? (
@@ -445,7 +497,8 @@ export function CampaignForm({ open, form, setForm, saving, error, onClose, onSa
 
       {opt && step === 'audience' && (
         <Audience opt={opt} form={form} reach={reach} live={live} dropped={dropped}
-          flip={flip} retarget={retarget} />
+          flip={flip} flipSection={flipSection} none={none} selectAll={selectAll} clearAll={clearAll}
+          error={touched.audience ? stepErrors.audience.audience : ''} />
       )}
 
       {opt && step === 'schedule' && (
@@ -630,27 +683,51 @@ function Summary({ form, opt, reach, template, days, live }) {
  * inside Audience would be a new type every render, remounting its search box
  * and dropping focus after each keystroke.
  */
-const Group = ({ icon, title, picked, total, noun, onAll, children, searchValue, onSearch }) => (
-  <section className="fbaud">
-    <header>
-      <span className="fbaud__icon tint-purple"><Icon name={icon} size={16} /></span>
-      <div className="fbaud__title">
-        <b>{title}</b>
-        <small>{picked ? `${picked} of ${total} picked` : `All ${total} ${noun}`}</small>
-      </div>
-      {onSearch ? (
-        <div className="fbaud__search">
-          <SearchBox value={searchValue} onChange={onSearch} placeholder={`Find ${noun}…`} />
+const Group = ({ icon, title, picked, total, noun, cleared, onAll, onNone, children, searchValue, onSearch }) => {
+  const everything = !cleared && !picked;
+  return (
+    <section className={`fbaud${cleared ? ' is-cleared' : ''}`}>
+      <header>
+        <span className="fbaud__icon tint-purple"><Icon name={icon} size={16} /></span>
+        <div className="fbaud__title">
+          <b>{title}</b>
+          <small className={everything ? 'is-all' : cleared ? 'is-none' : ''}>
+            {!total ? `No ${noun} to choose from` : cleared ? `None of ${total} ticked`
+              : everything ? `All ${total} ${noun} selected` : `${picked} of ${total} selected`}
+          </small>
         </div>
-      ) : null}
-      {picked ? <button type="button" className="fbaud__all" onClick={onAll}>Use all</button> : null}
-    </header>
-    {children}
-  </section>
-);
+        {onSearch ? (
+          <div className="fbaud__search">
+            <SearchBox value={searchValue} onChange={onSearch} placeholder={`Find ${noun}…`} />
+          </div>
+        ) : null}
+        {total > 0 && (
+          <span className="fbaud__btns">
+            <button type="button" className={`fbaud__all${everything ? ' is-on' : ''}`} onClick={onAll}
+              disabled={everything} aria-pressed={everything}>
+              <Icon name="checkSquare" size={13} /> Select all
+            </button>
+            <button type="button" className="fbaud__all" onClick={onNone} disabled={cleared}>
+              Clear
+            </button>
+          </span>
+        )}
+      </header>
+      {children}
+    </section>
+  );
+};
+
+const AUDIENCE_NOUNS = [
+  ['targetClasses', 'Classes'], ['targetSections', 'Sections'],
+  ['targetSubjects', 'Subjects'], ['targetTeachers', 'Teachers'],
+];
 
 /** Classes → sections → subjects → teachers, each list narrowed by the one above. */
-function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
+function Audience({ opt, form, reach, live, dropped, flip, flipSection, none, selectAll, clearAll, error }) {
+  // Is this chip in? An empty list is "everything" and draws every chip ticked;
+  // a cleared list ticks none.
+  const isIn = (key, id) => !none[key] && (!form[key].length || form[key].includes(id));
   const [q, setQ] = useState({ classes: '', teachers: '' });
   const year = opt.academicYear;
 
@@ -676,6 +753,7 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
   const subj = new Set(form.targetSubjects);
   const teacherSubjects = new Map();
   for (const l of linksInScope) {
+    if (none.targetSubjects) break;
     if (subj.size && !subj.has(l.subject)) continue;
     if (!teacherSubjects.has(l.teacher)) teacherSubjects.set(l.teacher, new Set());
     teacherSubjects.get(l.teacher).add(l.subject);
@@ -690,6 +768,7 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
     .filter((c) => !q.classes || c.className.toLowerCase().includes(q.classes.toLowerCase()));
 
   const sectionRows = useMemo(() => {
+    if (none.targetClasses) return [];
     const base = form.targetClasses.length ? opt.sections.filter((s) => form.targetClasses.includes(s.class)) : opt.sections;
     const m = new Map();
     for (const s of base) {
@@ -697,7 +776,14 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
       m.get(s.class).rows.push(s);
     }
     return [...m.entries()];
-  }, [opt, form.targetClasses]);
+  }, [opt, form.targetClasses, none.targetClasses]);
+
+  // Every chip each list offers (not only the ones a search leaves showing):
+  // what "every chip ticked" is measured against.
+  const classIds = opt.classes.filter((c) => classStats.has(c._id)).map((c) => c._id);
+  const sectionIds = sectionRows.flatMap(([, g]) => g.rows.map((x) => x._id));
+  // A section is ticked when it is in the scope the server will build.
+  const sectionTicked = none.targetSections ? [] : sectionIds.filter((id) => scopeIds.has(id));
 
   if (live) {
     return (
@@ -727,20 +813,22 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
       )}
       <div className="fbinfo">
         <Icon name="info" size={15} />
-        <span>Leave a list untouched to include everything in it. Each list only offers what the lists above it
-          contain, and students are matched to their own teachers automatically — nobody is paired by hand.</span>
+        <span>Everything starts selected. Untick what this campaign should leave out, or press <b>Clear</b> and tick
+          only what it is for. Each list only offers what the lists above it contain, and students are matched to
+          their own teachers automatically — nobody is paired by hand.</span>
       </div>
+      {error ? <div className="fbformerr"><Icon name="alert" size={15} /> {error}</div> : null}
 
       <Group icon="grid" title="Classes" picked={form.targetClasses.length} total={classStats.size} noun="classes"
-        onAll={() => retarget({ targetClasses: [] })}
+        cleared={!!none.targetClasses} onAll={() => selectAll('targetClasses')} onNone={() => clearAll('targetClasses')}
         searchValue={q.classes} onSearch={opt.classes.length > 12 ? (v) => setQ((x) => ({ ...x, classes: v })) : null}>
         <div className="fbchips2">
           {classesShown.map((c) => {
             const st = classStats.get(c._id);
-            const on = form.targetClasses.includes(c._id);
+            const on = isIn('targetClasses', c._id);
             return (
               <button key={c._id} type="button" aria-pressed={on} className={`fbchip2${on ? ' is-on' : ''}`}
-                onClick={() => flip('targetClasses', c._id)}>
+                onClick={() => flip('targetClasses', c._id, classIds)}>
                 {on ? <Icon name="checkCircle" size={13} /> : null}
                 <b>{c.className}</b>
                 <small>{st.sections} sec · {st.students} students</small>
@@ -751,19 +839,21 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
         </div>
       </Group>
 
-      <Group icon="layers" title="Sections" picked={form.targetSections.length}
-        total={form.targetClasses.length ? sectionRows.reduce((n, [, g]) => n + g.rows.length, 0) : opt.sections.length}
-        noun="sections" onAll={() => retarget({ targetSections: [] })}>
+      <Group icon="layers" title="Sections"
+        picked={sectionTicked.length === sectionIds.length ? 0 : sectionTicked.length}
+        total={sectionIds.length}
+        noun="sections" cleared={!!none.targetSections}
+        onAll={() => selectAll('targetSections')} onNone={() => clearAll('targetSections')}>
         <div className="fbsecrows">
           {sectionRows.map(([cid, g]) => (
             <div key={cid} className="fbsecrow">
               <span className="fbsecrow__c">{g.className}</span>
               <span className="fbchips2">
                 {g.rows.map((s) => {
-                  const on = form.targetSections.includes(s._id);
+                  const on = sectionTicked.includes(s._id);
                   return (
                     <button key={s._id} type="button" aria-pressed={on} className={`fbchip2 fbchip2--sm${on ? ' is-on' : ''}`}
-                      onClick={() => flip('targetSections', s._id)}>
+                      onClick={() => flipSection(s._id, sectionIds, sectionTicked)}>
                       {on ? <Icon name="checkCircle" size={12} /> : null}
                       <b>{s.sectionName}</b><small>{s.students}</small>
                     </button>
@@ -773,20 +863,19 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
             </div>
           ))}
         </div>
-        {form.targetSections.length > 0 && form.targetClasses.length > 0 && (
-          <p className="fbaud__note">A picked section narrows its own class; a picked class with no section ticked keeps all of them.</p>
-        )}
+
       </Group>
 
       <Group icon="book" title="Subjects" picked={form.targetSubjects.length} total={subjectsShown.length}
-        noun="subjects taught here" onAll={() => retarget({ targetSubjects: [] })}>
+        noun="subjects taught here" cleared={!!none.targetSubjects}
+        onAll={() => selectAll('targetSubjects')} onNone={() => clearAll('targetSubjects')}>
         <div className="fbchips2">
           {subjectsShown.map((s) => {
-            const on = form.targetSubjects.includes(s._id);
+            const on = isIn('targetSubjects', s._id);
             const n = subjectTeachers.get(s._id).size;
             return (
               <button key={s._id} type="button" aria-pressed={on} className={`fbchip2${on ? ' is-on' : ''}`}
-                onClick={() => flip('targetSubjects', s._id)}>
+                onClick={() => flip('targetSubjects', s._id, subjectsShown.map((x) => x._id))}>
                 {on ? <Icon name="checkCircle" size={13} /> : null}
                 <b>{s.subjectName}</b><small>{n} teacher{n === 1 ? '' : 's'}</small>
               </button>
@@ -800,15 +889,16 @@ function Audience({ opt, form, reach, live, dropped, flip, retarget }) {
       </Group>
 
       <Group icon="teacher" title="Teachers" picked={form.targetTeachers.length} total={teacherSubjects.size}
-        noun="teachers" onAll={() => retarget({ targetTeachers: [] })}
+        noun="teachers" cleared={!!none.targetTeachers}
+        onAll={() => selectAll('targetTeachers')} onNone={() => clearAll('targetTeachers')}
         searchValue={q.teachers} onSearch={teacherSubjects.size > 12 ? (v) => setQ((x) => ({ ...x, teachers: v })) : null}>
         <div className="fbteachpick">
           {teachersShown.map((t, i) => {
-            const on = form.targetTeachers.includes(t._id);
+            const on = isIn('targetTeachers', t._id);
             const subs = [...(teacherSubjects.get(t._id) || [])].map((id) => subjectName.get(id)).filter(Boolean);
             return (
               <button key={t._id} type="button" aria-pressed={on} className={`fbteach${on ? ' is-on' : ''}`}
-                onClick={() => flip('targetTeachers', t._id)}>
+                onClick={() => flip('targetTeachers', t._id, [...teacherSubjects.keys()])}>
                 <Avatar name={t.name} size={32} tone={toneAt(i)} />
                 <span className="fbteach__t">
                   <b>{t.name}</b>

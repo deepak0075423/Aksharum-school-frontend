@@ -67,10 +67,59 @@ export const Stars = ({ value, size = 15 }) => (
   </span>
 );
 
+// ── Star rating (the "1–5 Rating" question type) ─────────────────────────────
+//  Five stars in a row: choosing the third fills one to three, exactly as a
+//  star rating reads everywhere else. Hovering previews the fill, and the word
+//  for the value (hovered or chosen) sits beside the stars, so the meaning never
+//  rests on counting alone. The emoji faces belong to the Emoji type only.
+const STAR_PATH = 'M12 2.6l2.84 5.76 6.36.92-4.6 4.49 1.09 6.33L12 17.1l-5.69 3 1.09-6.33-4.6-4.49 6.36-.92z';
+
+export function StarInput({ value, onChange, name }) {
+  const [hover, setHover] = React.useState(null);
+  const shown = hover ?? value ?? 0;
+  return (
+    <div className="fbstars">
+      <div role="radiogroup" aria-label={name} className="fbstars__row" onMouseLeave={() => setHover(null)}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const lit = n <= shown;
+          return (
+            <button key={n} type="button" role="radio" aria-checked={value === n}
+              aria-label={`${n} star${n === 1 ? '' : 's'} — ${RATING_LABELS[n]}`} title={`${n} star${n === 1 ? '' : 's'} — ${RATING_LABELS[n]}`}
+              className={`fbstars__star${lit ? ' is-lit' : ''}${hover != null ? ' is-preview' : ''}`}
+              onMouseEnter={() => setHover(n)} onFocus={() => setHover(n)} onBlur={() => setHover(null)}
+              onClick={() => onChange(value === n ? null : n)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={STAR_PATH} /></svg>
+            </button>
+          );
+        })}
+      </div>
+      <span className={`fbstars__word${shown ? ' is-on' : ''}`} aria-live="polite">
+        {shown
+          ? <><b>{shown} / 5</b> {RATING_LABELS[shown]}</>
+          : 'Tap a star — 1 is Poor, 5 is Excellent'}
+      </span>
+    </div>
+  );
+}
+
+/** Read-only stars for a stored rating — the same star as the input. */
+export const StarRow = ({ value, size = 16 }) => (
+  <span className="fbstars__ro" aria-label={`${value ?? 0} out of 5 stars`} style={{ '--fbstar': `${size}px` }}>
+    {[1, 2, 3, 4, 5].map((n) => (
+      <svg key={n} viewBox="0 0 24 24" aria-hidden="true" className={n <= (value || 0) ? 'is-lit' : ''}><path d={STAR_PATH} /></svg>
+    ))}
+  </span>
+);
+
 // ── Large touch-friendly rating control (student form) ───────────────────────
-//  Five 44px+ targets in a row, each carrying its number AND its word, so the
-//  meaning never rests on position alone.
-export const RatingInput = ({ value, onChange, name }) => (
+//  `kind="stars"` (a 1–5 Rating question) is the star row above. Otherwise
+//  (an Emoji question): five 44px+ targets in a row, each carrying its face,
+//  its number AND its word, so the meaning never rests on position alone.
+export const RatingInput = ({ value, onChange, name, kind = 'emoji' }) => (kind === 'stars'
+  ? <StarInput value={value} onChange={onChange} name={name} />
+  : <EmojiInput value={value} onChange={onChange} name={name} />);
+
+const EmojiInput = ({ value, onChange, name }) => (
   <div role="radiogroup" aria-label={name} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
     {[1, 2, 3, 4, 5].map((n) => {
       const active = value === n;

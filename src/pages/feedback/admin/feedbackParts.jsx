@@ -105,7 +105,7 @@ export const SETTINGS_DEFAULTS = {
 // ── Questions ────────────────────────────────────────────────────────────────
 
 export const QUESTION_TYPES = [
-  { value: 'rating_5',        label: '1–5 Rating',                  short: '1–5 Rating' },
+  { value: 'rating_5',        label: 'Star Rating (1–5)',           short: '1–5 Stars' },
   { value: 'emoji_5',         label: 'Emoji Rating (1–5)',          short: 'Emoji' },
   { value: 'yes_no',          label: 'Yes / No',                    short: 'Yes / No' },
   { value: 'multiple_choice', label: 'Multiple Choice (pick one)',  short: 'Pick one' },

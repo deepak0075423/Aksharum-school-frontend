@@ -207,7 +207,7 @@ export const Muted = ({ children }) => <p className="fbmuted">{children}</p>;
 
 // ── Filter bar ───────────────────────────────────────────────────────────────
 
-export const Toolbar = ({ children }) => <div className="fbtools">{children}</div>;
+export const Toolbar = ({ children, className = '' }) => <div className={`fbtools${className ? ` ${className}` : ''}`}>{children}</div>;
 
 export const Search = ({ value, onChange, placeholder, wide }) => (
   <div className={`fbsearch${wide ? ' fbsearch--wide' : ''}`}>
@@ -236,13 +236,28 @@ export const Pick = ({ value, onChange, options, all, label, width, dflt = '' })
   </select>
 );
 
-/** "Sort by" and its dropdown, kept together so the label never wraps alone. */
-export const SortBy = ({ value, onChange, options, dflt }) => (
-  <span className="fbsort">
-    <label>Sort by</label>
-    <Pick value={value} onChange={onChange} options={options} label="Sort by" dflt={dflt} />
-  </span>
-);
+/**
+ * "Sort by" and its dropdown, kept together so the label never wraps alone.
+ *
+ * An order is not a filter, so it is never painted as "on": the "on" style is
+ * bold, and a bold select is a few pixels wider — enough, on every change away
+ * from the default, to push the bar onto another row. A native select is as
+ * wide as its longest choice, so without it the control never moves.
+ */
+export const SortBy = ({ value, onChange, options }) => {
+  return (
+    <span className="fbsort">
+      <label>Sort by</label>
+      <select className="fbsel" value={value} aria-label="Sort by"
+        onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'string' ? o : o.value;
+          return <option key={v} value={v}>{typeof o === 'string' ? o : o.label}</option>;
+        })}
+      </select>
+    </span>
+  );
+};
 
 export const Spacer = () => <span className="fbtools__gap" />;
 

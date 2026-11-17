@@ -161,16 +161,16 @@ export default function Settings() {
 
       {!!dirty.length && (
         <NoteBar tone="amber" icon="alert"
+          // Save lives in one place only — the button at the top of the page.
+          // This bar names what changed and offers the way back.
           action={(
-            <span className="fbacts">
-              <button type="button" className="fbtb" onClick={discard}>Discard</button>
-              <button type="button" className="fbtb fbtb--primary" onClick={save} disabled={saving}>
-                {saving ? 'Saving…' : 'Save settings'}
-              </button>
-            </span>
+            <button type="button" className="fbtb" onClick={discard} disabled={saving}>
+              <Icon name="refresh" size={14} /> Discard changes
+            </button>
           )}>
           <b>{dirty.length} unsaved change{dirty.length === 1 ? '' : 's'}</b> — {dirty.map((k) => LABELS[k]).join(', ')}.
-          Nothing takes effect until you save, and a campaign already running keeps the settings it started with.
+          Nothing takes effect until you press <b>Save settings</b> at the top, and a campaign already running keeps the
+          settings it started with.
         </NoteBar>
       )}
 

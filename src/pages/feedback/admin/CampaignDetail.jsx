@@ -405,51 +405,66 @@ const ASSIGNMENT = {
   expired:     { word: 'Expired',     tone: 'slate' },
 };
 
+/** A student's overall state across every teacher they were asked about. */
+const STUDENT_STATE = {
+  complete: { word: 'All done',    tone: 'green' },
+  partial:  { word: 'Partly done', tone: 'blue' },
+  none:     { word: 'Not started', tone: 'amber' },
+};
+
+/**
+ * Who responded — one row per student. A student is asked about every teacher
+ * who teaches them, so the register used to list each student once per
+ * teacher; the school chases students, so each appears once here with how many
+ * of their teachers they have answered, and opens up to show which.
+ */
 function Tracking({ id, campaign }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
+  const [counts, setCounts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [anon, setAnon] = useState(true);
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
+  const [open, setOpen] = useState(null);
   const limit = 10;
+
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = (await api.getCampaignAssignments(id, { page, limit, status })).data;
+      const d = (await api.getCampaignAssignments(id, {
+        groupBy: 'student', page, limit, status, ...(term ? { q: term } : {}),
+      })).data;
       setRows(d?.data || []);
       setAnon(d?.isAnonymous);
       setTotal(d?.total || 0);
       setPages(d?.pages || 1);
+      setCounts(d?.counts || null);
     } catch (e) { toast.error(e.message); } finally { setLoading(false); }
-  }, [id, page, status]);
+  }, [id, page, status, term]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    const t = setTimeout(() => setTerm(search.trim().toLowerCase()), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  useEffect(() => { setOpen(null); }, [page, status, term]);
 
-  const shown = useMemo(() => (term
-    ? rows.filter((r) => `${r.student?.name || ''} ${r.teacher || ''} ${r.subject || ''} ${r.section || ''}`
-      .toLowerCase().includes(term))
-    : rows), [rows, term]);
+  const n = (k) => (counts ? ` (${counts[k] ?? 0})` : '');
 
   return (
     <>
       <Toolbar>
-        <Search value={search} onChange={setSearch}
-          placeholder="Search students, teachers or sections…" />
-        <Pick value={status} onChange={(v) => { setStatus(v); setPage(1); }} all="All statuses"
+        <Search value={search} onChange={setSearch} placeholder="Search students…" />
+        <Pick value={status} onChange={(v) => { setStatus(v); setPage(1); }} all="All students"
           label="Submission status" options={[
-            { value: 'pending', label: 'Not started' },
-            { value: 'in_progress', label: 'In progress' },
-            { value: 'submitted', label: 'Submitted' },
-            { value: 'expired', label: 'Expired' },
+            { value: 'none', label: `Not started${n('none')}` },
+            { value: 'partial', label: `Partly done${n('partial')}` },
+            { value: 'complete', label: `All done${n('complete')}` },
           ]} />
         <Spacer />
       </Toolbar>
@@ -467,37 +482,80 @@ function Tracking({ id, campaign }) {
       <Table
         loading={loading}
         startIndex={(page - 1) * limit}
-        rows={shown}
+        rows={rows}
+        expandedId={open}
+        renderExpanded={(r) => <StudentTeachers row={r} />}
         columns={[
           {
             key: 'student', label: 'Student',
             render: (r) => (r.student?.name
-              ? <Who name={r.student.name} tone="blue" sub={r.section} />
+              ? <Who name={r.student.name} tone="blue" sub={r.section || undefined} />
               : <Dash />),
           },
-          { key: 'about', label: 'About', render: (r) => <Stack main={r.teacher} sub={r.subject} /> },
+          {
+            key: 'progress', label: 'Teachers answered',
+            render: (r) => (
+              <span className="fbregprog">
+                <b>{r.submitted} / {r.total}</b>
+                <span className="fbregprog__bar" aria-hidden>
+                  <span style={{ width: `${r.total ? Math.round((r.submitted / r.total) * 100) : 0}%` }} />
+                </span>
+              </span>
+            ),
+          },
           {
             key: 'status', label: 'Status',
             render: (r) => {
-              const s = ASSIGNMENT[r.status] || ASSIGNMENT.pending;
-              return <Dot tone={s.tone}>{s.word}</Dot>;
+              const st = STUDENT_STATE[r.state] || STUDENT_STATE.none;
+              return <Dot tone={st.tone}>{st.word}</Dot>;
             },
           },
           {
-            key: 'when', label: 'Submitted',
-            render: (r) => (r.submittedAt ? <span className="fbdate">{fmtDate(r.submittedAt)}</span> : <Dash />),
+            key: 'when', label: 'Last submitted',
+            render: (r) => (r.lastSubmittedAt ? <span className="fbdate">{fmtDate(r.lastSubmittedAt)}</span> : <Dash />),
+          },
+          {
+            key: 'a', className: 'fbtable__acts', label: 'Teachers',
+            render: (r) => (
+              <button type="button" className="fbtb fbtb--sm" aria-expanded={open === r._id}
+                onClick={() => setOpen(open === r._id ? null : r._id)}>
+                {open === r._id ? 'Hide' : 'Show'} {r.total} <Icon name="chevronDown" size={13} className={open === r._id ? 'is-flipped' : ''} />
+              </button>
+            ),
           },
         ]}
         empty={(
           <EmptyState icon="🗳" title={status || term ? 'Nothing matches' : 'No assignments'}
             message={campaign.status === 'draft'
               ? 'Assignments are generated when the campaign starts.'
-              : 'No student was matched to a teacher for this campaign. Check the section–subject–teacher allocations.'} />
+              : status || term
+                ? 'No student matches this search or status.'
+                : 'No student was matched to a teacher for this campaign. Check the section–subject–teacher allocations.'} />
         )}
       />
 
       <Foot page={page} pages={pages} total={total} limit={limit}
-        count={shown.length} noun="assignment" onPage={setPage} />
+        count={rows.length} noun="student" onPage={setPage} />
     </>
   );
 }
+
+/** The teachers one student was asked about, and where each stands. */
+const StudentTeachers = ({ row }) => (
+  <>
+    <div className="fbexp__h">{row.student?.name} — {row.submitted} of {row.total} teacher{row.total === 1 ? '' : 's'} answered</div>
+    <ul className="fbexp__rows">
+      {(row.teachers || []).map((t, i) => {
+        const st = ASSIGNMENT[t.status] || ASSIGNMENT.pending;
+        return (
+          // eslint-disable-next-line react/no-array-index-key
+          <li key={i}>
+            <span style={{ flex: '1 1 220px', minWidth: 0 }}><Stack main={t.teacher} sub={t.subject || 'General'} /></span>
+            <Dot tone={st.tone}>{st.word}</Dot>
+            <span className="fbexp__resp">{t.submittedAt ? fmtDate(t.submittedAt) : '—'}</span>
+          </li>
+        );
+      })}
+    </ul>
+  </>
+);

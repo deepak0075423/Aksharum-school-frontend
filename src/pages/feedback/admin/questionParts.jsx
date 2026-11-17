@@ -19,8 +19,8 @@ import { QUESTION_TYPES, categoryIcon, isScorable, minutesFor, typeShort } from 
 const NEEDS_OPTIONS = ['multiple_choice', 'checkbox'];
 
 const TYPE_LOOK = {
-  rating_5:        { icon: 'star',        text: 'Poor to Excellent, counts towards the rating' },
-  emoji_5:         { icon: 'sun',         text: 'The same 1–5 scale, shown with faces' },
+  rating_5:        { icon: 'star',        text: '1 to 5 stars, Poor to Excellent' },
+  emoji_5:         { icon: 'smile',       text: 'The same 1–5 scale, shown with faces' },
   yes_no:          { icon: 'checkCircle', text: 'A single yes or no' },
   multiple_choice: { icon: 'list',        text: 'Choose one option from a list' },
   checkbox:        { icon: 'checkSquare', text: 'Tick any number of options' },
@@ -126,6 +126,7 @@ export function QuestionForm({ open, form, setForm, categories, saving, error, o
             <div className="fbprev__ctl">
               {['rating_5', 'emoji_5'].includes(form.questionType) && (
                 <RatingInput name="preview" value={tryValue.rating ?? null}
+                  kind={form.questionType === 'rating_5' ? 'stars' : 'emoji'}
                   onChange={(v) => setTryValue({ rating: v })} />
               )}
               {form.questionType === 'yes_no' && (

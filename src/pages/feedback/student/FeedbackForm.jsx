@@ -82,6 +82,16 @@ export default function FeedbackForm() {
   const steps = [step1.length ? 'ratings' : null, step2.length ? 'more' : null].filter(Boolean);
   const current = steps[step - 1] === 'more' ? step2 : step1;
   const last = step >= steps.length;
+  // Ratings are shown grouped by category and the written questions after
+  // them, so the order on screen is not the campaign's own order. Questions are
+  // numbered in the order the student actually reads them — 1, 2, 3 … straight
+  // through both steps — never by their position in the campaign.
+  const ratingGroups = useMemo(() => groupByCategory(step1), [step1]);
+  const numberOf = useMemo(() => {
+    const m = new Map();
+    [...ratingGroups.flatMap(([, qs]) => qs), ...step2].forEach((q, i) => m.set(q._id, i + 1));
+    return m;
+  }, [ratingGroups, step2]);
 
   const set = (qid, patch) => {
     setAnswers((a) => ({ ...a, [qid]: { ...(a[qid] || {}), ...patch } }));
@@ -137,15 +147,33 @@ export default function FeedbackForm() {
         }),
       });
       clearDraft(id);
-      // Offer the next teacher in the same campaign, if there is one.
+      // What is left: the next teacher in THIS campaign, offered as "up next";
+      // and, once this campaign is finished, any other campaign still open —
+      // which is only ever offered as a question. Moving a student from one
+      // campaign into another is their decision, never the form's.
       let next = null;
+      let left = 0;
+      let otherCampaign = null;
       try {
         const res = await api.getPendingFeedback();
-        const list = res.data ?? res;
-        next = list.find((r) => r._id !== id && r.campaign?._id === data.campaign._id) || list.find((r) => r._id !== id) || null;
+        const list = (res.data ?? res).filter((r) => r._id !== id);
+        const same = list.filter((r) => r.campaign?._id === data.campaign._id);
+        next = same[0] || null;
+        left = same.length;
+        if (!same.length) {
+          const byCampaign = new Map();
+          for (const r of list) {
+            const k = r.campaign?._id || 'none';
+            if (!byCampaign.has(k)) byCampaign.set(k, { ...r.campaign, first: r, count: 0 });
+            byCampaign.get(k).count += 1;
+          }
+          // The one closing soonest is the one worth mentioning.
+          otherCampaign = [...byCampaign.values()]
+            .sort((x, y) => new Date(x.endDate || 8.64e15) - new Date(y.endDate || 8.64e15))[0] || null;
+        }
       } catch { /* the thank-you screen still works without it */ }
       setConfirm(false);
-      setSent({ next });
+      setSent({ next, left, otherCampaign });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       toast.error(err.message || 'Could not submit your feedback');
@@ -187,7 +215,7 @@ export default function FeedbackForm() {
             cannot be changed — and it stays anonymous.</p>
           {sent.next ? (
             <div className="fbthanks__next">
-              <small>Up next</small>
+              <small>Up next in {c.name} · {sent.left} teacher{sent.left === 1 ? '' : 's'} left</small>
               <div className="fbthanks__who">
                 <Avatar name={sent.next.teacher?.name} src={sent.next.teacher?.photo} size={44} />
                 <span><b>{sent.next.teacher?.name}</b><em>{sent.next.subject || 'General'}</em></span>
@@ -198,9 +226,40 @@ export default function FeedbackForm() {
               </button>
             </div>
           ) : (
-            <p className="fbthanks__done"><Icon name="sparkle" size={15} /> That was the last one — you are all caught up.</p>
+            <p className="fbthanks__done">
+              <Icon name="sparkle" size={15} />
+              <span>You have finished <b>{c.name}</b> — every teacher in it has your feedback.</span>
+            </p>
           )}
-          <Link to="/student/feedback" className="fbtb">Back to my feedback</Link>
+          {!sent.next && sent.otherCampaign ? (
+            // A different campaign is a different questionnaire with its own
+            // deadline: it is named, and asked about, never opened for them.
+            <div className="fbthanks__ask" role="group" aria-label="Start another campaign?">
+              <span className="fbthanks__askicon tint-amber"><Icon name="megaphone" size={18} /></span>
+              <div className="fbthanks__asktext">
+                <b>Another feedback campaign is open</b>
+                <p>
+                  <b>{sent.otherCampaign.name || 'Teacher feedback'}</b> has {sent.otherCampaign.count} teacher
+                  {sent.otherCampaign.count === 1 ? '' : 's'} waiting for you
+                  {sent.otherCampaign.endDate ? <> and closes on {new Date(sent.otherCampaign.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</> : null}.
+                  Would you like to start it now? You can also come back to it later.
+                </p>
+                <div className="fbthanks__askacts">
+                  <Link to="/student/feedback" className="fbtb">Not now</Link>
+                  <button type="button" className="fbtb fbtb--primary"
+                    onClick={() => navigate(`/student/feedback/${sent.otherCampaign.first._id}`)}>
+                    Yes, start it <Icon name="arrowRight" size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {!sent.next && !sent.otherCampaign ? (
+            <p className="fbthanks__done fbthanks__done--soft">Nothing else is waiting — you are all caught up.</p>
+          ) : null}
+          {!(!sent.next && sent.otherCampaign) && (
+            <Link to="/student/feedback" className="fbtb">Back to my feedback</Link>
+          )}
         </section>
       </div>
     );
@@ -253,7 +312,7 @@ export default function FeedbackForm() {
       </div>
 
       {steps[step - 1] === 'ratings'
-        ? groupByCategory(step1).map(([category, qs]) => (
+        ? ratingGroups.map(([category, qs]) => (
           <section key={category} className="fbqcard">
             <header>
               <span className="fbqcard__icon tint-purple"><Icon name={categoryIcon(category)} size={16} /></span>
@@ -262,7 +321,7 @@ export default function FeedbackForm() {
             </header>
             {qs.map((q) => (
               <Question key={q._id} q={q} value={answers[q._id]} error={errors[q._id]}
-                set={set} toggleOption={toggleOption} number={questions.indexOf(q) + 1} />
+                set={set} toggleOption={toggleOption} number={numberOf.get(q._id)} />
             ))}
           </section>
         ))
@@ -275,7 +334,7 @@ export default function FeedbackForm() {
             </header>
             {step2.map((q) => (
               <Question key={q._id} q={q} value={answers[q._id]} error={errors[q._id]}
-                set={set} toggleOption={toggleOption} number={questions.indexOf(q) + 1} />
+                set={set} toggleOption={toggleOption} number={numberOf.get(q._id)} />
             ))}
           </section>
         )}
@@ -329,6 +388,7 @@ function Question({ q, value = {}, error, set, toggleOption, number }) {
 
       {RATING_TYPES.includes(q.questionType) && (
         <RatingInput name={q.questionText} value={value.ratingValue ?? null}
+          kind={q.questionType === 'rating_5' ? 'stars' : 'emoji'}
           onChange={(v) => set(q._id, { ratingValue: v })} />
       )}
 

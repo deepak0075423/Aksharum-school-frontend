@@ -21353,3 +21353,113 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .yearnote > span { flex: 1 1 calc(100% - 30px); }
   .yearnote__back  { margin-left: 26px; }
 }
+
+/* ── Teacher Feedback — Nov 18 2026 fixes ──────────────────────────────────── */
+/* Star rating (the 1–5 Stars question type): five stars, fill up to the one
+   chosen; hovering previews the fill in a lighter amber. */
+.fbstars { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.fbstars__row { display: inline-flex; align-items: center; gap: 4px; }
+.fbstars__star {
+  width: 46px; height: 46px; padding: 4px; border: none; background: none; cursor: pointer;
+  border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  transition: transform .12s ease, background .12s ease;
+}
+.fbstars__star svg { width: 100%; height: 100%; display: block; }
+.fbstars__star path {
+  fill: #fff; stroke: #cbd5e1; stroke-width: 1.4; stroke-linejoin: round;
+  transition: fill .12s ease, stroke .12s ease;
+}
+.fbstars__star.is-lit path { fill: #f59e0b; stroke: #d97706; }
+.fbstars__star.is-lit.is-preview path { fill: #fcd34d; stroke: #f59e0b; }
+.fbstars__star:hover { transform: scale(1.08); background: #fffbeb; }
+.fbstars__star:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.fbstars__word { font-size: .84rem; color: var(--text-muted); min-width: 150px; }
+.fbstars__word.is-on { color: #b45309; font-weight: 600; }
+.fbstars__word b { color: var(--text); margin-right: 4px; }
+.fbstars__ro { display: inline-flex; gap: 2px; }
+.fbstars__ro svg { width: var(--fbstar, 16px); height: var(--fbstar, 16px); }
+.fbstars__ro path { fill: #e2e8f0; }
+.fbstars__ro .is-lit path { fill: #f59e0b; }
+@media (max-width: 520px) {
+  .fbstars__star { width: 40px; height: 40px; }
+  .fbstars { gap: 8px; }
+}
+/* The student form's narrow-screen rule squeezes every radiogroup's buttons;
+   the stars keep their own size. */
+.fbquestion .fbstars [role="radiogroup"] { gap: 4px !important; flex-wrap: nowrap !important; }
+.fbquestion .fbstars [role="radiogroup"] > button { flex: 0 0 auto !important; }
+
+/* Thank-you: another campaign is offered as a question, never opened. */
+.fbthanks__done--soft { color: var(--text-muted) !important; font-weight: 500; }
+.fbthanks__ask {
+  display: flex; align-items: flex-start; gap: 14px; text-align: left; max-width: 560px; width: 100%;
+  border: 1px solid #fde68a; background: #fffbeb; border-radius: 16px; padding: 16px 18px; margin: 4px 0;
+}
+.fbthanks__askicon { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.fbthanks__asktext { flex: 1; min-width: 0; }
+.fbthanks__asktext > b { display: block; font-size: .92rem; }
+.fbthanks__asktext p { font-size: .84rem; color: var(--text-muted); line-height: 1.55; margin: 4px 0 12px; }
+.fbthanks__asktext p b { color: var(--text); }
+.fbthanks__askacts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Template cards, compact (Nov 18): the list row is one band — mark, what the
+   template is, its facts — and the card view no longer stretches its body to a
+   320px height (a `flex: 1 1 320px` meant for the row became a height once the
+   card turned into a column). */
+.fbtpls { gap: 10px; }
+.fbtpl {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center;
+  gap: 14px; padding: 14px 18px; flex-wrap: nowrap;
+}
+.fbtpl__icon { width: 42px; height: 42px; border-radius: 12px; }
+.fbtpl__icon svg { width: 19px; height: 19px; }
+.fbtpl__body { flex: none; }
+.fbtpl__body h3 { font-size: .95rem; gap: 8px; }
+.fbtpl__body > p {
+  font-size: .8rem; margin-top: 3px; line-height: 1.5; max-width: 680px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fbtpl__chips { margin-top: 8px; gap: 6px; }
+.fbtpl__chip { padding: 2px 9px; font-size: .72rem; border-radius: 7px; gap: 5px; }
+.fbtpl__meta { gap: 22px; padding-left: 18px; align-items: center; flex-wrap: nowrap; }
+.fbtpl__meta > div > label { margin-bottom: 3px; white-space: nowrap; }
+.fbtpl__meta > div > span { white-space: nowrap; }
+.fbtpls--card { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.fbtpls--card .fbtpl { grid-template-columns: 42px minmax(0, 1fr); align-items: start; row-gap: 12px; }
+.fbtpls--card .fbtpl__meta {
+  grid-column: 1 / -1; width: auto; padding: 10px 0 0; border-left: none;
+  border-top: 1px solid var(--border); justify-content: space-between; gap: 12px;
+}
+.fbtplwrap { padding: 14px 16px; }
+@media (max-width: 900px) {
+  .fbtpl { grid-template-columns: 42px minmax(0, 1fr); align-items: start; }
+  .fbtpl__meta { grid-column: 1 / -1; padding-left: 0; border-left: none; flex-wrap: wrap; }
+}
+
+/* The sort control is not a filter: it keeps one width whatever is chosen, is
+   never painted as "on", and sits at the right end of the bar — on the second
+   row when the bar wraps — so choosing an order never moves anything. */
+.fbsort { margin-left: auto; flex-shrink: 0; }
+.fbsort .fbsel { min-width: 0; }
+.fbtools--fit .fbsel { max-width: 168px; text-overflow: ellipsis; }
+.fbtools--fit .fbsearch:not(.fbsearch--wide) { flex-basis: 220px; }
+
+/* Campaign audience (Nov 18): every list shows exactly who is in — "Select
+   all" ticks every chip, "Clear" unticks them to pick a few by hand. */
+.fbaud__btns { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.fbaud__all { display: inline-flex; align-items: center; gap: 5px; }
+.fbaud__all:disabled { cursor: default; opacity: .55; }
+.fbaud__all.is-on:disabled { opacity: 1; color: var(--primary); border-color: #c7d2fe; background: #eef2ff; }
+.fbaud__title small.is-all  { color: #15803d; font-weight: 600; }
+.fbaud__title small.is-none { color: #b45309; font-weight: 600; }
+.fbaud.is-cleared { border-style: dashed; border-color: #fcd34d; background: #fffdf5; }
+
+/* Who responded, per student (Nov 18). */
+.fbregprog { display: inline-flex; align-items: center; gap: 10px; }
+.fbregprog b { font-size: .84rem; font-weight: 700; min-width: 42px; }
+.fbregprog__bar { width: 90px; height: 6px; border-radius: 99px; background: #eef2f7; overflow: hidden; }
+.fbregprog__bar > span { display: block; height: 100%; border-radius: 99px; background: #22c55e; }
+.fbtb--sm { padding: 5px 10px; font-size: .76rem; gap: 5px; }
+.fbtb svg.is-flipped { transform: rotate(180deg); }
+.fbtools__end { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.fbtools__end .fbsort { margin-left: 0; }

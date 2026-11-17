@@ -12,7 +12,7 @@ import useFetch from '../../../hooks/useFetch';
 import * as api from '../../../api/feedback.api';
 import Icon from '../../../components/ui/icons';
 import { Spinner } from '../../../components/ui/index';
-import { RATING_LABELS, EMOJI_SCALE } from '../shared/kit';
+import { RATING_LABELS, EMOJI_SCALE, StarRow } from '../shared/kit';
 import { Avatar, Crumbs, NoteBar, Stars, Tag, fmtDate } from '../admin/fbUI';
 import { categoryIcon } from '../admin/feedbackParts';
 
@@ -88,10 +88,12 @@ export default function SubmissionDetail() {
               <span className="fbanswer__q">{q.questionText}</span>
               {q.ratingValue != null && q.questionType !== 'yes_no' && (
                 <span className="fbanswer__rating">
-                  <span className="fbanswer__dots" aria-label={`${q.ratingValue} out of 5`}>
-                    {[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= q.ratingValue ? 'is-on' : ''} />)}
-                  </span>
-                  <b>{EMOJI_SCALE[q.ratingValue]} {q.ratingValue} · {RATING_LABELS[q.ratingValue]}</b>
+                  {q.questionType === 'rating_5' ? <StarRow value={q.ratingValue} /> : (
+                    <span className="fbanswer__dots" aria-label={`${q.ratingValue} out of 5`}>
+                      {[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= q.ratingValue ? 'is-on' : ''} />)}
+                    </span>
+                  )}
+                  <b>{q.questionType === 'emoji_5' ? `${EMOJI_SCALE[q.ratingValue]} ` : ''}{q.ratingValue} · {RATING_LABELS[q.ratingValue]}</b>
                 </span>
               )}
               {q.questionType === 'yes_no' && (

@@ -81,6 +81,75 @@ const EMPTY = {
   class: '', section: '', teacher: '', term: '', dateFrom: '', dateTo: '',
 };
 
+/**
+ * The filters each report is actually about. Every report can be narrowed to a
+ * year, a campaign, a term and a date range; beyond that a report offers only
+ * its own dimension — a class-wise report a class, a subject-wise report a
+ * subject — so no filter is ever on screen that the rows do not answer to.
+ */
+const SCOPE = ['academicYear', 'campaign', 'term', 'dateFrom', 'dateTo'];
+const REPORT_FILTERS = {
+  teacher:       [...SCOPE, 'teacher', 'subject'],
+  campaign:      SCOPE,
+  class:         [...SCOPE, 'class'],
+  subject:       [...SCOPE, 'subject'],
+  department:    SCOPE,
+  response_rate: [...SCOPE, 'class', 'section'],
+  trend:         ['academicYear', 'term', 'dateFrom', 'dateTo', 'teacher', 'subject', 'class'],
+};
+const filtersFor = (type, f) => Object.fromEntries(
+  (REPORT_FILTERS[type] || SCOPE).map((k) => [k, f[k] ?? '']),
+);
+
+/**
+ * Classes, sections and subjects are rows OF a year, so the school's list
+ * carries "Class 5" once per year. The pickers show the year the filters are
+ * about — '' is the year in view, 'all' is every year — and one entry per
+ * name; an entry's value is every id that name has in that span, comma-joined
+ * (the report endpoint takes a list).
+ */
+const byName = (rows, nameOf) => {
+  const m = new Map();
+  for (const r of rows) {
+    const label = String(nameOf(r) || '').trim();
+    if (!label) continue;
+    const k = label.toLowerCase();
+    if (!m.has(k)) m.set(k, { label, ids: [] });
+    m.get(k).ids.push(String(r._id));
+  }
+  return [...m.values()].map((v) => ({ value: v.ids.join(','), label: v.label }));
+};
+function yearPickers(meta, year) {
+  const yid = year === 'all' ? null : (year || meta?.activeYear?._id || null);
+  const inYear = (x) => !yid || !x.academicYear || String(x.academicYear) === String(yid);
+  return {
+    classes: byName((meta?.classes || []).filter(inYear), (c) => c.className),
+    subjects: byName((meta?.subjects || []).filter(inYear), (x) => x.subjectName)
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    /** Sections of the chosen class (every id it has in the span) — none before a class is chosen. */
+    sectionsOf: (classValue) => {
+      if (!classValue) return [];
+      const ids = new Set(classValue.split(','));
+      return byName((meta?.sections || []).filter((x) => ids.has(String(x.class)) && inYear(x)), (x) => x.sectionName)
+        .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
+    },
+  };
+}
+
+/** One entry per campaign; two campaigns sharing a name are told apart by term, year or start. */
+function campaignOptions(list) {
+  const seen = new Set();
+  const rows = (list || []).filter((c) => c && !seen.has(c._id) && seen.add(c._id));
+  const count = rows.reduce((m, c) => m.set(c.name, (m.get(c.name) || 0) + 1), new Map());
+  return rows.map((c) => {
+    if (count.get(c.name) < 2) return { value: c._id, label: c.name };
+    const extra = [c.term, c.academicYear?.yearName,
+      c.startDate ? new Date(c.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '']
+      .filter(Boolean).join(' · ');
+    return { value: c._id, label: extra ? `${c.name} (${extra})` : c.name };
+  });
+}
+
 export default function Insights() {
   const base = useFeedbackBase();
   const navigate = useNavigate();
@@ -124,7 +193,17 @@ export default function Insights() {
   const [exporting, setExporting] = useState('');
 
   const meta = useFetch(() => api.getMeta(), []);
-  const campaigns = useFetch(() => api.getCampaigns({ limit: 100, includeArchived: true }), []);
+  // The campaign pickers list the campaigns of the year the filters are about
+  // ('' = the year in view, which the server applies itself).
+  const pickYear = draft.academicYear;
+  const campaigns = useFetch(
+    () => api.getCampaigns({ limit: 100, includeArchived: true, ...(pickYear ? { academicYear: pickYear } : {}) }),
+    [pickYear],
+  );
+  const pickers = useMemo(() => yearPickers(meta.data, pickYear), [meta.data, pickYear]);
+  const campaignOpts = useMemo(() => campaignOptions(campaigns.data?.data), [campaigns.data]);
+  /** A new year empties every pick that belonged to the old one. */
+  const setYear = (v) => setDraft((d) => ({ ...d, academicYear: v, campaign: '', class: '', section: '', subject: '' }));
 
   const dash = useFetch(
     () => api.getDashboard(campaignId ? { campaignId } : {}),
@@ -134,7 +213,7 @@ export default function Insights() {
   // Trends reads the trend report; Reports reads whichever type is chosen.
   const reportFilters = view === 'trends'
     ? clean({ campaign: campaignId, academicYear: draft.academicYear, class: draft.class, subject: draft.subject })
-    : clean(applied);
+    : clean(filtersFor(reportType, applied));
 
   const report = useFetch(
     () => (view === 'trends' || view === 'reports'
@@ -259,8 +338,17 @@ export default function Insights() {
     } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(''); }
   };
 
-  const sections = (meta.data?.sections || [])
-    .filter((s) => !draft.class || String(s.class) === draft.class);
+  const sectionOpts = pickers.sectionsOf(draft.class);
+  const shows = new Set(REPORT_FILTERS[reportType] || SCOPE);
+  /** Another report: keep only the filters it has, so nothing hidden still applies. */
+  const pickReport = (type) => {
+    setReportType(type);
+    setDraft((d) => ({ ...EMPTY, ...filtersFor(type, d) }));
+    setApplied((a) => ({ ...EMPTY, ...filtersFor(type, a) }));
+    setPage(1);
+  };
+  const appliedCount = Object.values(filtersFor(reportType, applied)).filter(Boolean).length;
+  const draftDirty = JSON.stringify(filtersFor(reportType, draft)) !== JSON.stringify(filtersFor(reportType, applied));
 
   if (dash.loading && !dash.data) {
     return <div className="fbpage"><div className="fbloading"><Spinner /></div></div>;
@@ -287,20 +375,15 @@ export default function Insights() {
 
         {view === 'trends' ? (
           <div className="fbhero__filters">
-            <Pick value={draft.academicYear} onChange={(v) => setDraft({ ...draft, academicYear: v })}
+            <Pick value={draft.academicYear} onChange={(v) => { setYear(v); setCampaignId(''); }}
               all="This year" label="Academic year"
               options={[{ value: 'all', label: 'All years' }, ...(meta.data?.academicYears || []).map((y) => ({ value: y._id, label: y.yearName }))]} />
-            <select className={`fbsel${campaignId ? ' is-on' : ''}`} value={campaignId} aria-label="Campaign"
-              onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">All campaigns</option>
-              {((campaigns.data?.data) || []).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-            </select>
-            <Pick value={draft.class} onChange={(v) => setDraft({ ...draft, class: v })}
-              all="All classes" label="Class"
-              options={(meta.data?.classes || []).map((c) => ({ value: c._id, label: c.className }))} />
+            <Pick value={campaignId} onChange={setCampaignId} all="All campaigns" label="Campaign"
+              options={campaignOpts} />
+            <Pick value={draft.class} onChange={(v) => setDraft({ ...draft, class: v, section: '' })}
+              all="All classes" label="Class" options={pickers.classes} />
             <Pick value={draft.subject} onChange={(v) => setDraft({ ...draft, subject: v })}
-              all="All subjects" label="Subject"
-              options={(meta.data?.subjects || []).map((x) => ({ value: x._id, label: x.subjectName }))} />
+              all="All subjects" label="Subject" options={pickers.subjects} />
           </div>
         ) : view === 'reports' ? (
           <div className="fbexp">
@@ -354,8 +437,8 @@ export default function Insights() {
           </Stats>
 
           <div className="fbcard" ref={tableRef}>
-            <Toolbar>
-              <Search value={search} onChange={setSearch} placeholder="Search teacher by name…" />
+            <Toolbar className="fbtools--fit">
+              <Search value={search} onChange={setSearch} placeholder="Search teachers…" />
               <Pick value={dept} onChange={(v) => { setDept(v); setPage(1); }} all="All departments"
                 label="Department" options={departments} />
               <Pick value={subject} onChange={(v) => { setSubject(v); setPage(1); }} all="All subjects"
@@ -369,11 +452,14 @@ export default function Insights() {
                   { value: 'locked', label: 'Below the floor' },
                 ]} />
               <Spacer />
-              <SortBy value={sort} onChange={setSort} options={TEACHER_SORTS} dflt="rating" />
-              <ViewToggle value={layout} onChange={setLayout} options={[
-                { value: 'table', label: 'Table', icon: 'grid' },
-                { value: 'card', label: 'Card', icon: 'layers' },
-              ]} />
+              {/* Order and layout travel together, at the right end of the bar. */}
+              <span className="fbtools__end">
+                <SortBy value={sort} onChange={setSort} options={TEACHER_SORTS} />
+                <ViewToggle value={layout} onChange={setLayout} options={[
+                  { value: 'table', label: 'Table', icon: 'grid' },
+                  { value: 'card', label: 'Card', icon: 'layers' },
+                ]} />
+              </span>
             </Toolbar>
 
             {layout === 'card' ? (
@@ -654,62 +740,66 @@ export default function Insights() {
             )}>
             <div className="fbfields fbfields--5">
               <Field label="Report">
-                <select value={reportType} onChange={(e) => setReportType(e.target.value)} aria-label="Report">
+                <select value={reportType} onChange={(e) => pickReport(e.target.value)} aria-label="Report">
                   {REPORTS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </Field>
               <Field label="Academic Year">
                 <select value={draft.academicYear} aria-label="Academic Year"
-                  onChange={(e) => setDraft({ ...draft, academicYear: e.target.value })}>
-                  <option value="">This year</option>
+                  onChange={(e) => setYear(e.target.value)}>
+                  <option value="">This year{meta.data?.activeYear ? ` (${meta.data.activeYear.yearName})` : ''}</option>
                   <option value="all">All years</option>
                   {(meta.data?.academicYears || []).map((y) => (
                     <option key={y._id} value={y._id}>{y.yearName}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Campaign">
-                <select value={draft.campaign} aria-label="Campaign"
-                  onChange={(e) => setDraft({ ...draft, campaign: e.target.value })}>
-                  <option value="">All</option>
-                  {((campaigns.data?.data) || []).map((c) => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Teacher">
-                <select value={draft.teacher} aria-label="Teacher"
-                  onChange={(e) => setDraft({ ...draft, teacher: e.target.value })}>
-                  <option value="">All</option>
-                  {(meta.data?.teachers || []).map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
-                </select>
-              </Field>
-
-              <Field label="Subject">
-                <select value={draft.subject} aria-label="Subject"
-                  onChange={(e) => setDraft({ ...draft, subject: e.target.value })}>
-                  <option value="">All</option>
-                  {(meta.data?.subjects || []).map((s) => (
-                    <option key={s._id} value={s._id}>{s.subjectName}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Class">
-                <select value={draft.class} aria-label="Class"
-                  onChange={(e) => setDraft({ ...draft, class: e.target.value, section: '' })}>
-                  <option value="">All</option>
-                  {(meta.data?.classes || []).map((c) => (
-                    <option key={c._id} value={c._id}>{c.className}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Section">
-                <select value={draft.section} aria-label="Section"
-                  onChange={(e) => setDraft({ ...draft, section: e.target.value })}>
-                  <option value="">All</option>
-                  {sections.map((s) => <option key={s._id} value={s._id}>{s.sectionName}</option>)}
-                </select>
-              </Field>
+              {shows.has('campaign') && (
+                <Field label="Campaign">
+                  <select value={draft.campaign} aria-label="Campaign"
+                    onChange={(e) => setDraft({ ...draft, campaign: e.target.value })}>
+                    <option value="">All campaigns</option>
+                    {campaignOpts.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </Field>
+              )}
+              {shows.has('teacher') && (
+                <Field label="Teacher">
+                  <select value={draft.teacher} aria-label="Teacher"
+                    onChange={(e) => setDraft({ ...draft, teacher: e.target.value })}>
+                    <option value="">All teachers</option>
+                    {(meta.data?.teachers || []).map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                  </select>
+                </Field>
+              )}
+              {shows.has('subject') && (
+                <Field label="Subject">
+                  <select value={draft.subject} aria-label="Subject"
+                    onChange={(e) => setDraft({ ...draft, subject: e.target.value })}>
+                    <option value="">All subjects</option>
+                    {pickers.subjects.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                  </select>
+                </Field>
+              )}
+              {shows.has('class') && (
+                <Field label="Class">
+                  <select value={draft.class} aria-label="Class"
+                    onChange={(e) => setDraft({ ...draft, class: e.target.value, section: '' })}>
+                    <option value="">All classes</option>
+                    {pickers.classes.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </Field>
+              )}
+              {shows.has('section') && (
+                <Field label="Section" hint={draft.class ? undefined : 'Choose a class first.'}>
+                  <select value={draft.section} aria-label="Section" disabled={!draft.class}
+                    title={draft.class ? undefined : 'Choose a class first'}
+                    onChange={(e) => setDraft({ ...draft, section: e.target.value })}>
+                    <option value="">{draft.class ? 'All sections' : 'Choose a class first'}</option>
+                    {sectionOpts.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                  </select>
+                </Field>
+              )}
               <Field label="Term">
                 <input value={draft.term} placeholder="e.g. Term 1" aria-label="Term"
                   onChange={(e) => setDraft({ ...draft, term: e.target.value })} />
@@ -728,11 +818,9 @@ export default function Insights() {
               </div>
             </div>
             <div className="fbdirty">
-              {JSON.stringify(draft) !== JSON.stringify(applied)
+              {draftDirty
                 ? <span className="fbdirty__on"><Icon name="alert" size={14} /> Filters changed — press Generate Report to apply them.</span>
-                : <span>{Object.values(applied).filter(Boolean).length
-                  ? `${Object.values(applied).filter(Boolean).length} filter(s) applied.`
-                  : 'Showing everything.'}</span>}
+                : <span>{appliedCount ? `${appliedCount} filter(s) applied.` : 'Showing everything.'}</span>}
             </div>
           </Panel>
 

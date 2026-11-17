@@ -503,7 +503,9 @@ export default function Questions() {
       )}
 
       <div className="fbcard">
-        <Toolbar>
+        {/* "fit": the bank's bar is the fullest in the module — narrower pickers
+            keep it on one row at a laptop width, so nothing jumps between rows. */}
+        <Toolbar className="fbtools--fit">
           <Search value={search} onChange={setSearch} wide={view === 'templates'}
             placeholder={view === 'templates'
               ? 'Search template by name or description…'
@@ -538,16 +540,17 @@ export default function Questions() {
 
           <Spacer />
 
-          <SortBy value={sort} onChange={(v) => { setSort(v); setPage(1); }}
-            dflt={view === 'categories' ? 'order' : 'newest'}
-            options={view === 'bank' ? BANK_SORTS : view === 'categories' ? CAT_SORTS : TPL_SORTS} />
+          <span className="fbtools__end">
+            <SortBy value={sort} onChange={(v) => { setSort(v); setPage(1); }}
+              options={view === 'bank' ? BANK_SORTS : view === 'categories' ? CAT_SORTS : TPL_SORTS} />
 
-          {view === 'templates' && (
-            <ViewToggle value={layout} onChange={setLayout} options={[
-              { value: 'list', label: 'List', icon: 'list' },
-              { value: 'card', label: 'Card', icon: 'grid' },
-            ]} />
-          )}
+            {view === 'templates' && (
+              <ViewToggle value={layout} onChange={setLayout} options={[
+                { value: 'list', label: 'List', icon: 'list' },
+                { value: 'card', label: 'Card', icon: 'grid' },
+              ]} />
+            )}
+          </span>
         </Toolbar>
 
         {view === 'templates' ? (
