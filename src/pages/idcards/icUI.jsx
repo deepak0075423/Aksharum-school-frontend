@@ -13,6 +13,7 @@ import Icon, { ICON_NAMES } from '../../components/ui/icons';
 import Tabs from '../../components/ui/Tabs';
 import { STATUS, KIND, count, plural, fileUrl, initials } from './icMeta';
 import '../../styles/idcards.css';
+import { isDocumentPath } from '../../utils/fileAccess';
 
 /* ── Glyphs the shared registry does not have ─────────────────────────────── */
 
@@ -198,7 +199,7 @@ export const KindChip = ({ kind }) => {
 /** A person's photo, else their initials on a tint. */
 export function Avatar({ name, photo, size = 38, tone = 'indigo', square }) {
   const [broken, setBroken] = useState(false);
-  const url = !broken && photo ? fileUrl(photo) : '';
+  const url = !broken && photo && !isDocumentPath(photo) ? fileUrl(photo) : '';
   return (
     <span className={`ic-avatar ic-t-${tone}${square ? ' ic-avatar--sq' : ''}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}>
       {url ? <img src={url} alt="" onError={() => setBroken(true)} /> : initials(name)}

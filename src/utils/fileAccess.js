@@ -99,6 +99,15 @@ function cookieReaches(url) {
  * travels with the request; with the reader's file token on it only when
  * nothing else would carry it.
  */
+/**
+ * A path that is plainly a document (PDF, Word, Excel, PowerPoint, text), not a
+ * picture. An avatar never tries to draw one: an <img> asking for a PDF from the
+ * API's origin is blocked by the browser (CORB) and leaves a broken image — it
+ * happened when a PDF had been uploaded as a student's photo (Nov 2026).
+ * A URL with no extension (a Google sign-in picture) is not a document.
+ */
+export const isDocumentPath = (p) => /\.(pdf|docx?|xlsx?|pptx?|txt|csv|zip)(\?.*)?$/i.test(String(p || ''));
+
 export function withFileToken(url) {
   if (!url || !token || !PRIVATE_UPLOAD.test(url) || /[?&]ft=/.test(url)) return url;
   if (cookieReaches(url)) return url;

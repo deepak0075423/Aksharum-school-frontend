@@ -18,6 +18,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon, { ICON_NAMES } from '../../../components/ui/icons';
 import '../../../styles/transport.css';
+import { isDocumentPath } from '../../../utils/fileAccess';
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
 
@@ -648,7 +649,7 @@ export const Avatar = ({ name, src, size = 'md', id }) => {
   const cls = size === 'sm' ? ' tr-avatar--sm' : size === 'lg' ? ' tr-avatar--lg' : size === 'xl' ? ' tr-avatar--xl' : '';
   const [broken, setBroken] = useState(false);
   useEffect(() => { setBroken(false); }, [src]);
-  const url = broken ? '' : fileUrl(src);
+  const url = broken || isDocumentPath(src) ? '' : fileUrl(src);
   return url
     ? <img className={`tr-avatar${cls}`} src={url} alt={name || ''} onError={() => setBroken(true)} />
     : <span className={`tr-avatar${cls}`} style={{ background: avatarTone(id || name) }}>{initials(name)}</span>;

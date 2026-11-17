@@ -26,6 +26,7 @@ import { VIZ } from '../analytics/palette';
 import { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf } from './documentParts';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
+import { isDocumentPath } from '../../utils/fileAccess';
 
 export { fileUrl, fmtSize, fmtDate };
 
@@ -418,7 +419,7 @@ export const Avatar = ({ name, src, size = 32 }) => {
     fontSize: size * 0.38, fontWeight: 700, color: '#fff',
     background: tone, objectFit: 'cover', overflow: 'hidden',
   };
-  if (src && !broken) {
+  if (src && !broken && !isDocumentPath(src)) {
     return <img src={fileUrl(src)} alt="" style={style} loading="lazy" decoding="async"
       onError={() => setBroken(true)} />;
   }

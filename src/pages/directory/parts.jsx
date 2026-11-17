@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useModules } from '../../contexts/ModulesContext';
 import { Empty } from '../../components/ui/index';
-import { withFileToken, fetchFile } from '../../utils/fileAccess';
+import { isDocumentPath, withFileToken, fetchFile } from '../../utils/fileAccess';
 
 // Shared pieces of the Employee Directory. Everything here is built from the
 // existing design system — no new UI framework, no new colour scale.
@@ -101,7 +101,7 @@ export function Avatar({ name, src, size = 40 }) {
   };
   // A page of cards is a page of photos; fetch them as they come into view and
   // decode off the main thread so the list stays responsive while it fills.
-  if (src && !broken) {
+  if (src && !broken && !isDocumentPath(src)) {
     return (
       <img
         src={fileUrl(src)} alt={name} style={style}

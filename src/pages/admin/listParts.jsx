@@ -20,7 +20,7 @@ import { Button, Empty, Spinner, Pagination, PageSize } from '../../components/u
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { DrawerHead as UiDrawerHead, DrawerSection as UiDrawerSection } from '../../components/ui/Drawer';
-import { withFileToken } from '../../utils/fileAccess';
+import { isDocumentPath, withFileToken } from '../../utils/fileAccess';
 import usePhone from '../../hooks/usePhone';
 
 // Uploads are served from the backend root while VITE_API_URL points at /api.
@@ -74,7 +74,7 @@ export function Avatar({ name, src, size = 38, tone = 'indigo' }) {
     fontSize: size * 0.38, fontWeight: 700, color: '#fff',
     background: TONE_BG[tone] || TONE_BG.indigo, objectFit: 'cover', overflow: 'hidden',
   };
-  if (src) {
+  if (src && !isDocumentPath(src)) {
     return (
       <img src={fileUrl(src)} alt="" style={style} loading="lazy" decoding="async"
         onError={(e) => { e.currentTarget.style.display = 'none'; }} />

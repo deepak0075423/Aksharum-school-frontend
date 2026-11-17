@@ -22,6 +22,7 @@ import Icon, { ICON_NAMES } from '../../../components/ui/icons';
 import Tabs from '../../../components/ui/Tabs';
 import { normalizePhone } from '../../../utils/validators';
 import { Glyph, Mark, count, num } from './hsUI';
+import { isDocumentPath } from '../../../utils/fileAccess';
 
 /** The shared outline icon when it exists, else the kit's solid glyph. */
 export const Ico = ({ name, size = 16 }) => (ICON_NAMES.includes(name)
@@ -211,7 +212,7 @@ export function Avatar({ name, src, size = 36 }) {
   const [broken, setBroken] = useState(false);
   const [bg, fg] = toneOf(name);
   const s = { width: size, height: size, fontSize: Math.round(size * 0.38) };
-  if (src && !broken) return <img className="hs-av" src={photoUrl(src)} alt="" style={s} onError={() => setBroken(true)} />;
+  if (src && !broken && !isDocumentPath(src)) return <img className="hs-av" src={photoUrl(src)} alt="" style={s} onError={() => setBroken(true)} />;
   return <span className="hs-av" style={{ ...s, background: bg, color: fg }} aria-hidden>{initials(name)}</span>;
 }
 

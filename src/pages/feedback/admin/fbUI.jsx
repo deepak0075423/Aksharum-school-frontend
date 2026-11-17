@@ -32,6 +32,7 @@ import { Breakdown } from '../../admin/listParts';
 export { fmtDate, daysLeft, RATING_LABELS } from '../shared/kit';
 import { RATING_LABELS } from '../shared/kit';
 import { usePageCrumbs } from '../../../contexts/BreadcrumbContext';
+import { isDocumentPath } from '../../../utils/fileAccess';
 
 /**
  * The module's colour set.
@@ -426,7 +427,7 @@ export const Avatar = ({ name, tone = 'purple', size = 36, src }) => {
   const [broken, setBroken] = useState(false);
   const initials = String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2)
     .map((w) => w[0]).join('').toUpperCase();
-  if (src && !broken) {
+  if (src && !broken && !isDocumentPath(src)) {
     return (
       <img className="fbav fbav--img" src={fileUrl(src)} alt="" loading="lazy"
         style={{ width: size, height: size }} onError={() => setBroken(true)} />

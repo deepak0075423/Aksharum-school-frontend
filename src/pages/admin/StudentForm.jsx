@@ -190,14 +190,35 @@ function HealthPanel({ value, onChange, errs }) {
  * a thumbnail where the scan is an image — so an edit never forces a needless
  * re-upload, and a wrong scan can be spotted without saving first.
  */
-function FileField({ label, required, value, existing, onChange, error, hint }) {
+function FileField({ label, required, value, existing, onChange, error, hint, photo }) {
   const ref = useRef(null);
+  // A photo slot takes a picture only: a PDF saved as a student's photo became
+  // their profile picture, which every list then failed to draw (the browser
+  // blocks a PDF read as an image — CORB). The server refuses it too.
+  const [notPicture, setNotPicture] = useState('');
+  const pick = (file) => {
+    if (file && photo && !isPicture(file)) {
+      setNotPicture(`“${file.name}” is not a picture — choose a JPG, PNG or WebP photo.`);
+      if (ref.current) ref.current.value = '';
+      onChange(null);
+      return;
+    }
+    setNotPicture('');
+    onChange(file);
+  };
+  const docOnFile = photo && !value && /\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(existing || '');
+  const shownError = error || notPicture;
   return (
     <div className="form-group">
       <label className={`form-label${required ? ' required' : ''}`}>{label}</label>
-      <input ref={ref} type="file" className={`form-control${error ? ' error' : ''}`}
-        accept=".pdf,.jpg,.jpeg,.png"
-        onChange={e => onChange(e.target.files?.[0] || null)} />
+      <input ref={ref} type="file" className={`form-control${shownError ? ' error' : ''}`}
+        accept={photo ? '.jpg,.jpeg,.png,.webp' : '.pdf,.jpg,.jpeg,.png'}
+        onChange={e => pick(e.target.files?.[0] || null)} />
+      {docOnFile && !shownError && (
+        <span style={{ display: 'block', fontSize: '.72rem', color: 'var(--warning, #b45309)', marginTop: 4 }}>
+          The photo on file is a document, not a picture — upload a JPG, PNG or WebP photo to replace it.
+        </span>
+      )}
       {value ? (
         <div style={{ fontSize: '.75rem', color: 'var(--success)', marginTop: 4 }}>
           ✓ {value.name}
@@ -209,11 +230,15 @@ function FileField({ label, required, value, existing, onChange, error, hint }) 
       ) : (
         <ExistingDoc url={docUrl(existing)} name={existing} />
       )}
-      {hint && !error && <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{hint}</span>}
-      <Err msg={error} />
+      {hint && !shownError && <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{hint}</span>}
+      <Err msg={shownError} />
     </div>
   );
 }
+
+/** A picture an <img> can draw — the only thing a photo slot takes. */
+const isPicture = (file) => !/\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(file.name || '')
+  && (/^image\/(jpeg|png|webp)$/.test(file.type || '') || /\.(jpe?g|png|webp)$/i.test(file.name || ''));
 
 /** Select whose "Other" choice reveals a free-text field. */
 function SelectOrOther({ label, required, options, value, otherValue, onChange, onOtherChange, error, otherError }) {
@@ -433,7 +458,7 @@ function ParentPanel({ form, setForm, errs, setErrs, files, setFile, existingPar
                   <FileField label="PAN Card" hint="Optional"
                     value={files[`${role}PanCard`]} existing={existingParent?.[role]?.panCardFile}
                     onChange={setFile(`${role}PanCard`)} />
-                  <FileField label="Passport Size Photo" hint="Optional"
+                  <FileField label="Passport Size Photo" hint="Optional" photo
                     value={files[`${role}Photo`]} existing={existingParent?.[role]?.photoFile}
                     onChange={setFile(`${role}Photo`)} />
                 </Row>
@@ -949,7 +974,7 @@ export default function StudentForm({ open, student, onClose, onSaved }) {
           {/* 4 ── Documents ──────────────────────────────────────────────── */}
           {step === 4 && (
             <div>
-              <FileField label="Student Passport Size Photo" required value={files.photo}
+              <FileField label="Student Passport Size Photo" required photo value={files.photo}
                 existing={docs?.photoFile} onChange={setFile('photo')} error={errs.photo}
                 hint="Also used as the student's profile picture" />
               <div className="form-group">
