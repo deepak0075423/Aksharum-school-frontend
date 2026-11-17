@@ -39,6 +39,9 @@ const ACTION = {
   CLAIM_CREATED: ['blue', 'Claim recorded'], CLAIM_APPROVED: ['green', 'Claim approved'],
   CLAIM_REJECTED: ['red', 'Claim rejected'], CLAIM_DELETED: ['slate', 'Claim removed'],
   SETTLEMENT_APPLIED: ['purple', 'Settlement applied'],
+  RUN_REOPENED: ['amber', 'Back to draft'], RUN_SENT_BACK: ['amber', 'Run sent back'],
+  PAYMENT_RECORDED: ['green', 'Payment recorded'], PAYMENT_CLEARED: ['slate', 'Payment cleared'],
+  PAYSLIPS_RESENT: ['blue', 'Payslips re-sent'],
   REPORT_GENERATED: ['slate', 'Report generated'], REPORT_DELETED: ['slate', 'Report removed'],
   SETTINGS_UPDATED: ['amber', 'Settings changed'],
 };
@@ -140,7 +143,15 @@ export default function PayrollSettings() {
               <div className="pr-cardbody">
                 <Field label="Regime" hint="“None” deducts no tax at all — the default, so an upgrade never quietly starts withholding.">
                   <Select className="pr-select--block" value={form.tax?.regime || 'none'}
-                    onChange={v => setForm(f => ({ ...f, tax: { ...(f.tax || {}), regime: v } }))}
+                    // Each regime has its own slabs, standard deduction and
+                    // rebate. Switching used to keep the other regime's table
+                    // under the new label, so "old" taxed exactly like "new".
+                    onChange={v => setForm(f => ({
+                      ...f,
+                      tax: v !== 'none' && v !== f.tax?.regime && f.taxDefaults?.[v]
+                        ? { ...f.taxDefaults[v], regime: v }
+                        : { ...(f.tax || {}), regime: v },
+                    }))}
                     options={[
                       { value: 'none', label: 'Deduct no tax' },
                       { value: 'new', label: 'New regime' },
@@ -153,7 +164,18 @@ export default function PayrollSettings() {
                     <Note tone="amber" glyph="bang">
                       These rates are yours to keep correct. They change with every budget, and the figures below are a
                       starting point — check them against the current Finance Act before the first run of a new year.
+                      {form.tax?.regime === 'old'
+                        ? ' Under the old regime, what each person has declared (80C, 80D, HRA exemption) is entered on their salary assignment and taken off before tax.'
+                        : ' Under the new regime, pay just above the rebate limit gets marginal relief: the tax is never more than the income above the limit.'}
                     </Note>
+                    {form.taxDefaults?.[form.tax?.regime] && (
+                      <div style={{ margin: '10px 0 14px' }}>
+                        <Btn size="sm" glyph="refresh"
+                          onClick={() => setForm(f => ({ ...f, tax: { ...f.taxDefaults[f.tax.regime], regime: f.tax.regime } }))}>
+                          Load the current {form.tax.regime} regime table
+                        </Btn>
+                      </div>
+                    )}
                     <Row n={2}>
                       <Field label="Standard deduction">
                         <input className="pr-input" type="number" min="0" step="1000" value={form.tax?.standardDeduction ?? 0}
@@ -216,7 +238,8 @@ export default function PayrollSettings() {
                 {[
                   ['requireApproval', 'Require the approve step', 'Off means a reviewed run can be published directly.'],
                   ['separateApprover', 'Someone else must approve', 'Whoever processed a run cannot sign it off as well. A school where only one account can reach payroll is let through regardless — there is nobody else to ask.'],
-                  ['notifyOnPublish', 'Tell employees when a run is published', 'An in-app notice and an email, with the payslip itself attached.'],
+                  ['notifyOnPublish', 'Tell employees when a run is published', 'An in-app notice and an email, with the payslip itself attached. The notice does not state the amount.'],
+                  ['protectPayslipPdf', 'Lock the emailed payslip with a password', 'The PDF opens with the employee\'s PAN in capital letters, or their employee ID where no PAN is on file. Tell your staff before switching this on.'],
                   ['autoOpenRun', 'Open the month automatically', 'Creates the run as a draft once the month has ended. Nothing automatic ever reviews, approves or publishes.'],
                   ['remindBeforePayDay', 'Remind me before pay day', 'One notice when pay day is close and the month is still unpublished.'],
                 ].map(([key, label, hint]) => (
@@ -258,9 +281,19 @@ export default function PayrollSettings() {
                     <input data-text="account" className="pr-input" value={form.bankAccountNumber} onChange={e => set('bankAccountNumber')(e.target.value)} />
                   </Field>
                 </Row>
-                <Field label="Payslip footer note">
-                  <textarea className="pr-textarea" rows={2} value={form.payslipNote} onChange={e => set('payslipNote')(e.target.value)} />
+                <Field label="Payslip footer note" hint="Printed at the foot of every payslip.">
+                  <textarea data-text="sentence" className="pr-textarea" rows={2} maxLength={200} value={form.payslipNote} onChange={e => set('payslipNote')(e.target.value)} />
                 </Field>
+                <Row n={2}>
+                  <Field label="Employer TAN" hint="Printed on the annual salary and tax statement.">
+                    <input data-text="upper" className="pr-input" maxLength={10} value={form.employerTan || ''} placeholder="DELA12345B"
+                      onChange={e => set('employerTan')(e.target.value.toUpperCase())} />
+                  </Field>
+                  <Field label="Employer PAN">
+                    <input data-text="pan" className="pr-input" maxLength={10} value={form.employerPan || ''} placeholder="AAACS1234K"
+                      onChange={e => set('employerPan')(e.target.value.toUpperCase())} />
+                  </Field>
+                </Row>
               </div>
             </Card>
 

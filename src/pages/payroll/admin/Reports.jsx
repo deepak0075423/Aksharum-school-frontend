@@ -66,7 +66,7 @@ export default function PayrollReports() {
   const download = async (r) => {
     try {
       const blob = await api.downloadReport(r._id);
-      const ext = r.format === 'pdf' ? 'pdf' : 'csv';
+      const ext = r.format === 'pdf' ? 'pdf' : r.format === 'excel' ? 'xlsx' : 'csv';
       saveFile(blob, `${r.name.replace(/[^\w-]+/g, '_')}.${ext}`);
     } catch (e) { toast.error(e.message || 'Download failed'); }
   };
@@ -98,7 +98,7 @@ export default function PayrollReports() {
       <Tiles n={4}>
         <Tile glyph="users" tone="indigo" label="Total Employees"
           value={loading ? '—' : (t.employees?.value ?? 0)}
-          delta={{ pct: t.employees?.deltaPct, caption: `As of ${MONTHS[month - 1].slice(0, 3)} ${year}` }} />
+          caption={`As of ${MONTHS[month - 1].slice(0, 3)} ${year}`} />
         <Tile glyph="rupee" tone="blue" label={`Total Payroll (${MONTHS[month - 1].slice(0, 3)} ${year})`} small
           value={loading ? '—' : money(t.gross?.value)}
           delta={{ pct: t.gross?.deltaPct, caption: t.gross?.caption || 'Gross salary' }} />

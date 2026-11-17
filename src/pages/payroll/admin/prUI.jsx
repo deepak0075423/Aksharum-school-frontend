@@ -224,6 +224,7 @@ export const PAYROLL_TABS = [
 export const PAYROLL_MY_TABS = [
   { to: '/teacher/payroll/ctc',      label: 'My Salary',    glyph: 'wallet' },
   { to: '/teacher/payroll/payslips', label: 'Salary Slips', glyph: 'docFill' },
+  { to: '/teacher/payroll/claims',   label: 'Claims & Tax', glyph: 'rupee' },
 ];
 
 /** Adds this screen's steps to the layout's breadcrumb. */

@@ -22,6 +22,8 @@ import {
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const err = (e) => toast.error(e?.message || 'Something went wrong');
+/** A change to a run that had been signed off takes the sign-off with it. */
+export const reopenedToast = () => toast('This run had already been signed off, so it has gone back to draft. It needs review and approval again.', { icon: '↩️', duration: 7000 });
 
 const yearsAround = (n = 3) => {
   const y = new Date().getFullYear();
@@ -43,6 +45,75 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, confirm =
         <Btn variant={danger ? 'danger' : 'primary'} loading={busy} onClick={go}>{confirm}</Btn>
       </>}>
       <p style={{ margin: 0, fontSize: '.9rem', lineHeight: 1.6, color: 'var(--pr-ink-2)' }}>{body}</p>
+    </Modal>
+  );
+}
+
+/* ── A reason, and a payment ──────────────────────────────────────────────── */
+
+/**
+ * Confirm something that has to be explained — reversing a publish, sending a
+ * run back. The server refuses both without a reason, so the button stays off
+ * until there is one.
+ */
+export function ReasonDialog({ open, onClose, onConfirm, title, body, confirm = 'Confirm', danger, placeholder, min = 5 }) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) setReason(''); }, [open]);
+  const go = async () => {
+    setBusy(true);
+    try { await onConfirm(reason.trim()); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open={open} onClose={onClose} title={title} glyph="bang" tone={danger ? 'red' : 'amber'}
+      footer={<>
+        <Btn onClick={onClose}>Cancel</Btn>
+        <Btn variant={danger ? 'danger' : 'primary'} loading={busy} disabled={reason.trim().length < min} onClick={go}>{confirm}</Btn>
+      </>}>
+      <p style={{ margin: '0 0 14px', fontSize: '.9rem', lineHeight: 1.6, color: 'var(--pr-ink-2)' }}>{body}</p>
+      <Field label="Reason" required hint="Kept with the audit trail.">
+        <textarea data-text="sentence" className="pr-textarea" rows={2} maxLength={300} value={reason}
+          placeholder={placeholder} onChange={e => setReason(e.target.value)} />
+      </Field>
+    </Modal>
+  );
+}
+
+/** Published is not paid: when the transfer went out, and the bank's reference for it. */
+export function PaymentDialog({ open, onClose, onDone, run }) {
+  const [form, setForm] = useState({ paidOn: '', reference: '' });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (open) setForm({ paidOn: isoDay(run?.paidOn || new Date()), reference: run?.paymentRef || '' });
+  }, [open, run]);
+  if (!run) return null;
+  const send = async (payload, okMsg) => {
+    setBusy(true);
+    try { await api.recordPayment(run._id, payload); toast.success(okMsg); onDone?.(); }
+    catch (e) { err(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="Record Payment" sub={run.runName} glyph="bank" tone="green"
+      footer={<>
+        {run.paidOn ? <Btn variant="danger" loading={busy} onClick={() => send({ clear: true }, 'Payment record cleared')}>Clear record</Btn> : null}
+        <Btn onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" loading={busy} disabled={!form.paidOn}
+          onClick={() => send({ paidOn: form.paidOn, reference: form.reference.trim() }, 'Payment recorded')}>Save</Btn>
+      </>}>
+      <Row n={2}>
+        <Field label="Paid on" required>
+          <input className="pr-input" type="date" max={isoDay(new Date())} value={form.paidOn}
+            onChange={e => setForm(f => ({ ...f, paidOn: e.target.value }))} />
+        </Field>
+        <Field label="Bank reference" hint="UTR or batch number, if you have one.">
+          <input data-text="code" className="pr-input" maxLength={80} value={form.reference} placeholder="UTR…"
+            onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} />
+        </Field>
+      </Row>
+      <Note tone="blue" glyph="info">
+        This marks every payslip in the run as paid on that date and prints it on the payslip. It does not move money —
+        the transfer itself is made at the bank, from the bank transfer file.
+      </Note>
     </Modal>
   );
 }
@@ -115,7 +186,7 @@ export function CreateRunDialog({ open, onClose, onDone, month, year, academicYe
           onChange={e => setForm(f => ({ ...f, workingDays: e.target.value }))} />
       </Field>
       <Field label="Notes">
-        <textarea className="pr-textarea" rows={2} value={form.notes}
+        <textarea data-text="sentence" className="pr-textarea" rows={2} value={form.notes}
           placeholder="Anything worth recording about this month's payroll"
           onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
       </Field>
@@ -148,10 +219,11 @@ export function AssignDialog({ open, onClose, onDone, assignment, academicYear, 
       effectiveDate: isoDay(assignment.effectiveDate),
       endDate: isoDay(assignment.endDate),
       paymentMode: assignment.paymentMode || 'bank_transfer',
+      declaredDeductions: String(assignment.declaredDeductions || ''),
       notes: assignment.notes || '',
     } : {
       employeeId: '', structureId: presetStructure || '', annualCtc: '',
-      effectiveDate: isoDay(new Date()), endDate: '', paymentMode: 'bank_transfer', notes: '',
+      effectiveDate: isoDay(new Date()), endDate: '', paymentMode: 'bank_transfer', declaredDeductions: '', notes: '',
     });
     setSearch('');
     api.getStructures({ tab: 'active', limit: 100 }).then(r => {
@@ -192,6 +264,7 @@ export function AssignDialog({ open, onClose, onDone, assignment, academicYear, 
         await api.updateAssignment(assignment._id, {
           structureId: form.structureId, effectiveDate: form.effectiveDate,
           endDate: form.endDate || null, paymentMode: form.paymentMode, notes: form.notes,
+          declaredDeductions: num(form.declaredDeductions),
         });
         toast.success('Assignment updated');
       } else {
@@ -199,6 +272,7 @@ export function AssignDialog({ open, onClose, onDone, assignment, academicYear, 
           employeeId: form.employeeId, structureId: form.structureId,
           annualCtc: num(form.annualCtc), effectiveDate: form.effectiveDate,
           endDate: form.endDate || null, paymentMode: form.paymentMode, notes: form.notes,
+          declaredDeductions: num(form.declaredDeductions),
           academicYear,
         });
         toast.success('Employee assigned');
@@ -291,6 +365,12 @@ export function AssignDialog({ open, onClose, onDone, assignment, academicYear, 
               options={Object.entries(PAYMENT_MODE).map(([value, label]) => ({ value, label }))} />
           </Field>
 
+          <Field label="Tax deductions declared (a year)"
+            hint="80C, 80D, HRA exemption and the like, as one annual figure. Used only when the school deducts tax under the old regime.">
+            <input className="pr-input" type="number" min="0" step="1000" value={form.declaredDeductions || ''} placeholder="0"
+              onChange={e => setForm(f => ({ ...f, declaredDeductions: e.target.value }))} />
+          </Field>
+
           {!editing && chosen && !chosen.hasBank && form.paymentMode === 'bank_transfer' && (
             <Note tone="amber" glyph="bang">
               {chosen.name} has no bank account on file, so this row will be left out of the bank transfer file until
@@ -299,7 +379,7 @@ export function AssignDialog({ open, onClose, onDone, assignment, academicYear, 
           )}
 
           <Field label="Notes">
-            <textarea className="pr-textarea" rows={2} value={form.notes || ''}
+            <textarea data-text="sentence" className="pr-textarea" rows={2} value={form.notes || ''}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </Field>
         </div>
@@ -595,7 +675,7 @@ export function ReviseCtcDialog({ open, onClose, onDone, assignment }) {
         </Field>
       </Row>
       <Field label="Note">
-        <input className="pr-input" value={form.note || ''} placeholder="Annual appraisal, promotion, …"
+        <input data-text="sentence" className="pr-input" value={form.note || ''} placeholder="Annual appraisal, promotion, …"
           onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
       </Field>
 
@@ -634,6 +714,8 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
   const locked = run?.status === 'published' || run?.status === 'cancelled';
+  // Held back when the month was published: it can still be paid, on its own.
+  const heldAfterPublish = run?.status === 'published' && !!entry?.isOnHold;
 
   useEffect(() => {
     if (!open || !entry) return;
@@ -657,6 +739,7 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
         overtimeHours: num(form.overtimeHours), overtimeRate: num(form.overtimeRate),
       });
       toast.success('Entry updated');
+      if (res.data?.reopened) reopenedToast();
       onDone?.(res.data);
     } catch (e) { err(e); } finally { setBusy(false); }
   };
@@ -665,7 +748,9 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
     setBusy(true);
     try {
       const res = await api.holdRunEntry(runId, entry._id, { hold: !entry.isOnHold });
-      toast.success(entry.isOnHold ? 'Released back into the run' : 'Held — this person is out of the run totals');
+      toast.success(heldAfterPublish ? 'Released — the payslip has been issued'
+        : entry.isOnHold ? 'Released back into the run' : 'Held — this person is out of the run totals');
+      if (res.data?.reopened) reopenedToast();
       onDone?.(res.data);
     } catch (e) { err(e); } finally { setBusy(false); }
   };
@@ -683,6 +768,7 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
         <>
           {slip ? <Btn glyph="download" onClick={() => onDone?.({ download: slip._id })}>Download payslip</Btn> : null}
           <Btn onClick={onClose}>Close</Btn>
+          {heldAfterPublish ? <Btn variant="primary" loading={busy} onClick={hold}>Release and issue payslip</Btn> : null}
         </>
       ) : (
         <>
@@ -693,9 +779,15 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
           <Btn variant="primary" loading={busy} onClick={save}>Save Entry</Btn>
         </>
       )}>
-      {locked && (
+      {locked && !heldAfterPublish && (
         <Note tone="slate" glyph="info">
           This run is {run.status === 'published' ? 'published and locked' : 'cancelled'}. Reverse the publish to change an entry.
+        </Note>
+      )}
+      {heldAfterPublish && (
+        <Note tone="amber" glyph="pause">
+          This entry was held back when the run was published, so no payslip was issued and nothing was recovered or
+          reimbursed. Releasing it now issues the payslip and tells {entry.employee.name}.
         </Note>
       )}
 
@@ -740,7 +832,7 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
             </Field>
           </Row>
           <Field label="Remarks" hint="Printed on the payslip.">
-            <input className="pr-input" value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
+            <input data-text="sentence" className="pr-input" maxLength={500} value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
           </Field>
         </>
       )}
@@ -759,18 +851,31 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
           ...entry.deductions,
           ...(entry.otherDeductions > 0 ? [{ name: 'Other deductions', amount: entry.otherDeductions }] : []),
         ]} total={entry.totalDeductions + entry.otherDeductions} tone="red" />
-        {(entry.arrears > 0 || entry.bonus > 0 || entry.reimbursement > 0) && (
+        {(entry.arrears > 0 || entry.bonus > 0 || entry.reimbursement > 0 || entry.settlementAmount > 0) && (
           <Ledger title="Additions" rows={[
-            ...(entry.arrears > 0 ? [{ name: 'Arrears', amount: entry.arrears }] : []),
-            ...(entry.bonus > 0 ? [{ name: 'Bonus', amount: entry.bonus }] : []),
-            ...(entry.reimbursement > 0 ? [{ name: 'Expenses reimbursed', amount: entry.reimbursement, note: 'Not taxable, outside gross' }] : []),
-          ]} total={entry.arrears + entry.bonus + entry.reimbursement} />
+            ...(entry.arrears > 0 ? [{ name: 'Arrears', amount: entry.arrears, note: 'Taxed with this month' }] : []),
+            ...(entry.bonus > 0 ? [{ name: 'Bonus', amount: entry.bonus, note: 'Taxed with this month' }] : []),
+            ...(entry.reimbursement > 0 ? [{ name: 'Expenses reimbursed', amount: entry.reimbursement, note: 'Outside gross' }] : []),
+            ...(entry.settlementAmount > 0 ? [{
+              name: 'Final settlement', amount: entry.settlementAmount,
+              note: [entry.settlement?.leaveEncashment > 0 ? `leave encashment ${money(entry.settlement.leaveEncashment)}` : '',
+                entry.settlement?.gratuity > 0 ? `gratuity ${money(entry.settlement.gratuity)}` : ''].filter(Boolean).join(', ') || undefined,
+            }] : []),
+          ]} total={entry.arrears + entry.bonus + entry.reimbursement + (entry.settlementAmount || 0)} />
         )}
         {entry.advanceRecovery > 0 && (
-          <Ledger title="Recovered" tone="red" rows={[{ name: 'Advance instalment', amount: entry.advanceRecovery }]}
+          <Ledger title="Recovered" tone="red"
+            rows={[{ name: entry.settlement ? 'Advances, in full' : 'Advance instalment', amount: entry.advanceRecovery }]}
             total={entry.advanceRecovery} />
         )}
         <NetBar value={entry.netSalary} />
+        {entry.taxWorking && entry.tds > 0 && (
+          <div style={{ fontSize: '.8rem', color: 'var(--pr-muted)', lineHeight: 1.55 }}>
+            Income tax of {money(entry.tds)}: the year's tax on a projected taxable income of {money(entry.taxWorking.taxableIncome)} is
+            {' '}{money(entry.taxWorking.annualTax)}; {money(entry.taxWorking.alreadyDeducted)} was deducted before this month and the
+            rest is spread over {entry.taxWorking.monthsRemaining} month{entry.taxWorking.monthsRemaining === 1 ? '' : 's'}.
+          </div>
+        )}
         {entry.unrecovered > 0 && (
           <Note tone="amber" glyph="bang">
             {money(entry.unrecovered)} could not be recovered this month — the net floors at zero rather than going
@@ -798,9 +903,12 @@ export function EntryDrawer({ open, onClose, onDone, runId, entry, run }) {
 const blankComponent = (order) => ({
   name: '', code: '', type: 'earning', calculationType: 'fixed',
   value: 0, percentage: 0, percentageOf: 'CTC',
-  wageCeiling: 0, capAmount: 0, minAmount: 0,
+  wageCeiling: 0, capAmount: 0, minAmount: 0, applyUpTo: 0,
   proRated: true, taxable: true, order, isActive: true,
 });
+
+/** What a percentage's base reads as. */
+const baseLabel = (b) => (b === 'CTC' ? 'Monthly CTC' : b === 'Gross' ? 'Gross (the earnings above)' : b);
 
 /**
  * Create or edit a salary structure.
@@ -829,10 +937,12 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
       type: structure.type || 'general',
       payBasis: structure.payBasis || 'monthly',
       rate: String(structure.rate || ''), rateUnit: structure.rateUnit || 'class',
+      overtimeRate: String(structure.overtimeRate || ''),
       isActive: structure.isActive !== false, isDefault: !!structure.isDefault,
       components: (structure.components || []).map((c, i) => ({ ...c, order: c.order ?? i + 1 })),
     } : {
       name: '', description: '', type: 'general', payBasis: 'monthly', rate: '', rateUnit: 'class',
+      overtimeRate: '',
       isActive: true, isDefault: false,
       components: [
         { ...blankComponent(1), name: 'Basic Salary', code: 'BASIC', calculationType: 'percentage', percentage: 50, percentageOf: 'CTC' },
@@ -875,8 +985,12 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
     return { ...f, components: list.map((c, k) => ({ ...c, order: k + 1 })) };
   });
 
-  // The bases a percentage may cite: CTC, or a component defined ABOVE it.
-  const basesFor = (i) => ['CTC', ...form.components.slice(0, i).map(c => c.name).filter(Boolean)];
+  // The bases a percentage may cite: CTC, a component defined ABOVE it, or —
+  // once there is an earning above — Gross, which is what ESI is taken of.
+  const basesFor = (i) => {
+    const above = form.components.slice(0, i);
+    return ['CTC', ...(above.some(c => c.type === 'earning') ? ['Gross'] : []), ...above.map(c => c.name).filter(Boolean)];
+  };
 
   const save = async () => {
     setBusy(true);
@@ -884,6 +998,7 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
       const payload = {
         name: form.name.trim(), description: form.description.trim(), type: form.type,
         payBasis: form.payBasis, rate: num(form.rate), rateUnit: form.rateUnit,
+        overtimeRate: num(form.overtimeRate),
         components: form.components, isActive: form.isActive, isDefault: form.isDefault,
       };
       const res = editing
@@ -924,8 +1039,14 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
             </Field>
           </Row>
           <Field label="Description">
-            <input className="pr-input" value={form.description} placeholder="For all teaching faculty"
+            <input data-text="sentence" className="pr-input" value={form.description} placeholder="For all teaching faculty"
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </Field>
+
+          <Field label="Overtime rate (per hour)"
+            hint="What an hour of overtime is worth on this structure. Leave at 0 if overtime is not paid; it can still be set per person on a run.">
+            <input className="pr-input" type="number" min="0" step="10" value={form.overtimeRate} placeholder="0"
+              onChange={e => setForm(f => ({ ...f, overtimeRate: e.target.value }))} />
           </Field>
 
           <Field label="Paid by">
@@ -1042,7 +1163,7 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
                     <small style={{ fontSize: '.76rem', color: 'var(--pr-muted)', whiteSpace: 'nowrap' }}>% of</small>
                     <Select className="pr-select--block" value={c.percentageOf}
                       onChange={v => setC(i, { percentageOf: v })}
-                      options={basesFor(i).map(b => ({ value: b, label: b === 'CTC' ? 'Monthly CTC' : b }))} />
+                      options={basesFor(i).map(b => ({ value: b, label: baseLabel(b) }))} />
                   </span>
                 </div>
               )}
@@ -1056,6 +1177,9 @@ export function StructureDialog({ open, onClose, onDone, structure }) {
                       onChange={e => setC(i, { wageCeiling: num(e.target.value) })} /></Field>
                     <Field label="Max amount"><input className="pr-input" type="number" min="0" step="500" value={c.capAmount}
                       onChange={e => setC(i, { capAmount: num(e.target.value) })} /></Field>
+                    <Field label="Applies only up to" hint="Zero above this base — ESI stops at ₹21,000">
+                      <input className="pr-input" type="number" min="0" step="500" value={c.applyUpTo || 0}
+                        onChange={e => setC(i, { applyUpTo: num(e.target.value) })} /></Field>
                     <Field label="Reduced by LOP">
                       <div style={{ height: 40, display: 'flex', alignItems: 'center' }}>
                         <Toggle checked={c.proRated !== false} onChange={v => setC(i, { proRated: v })} label="Pro-rated" />
@@ -1230,7 +1354,7 @@ export function GenerateReportDialog({ open, onClose, onDone, types = [], depart
       )}
       <Field label="Format">
         <Select className="pr-select--block" value={form.format} onChange={v => setForm(f => ({ ...f, format: v }))}
-          options={[{ value: 'pdf', label: 'PDF' }, { value: 'excel', label: 'Excel (CSV)' }, { value: 'csv', label: 'CSV' }]} />
+          options={[{ value: 'pdf', label: 'PDF' }, { value: 'excel', label: 'Excel (.xlsx)' }, { value: 'csv', label: 'CSV' }]} />
       </Field>
     </Modal>
   );
@@ -1444,7 +1568,7 @@ export function AdvanceDialog({ open, onClose, onDone }) {
       </Row>
 
       <Field label="Reason">
-        <input className="pr-input" value={form.reason || ''} placeholder="Medical, festival, relocation…"
+        <input data-text="sentence" className="pr-input" value={form.reason || ''} placeholder="Medical, festival, relocation…"
           onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
       </Field>
 
@@ -1507,7 +1631,7 @@ export function ClaimDialog({ open, onClose, onDone }) {
         </Field>
       </Row>
       <Field label="What was it for" required={false}>
-        <input className="pr-input" value={form.description || ''} placeholder="Inter-school meet, lab materials…"
+        <input data-text="sentence" className="pr-input" value={form.description || ''} placeholder="Inter-school meet, lab materials…"
           onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
       </Field>
       <Field label="Claimed on">
@@ -1571,15 +1695,16 @@ export function SettlementDialog({ open, onClose, onDone, assignment }) {
   const apply = async () => {
     setBusy(true);
     try {
-      await api.applySettlement(assignment._id, {
-        runId,
-        // The final month is already in the run; what is added is everything
-        // the employment leaves behind, and what is recovered is the advances.
-        addition: (preview.leaveEncashment.amount + preview.gratuity.amount + preview.claims.amount),
-        recovery: preview.advances.outstanding,
-        lastDay, note,
+      // The server works the whole entry out again as the leaver's last month:
+      // the days, the advances in full, the claims once. Only the two figures
+      // a school may argue with are sent; the totals are not ours to post.
+      const res = await api.applySettlement(assignment._id, {
+        runId, lastDay, note,
+        leaveEncashment: preview.leaveEncashment.amount,
+        gratuity: preview.gratuity.amount,
       });
       toast.success('Settlement applied — the assignment has been closed');
+      if (res.data?.reopened) reopenedToast();
       onDone?.();
     } catch (e) { err(e); } finally { setBusy(false); }
   };
@@ -1601,7 +1726,7 @@ export function SettlementDialog({ open, onClose, onDone, assignment }) {
         <Field label="Last working day" required>
           <input className="pr-input" type="date" value={lastDay} onChange={e => setLastDay(e.target.value)} />
         </Field>
-        <Field label="Settle in" required hint="An open run. The final month is already an entry in it.">
+        <Field label="Settle in" required hint="An open run — the month of the last working day, or a later one.">
           <Select className="pr-select--block" value={runId} all={runs.length ? undefined : '— No open run —'}
             onChange={setRunId}
             options={runs.map(r => ({ value: r._id, label: `${r.runName} (${r.stageLabel})` }))} />
@@ -1639,15 +1764,16 @@ export function SettlementDialog({ open, onClose, onDone, assignment }) {
 
           <div style={{ marginTop: 14 }}>
             <Field label="Note" hint="Printed on the payslip.">
-              <input className="pr-input" value={note} placeholder="Full and final settlement"
+              <input data-text="sentence" className="pr-input" maxLength={500} value={note} placeholder="Full and final settlement"
                 onChange={e => setNote(e.target.value)} />
             </Field>
           </div>
 
           <Note tone="amber" glyph="bang">
-            Applying this adds {money(d.leaveEncashment.amount + d.gratuity.amount + d.claims.amount)} and recovers
-            {' '}{money(d.advances.outstanding)} on their entry in the chosen run, and ends the assignment on {fmtDate(lastDay)}.
-            No later run will pay them.
+            Applying this prices their entry in the chosen run again as a last month: pay stops on {fmtDate(lastDay)},
+            {' '}{money(d.leaveEncashment.amount + d.gratuity.amount)} of leave encashment and gratuity is added, approved expenses are
+            paid once, and the {money(d.advances.outstanding)} still out on advances is recovered in full. The assignment ends that
+            day and no later run will pay them.{d.beforeTax ? ' Income tax is worked out when it is applied, so the net may be lower than the figure above.' : ''}
           </Note>
         </>
       )}

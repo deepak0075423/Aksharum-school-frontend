@@ -292,6 +292,7 @@ const PayAdjustments = lazy(() => import('./pages/payroll/admin/Adjustments'));
 const PaySettings   = lazy(() => import('./pages/payroll/admin/Settings'));
 const PayMyCtc      = lazy(() => import('./pages/payroll/teacher/MyCtc'));
 const PayMyPayslips = lazy(() => import('./pages/payroll/teacher/Payslips'));
+const PayMyClaims   = lazy(() => import('./pages/payroll/teacher/MyClaims'));
 
 // ── Library ───────────────────────────────────────────────────────────────────
 const LibDashboard  = lazy(() => import('./pages/library/librarian/Dashboard'));
@@ -868,6 +869,7 @@ export default function App() {
               <Route index element={<Navigate to="ctc" replace />} />
               <Route path="ctc"      element={<PayMyCtc />} />
               <Route path="payslips" element={<PayMyPayslips />} />
+              <Route path="claims"   element={<PayMyClaims />} />
             </Route>
             <Route element={<ModuleNav tabs={LIBRARY_STUDENT_TABS('/teacher')} className="modnav--grid" />}>
               <Route path="library"          element={<SLibrary />} />

@@ -46,6 +46,15 @@ api.interceptors.response.use(
   (res) => res.data,
   async (err) => {
     const status  = err.response?.status;
+    // A download that is refused comes back as JSON inside a Blob (the request
+    // asked for one), so its message used to be lost and every refused file
+    // read "Something went wrong". Unwrap it first.
+    if (typeof Blob !== 'undefined' && err.response?.data instanceof Blob) {
+      try {
+        const text = await err.response.data.text();
+        err.response.data = /json/i.test(err.response.data.type) || text.trim().startsWith('{') ? JSON.parse(text) : {};
+      } catch { err.response.data = {}; }
+    }
     const message = err.response?.data?.message || 'Something went wrong';
 
     if (status === 401) {

@@ -65,7 +65,7 @@ export default function PayrollDashboard() {
       <Tiles n={5}>
         <Tile glyph="users" tone="indigo" label="Total Employees"
           value={loading ? '—' : (t.totalEmployees?.value ?? 0)}
-          delta={{ pct: t.totalEmployees?.deltaPct, caption: t.totalEmployees?.caption || 'Active staff members' }} />
+          caption={t.totalEmployees?.caption || 'Active staff members'} />
         <Tile glyph="docFill" tone="green" label="Active Assignments"
           value={loading ? '—' : (t.activeAssignments?.value ?? 0)}
           delta={{ pct: t.activeAssignments?.deltaPct, caption: t.activeAssignments?.caption || 'Teachers, staff & admin' }}

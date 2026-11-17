@@ -20,7 +20,7 @@ import {
   Loading, Empty, TableWrap, SortTh, Pager, Facts, Fact, Note, Avatar, BulkBar, runBulk,
   money, fmtDate, fmtDateTime, saveFile, MONTHS, RUN_STATUS, RUN_STEPS,
 } from './prUI';
-import { CreateRunDialog, EntryDrawer, ConfirmDialog, SettingsDialog } from './prForms';
+import { CreateRunDialog, EntryDrawer, ConfirmDialog, SettingsDialog, ReasonDialog, PaymentDialog, reopenedToast } from './prForms';
 
 const STATUS_FILTER = [
   { value: 'in_progress', label: 'In Progress' },
@@ -47,6 +47,8 @@ export default function PayrollRuns() {
   const [creating, setCreating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState(null);
+  const [reason, setReason] = useState(null);     // an action that has to be explained
+  const [paying, setPaying] = useState(false);
   const [entry, setEntry] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -87,11 +89,40 @@ export default function PayrollRuns() {
   const act = async (fn, okMsg) => {
     setBusy(true);
     try {
-      await fn();
-      if (okMsg) toast.success(okMsg);
+      const res = await fn();
+      if (okMsg) toast.success(typeof okMsg === 'function' ? okMsg(res) : okMsg);
+      if (res?.data?.reopened) reopenedToast();
       await Promise.all([refetch(), loadDetail(selected)]);
-    } catch (e) { toast.error(e.message); } finally { setBusy(false); setConfirm(null); }
+    } catch (e) { toast.error(e.message); } finally { setBusy(false); setConfirm(null); setReason(null); }
   };
+
+  const fileName = (r, what, ext = 'csv') => `${what}_${r.period.replace(' ', '_')}.${ext}`;
+  // The bank file is an instruction to a bank: only for figures somebody has approved.
+  const bankReady = (r) => r.status === 'approved' || r.status === 'published';
+  const bankFile = (r) => {
+    if (detail && detail._id === r._id) {
+      const missing = (detail.entries || [])
+        .filter(e => !e.isOnHold && e.netSalary > 0 && e.paymentMode === 'bank_transfer' && !e.bank?.accountNumber)
+        .map(e => e.employee.name);
+      if (missing.length) {
+        toast(`Not in the file — no bank account on record: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` and ${missing.length - 5} more` : ''}.`,
+          { icon: '⚠️', duration: 10000 });
+      }
+    }
+    download(() => api.getBankFile(r._id), fileName(r, 'bank_transfer'));
+  };
+  const askReverse = (r) => setReason({
+    title: 'Reverse this publish?',
+    body: `The ${r.totalEmployees} payslips issued for ${r.runName} will be withdrawn and the run returned to approved. Everyone who was sent one is told it has been withdrawn.`,
+    confirm: 'Reverse Publish', danger: true, placeholder: 'What has to be corrected?',
+    run: (why) => api.unpublishRun(r._id, why), msg: 'Publish reversed',
+  });
+  const askSendBack = (r) => setReason({
+    title: 'Send this run back to draft?',
+    body: `${r.runName} will lose its review and approval and go back to whoever prepared it.`,
+    confirm: 'Send Back', placeholder: 'What needs fixing?', min: 3,
+    run: (why) => api.updateRunStatus(r._id, 'draft', why), msg: 'Sent back to draft',
+  });
 
   /** The same per-row action over every ticked run, reported honestly. */
   const bulk = async (kind) => {
@@ -121,7 +152,7 @@ export default function PayrollRuns() {
     if (run.status === 'reviewed')  return { label: 'Approve Run',   run: () => api.updateRunStatus(run._id, 'approved'), msg: 'Approved' };
     if (run.status === 'approved')  return { label: 'Publish & Pay', run: () => api.publishRun(run._id), msg: 'Published — payslips issued', confirm: {
       title: 'Publish this payroll run?',
-      body: `${run.totalEmployees} payslips will be issued for ${run.runName} and every employee told their net pay. A published run is locked.`,
+      body: `${run.totalEmployees} payslips will be issued for ${run.runName} and every employee told theirs is ready. A published run is locked.`,
       confirm: 'Publish Run',
     } };
     return null;
@@ -231,20 +262,18 @@ export default function PayrollRuns() {
                                   <MenuItem glyph="download" onClick={() => download(() => api.exportRun(r._id), `salary_register_${r.period.replace(' ', '_')}.csv`)}>
                                     Salary register (CSV)
                                   </MenuItem>
-                                  <MenuItem glyph="bank" onClick={() => download(() => api.getBankFile(r._id), `bank_transfer_${r.period.replace(' ', '_')}.csv`)}>
-                                    Bank transfer file
+                                  <MenuItem glyph="bank" disabled={!bankReady(r)} onClick={() => bankFile(r)}>
+                                    {bankReady(r) ? 'Bank transfer file' : 'Bank transfer file (after approval)'}
                                   </MenuItem>
+                                  {(r.status === 'reviewed' || r.status === 'approved') && (
+                                    <MenuItem glyph="refresh" onClick={() => askSendBack(r)}>Send back to draft</MenuItem>
+                                  )}
                                   <MenuItem glyph="refresh" disabled={r.status === 'published' || r.status === 'cancelled'}
                                     onClick={() => act(() => api.recomputeRun(r._id), 'Recomputed')}>
                                     Recompute
                                   </MenuItem>
                                   {r.status === 'published' ? (
-                                    <MenuItem glyph="ban" danger onClick={() => setConfirm({
-                                      title: 'Reverse this publish?',
-                                      body: `The ${r.totalEmployees} payslips issued for ${r.runName} will be withdrawn and the run returned to approved. Employees who have already seen theirs will no longer find it.`,
-                                      confirm: 'Reverse Publish', danger: true,
-                                      run: () => api.unpublishRun(r._id), msg: 'Publish reversed',
-                                    })}>Reverse publish</MenuItem>
+                                    <MenuItem glyph="ban" danger onClick={() => askReverse(r)}>Reverse publish</MenuItem>
                                   ) : (
                                     <>
                                       <MenuItem glyph="ban" disabled={r.status === 'cancelled'} onClick={() => setConfirm({
@@ -322,22 +351,31 @@ export default function PayrollRuns() {
                         </td>
                         <td className="pr-num">{money(e.totalDeductions)}</td>
                         <td className="pr-num">
-                          {(e.arrears + e.bonus + e.reimbursement + e.overtimeAmount) > 0 && (
-                            <div style={{ color: '#16a34a' }}>+{money(e.arrears + e.bonus + e.reimbursement + e.overtimeAmount)}</div>
+                          {(e.arrears + e.bonus + e.reimbursement + e.overtimeAmount + (e.settlementAmount || 0)) > 0 && (
+                            <div style={{ color: '#16a34a' }}>+{money(e.arrears + e.bonus + e.reimbursement + e.overtimeAmount + (e.settlementAmount || 0))}</div>
                           )}
-                          {e.advanceRecovery > 0 && <div style={{ color: '#dc2626' }}>−{money(e.advanceRecovery)}</div>}
-                          {(e.arrears + e.bonus + e.reimbursement + e.overtimeAmount + e.advanceRecovery) === 0 ? '—' : null}
+                          {(e.advanceRecovery + e.otherDeductions) > 0 && <div style={{ color: '#dc2626' }}>−{money(e.advanceRecovery + e.otherDeductions)}</div>}
+                          {(e.arrears + e.bonus + e.reimbursement + e.overtimeAmount + (e.settlementAmount || 0) + e.advanceRecovery + e.otherDeductions) === 0 ? '—' : null}
                         </td>
                         <td className="pr-num pr-strong">{money(e.netSalary)}</td>
                         <td>
                           {e.isOnHold ? <Badge tone="amber">On hold</Badge>
-                            : e.payslip ? <Badge tone="green">Paid</Badge>
+                            : e.paidOn ? <Badge tone="green">Paid {fmtDate(e.paidOn)}</Badge>
+                            : e.payslip ? <Badge tone="green">Payslip issued</Badge>
                             : e.isEdited ? <Badge tone="blue">Edited</Badge>
                             : <Badge tone="slate">Payable</Badge>}
                         </td>
                         <td>
                           <div className="pr-acts" style={{ justifyContent: 'flex-end' }}>
                             <IconBtn glyph="eye" label="Open entry" onClick={() => setEntry(e)} />
+                            {run.status === 'published' && e.isOnHold && (
+                              <IconBtn glyph="play" label="Release and issue payslip" onClick={() => setConfirm({
+                                title: `Release ${e.employee.name}'s pay?`,
+                                body: `This entry was held back when ${run.runName} was published. Releasing it issues the payslip for ${money(e.netSalary)} now and tells them.`,
+                                confirm: 'Release and Issue Payslip',
+                                run: () => api.holdRunEntry(run._id, e._id, { hold: false }), msg: 'Released — the payslip has been issued',
+                              })} />
+                            )}
                             {e.payslip && (
                               <IconBtn glyph="download" label="Download payslip"
                                 onClick={() => download(() => api.adminDownloadPayslip(e.payslip._id),
@@ -382,7 +420,18 @@ export default function PayrollRuns() {
                   <Fact label="Net Pay" glyph="wallet">{money(run.totalNet)}</Fact>
                   {run.totalEmployerCost > 0 && <Fact label="Employer cost" glyph="bank">{money(run.totalEmployerCost)}</Fact>}
                   {run.publishedAt && <Fact label="Published" glyph="checkCircle">{fmtDate(run.publishedAt)}</Fact>}
+                  {run.status === 'published' && (
+                    <Fact label="Paid" glyph="bank">
+                      {run.paidOn ? `${fmtDate(run.paidOn)}${run.paymentRef ? ` · ${run.paymentRef}` : ''}` : 'Not recorded yet'}
+                    </Fact>
+                  )}
                 </Facts>
+
+                {run.reversalReason && run.status !== 'published' && run.status !== 'cancelled' && (
+                  <div style={{ marginTop: 12 }}>
+                    <Note tone="blue" glyph="info"><b>Came back for a reason.</b> {run.reversalReason}</Note>
+                  </div>
+                )}
 
                 {run.held > 0 && (
                   <div style={{ marginTop: 12 }}>
@@ -419,11 +468,28 @@ export default function PayrollRuns() {
                       {next.label} <Glyph name="arrowRight" size={16} />
                     </Btn>
                   )}
+                  {(run.status === 'reviewed' || run.status === 'approved') && (
+                    <Btn className="pr-btn--block" glyph="refresh" onClick={() => askSendBack(run)}>Send Back to Draft</Btn>
+                  )}
+                  {bankReady(run) && (
+                    <Btn className="pr-btn--block" glyph="bank" onClick={() => bankFile(run)}>Bank Transfer File</Btn>
+                  )}
                   {run.status === 'published' && (
-                    <Btn className="pr-btn--block" glyph="bank"
-                      onClick={() => download(() => api.getBankFile(run._id), `bank_transfer_${run.period.replace(' ', '_')}.csv`)}>
-                      Bank Transfer File
-                    </Btn>
+                    <>
+                      <Btn className="pr-btn--block" glyph="checkCircle" onClick={() => setPaying(true)}>
+                        {run.paidOn ? 'Change Payment Record' : 'Record Payment'}
+                      </Btn>
+                      <Btn className="pr-btn--block" glyph="download"
+                        onClick={() => download(() => api.downloadRunPayslips(run._id), fileName(run, 'payslips', 'pdf'))}>
+                        All Payslips (one PDF)
+                      </Btn>
+                      <Btn className="pr-btn--block" glyph="refresh" loading={busy}
+                        onClick={() => act(() => api.resendPayslips(run._id), (res) => (res?.data?.queued
+                          ? `Payslip sent again to ${res.data.queued} employee${res.data.queued === 1 ? '' : 's'}`
+                          : 'Everyone has already been sent their payslip'))}>
+                        Send Unsent Payslips
+                      </Btn>
+                    </>
                   )}
                   <Btn className="pr-btn--block" glyph="download"
                     onClick={() => download(() => api.exportRun(run._id), `salary_register_${run.period.replace(' ', '_')}.csv`)}>
@@ -468,6 +534,14 @@ export default function PayrollRuns() {
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)}
         title={confirm?.title} body={confirm?.body} confirm={confirm?.confirm} danger={confirm?.danger}
         onConfirm={() => act(confirm.run, confirm.msg)} />
+
+      <ReasonDialog open={!!reason} onClose={() => setReason(null)}
+        title={reason?.title} body={reason?.body} confirm={reason?.confirm} danger={reason?.danger}
+        placeholder={reason?.placeholder} min={reason?.min}
+        onConfirm={(why) => act(() => reason.run(why), reason.msg)} />
+
+      <PaymentDialog open={paying} run={run} onClose={() => setPaying(false)}
+        onDone={() => { setPaying(false); refetch(); loadDetail(selected); }} />
 
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)}
         onDone={() => { setSettingsOpen(false); refetch(); }} />

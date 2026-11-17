@@ -105,6 +105,7 @@ export const LIBRARY_PARENT_TABS = [
 export const PAYROLL_TEACHER_TABS = [
   { to: '/teacher/payroll/ctc',      label: '💼 My Salary' },
   { to: '/teacher/payroll/payslips', label: '📄 Salary Slips' },
+  { to: '/teacher/payroll/claims',   label: '🧾 Claims & Tax' },
 ];
 
 // The twelve inventory sections. Each carries an `icon` the tab strip draws —
