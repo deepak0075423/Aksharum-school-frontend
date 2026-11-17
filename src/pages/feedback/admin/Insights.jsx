@@ -1149,7 +1149,7 @@ const reportColumns = (cols, base, navigate, campaign) => {
   ...(has('teacher') ? [{
     key: '_act', className: 'fbtable__acts', label: 'Actions',
     render: (r) => (r._id
-      ? <TextBtn icon="eye" onClick={() => open(r._id)}>View</TextBtn>
+      ? <TextBtn icon="eye" onClick={() => open(r._id)}></TextBtn>
       : <Dash />),
   }] : []),
   ];
