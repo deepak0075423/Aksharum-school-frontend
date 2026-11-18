@@ -25,14 +25,21 @@ import {
 } from '../../api/admin.api';
 import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
+import { ListStats, ListStat } from './listParts';
 import {
-  Crumbs, DocHero, DocStats, DocStat, DocTabs, DocTools, SearchField, Picker, SortMenu,
+  Crumbs, DocHero, DocTabs, DocTools, SearchField, Picker, SortMenu,
   ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer,
   MenuItem, MenuSep,
   TABS, sortsFor, TARGET_FILTERS, DOC_TYPES,
 } from './documentParts';
 import ShareDocument from './ShareDocument';
 import { useFileViewer } from '../documents/FileViewer';
+import useMediaQuery from '../../hooks/useMediaQuery';
+
+// Phones and tablets get the cards and nothing else: the table needs more
+// room than they have and used to scroll sideways. The choice made on a wider
+// screen is kept, just not applied while the screen is this narrow.
+const CARDS_ONLY = '(max-width: 1024px)';
 
 // The axios interceptor resolves to the response body — { success, data, … } —
 // and only useFetch peels that off. These calls go straight to the api module,
@@ -41,6 +48,18 @@ const unwrap = (res) => res?.data ?? res;
 
 // How many rows a page holds. Server-side, so this is also the query's LIMIT.
 const PAGE_SIZE = 10;
+
+/**
+ * A tile's change over the month, in words — `added` is the count now less the
+ * count at the start of the month (the overview's), so archiving or deleting
+ * can make it fall.
+ */
+const monthNote = (t) => {
+  const n = t?.added ?? 0;
+  if (n > 0) return `${n} added this month`;
+  if (n < 0) return `${-n} fewer this month`;
+  return 'No change this month';
+};
 
 export default function Documents() {
   const navigate = useNavigate();
@@ -51,6 +70,8 @@ export default function Documents() {
   const [search,   setSearch]   = useState('');
   const [term,     setTerm]     = useState('');
   const [target,   setTarget]   = useState('');
+  // The school's own filing label (DocumentCategory) — beside the fixed types.
+  const [category, setCategory] = useState('');
   // null until the summary says which year is current: the page opens on this
   // year's documents, like the rest of the office's screens, and '' is the
   // deliberate "All Academic Years".
@@ -113,6 +134,7 @@ export default function Documents() {
         sort,
         search: term || undefined,
         target: target || undefined,
+        category: category || undefined,
         // '' is "All years" on this screen; the list's own default is the
         // academic year in view, so every year has to be asked for by name.
         academicYear: year || 'all',
@@ -126,7 +148,7 @@ export default function Documents() {
     } finally {
       setLoading(false);
     }
-  }, [tab, page, sort, term, target, year]);
+  }, [tab, page, sort, term, target, category, year]);
 
   useEffect(() => { loadList(); }, [loadList]);
 
@@ -175,10 +197,10 @@ export default function Documents() {
   // ── Filter state ───────────────────────────────────────────────────────────
   const thisYear = (over?.academicYears || []).find((a) => a.status === 'active')?._id || '';
   // The year the page opens on is where it starts, not a filter someone set.
-  const filtered = !!(term || target || (year || '') !== thisYear);
+  const filtered = !!(term || target || category || (year || '') !== thisYear);
 
   const clearFilters = () => {
-    setSearch(''); setTerm(''); setTarget(''); setYear(thisYear); setPage(1);
+    setSearch(''); setTerm(''); setTarget(''); setCategory(''); setYear(thisYear); setPage(1);
   };
 
   // Not every tab offers every sort — "Due date" belongs to Assignments, "Type"
@@ -195,9 +217,10 @@ export default function Documents() {
 
   // "Total Documents" opens what it counts: every document, no filter, first tab.
   // Across every year — the tiles count the whole shelf, not one year of it.
-  const showAll = () => { setSearch(''); setTerm(''); setTarget(''); setYear(''); pickTab('all'); };
-  // A tile opens what it counts: its audience, on every tab and in every year.
-  const pickTarget = (v) => { setTarget(target === v ? '' : v); setYear(''); pickTab('all'); };
+  const showAll = () => { setSearch(''); setTerm(''); setTarget(''); setCategory(''); setYear(''); pickTab('all'); };
+  // A tile opens what it counts: its audience, on every tab, in every year and
+  // under every category — the tiles count across all of them.
+  const pickTarget = (v) => { setTarget(target === v ? '' : v); setCategory(''); setYear(''); pickTab('all'); };
 
   const tiles = over?.tiles || {};
   const counts = over?.counts || {};
@@ -216,17 +239,25 @@ export default function Documents() {
     if (tab === 'archived' && over && !counts.archived) setTab('all');
   }, [tab, over, counts.archived]);
 
+  // The year by name alone, the current one marked "(current)" — no count
+  // beside each: the list and its footer already say how many there are.
   const yearOptions = useMemo(
     () => [
       ...(over?.academicYears || []).map((y) => ({
         value: y._id,
         label: y.status === 'active' ? `${y.name} (current)` : y.name,
-        count: y.count,
       })),
       // Filed under no year at all — counted by the summary, and until now
       // with no way to list them.
-      ...(over?.unfiledYear > 0 ? [{ value: 'none', label: 'No academic year', count: over.unfiledYear }] : []),
+      ...(over?.unfiledYear > 0 ? [{ value: 'none', label: 'No academic year' }] : []),
     ],
+    [over],
+  );
+
+  // The school's filing labels, plus any still on a document after being taken
+  // off the master list (the summary sends both). Names only, like the years.
+  const categoryOptions = useMemo(
+    () => (over?.categories || []).map((c) => ({ value: c.name, label: c.name })),
     [over],
   );
 
@@ -254,7 +285,8 @@ export default function Documents() {
       fd.append('assignmentType', form.assignmentType);
       fd.append('dueDate', form.isAssignment && form.dueDate ? form.dueDate : '');
       fd.append('totalMarks', form.isAssignment && form.totalMarks ? form.totalMarks : '');
-      fd.append('questions', JSON.stringify(form.isAssignment ? form.questions : []));
+      // A breakdown splits the "Out of"; with none there is nothing to split.
+      fd.append('questions', JSON.stringify(form.isAssignment && Number(form.totalMarks) > 0 ? form.questions : []));
       files.forEach((f) => fd.append('files', f));
       // On an edit: which of the files already attached are staying. The new
       // ones above are added to them rather than replacing them.
@@ -359,7 +391,8 @@ export default function Documents() {
   );
 
   const empty = <DocEmpty filtered={filtered} onClear={clearFilters} onUpload={startNew} />;
-  const List  = view === 'grid' ? DocGrid : DocTable;
+  const cardsOnly = useMediaQuery(CARDS_ONLY);
+  const List  = cardsOnly || view === 'grid' ? DocGrid : DocTable;
 
   return (
     <div className="page docpg">
@@ -375,21 +408,25 @@ export default function Documents() {
         }
       />
 
-      <DocStats>
-        <DocStat icon="files" tone="indigo" label="Total Documents"
-          value={tiles.total?.value} change={tiles.total?.change} added={tiles.total?.added}
-          onClick={showAll} />
-        <DocStat icon="users" tone="green" label="Shared with Classes"
-          value={tiles.classes?.value} change={tiles.classes?.change} added={tiles.classes?.added}
+      {/* The Students list's own tiles (Nov 2026) — four across on a laptop.
+          Each one's change over the month is its caption, the line where the
+          Students tiles say what they count. "Total" is lit while no tile's
+          filter is on, as "Total Students" is. */}
+      <ListStats>
+        <ListStat icon="files" tone="indigo" label="Total Documents"
+          value={tiles.total?.value} caption={monthNote(tiles.total)}
+          on={!target && tab === 'all'} onClick={showAll} />
+        <ListStat icon="users" tone="green" label="Shared with Classes"
+          value={tiles.classes?.value} caption={monthNote(tiles.classes)}
           on={target === 'classes'} onClick={() => pickTarget('classes')} />
-        <DocStat icon="user" tone="amber" label="Shared with Teachers"
-          value={tiles.teachers?.value} change={tiles.teachers?.change} added={tiles.teachers?.added}
+        <ListStat icon="user" tone="amber" label="Shared with Teachers"
+          value={tiles.teachers?.value} caption={monthNote(tiles.teachers)}
           on={target === 'teachers'} onClick={() => pickTarget('teachers')} />
-        <DocStat icon="clipboard" tone="red" label="Assignments"
-          value={tiles.assignments?.value} change={tiles.assignments?.change} added={tiles.assignments?.added}
+        <ListStat icon="clipboard" tone="red" label="Assignments"
+          value={tiles.assignments?.value} caption={monthNote(tiles.assignments)}
           on={tab === 'assignments'}
-          onClick={() => { if (tab !== 'assignments') { setTarget(''); setYear(''); } pickTab(tab === 'assignments' ? 'all' : 'assignments'); }} />
-      </DocStats>
+          onClick={() => { if (tab !== 'assignments') { setTarget(''); setCategory(''); setYear(''); } pickTab(tab === 'assignments' ? 'all' : 'assignments'); }} />
+      </ListStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
 
@@ -400,11 +437,14 @@ export default function Documents() {
           <SearchField value={search} onChange={setSearch} placeholder="Search documents…" />
           <Picker value={target} onChange={go(setTarget)} all="All Targets"
             options={TARGET_FILTERS} label="Filter by who it was shared with" />
+          <Picker value={category} onChange={go(setCategory)} all="All Categories"
+            options={categoryOptions} label="Filter by category" />
           <Picker value={year || ''} onChange={go(setYear)} all="All Academic Years"
-            options={yearOptions} label="Filter by academic year" />
+            options={yearOptions} label="Filter by academic year" className="docsel--year" />
           <span className="doctools__sep" />
           <SortMenu value={sort} onChange={go(setSort)} options={sortsFor(tab)} />
-          <ViewSwitch value={view} onChange={setView} />
+          {/* No choice to offer where only one of them fits. */}
+          {!cardsOnly && <ViewSwitch value={view} onChange={setView} />}
         </DocTools>
 
         <List rows={rows} loading={loading} empty={empty}

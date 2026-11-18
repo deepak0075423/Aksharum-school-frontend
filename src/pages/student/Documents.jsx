@@ -21,9 +21,9 @@ import {
 import { Alert, Button, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
-  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
+  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
   DocList, DocDrawer, NothingHere, StatePill, FileRows, Field, FileDrop, DocComments, UnreadNote, OpenFile,
-  TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate,
+  TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, HANDIN_TYPES,
 } from '../documents/viewerParts';
 
 export default function StudentDocuments() {
@@ -118,11 +118,7 @@ export default function StudentDocuments() {
         subtitle={myClass
           ? `Everything shared with ${myClass} and with the whole school.`
           : 'Everything shared with your class and with the whole school.'}
-        right={years.length > 1 && (
-          <Picker value={year} onChange={setYear} all="This year" label="Academic year"
-            options={[{ value: 'all', label: 'All years' },
-              ...years.map((y) => ({ value: y._id, label: y.name }))]} />
-        )}
+        right={years.length > 1 && <YearPicker years={years} value={year} onChange={setYear} />}
       />
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -216,7 +212,8 @@ export default function StudentDocuments() {
                     what was chosen and lets each file be taken back out, which
                     matters most right before handing the wrong one in. */}
                 <FileDrop id="dv-files" files={files} onChange={setFiles} max={5}
-                  hint="Up to 5 files, 10 MB each — PDFs, documents or photos" />
+                  types={HANDIN_TYPES} typeRule="assignments are handed in as PDF files only"
+                  hint="PDF only — up to 5 files, 10 MB each" />
                 {/* Said before the button is pressed, and for a replacement
                     too: work handed in on time and swapped after the due date
                     used to turn late without a word. */}

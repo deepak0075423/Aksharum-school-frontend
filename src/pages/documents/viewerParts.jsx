@@ -22,12 +22,13 @@ import toast from 'react-hot-toast';
 import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
 import {
-  FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, UPLOAD_TYPES, UPLOAD_MAX_BYTES,
+  FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, UPLOAD_TYPES, UPLOAD_MAX_BYTES, HANDIN_TYPES,
 } from '../admin/documentParts';
 import Tabs from '../../components/ui/Tabs';
+import { ListStats, ListStat } from '../admin/listParts';
 import { useFileViewer } from './FileViewer';
 
-export { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES };
+export { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, HANDIN_TYPES };
 
 // ── Words ────────────────────────────────────────────────────────────────────
 
@@ -104,26 +105,16 @@ export const ViewerHero = ({ title, subtitle, icon = 'files', right }) => (
   </header>
 );
 
-export const ViewerStats = ({ children }) => <div className="dvstats">{children}</div>;
-
-export const ViewerStat = ({ icon, tone, value, label, caption, on, onClick }) => {
-  const body = (
-    <>
-      <span className={`dvstat__icon tint-${tone}`}><Icon name={icon} size={20} /></span>
-      <span className="dvstat__body">
-        <span className="dvstat__value">{value ?? 0}</span>
-        <span className="dvstat__label">{label}</span>
-        {caption ? <span className="dvstat__cap">{caption}</span> : null}
-      </span>
-    </>
-  );
-  if (!onClick) return <div className="dvstat">{body}</div>;
-  return (
-    <button type="button" className={`dvstat${on ? ' is-on' : ''}`} onClick={onClick} aria-pressed={on}>
-      {body}
-    </button>
-  );
-};
+/**
+ * The figures over the shelf are the app's own headcount tiles (listParts), so
+ * a Documents page's tiles look exactly like the Students list's (Nov 2026):
+ * four across on a laptop, two on a tablet, and on a phone two to a row with
+ * an odd one out across the whole last row. Same props as they always had —
+ * icon, tone, value, label, caption, and `on` / `onClick` for the ones that
+ * filter the shelf.
+ */
+export const ViewerStats = ListStats;
+export const ViewerStat = ListStat;
 
 /**
  * Whose shelf is on screen.
@@ -183,8 +174,9 @@ export const SearchField = ({ value, onChange, placeholder = 'Search documents�
   </div>
 );
 
-export const Picker = ({ value, onChange, all, options, label }) => (
-  <select className={`form-control dvsel${value ? ' is-on' : ''}`} value={value}
+/** `on` says whether it reads as a filter in force; without it, any value does. */
+export const Picker = ({ value, onChange, all, options, label, on }) => (
+  <select className={`form-control dvsel${(on ?? value) ? ' is-on' : ''}`} value={value}
     onChange={(e) => onChange(e.target.value)} aria-label={label}>
     {all ? <option value="">{all}</option> : null}
     {options.map((o) => (
@@ -192,6 +184,30 @@ export const Picker = ({ value, onChange, all, options, label }) => (
     ))}
   </select>
 );
+
+/**
+ * The academic year, opened on the current one (Nov 2026).
+ *
+ * `value` '' is what the page asks the server for when it names no year — the
+ * school's current year — so that year shows as chosen without a second
+ * request, marked "(current)", and choosing it again goes back to ''. There is
+ * no "This year" any more: it was a choice standing beside the year it meant.
+ * The current year is where the page starts, not a filter someone set, so it
+ * is not lit up as one.
+ */
+export const YearPicker = ({ years, value, onChange }) => {
+  if (!years || years.length < 2) return null;
+  const current = years.find((y) => y.status === 'active');
+  const currentId = current ? String(current._id) : '';
+  return (
+    <Picker value={value || currentId || 'all'} on={!!value} label="Academic year"
+      onChange={(v) => onChange(currentId && v === currentId ? '' : v)}
+      options={[
+        { value: 'all', label: 'All years' },
+        ...years.map((y) => ({ value: String(y._id), label: y.status === 'active' ? `${y.name} (current)` : y.name })),
+      ]} />
+  );
+};
 
 // ── People ───────────────────────────────────────────────────────────────────
 
@@ -228,9 +244,15 @@ export const Loading = () => <div className="dvloading"><Spinner /></div>;
  * student's own state, a chip per child for a parent, a submissions count for a
  * teacher. Everything else is the same document to all three.
  */
+/** Work that has come in: its card says so, and no longer when it was due. */
+export const HANDED_IN = ['submitted', 'late', 'marked'];
+
 export function DocCard({ doc, onOpen, badges, actions, dense }) {
   const type = typeOf(doc.docType);
-  const due  = doc.isAssignment ? dueLine(doc.dueDate, doc.state) : null;
+  // Once it is in, the date it was due is history; the state pill beside it
+  // ("Submitted", "Marked") is the answer. A parent read "Due 18 Nov" on
+  // homework their child had already handed in.
+  const due  = doc.isAssignment && !HANDED_IN.includes(doc.state) ? dueLine(doc.dueDate, doc.state) : null;
   // Both slots take a node or a function of the row — a parent's child chips
   // differ per document, a teacher's "mark 3" button does too.
   const slot = (v) => (typeof v === 'function' ? v(doc) : v);
@@ -614,7 +636,12 @@ export const KeptFiles = ({ files, onRemove }) => (
     </div>
   ) : null
 );
-export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
+/**
+ * `types` is what this box takes (the share forms: every UPLOAD_TYPES kind; a
+ * student's hand-in: HANDIN_TYPES, PDF only) and `typeRule` says so when
+ * something else is picked.
+ */
+export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop', types = UPLOAD_TYPES, typeRule }) {
   const [over, setOver] = useState(false);
 
   // Said here, before anything is sent: a file the server will not take used
@@ -623,8 +650,8 @@ export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
     const good = [];
     for (const f of picked) {
       const ext = f.name.includes('.') ? f.name.split('.').pop().toLowerCase() : '';
-      if (!UPLOAD_TYPES.includes(ext)) {
-        toast.error(`${f.name} cannot be attached — use a PDF, a Word, Excel or PowerPoint file, a text file or a photo`);
+      if (!types.includes(ext)) {
+        toast.error(`${f.name} cannot be attached — ${typeRule || 'use a PDF, a Word, Excel or PowerPoint file, a text file or a photo'}`);
       } else if (f.size > UPLOAD_MAX_BYTES) {
         toast.error(`${f.name} is ${fmtSize(f.size)} — the limit is 10 MB a file`);
       } else if (!f.size) {
@@ -663,7 +690,7 @@ export function FileDrop({ files, onChange, hint, max = 10, id = 'dv-drop' }) {
           <b>Drop files here, or browse</b>
           <small>{hint || `Up to ${max} files`}</small>
         </span>
-        <input id={id} type="file" multiple accept={UPLOAD_TYPES.map((t) => `.${t}`).join(',')}
+        <input id={id} type="file" multiple accept={types.map((t) => `.${t}`).join(',')}
           onChange={(e) => { add(Array.from(e.target.files || [])); e.target.value = ''; }} />
       </label>
 

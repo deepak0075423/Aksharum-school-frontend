@@ -69,12 +69,17 @@ export function formFor(doc, sections) {
   };
 }
 
-const Block = ({ step, title, hint, children }) => (
+/**
+ * One numbered step. `required` puts the red star on its heading — for the
+ * steps whose answer is a choice with no label of its own (the kind of
+ * document, the sections), where the heading is that label.
+ */
+const Block = ({ step, title, hint, required, children }) => (
   <section className="shblock">
     <header>
       <span className="shblock__step">{step}</span>
       <div>
-        <h4>{title}</h4>
+        <h4 className={required ? 'required' : undefined}>{title}</h4>
         {hint ? <p>{hint}</p> : null}
       </div>
     </header>
@@ -139,7 +144,8 @@ export default function ShareDocument({
     // Work that is handed in needs the paper it is handed in against. Files
     // already on the document count, for as long as they are not removed.
     if (form.isAssignment && !files.length && !kept.length) e.files = NEEDS_FILE;
-    if (form.isAssignment) {
+    // The breakdown is only there, and only sent, once there is an "Out of".
+    if (form.isAssignment && Number(form.totalMarks) > 0) {
       const q = questionsProblem(form.questions);
       if (q) e.questions = q;
     }
@@ -185,7 +191,7 @@ export default function ShareDocument({
       </>}
     >
       <div className="shform">
-        <Block step="1" title="What is it?" hint="This decides what the rest of the form asks for.">
+        <Block step="1" title="What is it?" required hint="This decides what the rest of the form asks for.">
           <div className="shtypes" role="radiogroup" aria-label="Kind of document">
             {DOC_TYPES.map((t) => (
               <button key={t.value} type="button" role="radio" aria-checked={form.docType === t.value}
@@ -222,7 +228,7 @@ export default function ShareDocument({
           </div>
         </Block>
 
-        <Block step="2" title="Who gets it?"
+        <Block step="2" title="Who gets it?" required
           hint={sections.length > 1
             ? 'Pick as many of your sections as it applies to — one document, marked in one place.'
             : 'Everyone in your section will see it.'}>
@@ -323,13 +329,19 @@ export default function ShareDocument({
                     value={form.totalMarks} placeholder="e.g. 50"
                     onChange={(e) => set({ totalMarks: e.target.value })} />
                   <Err>{show('totalMarks')}</Err>
+                  {/* Empty means marked in words only: the marking form then
+                      offers feedback and no marks. */}
+                  {!show('totalMarks') && <small className="form-hint">Leave empty for feedback only, no marks</small>}
                 </div>
               </div>
 
               {/* The teacher sets and marks the work, so the breakdown a mark
-                  is made of is theirs to set too — only the office's form had it. */}
-              <QuestionBreakdown questions={form.questions} outOf={form.totalMarks}
-                onChange={(questions) => set({ questions })} error={show('questions')} />
+                  is made of is theirs to set too — only the office's form had
+                  it. Only with an "Out of": it splits that total. */}
+              {Number(form.totalMarks) > 0 && (
+                <QuestionBreakdown questions={form.questions} outOf={form.totalMarks}
+                  onChange={(questions) => set({ questions })} error={show('questions')} />
+              )}
 
               <label className="shtoggle shtoggle--sub">
                 <input type="checkbox" checked={form.allowSubmission}

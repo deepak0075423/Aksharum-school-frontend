@@ -55,7 +55,17 @@ api.interceptors.response.use(
         err.response.data = /json/i.test(err.response.data.type) || text.trim().startsWith('{') ? JSON.parse(text) : {};
       } catch { err.response.data = {}; }
     }
-    const message = err.response?.data?.message || 'Something went wrong';
+    // An upload with no answer the page can read was cut off by the time limit,
+    // dropped, or turned away in front of the API: a size cap there answers
+    // 413 without the headers that let a page read it. "Something went wrong"
+    // made that look like "only small PDFs upload".
+    const upload = typeof FormData !== 'undefined' && err.config?.data instanceof FormData;
+    const message = err.response?.data?.message
+      || (upload && status === 413 ? 'The files are too large to send together — attach fewer at a time' : '')
+      || (upload && !err.response ? (err.code === 'ECONNABORTED'
+        ? 'The upload took too long and was stopped — try again, or send fewer files at a time'
+        : 'The files could not be sent — check your connection, or try fewer or smaller files') : '')
+      || 'Something went wrong';
 
     if (status === 401) {
       const url = err.config?.url || '';

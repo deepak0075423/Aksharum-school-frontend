@@ -13923,52 +13923,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .dochero__act .btn { padding: 11px 20px; border-radius: var(--radius-lg); font-weight: 600; }
 
 /* ── The four figures ──────────────────────────────────────────────────────
-   They describe the school, not the filter in force — switching a filter must
-   not make the summary jump around. Two of them are also the fastest way to
-   narrow the list, and say so by staying lit while their filter holds. */
-.docstats {
-  display:               grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap:                   16px;
-}
-.docstat {
-  display:         flex;
-  align-items:     flex-start;
-  gap:             12px;
-  background:      var(--bg-card);
-  border:          1px solid var(--border);
-  border-radius:   var(--radius-lg);
-  padding:         16px 15px;
-  text-align:      left;
-  color:           inherit;
-  font:            inherit;
-  transition:      border-color var(--transition), box-shadow var(--transition), transform var(--transition);
-}
-button.docstat { width: 100%; }
-button.docstat:hover {
-  transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe;
-}
-.docstat.is-on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
-.docstat__icon {
-  width: 44px; height: 44px; border-radius: 13px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.docstat__body  { flex: 1; min-width: 0; }
-/* Each on its own line — they are spans, and an inline span inside a flex item
-   still flows inline beside its siblings. */
-.docstat__value { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1.15; letter-spacing: -.02em; }
-.docstat__label { display: block; font-size: .8rem; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
-
-.docstat__trend { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-.docstat__delta {
-  display: inline-flex; align-items: center; gap: 2px;
-  font-size: .78rem; font-weight: 700; white-space: nowrap;
-}
-.docstat__delta.is-up   { color: #059669; }
-.docstat__delta.is-down { color: #dc2626; }
-.docstat__delta.is-flat { color: var(--text-muted); }
-.docstat__delta.is-new  { color: var(--primary); }
-.docstat__trend small { font-size: .66rem; color: var(--text-light); white-space: nowrap; }
+   The Students list's own tiles (`.lstats` / `.lstat`, listParts ListStat) since
+   Nov 2026, so they look the same as every list page's: four across on a
+   laptop, two on a tablet, two to a row on a phone. */
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────
    Kind, not state: what a document IS. The archive is a state and only earns a
@@ -14176,7 +14133,21 @@ button.docstat:hover {
 .docmenu__item--danger:hover { background: #fef2f2; color: var(--danger); }
 .docmenu__sep { height: 1px; background: var(--border); margin: 5px 6px; }
 
-/* ── The same shelf as cards ───────────────────────────────────────────────── */
+/* The school's own filing label — quieter than the type pill beside it. */
+.doccat {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 7px; padding: 3px 8px;
+  background: var(--bg); color: var(--text-muted);
+  font-size: .74rem; font-weight: 600; white-space: nowrap;
+}
+.doccat svg  { color: var(--text-light); flex-shrink: 0; }
+.doccat span { overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+
+/* ── The same shelf as cards ───────────────────────────────────────────────────
+   The card the page has always had on a laptop and a tablet (Nov 2026: put
+   back after a redesign — the user wanted the original there), with the
+   category in the fourth place beside Files. A phone gets its own layout,
+   two cards a row (see the 640px rule at the end of this section). */
 .docgrid {
   display:               grid;
   grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
@@ -14187,6 +14158,7 @@ button.docstat:hover {
   display:        flex;
   flex-direction: column;
   gap:            10px;
+  min-width:      0;
   border:         1px solid var(--border);
   border-radius:  var(--radius-lg);
   padding:        16px;
@@ -14208,9 +14180,11 @@ button.docstat:hover {
   display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden;
 }
-.doccard__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 2px; }
+.doccard__meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; margin-top: 2px; }
 .doccard__meta dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
-.doccard__meta dd { font-size: .82rem; margin-top: 3px; }
+/* The icon each fact carries is for the phone card only. */
+.doccard__meta dt svg { display: none; }
+.doccard__meta dd { font-size: .82rem; margin-top: 3px; min-width: 0; overflow-wrap: anywhere; }
 .doccard__foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   border-top: 1px solid var(--border); padding-top: 12px; margin-top: auto;
@@ -14351,12 +14325,15 @@ button.docstat:hover {
 }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 1500px) {
-  .docstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 900px) {
+/* Phones and tablets show the cards only (no view switch), and the filter bar
+   becomes two rows: the search on its own, then the three dropdowns and the
+   sort sharing the next, each growing into the room. `.doctools .docsel` —
+   not `.docsel` — because a later `.docsel { max-width: 230px }` would
+   otherwise hold every dropdown short of the row's end. */
+@media (max-width: 1024px) {
   .doctools__sep { display: none; }
-  .docsel { flex: 1 1 150px; max-width: none; }
+  .doctools .docsearch { flex-basis: 100%; }
+  .doctools .docsel { flex: 1 1 auto; max-width: none; }
 }
 @media (max-width: 768px) {
   .page.docpg { padding: 16px; gap: 14px; }
@@ -14366,28 +14343,78 @@ button.docstat:hover {
   .dochero__text h1 { font-size: 1.4rem; }
   .dochero__act { width: 100%; }
   .dochero__act .btn { width: 100%; justify-content: center; }
-  .docstats { gap: 12px; }
-  .docstat { padding: 14px; gap: 12px; }
-  .docstat__icon  { width: 40px; height: 40px; border-radius: 11px; }
-  .docstat__value { font-size: 1.4rem; }
   .doctools { padding-left: 14px; padding-right: 14px; }
   .docsearch { flex-basis: 100%; }
-  .docgrid { padding: 14px; grid-template-columns: 1fr; }
+  .docgrid { padding: 14px; gap: 12px; }
   .docfoot { padding: 14px; }
   .docform__row { grid-template-columns: 1fr; }
 }
-@media (max-width: 560px) {
-  .docstats { grid-template-columns: 1fr; }
-  .docfoot { justify-content: center; }
-}
-@media (max-width: 420px) {
-  /* No room for the label and the change side by side — the change drops under
-     them rather than folding "Shared with Teachers" onto three lines. */
-  .docstat { flex-wrap: wrap; }
-  .docstat__trend {
-    flex-direction: row; align-items: center; gap: 6px;
-    width: 100%; padding-left: 52px; margin-top: 2px;
+/* A phone (Nov 2026, the user's layout): the cards go two to a row — 2 side by
+   side, 3 as two and one, 4 as two and two, 5 as two, two and one — an odd
+   last card taking the whole row. Each card is pared down to fit half a
+   phone: no description (the drawer has it), the type under the file's mark,
+   the four facts one line each behind an icon instead of a caption, and the
+   uploader's name cut short before the two actions rather than wrapping. */
+@media (max-width: 640px) {
+  .docgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+  .docgrid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .doccard { padding: 11px; gap: 8px; }
+  .doccard:hover { transform: none; }
+  .doccard__head {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "mark . menu" "type type type";
+    align-items: center; gap: 8px 6px;
   }
+  /* !important: FileMark sizes itself inline. */
+  .doccard__head > .docmark { grid-area: mark; width: 34px !important; height: 34px !important; border-radius: 10px; }
+  .doccard__head > .docpill {
+    grid-area: type; justify-self: start; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; padding: 3px 8px; font-size: .7rem;
+  }
+  .doccard__head > .docact { grid-area: menu; margin-left: 0; width: 28px; height: 28px; }
+  .doccard__title {
+    font-size: .86rem;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .doccard__sub { display: none; }
+  .doccard__meta { grid-template-columns: minmax(0, 1fr); gap: 5px; margin-top: 0; }
+  .doccard__fact { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  /* "Shared with" brings its own icon; the others show theirs, not a caption.
+     (Two classes deep, or the `dt { display: flex }` below would win.) */
+  .doccard__meta .doccard__fact--shared dt { display: none; }
+  .doccard__meta dt { display: flex; flex-shrink: 0; }
+  .doccard__meta dt span { display: none; }
+  .doccard__meta dt svg { display: block; }
+  .doccard__meta dd {
+    margin-top: 0; font-size: .76rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal;
+  }
+  .doccard__meta .docshared { gap: 6px; font-size: .76rem; max-width: 100%; }
+  .doccard__meta .docshared svg { width: 13px; height: 13px; }
+  .doccard__meta .docshared__label { max-width: none; min-width: 0; }
+  .doccard__foot { padding-top: 8px; gap: 6px; }
+  .doccard__foot .docwho { min-width: 0; gap: 6px; }
+  /* Half a phone has no room for a name beside the two actions — it came out
+     as "Dee…". The avatar says who; the name is still read out by a screen
+     reader, and the full-width last card shows it. */
+  .doccard__foot .docwho__name {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .docgrid > :last-child:nth-child(odd) .doccard__foot .docwho__name {
+    position: static; width: auto; height: auto; clip: auto;
+    font-size: .8rem; max-width: none;
+  }
+  .doccard__foot .docacts { gap: 4px; flex-shrink: 0; }
+  .doccard__foot .docact { width: 28px; height: 28px; }
+}
+@media (max-width: 560px) {
+  .docfoot { justify-content: center; }
+  /* A phone: each dropdown a full row, none cut short — "Shared with
+     Teachers" does not fit half a phone — and the year beside the sort. */
+  .doctools .docsel { flex: 1 1 100%; }
+  .doctools .docsel--year { flex: 1 1 0; min-width: 0; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -14548,8 +14575,21 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .adtile__icon  { width: 40px; height: 40px; border-radius: 12px; }
   .adtile__value { font-size: 1.45rem; }
 }
-@container adtiles (max-width: 860px) { .adtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@container adtiles (max-width: 440px) { .adtiles { grid-template-columns: minmax(0, 1fr); } }
+/* Two across from here down — never one: four tiles a row each pushed the
+   roster a whole phone screen down (Nov 2026). An odd last tile takes the
+   whole row rather than sitting beside a hole. On a phone the icon goes over
+   the figure, so the words get the tile's full width. */
+@container adtiles (max-width: 860px) {
+  .adtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adtiles > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@container adtiles (max-width: 440px) {
+  .adtiles { gap: 10px; }
+  .adtile  { flex-direction: column; gap: 9px; padding: 13px; }
+  .adtile__icon  { width: 36px; height: 36px; border-radius: 11px; }
+  .adtile__body  { width: 100%; }
+  .adtile__value { font-size: 1.3rem; }
+}
 
 /* ── Panels & rows ─────────────────────────────────────────────────────────── */
 .adrow { display: grid; gap: 16px; align-items: stretch; }
@@ -15179,26 +15219,9 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .dvhero__text p  { color: var(--text-muted); font-size: .88rem; margin-top: 5px; }
 .dvhero__right   { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 
-/* ── Figures ───────────────────────────────────────────────────────────────── */
-.dvstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.dvstat {
-  display: flex; align-items: flex-start; gap: 12px;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 15px;
-  text-align: left; font: inherit; color: inherit;
-  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
-}
-button.dvstat { width: 100%; }
-button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
-.dvstat.is-on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
-.dvstat__icon {
-  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-.dvstat__body  { min-width: 0; }
-.dvstat__value { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.15; letter-spacing: -.02em; }
-.dvstat__label { display: block; font-size: .84rem; font-weight: 600; margin-top: 1px; }
-.dvstat__cap   { display: block; font-size: .72rem; color: var(--text-light); margin-top: 2px; }
+/* ── Figures ─────────────────────────────────────────────────────────────────
+   The Students list's own tiles (`.lstats` / `.lstat`, listParts ListStat) since
+   Nov 2026 — ViewerStat is that component under its old name. */
 
 /* ── The child switch ──────────────────────────────────────────────────────
    Whole cards rather than tabs: a parent picks a person, and a person has a
@@ -15547,9 +15570,6 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .dvcheck input { accent-color: var(--primary); width: 16px; height: 16px; }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 1200px) {
-  .dvstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 @media (max-width: 768px) {
   .page.dvpg { padding: 16px; gap: 14px; }
   .dvhero__mark { width: 48px; height: 48px; border-radius: 14px; }
@@ -15557,7 +15577,6 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .dvhero__text h1 { font-size: 1.3rem; }
   .dvhero__right { width: 100%; }
   .dvhero__right .btn { flex: 1; justify-content: center; }
-  .dvstats { gap: 12px; }
   .dvwho { grid-template-columns: 1fr; }
   .dvtabs, .dvtools { padding-left: 13px; padding-right: 13px; }
   .dvsearch { flex-basis: 100%; }
@@ -15568,7 +15587,6 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .dvform__row { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .dvstats { grid-template-columns: 1fr; }
   .dvcard__sub { max-width: none; white-space: normal; }
   .dvcard__end { padding-left: 0; }
 }
@@ -15595,6 +15613,8 @@ button.dvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   font-size: .76rem; font-weight: 700;
 }
 .shblock > header h4 { font-size: .95rem; font-weight: 700; line-height: 1.3; }
+/* A step that must be answered, starred the way a required field's label is. */
+.shblock > header h4.required::after { content: ' *'; color: var(--danger); }
 .shblock > header p  { font-size: .79rem; color: var(--text-muted); margin-top: 2px; line-height: 1.5; }
 /* Indented to the step number's column, so the four blocks read as a sequence. */
 .shblock__body { padding-left: 35px; }

@@ -18,13 +18,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  getDocuments, markDocumentRead, markDocumentsRead,
-  getDocumentComments, addDocumentComment, updateDocumentComment, deleteDocumentComment,
+  getDocuments, markDocumentRead, markDocumentsRead, getDocumentComments,
 } from '../../api/parent.api';
 import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
-  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
+  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
   ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile, DocComments,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
@@ -140,11 +139,7 @@ export default function ParentDocuments() {
           : children.length > 1
             ? 'What the school has shared — for each of your children.'
             : 'What your child’s school and class have shared.'}
-        right={years.length > 1 && (
-          <Picker value={year} onChange={setYear} all="This year" label="Academic year"
-            options={[{ value: 'all', label: 'All years' },
-              ...years.map((y) => ({ value: y._id, label: y.name }))]} />
-        )}
+        right={years.length > 1 && <YearPicker years={years} value={year} onChange={setYear} />}
       />
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -193,7 +188,10 @@ export default function ParentDocuments() {
           docs={shown} loading={loading} more={more}
           onOpen={(d) => { focusRef.current = d._id; setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
-          badges={(d) => (who ? <StatePill state={d.state} /> : childStrip(d))}
+          // One child, or one picked: that child's own state ("Submitted"),
+          // which the row now carries. A parent of one child never picks one,
+          // so their cards used to show only the due date.
+          badges={(d) => (who || children.length < 2 ? <StatePill state={d.state} /> : childStrip(d))}
         />
       </section>
 
@@ -242,10 +240,10 @@ export default function ParentDocuments() {
           </section>
           )}
 
-          {/* A parent can ask about what was shared, and read what was
-              answered — it used to be read-only for them. */}
-          <DocComments docId={live._id} load={getDocumentComments} post={addDocumentComment}
-            update={updateDocumentComment} remove={deleteDocumentComment} />
+          {/* Read only (Nov 2026): a parent reads the discussion and writes
+              nothing in it — no box, no reply, no edit. The server has no
+              route for a parent to write one either. */}
+          <DocComments docId={live._id} load={getDocumentComments} />
           </>
         )}
         foot={live?.files?.[0] && <OpenFile files={live.files} caption={live.title} />}

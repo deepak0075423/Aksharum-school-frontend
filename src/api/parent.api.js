@@ -29,11 +29,9 @@ export const getResultDetail  = (id) => api.get(`/parent/results/${id}`);
 export const getDocuments     = (params) => api.get('/parent/documents', { params });
 export const markDocumentRead  = (id)  => api.post(`/parent/documents/${id}/read`);
 export const markDocumentsRead = (ids) => api.post('/parent/documents/read', { ids });
-// The discussion under a document that reaches one of their children.
+// The discussion under a document that reaches one of their children — read
+// only: a parent has no route to write, edit or delete a comment.
 export const getDocumentComments   = (id)        => api.get(`/parent/documents/${id}/comments`);
-export const addDocumentComment    = (id, data)  => api.post(`/parent/documents/${id}/comments`, data);
-export const updateDocumentComment = (cid, data) => api.patch(`/parent/documents/comments/${cid}`, data);
-export const deleteDocumentComment = (cid)       => api.delete(`/parent/documents/comments/${cid}`);
 export const getHolidays      = () => api.get('/parent/holidays');
 
 // Timetable — one child's week. `child` picks which; the reply lists `children`

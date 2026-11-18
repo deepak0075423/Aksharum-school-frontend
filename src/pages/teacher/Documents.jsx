@@ -25,7 +25,7 @@ import {
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
-  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker,
+  ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
   DocList, DocDrawer, NothingHere, Field, UnreadNote, OpenFile,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
@@ -150,7 +150,8 @@ export default function TeacherDocuments() {
       fd.append('assignmentType', form.assignmentType);
       fd.append('dueDate', form.isAssignment && form.dueDate ? form.dueDate : '');
       fd.append('totalMarks', form.isAssignment && form.totalMarks ? form.totalMarks : '');
-      fd.append('questions', JSON.stringify(form.isAssignment ? form.questions : []));
+      // A breakdown splits the "Out of"; with none there is nothing to split.
+      fd.append('questions', JSON.stringify(form.isAssignment && Number(form.totalMarks) > 0 ? form.questions : []));
       // One document across every section it was set for, not a copy per
       // section — it is marked in one place.
       fd.append('sectionIds', JSON.stringify(form.sectionIds));
@@ -202,11 +203,7 @@ export default function TeacherDocuments() {
         subtitle="Notices and material shared with you, and the work you have set your sections."
         right={
           <>
-            {years.length > 1 && (
-              <Picker value={year} onChange={setYear} all="This year" label="Academic year"
-                options={[{ value: 'all', label: 'All years' },
-                  ...years.map((y) => ({ value: y._id, label: y.name }))]} />
-            )}
+            <YearPicker years={years} value={year} onChange={setYear} />
             <Button onClick={startNew} disabled={!sections.length}>
               <Icon name="plus" size={16} /> Share a document
             </Button>
@@ -224,7 +221,7 @@ export default function TeacherDocuments() {
 
       <ViewerStats>
         <ViewerStat icon="files" tone="indigo" value={counts.shared} label="Shared with me"
-          caption="Notices, circulars and class material"
+          caption="Notices and class material"
           on={scope === 'shared'} onClick={() => { setScope('shared'); setTab('all'); }} />
         <ViewerStat icon="upload" tone="purple" value={counts.mine} label="My uploads"
           caption="What you have shared"

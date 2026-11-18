@@ -563,7 +563,10 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
   const [scores, setScores] = useState({});
   const [note, setNote]   = useState('');
 
-  const questions = doc.questions || [];
+  // Set with no "Out of", it takes feedback only (Nov 2026): whoever set it
+  // chose no marks, so the form offers none and the server refuses any.
+  const marked = Number(doc.totalMarks) > 0;
+  const questions = marked ? (doc.questions || []) : [];
   const byQuestion = questions.length > 0;
   // What the named questions leave over — presentation, neatness — when each
   // says what it is worth and together they come to less than the total.
@@ -646,12 +649,14 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                     <dd title="Elapsed between the assignment being set and this submission arriving">{span}</dd>
                   </div>
                 )}
-                <div><dt><Icon name="trophy" size={15} /> Marks Obtained</dt>
-                  <dd>
-                    {student.marks == null
-                      ? <span className="adnone">Not marked yet</span>
-                      : <>{student.marks} / {doc.totalMarks ?? '—'}{pct != null && <span className="adpill adpill--yes">{pct}%</span>}</>}
-                  </dd></div>
+                {(marked || student.marks != null) && (
+                  <div><dt><Icon name="trophy" size={15} /> Marks Obtained</dt>
+                    <dd>
+                      {student.marks == null
+                        ? <span className="adnone">Not marked yet</span>
+                        : <>{student.marks} / {doc.totalMarks ?? '—'}{pct != null && <span className="adpill adpill--yes">{pct}%</span>}</>}
+                    </dd></div>
+                )}
               </dl>
 
               <div className="adside__filehead">
@@ -737,23 +742,29 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
           !onSave ? <Blank text="Only the teacher who set this, or the office, can mark it." /> : (
             <form className="admark" onSubmit={(e) => {
               e.preventDefault();
-              onSave({
+              onSave(marked ? {
                 marks: byQuestion ? undefined : marks,
                 feedback: note,
                 questionScores: byQuestion
                   ? [...questions.map((q) => q.label), ...(room > 0 ? [OTHER_MARKS] : [])]
                     .map((label) => ({ label, score: scores[label] }))
                   : undefined,
-              });
+              } : { feedback: note });
             }}>
               {!handedIn && (
                 <p className="admark__note">
                   <Icon name="info" size={14} />
-                  Nothing was handed in here. Marks and feedback are recorded for work done on paper, or as a
-                  zero — the list still shows it as not submitted.
+                  {marked
+                    ? 'Nothing was handed in here. Marks and feedback are recorded for work done on paper, or as a zero — the list still shows it as not submitted.'
+                    : 'Nothing was handed in here. Feedback can still be recorded for work done on paper — the list still shows it as not submitted.'}
                 </p>
               )}
-              {byQuestion ? (
+              {!marked ? (
+                <p className="admark__note">
+                  <Icon name="info" size={14} />
+                  This assignment was set without marks, so it takes feedback only.
+                </p>
+              ) : byQuestion ? (
                 <>
                   <label className="form-label">Marks per question</label>
                   <div className="adqgrid">
@@ -795,11 +806,11 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                 <textarea id="ad-note" className="form-control" rows={4} value={note} maxLength={600}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="What they did well, and what to fix next time" />
-                <div className="form-hint">The student sees this alongside their marks.</div>
+                <div className="form-hint">{marked ? 'The student sees this alongside their marks.' : 'The student sees this.'}</div>
               </div>
 
               <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? 'Saving…' : 'Save marks & feedback'}
+                {saving ? 'Saving…' : marked ? 'Save marks & feedback' : 'Save feedback'}
               </button>
             </form>
           )

@@ -3,10 +3,11 @@
  *
  * Documents is a list page, but not the one listParts.jsx describes: it leads
  * with a marked header and an action rather than a spot drawing and a quote,
- * its tiles carry a month-on-month change, its rows have no tick column and no
- * row number, and the same shelf can be read as a table or as cards. So the
- * frame is its own — the same convention leaveParts.jsx follows — and it
- * borrows only .card, .btn, .badge and the .tint-* icon tints.
+ * its rows have no tick column and no row number, and the same shelf can be
+ * read as a table or as cards. So the frame is its own — the same convention
+ * leaveParts.jsx follows — and it borrows only .card, .btn, .badge, the
+ * .tint-* icon tints and (Nov 2026) listParts' headcount tiles, so its four
+ * figures look exactly like the Students list's.
  *
  * Everything here is prefixed `doc` so nothing reaches another page.
  */
@@ -112,8 +113,10 @@ export function downloadUrl(filePath) {
   return `${url}${url.includes('?') ? '&' : '?'}dl=1`;
 }
 
-/** What the share forms and the hand-in box take — the server's own list (middleware/upload.js). */
+/** What the share forms take — the server's own list (middleware/upload.js). */
 export const UPLOAD_TYPES = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+/** What a student hands in for an assignment: PDF only (middleware/upload.js, uploadSubmission). */
+export const HANDIN_TYPES = ['pdf'];
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 /**
@@ -203,54 +206,8 @@ export const DocHero = ({ title, subtitle, action }) => (
   </header>
 );
 
-export const DocStats = ({ children }) => <div className="docstats">{children}</div>;
-
-/**
- * One figure over the shelf, and how it moved.
- *
- * `change` is a percentage against the same total as it stood at the end of
- * last month — the quantity printed beside it, not a different one. It is null
- * when there was nothing to compare against, and the tile then says what was
- * added instead of inventing a percentage off zero.
- */
-export const DocStat = ({ icon, tone, value, label, change, added, onClick, on }) => {
-  const dir = change == null ? null : change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
-  const body = (
-    <>
-      <span className={`docstat__icon tint-${tone}`}><Icon name={icon} size={22} /></span>
-      <span className="docstat__body">
-        <span className="docstat__value">{value ?? 0}</span>
-        <span className="docstat__label">{label}</span>
-      </span>
-      <span className="docstat__trend">
-        {dir
-          ? (
-            <>
-              <span className={`docstat__delta is-${dir}`}>
-                <Icon name={change < 0 ? 'arrowDown' : 'arrowUp'} size={13} />
-                {Math.abs(change)}%
-              </span>
-              <small>vs last month</small>
-            </>
-          )
-          : (
-            <>
-              <span className="docstat__delta is-new">
-                {added > 0 ? `+${added}` : '—'}
-              </span>
-              <small>{added > 0 ? 'this month' : 'no history'}</small>
-            </>
-          )}
-      </span>
-    </>
-  );
-  if (!onClick) return <div className="docstat">{body}</div>;
-  return (
-    <button type="button" className={`docstat${on ? ' is-on' : ''}`} onClick={onClick} aria-pressed={on}>
-      {body}
-    </button>
-  );
-};
+// The four figures over the shelf are the Students list's own tiles
+// (listParts ListStat, Nov 2026) — see pages/admin/Documents.jsx.
 
 /** The document kinds, as the app's one tab strip. */
 export const DocTabs = ({ tabs, value, onChange }) => (
@@ -275,8 +232,8 @@ export const SearchField = ({ value, onChange, placeholder }) => (
 );
 
 /** One inline dropdown. `all` is the everything option, so an unset filter still reads as a sentence. */
-export const Picker = ({ value, onChange, all, options, label }) => (
-  <select className={`form-control docsel${value ? ' is-on' : ''}`} value={value}
+export const Picker = ({ value, onChange, all, options, label, className = '' }) => (
+  <select className={`form-control docsel${value ? ' is-on' : ''}${className ? ` ${className}` : ''}`} value={value}
     onChange={(e) => onChange(e.target.value)} aria-label={label}>
     <option value="">{all}</option>
     {options.map((o) => (
@@ -330,6 +287,17 @@ export const TypePill = ({ type }) => {
 };
 
 /**
+ * The school's own filing label (Nov 2026: shown on the list, and filterable).
+ * A quieter chip than the type pill beside it — the type is the fixed
+ * taxonomy the tabs are built on; this is the school's word for the shelf.
+ */
+export const CategoryChip = ({ name }) => (
+  name
+    ? <span className="doccat" title={`Category: ${name}`}><Icon name="folder" size={12} /><span>{name}</span></span>
+    : <span className="docnone">—</span>
+);
+
+/**
  * Who the document reached.
  *
  * The label the server resolved, plus a +N when it went to more than one class
@@ -378,7 +346,7 @@ export const Avatar = ({ name, src, size = 30 }) => {
 export const Uploader = ({ user }) => (
   user
     ? (
-      <span className="docwho">
+      <span className="docwho" title={user.name}>
         <Avatar name={user.name} src={user.photo} />
         <span className="docwho__name">{user.name}</span>
       </span>
@@ -466,8 +434,9 @@ export const MenuSep = () => <div className="docmenu__sep" />;
 
 // ── The list ─────────────────────────────────────────────────────────────────
 
-// No "Assignment" column: the Type pill already says so.
-const COLUMNS = ['Title', 'Type', 'Shared With', 'Uploaded On', 'Uploaded By', 'Actions'];
+// No "Assignment" column: the Type pill already says so. Category is the
+// school's own filing label, beside the fixed type (Nov 2026).
+const COLUMNS = ['Title', 'Type', 'Category', 'Shared With', 'Uploaded On', 'Uploaded By', 'Actions'];
 
 /**
  * The shelf as a table.
@@ -509,6 +478,7 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
                 </button>
               </td>
               <td><TypePill type={r.docType} /></td>
+              <td><CategoryChip name={r.category} /></td>
               <td><SharedWith shared={r.sharedWith} /></td>
               <td className="docdate">{fmtDate(r.createdAt)}</td>
               <td><Uploader user={r.uploadedBy} /></td>
@@ -527,7 +497,19 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
   );
 }
 
-/** The same shelf as cards — the second half of the view switch. */
+/**
+ * The same shelf as cards — the second half of the view switch, and the only
+ * view on a phone or a tablet.
+ *
+ * On a laptop or a tablet it is the card the page has always had, with the
+ * school's category (Nov 2026) filling the fourth place beside Files. On a
+ * phone (Nov 2026, the user's layout) the cards go two to a row — an odd last
+ * card takes the whole row — and each one is pared to fit: the description
+ * goes, the type sits under the file's mark, and the four facts become one
+ * line each behind a small icon instead of a caption. The icons are in the
+ * markup at every width and only shown on a phone (global.css), so the wider
+ * card is exactly what it was.
+ */
 export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) {
   if (loading) return <div className="docloading"><Spinner /></div>;
   if (!rows.length) return empty;
@@ -547,11 +529,19 @@ export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) 
           </button>
           {r.description ? <p className="doccard__sub">{r.description}</p> : null}
           <dl className="doccard__meta">
-            <div><dt>Shared with</dt><dd><SharedWith shared={r.sharedWith} /></dd></div>
-            <div><dt>Uploaded</dt><dd>{fmtDate(r.createdAt)}</dd></div>
-            <div>
-              <dt>Files</dt>
+            <div className="doccard__fact doccard__fact--shared">
+              <dt>Shared with</dt><dd><SharedWith shared={r.sharedWith} /></dd>
+            </div>
+            <div className="doccard__fact">
+              <dt><Icon name="calendar" size={13} /><span>Uploaded</span></dt><dd>{fmtDate(r.createdAt)}</dd>
+            </div>
+            <div className="doccard__fact">
+              <dt><Icon name="files" size={13} /><span>Files</span></dt>
               <dd>{r.fileCount || 0}{r.fileCount ? ` · ${fmtSize(r.fileSize)}` : ''}</dd>
+            </div>
+            <div className="doccard__fact">
+              <dt><Icon name="folder" size={13} /><span>Category</span></dt>
+              <dd title={r.category || undefined}>{r.category || <span className="docnone">—</span>}</dd>
             </div>
           </dl>
           <footer className="doccard__foot">

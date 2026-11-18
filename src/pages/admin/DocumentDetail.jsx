@@ -276,7 +276,7 @@ function DocumentDetailPage() {
     setSaving(true);
     try {
       await api.review(id, picked._id, payload);
-      toast.success('Marks and feedback saved');
+      toast.success(Number(doc?.totalMarks) > 0 ? 'Marks and feedback saved' : 'Feedback saved');
       // The analytics were worked out before this mark existed.
       setAnalytics(null);
       await load(false);
@@ -551,8 +551,9 @@ function DocumentDetailPage() {
       <select className="form-control adsel" value={section} aria-label="Filter by section"
         onChange={(e) => { setSection(e.target.value); setPage(1); }}>
         <option value="">All Sections</option>
+        {/* The section alone — the roster under it already says how many. */}
         {(roster?.sections || []).filter((s) => s._id).map((s) => (
-          <option key={s._id} value={s._id}>{s.label} ({s.total})</option>
+          <option key={s._id} value={s._id}>{s.label}</option>
         ))}
       </select>
     </>

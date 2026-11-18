@@ -31,7 +31,8 @@ export const addDocumentComment  = (id, data) => api.post(`/student/documents/${
 export const updateDocumentComment = (cid, data) => api.patch(`/student/documents/comments/${cid}`, data);
 export const deleteDocumentComment = (cid)       => api.delete(`/student/documents/comments/${cid}`);
 export const getDocument        = (id)   => api.get(`/student/documents/${id}`);
-export const submitAssignment   = (id, data) => api.post(`/student/documents/${id}/submit`, data);
+// Up to 5 PDFs of 10 MB each — longer than the 30-second default on a slow line.
+export const submitAssignment   = (id, data) => api.post(`/student/documents/${id}/submit`, data, { timeout: 5 * 60 * 1000 });
 export const getHolidays    = () => api.get('/student/holidays');
 export const getResultsOverview = () => api.get('/student/results/overview');
 export const getExamSchedule = () => api.get('/student/results/schedule');

@@ -278,8 +278,12 @@ export const restoreDocumentVersion = (id, vid) => api.post(`/admin/documents/${
 export const getDocumentReaders     = (id)      => api.get(`/admin/documents/${id}/readers`);
 // Share a draft — a duplicate starts as one, seen by nobody it is aimed at.
 export const publishDocument        = (id)      => api.post(`/admin/documents/${id}/publish`);
-export const uploadDocument  = (data)       => api.post('/admin/documents', data);
-export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`, data);
+// Up to 10 files of 10 MB each: the 30-second default cut a Word file or a
+// photo off part-way on a slow line, while a small PDF got through in time.
+// Five minutes is also how long the server waits for a request to arrive.
+const DOC_SEND = { timeout: 5 * 60 * 1000 };
+export const uploadDocument  = (data)       => api.post('/admin/documents', data, DOC_SEND);
+export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`, data, DOC_SEND);
 export const deleteDocument  = (id)         => api.delete(`/admin/documents/${id}`);
 // One endpoint both ways — `archived: false` takes a document back out again.
 export const archiveDocument = (id, archived = true) => api.post(`/admin/documents/${id}/archive`, { archived });

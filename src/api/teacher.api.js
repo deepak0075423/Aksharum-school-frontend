@@ -92,9 +92,11 @@ export const approveCompOff      = (id, data) => api.post(`/teacher/leave/compof
 export const rejectCompOff       = (id, data) => api.post(`/teacher/leave/compoff/${id}/reject`, data);
 export const getDocumentCategories = () => api.get('/teacher/document-categories');
 export const getDocuments          = (params) => api.get('/teacher/documents', { params });
-export const uploadDocument      = (data)   => api.post('/teacher/documents', data);
+// Files take longer than the 30-second default on a slow line (admin.api.js, DOC_SEND).
+const DOC_SEND = { timeout: 5 * 60 * 1000 };
+export const uploadDocument      = (data)   => api.post('/teacher/documents', data, DOC_SEND);
 export const getDocument         = (id)     => api.get(`/teacher/documents/${id}`);
-export const updateDocument      = (id, data) => api.put(`/teacher/documents/${id}`, data);
+export const updateDocument      = (id, data) => api.put(`/teacher/documents/${id}`, data, DOC_SEND);
 export const deleteDocument      = (id)     => api.delete(`/teacher/documents/${id}`);
 // Read marks: one document as it is opened, or a list of them at once.
 export const markDocumentRead    = (id)     => api.post(`/teacher/documents/${id}/read`);
