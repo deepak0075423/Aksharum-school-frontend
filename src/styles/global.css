@@ -12144,6 +12144,11 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvbtn--approve:hover { background: #047857; }
 .lvbtn--reject  { background: var(--danger); color: #fff; }
 .lvbtn--reject:hover  { background: #b91c1c; }
+/* A quieter action beside the row's eye — "End early" on one's own leave. */
+.lvbalfacts { display: flex; flex-direction: column; white-space: nowrap; line-height: 1.25; }
+.lvbalfacts small { color: var(--text-muted); font-size: .72rem; }
+.lvbtn--ghost   { background: var(--surface, #fff); border-color: var(--border); color: var(--text); }
+.lvbtn--ghost:hover { background: #eef2ff; border-color: #c7d2fe; color: var(--primary); }
 .lvbtn:disabled { opacity: .45; cursor: not-allowed; }
 .lvbtn > svg { flex-shrink: 0; }
 
@@ -12365,6 +12370,13 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvbalcard__left   { text-align: right; flex-shrink: 0; }
 .lvbalcard__left strong { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
 .lvbalcard__left small  { display: block; font-size: .7rem; color: var(--text-muted); margin-top: 3px; }
+.lvbalcard__left--word strong { font-size: 1.05rem; color: var(--text-muted); }
+.lvpolsat { border-top: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.lvpolsat h4 { margin: 0; font-size: .92rem; }
+.lvpolsat p { margin: 0; font-size: .78rem; color: var(--text-muted); }
+.lvpolsat__check { display: flex; align-items: center; gap: 8px; font-size: .84rem; cursor: pointer; }
+.lvpolsat .btn { align-self: flex-start; }
+.lvimporterrs { margin: 6px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; font-size: .8rem; }
 
 /* Filled by what has been used, so it fills as the year goes on. */
 .lvbalcard__bar { height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }

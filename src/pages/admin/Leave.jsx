@@ -20,7 +20,7 @@ import {
   QuickLinks, ReasonCell, ReportDrawer, RequestDrawer, STATUS_OPTIONS, SearchBox, SectionHead,
   ShowingCount, SplitButton, StatusBadge, TeacherCell, Toggle, TrendBars, TypeNameCell,
   ChartCard,
-  BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep,
+  BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep, FactRow,
   HelpPanel, LeaveDonut, SummaryLine, TypeIcon, OnLeaveTodayModal,
   chipTones, dayNum, docUrl, donutSlices, fmtDate,
   PhoneTable, TypeDrawer,
@@ -33,7 +33,7 @@ const STATUS_VARIANT = {
 
 // Identity and entitlement only — every rule lives in the type's LeavePolicy
 const EMPTY_TYPE = {
-  name: '', code: '', description: '', category: 'general', annualAllocation: 12, isActive: true,
+  name: '', code: '', description: '', category: 'general', annualAllocation: 12, isPaid: true, isActive: true,
 };
 
 const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
@@ -48,23 +48,26 @@ const EMPTY_ALLOC = {
 
 const EMPTY_CLEAR = { teacherMode: 'all', checkedTeachers: [], leaveTypeId: '' };
 
-function computeProration(annualAllocation, activeAY) {
-  if (!activeAY?.startDate || !activeAY?.endDate || !annualAllocation) return annualAllocation;
+// The share of the year left from today — what a teacher with no joining date
+// on record is prorated to. The server prorates each teacher from their own
+// joining date when it has one, so this is the figure for "starting now".
+function computeProration(annualAllocation, year) {
+  if (!year?.startDate || !year?.endDate || !annualAllocation) return annualAllocation;
   const now   = new Date();
-  const end   = new Date(activeAY.endDate);
-  const start = new Date(activeAY.startDate);
+  const end   = new Date(year.endDate);
+  const start = new Date(year.startDate);
   if (now <= start) return annualAllocation;
   if (now >= end)   return 0;
-  const totalMs  = end - start;
-  const remainMs = end - now;
-  return Math.max(1, Math.ceil(annualAllocation * remainMs / totalMs));
+  const span = (end - start) / 86400000 + 1;
+  const left = (end - now) / 86400000 + 1;
+  return Math.min(annualAllocation, Math.ceil((annualAllocation * left / span) * 2) / 2);
 }
 
 // Explains, in one line, why the charged day count differs from the number of
 // calendar days the admin picked.
 function describeDayCount(days) {
   if (days.sandwiched)
-    return 'Sandwich rule is on for this type — every calendar day in the range is charged, weekly offs and holidays included.';
+    return `Sandwich rule is on for this type — ${days.sandwichDays} weekly off/holiday day(s) between leave days (or joining it to other leave) are charged.`;
   const skipped = [
     // Fractional when the school counts Saturday as a half day — so this is
     // labelled by what it is (time not worked), not as whole days off.
@@ -197,7 +200,16 @@ export default function AdminLeave() {
   const departments = [...new Set(teacherList.map((t) => t.department).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
 
-  const askDecision = (kind, request) => { setComment(''); setDecision({ kind, request }); };
+  const [lastDay, setLastDay] = useState('');
+  const askDecision = (kind, request) => {
+    setComment('');
+    if (kind === 'shorten') {
+      const t = new Date(`${String(request.toDate).slice(0, 10)}T00:00:00Z`);
+      t.setUTCDate(t.getUTCDate() - 1);
+      setLastDay(t.toISOString().slice(0, 10));
+    }
+    setDecision({ kind, request });
+  };
 
   /** Approve, reject or reverse one request. */
   const runDecision = async () => {
@@ -205,14 +217,18 @@ export default function AdminLeave() {
     const { kind, request } = decision;
     const call = kind === 'approve' ? api.approveLeave
       : kind === 'reject' ? api.rejectLeave
+      : kind === 'shorten' ? api.shortenApprovedLeave
       : api.reverseApprovedLeave;
 
     setActLoad(true);
     try {
-      await call(request._id, { adminComment: comment });
+      const res = await call(request._id, { adminComment: comment, ...(kind === 'shorten' ? { toDate: lastDay } : {}) });
+      // The restored figure is the server's: only PAID days go back — loss of
+      // pay was never drawn from the balance.
       toast.success(kind === 'approve' ? 'Leave approved'
         : kind === 'reject'  ? 'Leave rejected'
-        : `Leave reversed — ${request.totalDays} day(s) restored`);
+        : kind === 'shorten' ? `Leave shortened — ${dayNum(res?.restored || 0)} day(s) back in the balance`
+        : `Leave reversed — ${dayNum(res?.restored || 0)} day(s) restored`);
       setDecision(null); setComment(''); setDetail(null);
       refetchReq(); refetchOverview();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -352,7 +368,9 @@ export default function AdminLeave() {
                   <div className="lvrowacts">
                     {/* The decision is the work and keeps its words; looking at
                         the record is the same eye it is on every other list. */}
-                    {r.status === 'pending' && (
+                    {/* Only rows this user may decide — never their own leave,
+                        and only types they approve. */}
+                    {r.status === 'pending' && r.canDecide !== false && (
                       <div className="lvacts">
                         <button type="button" className="lvbtn lvbtn--approve"
                           onClick={() => askDecision('approve', r)}>Approve</button>
@@ -373,9 +391,14 @@ export default function AdminLeave() {
                         Only this teacher
                       </MenuItem>
                       {/* Undoing an approval is the only way the days go back. */}
-                      {r.status === 'approved' && (
+                      {r.status === 'approved' && r.canReverse && (
                         <>
                           <MenuSep />
+                          {r.leaveMode !== 'half_day' && String(r.toDate).slice(0, 10) > String(r.fromDate).slice(0, 10) && (
+                            <MenuItem icon="calendar" onClick={() => askDecision('shorten', r)}>
+                              Shorten leave
+                            </MenuItem>
+                          )}
                           <MenuItem icon="repeat" danger onClick={() => askDecision('reverse', r)}>
                             Reverse approval
                           </MenuItem>
@@ -485,8 +508,9 @@ export default function AdminLeave() {
   const toggleTypeActive = async (t, next) => {
     setToggling(t._id);
     try {
-      await api.updateLeaveType(t._id, { isActive: next });
-      toast.success(`${t.name} is now ${next ? 'active' : 'inactive'}`);
+      const res = await api.updateLeaveType(t._id, { isActive: next });
+      toast.success(`${t.name} is now ${next ? 'active' : 'inactive'}`
+        + (res?.pendingLeft ? ` — ${res.pendingLeft} pending request(s) of it still need a decision` : ''));
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
     } finally {
@@ -574,6 +598,7 @@ export default function AdminLeave() {
       name: t.name, code: t.code, description: t.description || '',
       category: t.category || 'general',
       annualAllocation: t.annualAllocation,
+      isPaid: t.isPaid !== false,
       isActive: t.isActive !== false,
     });
     setTypeErrors({});
@@ -609,7 +634,7 @@ export default function AdminLeave() {
       const days = Number(typeForm.annualAllocation);
       if (!Number.isFinite(days) || days < 0) errs.annualAllocation = 'Annual allocation must be 0 or more days';
     }
-    const first = ['name', 'code', 'description', 'annualAllocation'].find((k) => errs[k]);
+    const first = ['name', 'code', 'description', 'annualAllocation', 'isPaid'].find((k) => errs[k]);
     setTypeErrors(errs);
     if (first) {
       toast.error(errs[first]);
@@ -618,9 +643,9 @@ export default function AdminLeave() {
     }
     setTypeLoad(true);
     try {
-      if (editType) await api.updateLeaveType(editType._id, typeForm);
-      else          await api.createLeaveType(typeForm);
-      toast.success(editType ? 'Leave type updated' : 'Leave type saved');
+      const res = editType ? await api.updateLeaveType(editType._id, typeForm) : await api.createLeaveType(typeForm);
+      toast.success((editType ? 'Leave type updated' : 'Leave type saved')
+        + (res?.pendingLeft ? ` — ${res.pendingLeft} pending request(s) of it still need a decision` : ''));
       setTypeModal(false); refetchTypes();
     } catch (err) {
       // The server names the field it refused (a code taken a moment ago by
@@ -672,6 +697,7 @@ export default function AdminLeave() {
   const [cfLoad,      setCfLoad]      = useState(false);
   const [importLoad,      setImportLoad]      = useState(false);
   const [allocImportModal, setAllocImportModal] = useState(false);
+  const [importErrors, setImportErrors] = useState([]);
   const allocFileRef  = useRef();
   // The year is a filter on the server, not on the rows: balances are stored
   // per academic year, so asking for another year is another request.
@@ -702,6 +728,9 @@ export default function AdminLeave() {
         giveFullAllocation:  allocForm.giveFullAllocation,
         useProration:        allocForm.useProration,
         overrideDays:        allocForm.overrideDays !== '' ? Number(allocForm.overrideDays) : undefined,
+        // The year this tab is showing — it used to write the active year
+        // whatever year was picked above the table.
+        academicYear:        allocYear || allocMeta?.academicYear || undefined,
       };
       const res = await api.allocateLeave(payload);
       toast.success(res?.message || 'Leave allocated');
@@ -724,6 +753,7 @@ export default function AdminLeave() {
         teacherIds: clearForm.teacherMode === 'select' ? clearForm.checkedTeachers : 'all',
         excludeIds: clearForm.teacherMode === 'except' ? clearForm.checkedTeachers : [],
         leaveTypeId: clearForm.leaveTypeId,
+        academicYear: allocYear || allocMeta?.academicYear || undefined,
       });
       toast.success(res?.message || 'Allocation cleared');
       setClearModal(false); setClearForm(EMPTY_CLEAR); refetchAlloc();
@@ -741,12 +771,72 @@ export default function AdminLeave() {
     finally { setAccrualLoad(false); }
   };
 
+
+  // ── Year close ───────────────────────────────────────────────────────────────
+  // Lapses what is left of a finished year (net of what carry-forward already
+  // moved) and closes it to new applications and allocations. Previewed first —
+  // it is the one leave action that cannot be undone from any screen.
+  const [closeModal,   setCloseModal]   = useState(false);
+  const [closeYear,    setCloseYear]    = useState('');
+  const [closePreview, setClosePreview] = useState(null);
+  const [closeLoad,    setCloseLoad]    = useState(false);
+  const openCloseYear = () => {
+    const idx = academicYears.findIndex((y) => y.status === 'active');
+    const before = academicYears.slice(0, idx > 0 ? idx : academicYears.length).filter((y) => !y.leaveClosed);
+    setCloseYear(before.length ? before[before.length - 1].label : '');
+    setClosePreview(null);
+    setCloseModal(true);
+  };
+  useEffect(() => {
+    if (!closeModal || !closeYear) { setClosePreview(null); return undefined; }
+    let live = true;
+    api.getYearClosePreview({ academicYear: closeYear })
+      .then((res) => { if (live) setClosePreview(res?.data ?? res); })
+      .catch((err) => { if (live) { setClosePreview(null); toast.error(err?.response?.data?.message || err.message); } });
+    return () => { live = false; };
+  }, [closeModal, closeYear]);
+  const handleCloseYear = async () => {
+    setCloseLoad(true);
+    try {
+      const res = await api.closeAcademicYear({ academicYear: closeYear });
+      toast.success(res?.message || `${closeYear} closed`);
+      setCloseModal(false); refetchAlloc();
+    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setCloseLoad(false); }
+  };
+
+  // ── Exit settlement ──────────────────────────────────────────────────────────
+  // For someone leaving: what each type holds, what of it the policy lets be
+  // encashed (payroll pays it), then — on confirm — the balances closed out.
+  const [settleModal,  setSettleModal]  = useState(false);
+  const [settleWho,    setSettleWho]    = useState('');
+  const [settleReport, setSettleReport] = useState(null);
+  const [settleLoad,   setSettleLoad]   = useState(false);
+  const { data: allStaff } = useFetch(() => (settleModal ? api.getLeaveEmployees({ includeInactive: 1 }) : Promise.resolve(null)), [settleModal]);
+  useEffect(() => {
+    if (!settleModal || !settleWho) { setSettleReport(null); return undefined; }
+    let live = true;
+    api.settleEmployeeLeave({ teacherId: settleWho, action: 'report', academicYear: allocYear || allocMeta?.academicYear })
+      .then((res) => { if (live) setSettleReport(res?.data ?? res); })
+      .catch((err) => { if (live) { setSettleReport(null); toast.error(err?.response?.data?.message || err.message); } });
+    return () => { live = false; };
+  }, [settleModal, settleWho]);
+  const handleSettle = async () => {
+    setSettleLoad(true);
+    try {
+      const res = await api.settleEmployeeLeave({ teacherId: settleWho, action: 'lapse', academicYear: allocYear || allocMeta?.academicYear });
+      toast.success(res?.message || 'Leave settled');
+      setSettleModal(false); setSettleWho(''); refetchAlloc();
+    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setSettleLoad(false); }
+  };
+
   const handleCarryForward = async (e) => {
     e.preventDefault();
     setCfLoad(true);
     try {
       const res = await api.runCarryForward(cfForm);
-      toast.success(`Carry-forward complete. ${res?.data?.processed || 0} balances updated`);
+      toast.success(res?.message || `Carry-forward complete — ${res?.processed || 0} balance(s) updated`);
       setCfModal(false); setCfForm({ fromYear: '', toYear: '' }); refetchAlloc();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setCfLoad(false); }
@@ -764,9 +854,14 @@ export default function AdminLeave() {
     setImportLoad(true);
     try {
       const fd = new FormData(); fd.append('excelFile', file);
+      fd.append('academicYear', allocYear || allocMeta?.academicYear || '');
       const res = await api.bulkAllocateLeaveExcel(fd);
-      toast.success(`Imported. Updated: ${res?.updated ?? 0}${res?.errors?.length ? `, Errors: ${res.errors.length}` : ''}`);
-      setAllocImportModal(false);
+      // The rows that did not go in are listed, not just counted — a number
+      // alone leaves the admin to find them in the sheet by hand.
+      setImportErrors(res?.errors || []);
+      toast.success(`Imported for ${res?.academicYear || 'the year'} — ${res?.updated ?? 0} row(s)`
+        + `${res?.errors?.length ? `, ${res.errors.length} skipped` : ''}`);
+      if (!res?.errors?.length) setAllocImportModal(false);
       refetchAlloc();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setImportLoad(false); e.target.value = ''; }
@@ -805,9 +900,12 @@ export default function AdminLeave() {
   const handleExport = async () => {
     setExportLoad(true);
     try {
+      // The same filters the figures on screen were counted with.
       const res = await api.exportLeaveReports({
         academicYear: repYear   || undefined,
         status:       repStatus || undefined,
+        department:   repDept   || undefined,
+        leaveType:    repType   || undefined,
       });
       downloadBuffer(res?.data ?? res, 'leave_report.xlsx');
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -855,8 +953,9 @@ export default function AdminLeave() {
   const handleExportAllocations = async () => {
     setAllocExportLoad(true);
     try {
-      const res = await api.exportLeaveAllocations();
-      downloadBuffer(res?.data ?? res, 'leave_allocations.xlsx');
+      const ay = allocYear || allocMeta?.academicYear || '';
+      const res = await api.exportLeaveAllocations({ academicYear: ay || undefined });
+      downloadBuffer(res?.data ?? res, `leave_allocations_${ay || 'year'}.xlsx`);
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setAllocExportLoad(false); }
   };
@@ -969,8 +1068,10 @@ export default function AdminLeave() {
       const b = byType[String(t._id)];
       // What is actually left: allocated plus carried in, less taken and less
       // the days already held by a pending request.
+      // The server's figure — also net of lapsed and carried-out days, which
+      // this column used to keep counting after a year was closed.
       const left = b
-        ? Math.max(0, (b.totalAllocated || 0) + (b.carriedForward || 0) - (b.used || 0) - (b.pending || 0))
+        ? (b.remaining ?? Math.max(0, (b.totalAllocated || 0) + (b.carriedForward || 0) - (b.used || 0) - (b.pending || 0) - (b.expired || 0) - (b.carriedOut || 0)))
         : null;
       return { type: t, left, has: !!b };
     });
@@ -1427,6 +1528,10 @@ export default function AdminLeave() {
                     onClick: handleRunAccrual },
                   { icon: 'trash', label: 'Clear Allocation', danger: true, sub: 'Zero the days, keep the history',
                     onClick: () => { setClearForm(EMPTY_CLEAR); setClearModal(true); } },
+                  { icon: 'fileCheck', label: 'Exit Settlement', sub: 'Close out a leaver’s balances',
+                    onClick: () => { setSettleWho(''); setSettleReport(null); setSettleModal(true); } },
+                  { icon: 'calendar', label: 'Close Year', danger: true, sub: 'Lapse what is left of a finished year',
+                    onClick: openCloseYear },
                 ]}
               />
             </CardHead>
@@ -1963,6 +2068,8 @@ export default function AdminLeave() {
         comment={comment}
         onComment={setComment}
         loading={actLoad}
+        lastDay={lastDay}
+        onLastDay={setLastDay}
         onClose={() => { setDecision(null); setComment(''); }}
         onConfirm={runDecision}
       />
@@ -2105,7 +2212,7 @@ export default function AdminLeave() {
                           <> <b>{preview.days.paidDays} paid · {preview.days.lopDays} loss of pay</b> — payroll deducts the unpaid days.</>
                         )}
                         {preview.sufficient === false && (
-                          <> <b>Insufficient balance</b> — {preview.days.totalDays} needed, {preview.balance?.spendable} available.</>
+                          <> <b>Insufficient balance</b> — {preview.days.totalDays} needed, {preview.balance?.unlimited ? 'no limit' : preview.balance?.spendable} available.</>
                         )}
                       </span>
                     </div>
@@ -2170,17 +2277,23 @@ export default function AdminLeave() {
                 </div>
                 {/* Overdraft is a policy setting — say so rather than let the
                     admin wonder why more days than "remaining" go through. */}
-                {preview.balance.spendable > preview.balance.remaining && (
+                {(preview.balance.unlimited || preview.balance.spendable > preview.balance.remaining) && (
                   <p className="lvfield__hint">
-                    Policy allows up to {preview.balance.spendable} day(s) — a negative balance is permitted.
+                    {preview.balance.unlimited
+                      ? 'Policy allows a negative balance with no limit.'
+                      : `Policy allows up to ${preview.balance.spendable} day(s) — a negative balance is permitted.`}
                   </p>
                 )}
               </>
+            ) : preview.balance?.unpaid ? (
+              <p className="lvrail__none">
+                {preview.leaveType?.name} is unpaid leave: it needs no allocation, and every day of it is loss of pay.
+              </p>
             ) : (
               <div className="lvnotice lvnotice--warn lvnotice--flat">
                 <Icon name="alert" size={15} />
                 <span>
-                  No allocation this year — <b>0 days available</b>.
+                  No allocation for {preview.balance?.academicYear || 'this year'} — <b>0 days available</b>.
                   {preview.leaveType?.category === 'compoff'
                     ? ' Comp Off is credited only when a Comp Off request is approved.'
                     : ' Allocate this leave type first, under the Allocations tab.'}
@@ -2189,7 +2302,7 @@ export default function AdminLeave() {
             )}
 
             <DialogNote>
-              The leave balance shown is for the selected teacher for the current academic year.
+              The balance shown is the selected teacher's for the academic year these dates fall in.
             </DialogNote>
 
             {rules && (
@@ -2285,9 +2398,27 @@ export default function AdminLeave() {
                 disabled={typeForm.category === 'compoff'}
                 onChange={e => setTypeField('annualAllocation', +e.target.value)} />
               {typeError('annualAllocation')
-                || (typeForm.category === 'compoff' && <div className="form-hint">Not applicable — Comp Off days are earned</div>)}
+                || (typeForm.category === 'compoff'
+                  ? <div className="form-hint">Not applicable — Comp Off days are earned</div>
+                  : editType
+                    ? <div className="form-hint">Changing this does not change allocations already made — allocate again to apply it.</div>
+                    : null)}
             </div>
           </div>
+          {/* Paid or unpaid is part of what the type IS: an unpaid type (leave
+              without pay) needs no allocation, and every day of it goes to
+              payroll as loss of pay. */}
+          {typeForm.category !== 'compoff' && (
+            <div className="form-group">
+              <label className="form-label">Pay</label>
+              <select {...typeBox('isPaid')} value={typeForm.isPaid === false ? 'unpaid' : 'paid'}
+                onChange={e => setTypeField('isPaid', e.target.value !== 'unpaid')}>
+                <option value="paid">Paid — drawn from an allocated balance</option>
+                <option value="unpaid">Unpaid — no allocation; every day is loss of pay</option>
+              </select>
+              {typeError('isPaid')}
+            </div>
+          )}
           {/* Every rule for this type — accrual, carry forward, encashment,
               day limits, documents, approvals — lives in Leave → Policies, so
               there is one place to look and nothing silently overrides. */}
@@ -2408,11 +2539,133 @@ export default function AdminLeave() {
         )}
       </Modal>
 
+      {/* ── Close year ── */}
+      <Modal open={closeModal} onClose={() => setCloseModal(false)} maxWidth={640}
+        title={<DialogHead icon="calendar" title="Close Academic Year"
+          subtitle="Lapse the leave left unused in a finished year and close it to new applications." />}
+        footer={<>
+          <Button variant="secondary" onClick={() => setCloseModal(false)} disabled={closeLoad}>Cancel</Button>
+          <Button variant="danger" onClick={handleCloseYear} loading={closeLoad} disabled={!closePreview?.canClose}>
+            Close {closeYear || 'year'}
+          </Button>
+        </>}>
+        <div className="form-group">
+          <label className="form-label" htmlFor="leave-close-year">Academic year</label>
+          <select id="leave-close-year" className="form-control" value={closeYear} onChange={(e) => setCloseYear(e.target.value)}>
+            <option value="">Select a year…</option>
+            {academicYears.map((y) => (
+              <option key={y.label} value={y.label}>
+                {y.label}{y.status === 'active' ? ' (active)' : ''}{y.leaveClosed ? ' — closed' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        {closeYear && !closePreview && <div className="lvtable__state"><Spinner /></div>}
+        {closePreview && (
+          <>
+            {closePreview.blockedBy && (
+              <div className="lvnotice lvnotice--warn lvnotice--flat">
+                <Icon name="alert" size={15} />
+                <span>
+                  {closePreview.blockedBy === 'closed' ? `${closeYear} is already closed.`
+                    : closePreview.blockedBy === 'active' ? 'The active year cannot be closed — activate the next year first.'
+                    : `${closePreview.openApplications} application(s) for ${closeYear} are still waiting for a decision — decide them first.`}
+                </span>
+              </div>
+            )}
+            <div className="lvfacts">
+              <FactRow icon="calendarDays" label="Days that will lapse" tone={closePreview.daysLapsing ? 'down' : undefined}
+                value={`${dayNum(closePreview.daysLapsing)} day(s) across ${closePreview.lapsing.length} balance(s)`} />
+              <FactRow icon="repeat" label="Already carried forward (kept)"
+                value={`${dayNum(closePreview.carriedOut || 0)} day(s)`} />
+            </div>
+            <p className="lvfield__hint">Run Carry Forward first if any of this should move into the next year — closing does not carry anything.</p>
+            {closePreview.lapsing.length > 0 && (
+              <PhoneTable title="Teacher" side="Lapses" keep={['Leave Type']}>
+                <table className="lvtable">
+                  <thead><tr><th>Teacher</th><th>Leave Type</th><th className="lvt-days">Lapses</th></tr></thead>
+                  <tbody>
+                    {closePreview.lapsing.slice(0, 100).map((r) => (
+                      <tr key={r._id}>
+                        <td>{r.teacher?.name || '—'}{r.teacher?.employeeId ? <small className="lvmuted"> · {r.teacher.employeeId}</small> : null}</td>
+                        <td>{r.leaveType?.name || r.leaveType?.code || '—'}</td>
+                        <td className="lvt-days">{dayNum(r.remaining)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </PhoneTable>
+            )}
+          </>
+        )}
+      </Modal>
+
+      {/* ── Exit settlement ── */}
+      <Modal open={settleModal} onClose={() => setSettleModal(false)} maxWidth={640}
+        title={<DialogHead icon="fileCheck" title="Exit Settlement"
+          subtitle="Close out the leave balances of someone leaving, and see what is encashable." />}
+        footer={<>
+          <Button variant="secondary" onClick={() => setSettleModal(false)} disabled={settleLoad}>Cancel</Button>
+          <Button variant="danger" onClick={handleSettle} loading={settleLoad}
+            disabled={!settleWho || !settleReport || settleReport.openApplications > 0}>
+            Close out balances
+          </Button>
+        </>}>
+        <div className="form-group">
+          <label className="form-label" htmlFor="leave-settle-who">Employee</label>
+          <select id="leave-settle-who" className="form-control" value={settleWho} onChange={(e) => setSettleWho(e.target.value)}>
+            <option value="">Select a teacher…</option>
+            {(allStaff || []).map((t) => (
+              <option key={t._id} value={t._id}>
+                {t.name}{t.employeeId ? ` (${t.employeeId})` : ''}{t.isActive === false ? ' — inactive' : ''}
+              </option>
+            ))}
+          </select>
+          <div className="form-hint">For {allocYear || allocMeta?.academicYear || 'the active year'}.</div>
+        </div>
+        {settleWho && !settleReport && <div className="lvtable__state"><Spinner /></div>}
+        {settleReport && (
+          <>
+            {settleReport.openApplications > 0 && (
+              <div className="lvnotice lvnotice--warn lvnotice--flat">
+                <Icon name="alert" size={15} />
+                <span>{settleReport.openApplications} leave application(s) of this employee are still pending — decide them first.</span>
+              </div>
+            )}
+            {!settleReport.lines?.length ? (
+              <p className="lvrail__none">Nothing is left in any balance — there is nothing to settle.</p>
+            ) : (
+              <PhoneTable title="Leave Type" side="Encashable" keep={['Left']}>
+                <table className="lvtable">
+                  <thead><tr><th>Leave Type</th><th className="lvt-days">Left</th><th className="lvt-days">Encashable</th></tr></thead>
+                  <tbody>
+                    {settleReport.lines.map((l) => (
+                      <tr key={String(l.leaveType?._id)}>
+                        <td>{l.leaveType?.name || l.leaveType?.code}</td>
+                        <td className="lvt-days">{dayNum(l.remaining)}</td>
+                        <td className="lvt-days">
+                          {l.encashable ? dayNum(l.encashableDays) : <span className="lvmuted">Not encashable</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </PhoneTable>
+            )}
+            <p className="lvfield__hint">
+              Closing out lapses what is left. Encashable days are paid through Payroll&apos;s final settlement, which reads this figure.
+            </p>
+          </>
+        )}
+      </Modal>
+
       {/* ── Allocate Modal ── */}
       {allocModal && (() => {
         const selLT       = leaveTypes.find(t => t._id === allocForm.leaveTypeId);
         const isMonthly   = !!selLT?.monthlyAccrual?.enabled;
-        const proratedDays = computeProration(selLT?.annualAllocation || 0, activeAY);
+        // The year being allocated is the one the tab shows, not always the active one.
+        const targetYear  = academicYears.find((y) => y.label === (allocYear || allocMeta?.academicYear)) || activeAY;
+        const proratedDays = computeProration(selLT?.annualAllocation || 0, targetYear);
         const isMidYear   = proratedDays !== selLT?.annualAllocation && proratedDays !== 0;
         // Mirrors the server's precedence in adminAllocate — if these two ever
         // disagree the preview lies about what is about to be written.
@@ -2433,8 +2686,12 @@ export default function AdminLeave() {
           <Modal open={allocModal} onClose={() => setAllocModal(false)} title="Allocate Leave" maxWidth={600}
             footer={<>
               <Button variant="secondary" onClick={() => setAllocModal(false)}>Cancel</Button>
-              <Button form="alloc-form" type="submit" loading={allocLoad}>Allocate</Button>
+              <Button form="alloc-form" type="submit" loading={allocLoad} disabled={!!targetYear?.leaveClosed}>Allocate</Button>
             </>}>
+            <p className="lvfield__hint" style={{ marginTop: 0 }}>
+              For <b>{targetYear?.label || 'the active year'}</b>{targetYear?.leaveClosed ? ' — this year is closed for leave and cannot be allocated.' : '.'}
+              {' '}Allocating sets each teacher's figure for the year; it replaces an earlier allocation of this type rather than adding to it.
+            </p>
             <form id="alloc-form" onSubmit={handleAllocate}>
 
               {/* Leave Type */}
@@ -2452,8 +2709,9 @@ export default function AdminLeave() {
                     }));
                   }}>
                   <option value="">Select type…</option>
-                  {leaveTypes.filter(t => t.isActive).map(t => (
-                    <option key={t._id} value={t._id}>{t.name} ({t.code}) — {t.annualAllocation} days/yr{t.monthlyAccrual?.enabled ? ' · monthly' : ''}</option>
+                  {/* Comp off is earned, never allocated — the server refuses it. */}
+                  {leaveTypes.filter(t => t.isActive && t.category !== 'compoff' && String(t.code).toUpperCase() !== 'COMPOFF').map(t => (
+                    <option key={t._id} value={t._id}>{t.name} ({t.code}) — {t.annualAllocation} days/yr{t.monthlyAccrual?.enabled ? ' · monthly' : ''}{t.isPaid === false ? ' · unpaid' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -2586,7 +2844,9 @@ export default function AdminLeave() {
                   <div style={{ marginTop: 12, padding: '8px 14px', background: 'var(--primary)', color: '#fff', borderRadius: 4, fontSize: '.85rem' }}>
                     {isMonthly && computedDays === 0
                       ? <>Will enrol <strong>{teacherCount}</strong> teacher(s) at <strong>0</strong> days, then credit <strong>{selLT.monthlyAccrual.daysPerMonth}</strong> day(s) each month</>
-                      : <>Will allocate <strong>{computedDays}</strong> day(s) to <strong>{teacherCount}</strong> teacher(s){allocForm.useProration && allocForm.overrideDays === '' ? <> (prorated from {selLT.annualAllocation})</> : null}</>}
+                      : allocForm.useProration && allocForm.overrideDays === ''
+                        ? <>Will prorate {selLT.annualAllocation} day(s) for <strong>{teacherCount}</strong> teacher(s) by the part of {targetYear?.label || 'the year'} left from each one's joining date — <strong>{computedDays}</strong> day(s) for anyone starting today</>
+                        : <>Will allocate <strong>{computedDays}</strong> day(s) to <strong>{teacherCount}</strong> teacher(s)</>}
                   </div>
                 </div>
               )}
@@ -2710,12 +2970,13 @@ export default function AdminLeave() {
       })()}
 
       {/* ── Allocation Import Modal ── */}
-      <Modal open={allocImportModal} onClose={() => setAllocImportModal(false)} title="Import Leave Allocations"
-        footer={<Button variant="secondary" onClick={() => setAllocImportModal(false)}>Close</Button>}>
+      <Modal open={allocImportModal} onClose={() => { setAllocImportModal(false); setImportErrors([]); }} title="Import Leave Allocations"
+        footer={<Button variant="secondary" onClick={() => { setAllocImportModal(false); setImportErrors([]); }}>Close</Button>}>
         <input ref={allocFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleBulkImport} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p style={{ margin: 0, fontSize: '.88rem', color: 'var(--text-muted)' }}>
             Download the template, fill in allocations per teacher and leave type, then upload the completed file.
+            The figures are set for <b>{allocYear || allocMeta?.academicYear || 'the active year'}</b> — the year this tab is showing.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
             <span style={{ fontSize: '1.4rem' }}>📄</span>
@@ -2742,6 +3003,18 @@ export default function AdminLeave() {
             <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>Supports .xlsx, .xls</div>
             {importLoad && <div style={{ marginTop: 10 }}><Spinner /></div>}
           </div>
+          {importErrors.length > 0 && (
+            <div className="lvnotice lvnotice--warn lvnotice--flat" role="alert">
+              <Icon name="alert" size={15} />
+              <span>
+                <b>{importErrors.length} row(s) were skipped:</b>
+                <ul className="lvimporterrs">
+                  {importErrors.slice(0, 50).map((m) => <li key={m}>{m}</li>)}
+                  {importErrors.length > 50 && <li>…and {importErrors.length - 50} more</li>}
+                </ul>
+              </span>
+            </div>
+          )}
         </div>
       </Modal>
 

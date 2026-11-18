@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
-import { getMyLeaves, getLeaveBalance, applyLeave, cancelLeave, getHolidays, getModules } from '../../api/teacher.api';
+import { getMyLeaves, getLeaveBalance, applyLeave, cancelLeave, endLeaveEarly, getLeaveApplyPreview } from '../../api/teacher.api';
 import { Button, Modal, Confirm, Spinner, Empty } from '../../components/ui/index';
 import Icon, { LeaveScene } from '../../components/ui/icons';
 // The leave module's shared kit. It lives beside the admin screens because that
@@ -13,7 +13,7 @@ import {
   FilterRow, FilterSelect, FormStep, LeaveHero, LeaveStat, MiniRing,
   LeaveStats, LeaveTypeCell, MyBalanceDrawer, Pager, PeriodCell, RequestDrawer,
   STATUS_OPTIONS, ShowingCount, StatusBadge, SubTabs, SummaryRow,
-  chipTones, dayNum, docUrl, fmtDate,
+  chipTones, dayNum, docUrl, fmtDate, fmtRange, notStarted, canEndEarly,
   PhoneTable,
 } from '../admin/leaveParts';
 import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
@@ -29,45 +29,12 @@ const STATUS_VARIANT = {
 
 const EMPTY_FORM = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 
-// ── Day counting helpers ──────────────────────────────────────────────────────
+// What the dates cost is never worked out here: the server's preview answers it
+// with the same code the submit uses — weekends, school holidays, the sandwich
+// rule, loss of pay — so the figure on the form is the figure that is charged.
 
-function getNthSaturdayOfMonth(date) {
-  return Math.ceil(date.getDate() / 7);
-}
-
-function isSaturdayWorking(date, leaveSettings = {}) {
-  const { saturdayWorking = true, saturdayMode = 'all' } = leaveSettings;
-  if (!saturdayWorking) return false;
-  if (saturdayMode === 'all') return true;
-  const nth = getNthSaturdayOfMonth(date);
-  if (saturdayMode === '1_3_5') return nth % 2 === 1;
-  if (saturdayMode === '2_4')   return nth % 2 === 0;
-  return true;
-}
-
-function estimateDays(fromDate, toDate, leaveMode, leaveSettings = {}, holidaySet = new Set()) {
-  if (leaveMode === 'half_day') return 0.5;
-  if (!fromDate || !toDate) return 0;
-  const from = new Date(fromDate);
-  const to   = new Date(toDate);
-  if (to < from) return 0;
-  const { saturdayHalfDay = false } = leaveSettings;
-  let days = 0;
-  const cur = new Date(from);
-  while (cur <= to) {
-    const dow     = cur.getDay();
-    const dateStr = cur.toISOString().slice(0, 10);
-    if (holidaySet.has(dateStr)) {
-      // skip — holiday
-    } else if (dow === 6) {
-      if (isSaturdayWorking(cur, leaveSettings)) days += saturdayHalfDay ? 0.5 : 1;
-    } else if (dow !== 0) {
-      days += 1;
-    }
-    cur.setDate(cur.getDate() + 1);
-  }
-  return days;
-}
+// One-tap reasons, each long enough to stand as the reason on its own.
+const QUICK_REASONS = ['Personal work', 'Medical appointment', 'Family function', 'Feeling unwell'];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -196,37 +163,6 @@ export default function TeacherLeave() {
   const { data: recentData } = useFetch(() => getMyLeaves({ page: 1, limit: 5 }), []);
   const recent = recentData?.data || recentData || [];
 
-  // Fetch holidays only if holiday module is enabled for this school
-  const [holidays, setHolidays] = useState([]);
-  useEffect(() => {
-    getModules()
-      .then(res => {
-        const mods = res?.data ?? res;
-        if (!mods?.holiday) return null;
-        return getHolidays();
-      })
-      .then(res => {
-        if (!res) return;
-        const d = res?.data ?? res;
-        setHolidays(Array.isArray(d) ? d : []);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Build a Set of YYYY-MM-DD strings covering every holiday date range
-  const holidaySet = useMemo(() => {
-    const set = new Set();
-    holidays.forEach(h => {
-      const cur = new Date(h.startDate);
-      const end = new Date(h.endDate || h.startDate);
-      while (cur <= end) {
-        set.add(cur.toISOString().slice(0, 10));
-        cur.setDate(cur.getDate() + 1);
-      }
-    });
-    return set;
-  }, [holidays]);
-
   // keyed by leaveType._id for O(1) lookup
   const balanceMap = Object.fromEntries(
     balances.map(b => [b.leaveType?._id?.toString() || b.leaveType?.toString(), b])
@@ -249,26 +185,57 @@ export default function TeacherLeave() {
   const selLT      = leaveTypes.find(t => String(t._id) === form.leaveTypeId);
   const selBal     = balanceMap[form.leaveTypeId] ?? null;
   const selPolicy  = policyMap[form.leaveTypeId] ?? null;
-  const remaining  = selBal ? (selBal.remaining ?? Math.max(0, (selBal.totalAllocated || 0) + (selBal.carriedForward || 0) - (selBal.used || 0) - (selBal.pending || 0))) : null;
-  const estDays    = estimateDays(form.fromDate, form.toDate, form.leaveMode, leaveSettings, holidaySet);
-  const noWorkDays = form.leaveMode !== 'half_day' && form.fromDate && form.toDate && form.fromDate <= form.toDate && estDays === 0;
+
+  // The server's own answer for these dates: the cost (weekends, holidays and
+  // the sandwich rule applied), the paid / loss-of-pay split, the balance of
+  // the year the dates fall in, and any rule the application would break.
+  const [preview, setPreview] = useState(null);
+  const [previewLoad, setPreviewLoad] = useState(false);
+  useEffect(() => {
+    if (!modal || !form.leaveTypeId) { setPreview(null); return undefined; }
+    let live = true;
+    setPreviewLoad(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await getLeaveApplyPreview({
+          leaveTypeId: form.leaveTypeId,
+          fromDate: form.fromDate || undefined,
+          toDate:   form.toDate   || undefined,
+          leaveMode: form.leaveMode,
+        });
+        if (live) setPreview(res?.data ?? res);
+      } catch { if (live) setPreview(null); }
+      finally { if (live) setPreviewLoad(false); }
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [modal, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode]);
+
+  const pBal       = preview?.balance || null;
+  const pDays      = preview?.days || null;
+  // What the dates cost is known even when the balance cannot cover it — the
+  // chip shows the cost; the notice below says why it cannot go through.
+  const estDays    = pDays?.totalDays > 0 ? pDays.totalDays : 0;
+  const paidDays   = pDays && !pDays.error ? (pDays.paidDays ?? estDays) : 0;
+  const lopDays    = pDays && !pDays.error ? (pDays.lopDays || 0) : 0;
+  const remaining  = pBal ? pBal.remaining : (selBal ? (selBal.remaining ?? 0) : null);
+  const datesError = pDays?.error || null;
+  // A rule the POST would refuse (overlap, notice, caps, clubbing…) — said
+  // before submitting rather than after.
+  const ruleWarning = preview?.warning || null;
   // The calendar's bounds come from the policy, not from a hardcoded "today" —
   // a type that permits back-dating within N days must actually offer those days.
   const dateBounds  = leaveDateBounds(selPolicy);
   const dateHint    = leaveDateHint(selPolicy);
-  const overBalance = remaining !== null && estDays > 0 && estDays > remaining;
-  const overConsec  = selLT?.maxConsecutiveDays > 0 && estDays > selLT.maxConsecutiveDays && form.leaveMode !== 'half_day';
 
   // The one figure this dialog exists to answer: what you would be left with.
-  const afterBalance = remaining === null ? null : remaining - (estDays || 0);
+  const afterBalance = remaining === null ? null : Math.round((remaining - (paidDays || 0)) * 100) / 100;
   // The file input is uncontrolled, so its name is tracked for the drop zone.
   const [docName, setDocName] = useState('');
 
-  const docRequired = !!selLT?.requiresDocument && (
-    selLT.documentRequiredAfterDays > 0
-      ? estDays >= selLT.documentRequiredAfterDays
-      : true
-  );
+  // Whether THESE dates need a document — the server works it out with the
+  // policy's own rule, so the form cannot disagree with the submit.
+  const docRequired = preview?.dateRules?.documentNeeded
+    ?? (!!selPolicy?.requiresDocument && !(selPolicy.documentRequiredAfterDays > 0));
 
   // Auto-sync toDate for half-day and keep toDate >= fromDate
   const setField = (key, val) => {
@@ -298,9 +265,8 @@ export default function TeacherLeave() {
                                         : 'Cannot apply leave for a past date.';
     if (form.leaveMode === 'half_day' && form.fromDate && form.toDate && form.fromDate !== form.toDate)
                                     e.toDate      = 'Half-day leave must start and end on the same date.';
-    if (noWorkDays)                 e.toDate      = 'The selected range has no working days (weekends / holidays only).';
-    if (overBalance)                e.leaveTypeId = `Insufficient balance — you have ${remaining} day(s) remaining but are applying for ${estDays}.`;
-    if (overConsec)                 e.toDate      = `This leave type allows a maximum of ${selLT.maxConsecutiveDays} consecutive day(s).`;
+    if (datesError)                 e.toDate      = datesError;
+    else if (ruleWarning)           e.toDate      = ruleWarning;
     if (!form.reason.trim())        e.reason      = 'Reason is required.';
     else if (form.reason.trim().length < 10)
                                     e.reason      = 'Reason must be at least 10 characters.';
@@ -309,7 +275,11 @@ export default function TeacherLeave() {
     return e;
   };
 
-  const openModal = () => { setForm(EMPTY_FORM); setErrors({}); setDocName(''); setModal(true); };
+  const openModal = () => {
+    setForm(EMPTY_FORM); setErrors({}); setDocName(''); setPreview(null);
+    if (docRef.current) docRef.current.value = '';
+    setModal(true);
+  };
 
   const handleApply = async (e) => {
     e.preventDefault();
@@ -342,11 +312,36 @@ export default function TeacherLeave() {
   const handleCancel = async () => {
     setCancLoad(true);
     try {
-      await cancelLeave(cancelItem._id);
-      toast.success('Leave cancelled');
+      const res = await cancelLeave(cancelItem._id);
+      toast.success(cancelItem.status === 'approved'
+        ? `Leave withdrawn${res?.restored ? ` — ${dayNum(res.restored)} day(s) back in your balance` : ''}`
+        : 'Leave cancelled');
       setCancelItem(null); refetch(); refetchBal();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setCancLoad(false); }
+  };
+
+  // ── End early ────────────────────────────────────────────────────────────────
+  // Back sooner than planned: the days from the new last day onwards go back.
+  const [earlyItem, setEarlyItem] = useState(null);
+  const [earlyDay,  setEarlyDay]  = useState('');
+  const [earlyLoad, setEarlyLoad] = useState(false);
+  const openEndEarly = (r) => {
+    // The earliest sensible last day: yesterday, or the leave's first day.
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const yIso = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+    const from = String(r.fromDate).slice(0, 10);
+    setEarlyDay(yIso > from ? yIso : from);
+    setEarlyItem(r);
+  };
+  const handleEndEarly = async () => {
+    setEarlyLoad(true);
+    try {
+      const res = await endLeaveEarly(earlyItem._id, { toDate: earlyDay });
+      toast.success(`Leave now ends on ${fmtDate(earlyDay)}${res?.restored ? ` — ${dayNum(res.restored)} day(s) back in your balance` : ''}`);
+      setEarlyItem(null); refetch(); refetchBal();
+    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setEarlyLoad(false); }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -497,10 +492,16 @@ export default function TeacherLeave() {
                           <div className="lvrowacts">
                             {/* Withdrawing keeps its word — it is the one action
                                 here that cannot be undone. */}
-                            {r.status === 'pending' && (
+                            {(r.status === 'pending' || (r.status === 'approved' && notStarted(r))) && (
                               <div className="lvacts">
                                 <button type="button" className="lvbtn lvbtn--reject"
-                                  onClick={() => setCancelItem(r)}>Cancel</button>
+                                  onClick={() => setCancelItem(r)}>{r.status === 'pending' ? 'Cancel' : 'Withdraw'}</button>
+                              </div>
+                            )}
+                            {r.status === 'approved' && !notStarted(r) && canEndEarly(r) && (
+                              <div className="lvacts">
+                                <button type="button" className="lvbtn lvbtn--ghost"
+                                  onClick={() => openEndEarly(r)}>End early</button>
                               </div>
                             )}
                             <RowActions>
@@ -531,6 +532,7 @@ export default function TeacherLeave() {
             request={detail}
             onClose={() => setDetail(null)}
             onCancel={(r) => { setDetail(null); setCancelItem(r); }}
+            onEndEarly={(r) => { setDetail(null); openEndEarly(r); }}
           />
         </>
       )}
@@ -682,18 +684,24 @@ export default function TeacherLeave() {
                     <option value="">Select type…</option>
                     {leaveTypes.map((t) => {
                       const bal = balanceMap[t._id?.toString()];
-                      const rem = bal
-                        ? (bal.remaining ?? Math.max(0, (bal.totalAllocated || 0) + (bal.carriedForward || 0) - (bal.used || 0) - (bal.pending || 0)))
-                        : (t.annualAllocation || 0);
-                      // The type's own policy decides eligibility, and may also
-                      // let this employee apply beyond their remaining balance.
+                      const rem = bal?.remaining ?? 0;
+                      // The type's own policy decides eligibility, and may let
+                      // this employee go past the balance — as an overdraft or
+                      // as loss of pay. An unpaid type needs no balance at all.
                       const pol = policyMap[t._id?.toString()];
-                      const noBalance = rem <= 0 && !pol?.allowNegativeBalance;
+                      const unpaid = bal?.unpaid || t.isPaid === false;
+                      const beyond = !!(pol?.allowNegativeBalance || pol?.allowLopBeyondBalance);
+                      const noBalance = !unpaid && rem <= 0 && !beyond;
                       const blocked = pol ? !pol.eligible : false;
+                      const label = unpaid
+                        ? 'unpaid'
+                        : bal?.allocated === false && !rem
+                          ? (beyond ? 'not allocated · loss of pay' : 'not allocated')
+                          : `${dayNum(rem)} day(s) remaining${rem <= 0 && pol?.allowLopBeyondBalance ? ' · loss of pay' : ''}`;
                       return (
                         <option key={t._id} value={t._id} disabled={blocked || noBalance}>
-                          {t.name} ({t.code}) — {rem} day(s) remaining
-                          {blocked ? ` · ${pol.ineligibleReason || 'Not available to you'}` : noBalance ? ' · No balance' : ''}
+                          {t.name} ({t.code}) — {label}
+                          {blocked ? ` · ${pol.ineligibleReason || 'Not available to you'}` : noBalance && bal?.allocated !== false ? ' · No balance' : ''}
                         </option>
                       );
                     })}
@@ -746,26 +754,33 @@ export default function TeacherLeave() {
                 {/* What it will actually cost, worked out the same way the
                     server will — weekends and holidays are not charged unless
                     the type's sandwich rule says so. */}
-                <div className={`lvduration${noWorkDays ? ' is-bad' : ''}`}>
+                <div className={`lvduration${datesError && !estDays ? ' is-bad' : ''}`}>
                   <Icon name="calendar" size={16} />
                   <span>
                     <small>Duration</small>
                     <b>{!form.fromDate || !form.toDate
                       ? '—'
-                      : noWorkDays
-                        ? 'No working days'
-                        : estDays === 0.5 ? 'Half day' : `${estDays} day${estDays === 1 ? '' : 's'}`}</b>
+                      : previewLoad && !pDays
+                        ? '…'
+                        : !estDays
+                          ? 'Check dates'
+                          : estDays === 0.5 ? 'Half day' : `${dayNum(estDays)} day${estDays === 1 ? '' : 's'}`}</b>
                   </span>
                 </div>
               </div>
               {dateHint && <p className="lvfield__hint">{dateHint}</p>}
+              {pDays && !pDays.error && pDays.sandwichDays > 0 && (
+                <p className="lvfield__hint">
+                  Includes {dayNum(pDays.sandwichDays)} weekend/holiday day{pDays.sandwichDays === 1 ? '' : 's'} charged under this type's sandwich rule.
+                </p>
+              )}
 
-              {(overBalance || overConsec) && !noWorkDays && (
-                <div className="lvnotice lvnotice--warn lvnotice--flat">
+              {(datesError || ruleWarning || lopDays > 0) && (
+                <div className={`lvnotice lvnotice--flat${datesError || ruleWarning ? ' lvnotice--warn' : ''}`}>
                   <Icon name="alert" size={15} />
                   <span>
-                    {overBalance && `You have ${remaining} day(s) left but are applying for ${estDays}. `}
-                    {overConsec && `This type allows at most ${selLT.maxConsecutiveDays} consecutive day(s).`}
+                    {datesError || ruleWarning
+                      || `${dayNum(lopDays)} of these ${dayNum(estDays)} day(s) go past your balance and will be loss of pay.`}
                   </span>
                 </div>
               )}
@@ -789,7 +804,7 @@ export default function TeacherLeave() {
               {/* The four reasons people actually give, so the common case is
                   one tap rather than a sentence. */}
               <div className="lvchips">
-                {['Personal Work', 'Medical', 'Family Function', 'Other'].map((r) => (
+                {QUICK_REASONS.map((r) => (
                   <button key={r} type="button" className="lvchip lvchip--pick"
                     onClick={() => setField('reason', r)}>{r}</button>
                 ))}
@@ -800,9 +815,9 @@ export default function TeacherLeave() {
               title={<>Supporting Document {docRequired
                 ? <i className="lvreq">(Required)</i>
                 : <i className="lvopt">(Optional)</i>}</>}
-              note={selLT?.requiresDocument && selLT.documentRequiredAfterDays > 0
-                ? `Required once the leave runs past ${selLT.documentRequiredAfterDays} day(s).`
-                : selLT?.requiresDocument
+              note={selPolicy?.requiresDocument && selPolicy.documentRequiredAfterDays > 0
+                ? `Required once the leave runs past ${selPolicy.documentRequiredAfterDays} day(s).`
+                : selPolicy?.requiresDocument
                   ? 'This leave type always needs one.'
                   : 'Attach any relevant document, if required.'}>
               <DropZone
@@ -824,13 +839,19 @@ export default function TeacherLeave() {
           {/* ── What this leave will do to your balance ── */}
           <aside className="lvapply__side">
             <h4>Leave Balance</h4>
-            {selBal ? (
+            {/* The balance of the year THESE dates fall in (the preview's), which
+                is the active year until dates in another year are picked. */}
+            {pBal?.unpaid ? (
+              <p className="lvrail__none">
+                {selLT?.name} is unpaid leave: it needs no allocation, and every day of it is loss of pay.
+              </p>
+            ) : pBal || selBal ? (
               <>
                 <MiniRing
                   value={remaining ?? 0}
-                  total={(selBal.totalAllocated || 0) + (selBal.carriedForward || 0)}
+                  total={((pBal || selBal).totalAllocated || 0) + ((pBal || selBal).carriedForward || 0)}
                   caption="days remaining"
-                  note={`${selLT?.name} (${selLT?.code}) · ${selBal.academicYear || ''}`}
+                  note={`${selLT?.name} (${selLT?.code}) · ${(pBal || selBal).academicYear || ''}`}
                 />
 
                 <h5>After this leave</h5>
@@ -839,14 +860,21 @@ export default function TeacherLeave() {
                       context for it. */}
                   <FactRow icon="calendarDays" label="Remaining balance"
                     tone={afterBalance < 0 ? 'down' : undefined}
-                    value={`${dayNum(Math.max(0, afterBalance))} day${afterBalance === 1 ? '' : 's'}`} />
+                    value={`${dayNum(Math.max(0, afterBalance ?? 0))} day${afterBalance === 1 ? '' : 's'}`} />
+                  {lopDays > 0 && (
+                    <FactRow icon="alert" label="Loss of pay" tone="down"
+                      value={`${dayNum(lopDays)} day${lopDays === 1 ? '' : 's'}`} />
+                  )}
                   <FactRow icon="chart" label="Total allocated"
-                    value={`${dayNum((selBal.totalAllocated || 0) + (selBal.carriedForward || 0))} days`} />
+                    value={`${dayNum(((pBal || selBal).totalAllocated || 0) + ((pBal || selBal).carriedForward || 0))} days`} />
                   <FactRow icon="fileCheck" label="Total used"
-                    value={`${dayNum(selBal.used || 0)} days`} />
+                    value={`${dayNum((pBal || selBal).used || 0)} days`} />
                   <FactRow icon="clock" label="Pending requests"
-                    value={`${dayNum(selBal.pending || 0)} day${selBal.pending === 1 ? '' : 's'}`} />
+                    value={`${dayNum((pBal || selBal).pending || 0)} day${(pBal || selBal).pending === 1 ? '' : 's'}`} />
                 </div>
+                {pBal && pBal.allocated === false && (
+                  <p className="lvfield__hint">Not allocated to you for {pBal.academicYear} yet.</p>
+                )}
               </>
             ) : (
               <p className="lvrail__none">
@@ -869,8 +897,37 @@ export default function TeacherLeave() {
 
       {/* ── Cancel Confirm ── */}
       <Confirm open={!!cancelItem} onClose={() => setCancelItem(null)} onConfirm={handleCancel}
-        loading={cancLoad} title="Cancel Leave"
-        message="Are you sure you want to cancel this leave application?" />
+        loading={cancLoad}
+        title={cancelItem?.status === 'approved' ? 'Withdraw approved leave' : 'Cancel Leave'}
+        message={cancelItem?.status === 'approved'
+          ? `Withdraw your approved leave for ${fmtRange(cancelItem.fromDate, cancelItem.toDate)}? The days go back to your balance and your approvers are told.`
+          : 'Are you sure you want to cancel this leave application?'} />
+
+      {/* ── End early ── */}
+      <Modal open={!!earlyItem} onClose={() => setEarlyItem(null)} maxWidth={480}
+        title="End leave early"
+        footer={<>
+          <Button variant="secondary" onClick={() => setEarlyItem(null)} disabled={earlyLoad}>Cancel</Button>
+          <Button onClick={handleEndEarly} loading={earlyLoad} disabled={!earlyDay}>End leave</Button>
+        </>}>
+        {earlyItem && (
+          <>
+            <div className="lvdec__card">
+              <b>{earlyItem.leaveType?.name}</b>
+              <span>{fmtRange(earlyItem.fromDate, earlyItem.toDate)} · {dayNum(earlyItem.totalDays)} day(s)</span>
+            </div>
+            <label className="lvdec__label" htmlFor="leave-early-day">Your last day of leave</label>
+            <input id="leave-early-day" type="date" className="form-control"
+              min={(() => { const y = new Date(); y.setDate(y.getDate() - 1); const yi = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`; const f = String(earlyItem.fromDate).slice(0, 10); return yi > f ? yi : f; })()}
+              max={(() => { const t = new Date(`${String(earlyItem.toDate).slice(0, 10)}T00:00:00Z`); t.setUTCDate(t.getUTCDate() - 1); return t.toISOString().slice(0, 10); })()}
+              value={earlyDay} onChange={(e) => setEarlyDay(e.target.value)} />
+            <p className="lvdec__note">
+              <Icon name="alert" size={13} />
+              <span>The days after this one go back to your balance, and your approvers are told you are back.</span>
+            </p>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

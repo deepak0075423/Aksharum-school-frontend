@@ -32,6 +32,23 @@ export default function AdminLeavePolicies({ onSaved, onAddType }) {
   const designations = data?.designations || [];
   const leaveTypes   = data?.leaveTypes   || [];
 
+  // How Saturdays count is school-wide, not per type — it decides what every
+  // application costs. Kept here because a teacher who administers leave
+  // cannot reach School Settings, where it is also shown.
+  const [sat, setSat] = useState(null);
+  const [satSaving, setSatSaving] = useState(false);
+  const satNow = sat || data?.leaveSettings || { saturdayWorking: true, saturdayMode: 'all', saturdayHalfDay: false };
+  const satChoice = !satNow.saturdayWorking ? 'off' : satNow.saturdayMode || 'all';
+  const saveSat = async () => {
+    setSatSaving(true);
+    try {
+      await api.updateLeaveSettings(satNow);
+      toast.success('Saturday settings saved — new applications are counted this way');
+      setSat(null); refetch(); onSaved?.();
+    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setSatSaving(false); }
+  };
+
   // Which type is being edited: the one chosen, or the first in the list. Kept
   // as a derived value rather than synced in an effect — an effect would leave
   // the editor blank on the first paint and refill it on the second.
@@ -117,6 +134,31 @@ export default function AdminLeavePolicies({ onSaved, onAddType }) {
             );
           })}
         </div>
+
+        <section className="lvpolsat" aria-labelledby="leave-sat-title">
+          <h4 id="leave-sat-title">Working Saturdays</h4>
+          <p>Decides which Saturdays an application is charged for — for every leave type.</p>
+          <select className="form-control" value={satChoice} aria-label="Working Saturdays"
+            onChange={(e) => {
+              const v = e.target.value;
+              setSat(v === 'off'
+                ? { ...satNow, saturdayWorking: false }
+                : { ...satNow, saturdayWorking: true, saturdayMode: v });
+            }}>
+            <option value="off">No Saturdays are working days</option>
+            <option value="all">Every Saturday is a working day</option>
+            <option value="1_3_5">1st, 3rd and 5th Saturdays</option>
+            <option value="2_4">2nd and 4th Saturdays</option>
+          </select>
+          {satNow.saturdayWorking && (
+            <label className="lvpolsat__check">
+              <input type="checkbox" checked={!!satNow.saturdayHalfDay}
+                onChange={(e) => setSat({ ...satNow, saturdayHalfDay: e.target.checked })} />
+              A working Saturday counts as half a day
+            </label>
+          )}
+          <Button variant="secondary" onClick={saveSat} loading={satSaving} disabled={!sat}>Save Saturdays</Button>
+        </section>
       </aside>
 
       {/* ── The editor ──────────────────────────────────────────────────────── */}

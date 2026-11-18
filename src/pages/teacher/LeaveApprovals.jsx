@@ -2,142 +2,171 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/teacher.api';
-import { Table, Badge, Button, Modal, Spinner, Empty } from '../../components/ui/index';
-import { withFileToken } from '../../utils/fileAccess';
+import { Spinner, Empty } from '../../components/ui/index';
+import { IconAction, RowActions } from '../admin/listParts';
+import {
+  BalanceFacts, CardHead, DecisionDialog, FilterRow, FilterSelect, Pager, PeriodCell,
+  PhoneTable, ReasonCell, RequestDrawer, ShowingCount, StatusBadge, TeacherCell,
+  ApprovalStep, dayNum,
+} from '../admin/leaveParts';
 
-// Leave sign-off queue for approvers picked by designation (e.g. a Principal).
-// They are teachers, so they have no admin screen — this is where their queue
-// lives. Mounted as a tab of pages/teacher/Leave.jsx, and only rendered when
-// the server confirms this user approves at least one leave type.
+// Leave sign-off queue for approvers picked by designation (e.g. a Principal)
+// and for teachers who administer the leave module. Mounted as a tab of
+// pages/teacher/Leave.jsx, only when the server confirms this user approves at
+// least one leave type.
+//
+// The same kit as the office's queue: numbered rows, the requester's balance
+// before and after the request on every pending row (the one fact a decision
+// needs), the drawer for the whole record, and the shared decision dialog — a
+// rejection needs a reason. Your own requests never appear here.
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-const STATUS_VARIANT = {
-  pending: 'warning', approved: 'success', rejected: 'danger',
-  cancelled: 'muted',
-};
+const PAGE = 10;
 
 export default function TeacherLeaveApprovals() {
   const [status, setStatus] = useState('pending');
+  const [year,   setYear]   = useState('');          // '' = the active year
+  const [page,   setPage]   = useState(1);
   const { data, loading, refetch } = useFetch(
-    () => api.getLeaveApprovals({ status: status || undefined }),
-    [status],
+    () => api.getLeaveApprovals({ status: status || undefined, academicYear: year || undefined, page, limit: PAGE }),
+    [status, year, page],
   );
 
-  const [action, setAction] = useState(null);   // { type, request }
-  const [comment, setComment] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [detail,   setDetail]   = useState(null);
+  const [decision, setDecision] = useState(null);   // { kind, request }
+  const [comment,  setComment]  = useState('');
+  const [busy,     setBusy]     = useState(false);
 
+  const items = data?.items || [];
+  const activeYear = data?.activeAcademicYear || '';
+  const otherYears = (data?.academicYears || []).filter((y) => y.label !== activeYear);
+  const onFilter = (setter) => (v) => { setPage(1); setter(v); };
+
+  const ask = (kind, request) => { setComment(''); setDecision({ kind, request }); };
   const run = async () => {
+    const { kind, request } = decision;
     setBusy(true);
     try {
-      const { type, request } = action;
-      if (type === 'approve') {
+      if (kind === 'approve') {
         const res = await api.approveLeaveRequest(request._id, { adminComment: comment });
         const left = res?.pendingLevels ?? 0;
-        toast.success(left > 0
-          ? `Approval recorded — ${left} more sign-off needed`
-          : 'Leave approved');
+        toast.success(left > 0 ? `Approval recorded — ${left} more sign-off needed` : 'Leave approved');
       } else {
         await api.rejectLeaveRequest(request._id, { adminComment: comment });
         toast.success('Leave rejected');
       }
-      setAction(null); setComment(''); refetch();
+      setDecision(null); setDetail(null); setComment(''); refetch();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setBusy(false); }
   };
 
-  const columns = [
-    { key: 'teacher', label: 'Employee', render: r => (
-      <div>
-        <div style={{ fontWeight: 600 }}>{r.teacher?.name || '—'}</div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{r.teacher?.email || ''}</div>
-      </div>
-    )},
-    { key: 'type', label: 'Type', render: r => r.leaveType?.name || '—' },
-    { key: 'dates', label: 'Period', render: r => (
-      <div>
-        <div>{fmtDate(r.fromDate)} – {fmtDate(r.toDate)}</div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
-          {r.totalDays} day(s) · {r.leaveMode?.replace('_', ' ')}
-        </div>
-      </div>
-    )},
-    { key: 'status', label: 'Status', render: r => (
-      <div>
-        <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge>
-        {r.approvalsRequired > 1 && r.status === 'pending' && (
-          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            sign-off {r.approvalLevel || 0}/{r.approvalsRequired}
-          </div>
-        )}
-      </div>
-    )},
-    { key: 'reason', label: 'Reason', render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
-    { key: 'doc', label: 'Doc', render: r => r.document
-      ? <a href={withFileToken(`/uploads/leave-docs/${r.document}`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '.85rem' }}>📎 View</a>
-      : '—' },
-    { key: 'actions', label: '', render: r => r.status === 'pending' ? (
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button className="btn btn-success btn-sm" onClick={() => { setComment(''); setAction({ type: 'approve', request: r }); }}>Approve</button>
-        <button className="btn btn-danger btn-sm"  onClick={() => { setComment(''); setAction({ type: 'reject',  request: r }); }}>Reject</button>
-      </div>
-    ) : null },
-  ];
-
-  if (loading) return <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>;
+  if (loading && !data) return <div className="lvtable__state"><Spinner /></div>;
 
   if (data?.isApprover === false) {
     return (
-      <div className="card"><div className="card-body">
-        <Empty icon="✅" title="Nothing to approve"
-          message="You are not set as an approver for any leave type." />
-      </div></div>
+      <section className="card lvcard">
+        <div className="lvtable__state">
+          <Empty icon="✅" title="Nothing to approve"
+            message="You are not set as an approver for any leave type." />
+        </div>
+      </section>
     );
   }
 
   return (
-    <div className="card">
-      <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <select className="form-control" style={{ width: 180 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="">All</option>
-        </select>
-      </div>
-      <div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={data?.items || []} emptyIcon="✅" emptyTitle="Nothing waiting for you" />
-      </div>
+    <>
+      <section className="card lvcard">
+        <CardHead icon="checkSquare" title="Leave Approvals"
+          subtitle={data?.pending
+            ? `${data.pending} request${data.pending === 1 ? '' : 's'} waiting for your decision`
+            : 'Requests from colleagues for the leave types you approve'} />
+        <FilterRow>
+          <FilterSelect label="Filter by academic year" value={year}
+            all={activeYear ? `${activeYear} (current)` : 'Current year'}
+            options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
+            onChange={onFilter(setYear)} />
+          <FilterSelect label="Filter by status" value={status} all="All statuses"
+            options={[
+              { value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' }, { value: 'cancelled', label: 'Cancelled' },
+            ]}
+            onChange={onFilter(setStatus)} />
+        </FilterRow>
 
-      <Modal open={!!action} onClose={() => setAction(null)}
-        title={action?.type === 'approve' ? 'Approve Leave' : 'Reject Leave'}
-        footer={<>
-          <Button variant="secondary" onClick={() => setAction(null)}>Cancel</Button>
-          <Button variant={action?.type === 'approve' ? 'success' : 'danger'} onClick={run} loading={busy}>
-            {action?.type === 'approve' ? 'Approve' : 'Reject'}
-          </Button>
-        </>}>
-        {action && (
-          <div>
-            <div style={{ background: 'var(--bg-muted)', borderRadius: 6, padding: '10px 14px', fontSize: '.85rem', marginBottom: 12 }}>
-              <div><strong>{action.request.teacher?.name}</strong> — {action.request.leaveType?.name}</div>
-              <div>{fmtDate(action.request.fromDate)} – {fmtDate(action.request.toDate)} ({action.request.totalDays} day(s))</div>
-            </div>
-            {action.type === 'approve' && action.request.approvalsRequired > 1
-              && (action.request.approvalLevel || 0) + 1 < action.request.approvalsRequired && (
-              <div className="alert alert-info" style={{ marginBottom: 12, fontSize: '.82rem' }}>
-                This is the first of two sign-offs — the leave is not approved and no balance moves until the second one.
-              </div>
-            )}
-            <div className="form-group">
-              <label className="form-label">Comment</label>
-              <textarea className="form-control" rows={3} value={comment} onChange={e => setComment(e.target.value)}
-                placeholder="Optional note for the employee" />
-            </div>
+        {!items.length ? (
+          <div className="lvtable__state">
+            <Empty icon="✅" title={status === 'pending' ? 'Nothing waiting for you' : 'No requests match'}
+              message={status === 'pending'
+                ? 'New requests for the leave types you approve land here.'
+                : 'Try another status or year.'} />
           </div>
+        ) : (
+          <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days', 'Balance']}>
+            <table className="lvtable">
+              <thead>
+                <tr>
+                  <th className="lvt-num">#</th>
+                  <th>Teacher</th>
+                  <th>Leave Type</th>
+                  <th>Period</th>
+                  <th className="lvt-days">Days</th>
+                  <th>Balance</th>
+                  <th>Status</th>
+                  <th>Reason</th>
+                  <th className="lvt-acts">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((r, i) => (
+                  <tr key={r._id} data-focus-id={r._id}>
+                    <td className="lvt-num">{(page - 1) * PAGE + i + 1}</td>
+                    <td><TeacherCell request={r} /></td>
+                    <td className="lvt-type">{r.leaveType?.name || '—'}</td>
+                    <td><PeriodCell request={r} /></td>
+                    <td className="lvt-days">{dayNum(r.totalDays)}</td>
+                    <td>{r.status === 'pending' ? <BalanceFacts compact balance={r.balance} /> : <span className="lvmuted">—</span>}</td>
+                    <td><StatusBadge status={r.status} /><ApprovalStep request={r} /></td>
+                    <td className="lvt-reason"><ReasonCell request={r} /></td>
+                    <td className="lvt-acts">
+                      <div className="lvrowacts">
+                        {r.status === 'pending' && r.canDecide !== false && (
+                          <div className="lvacts">
+                            <button type="button" className="lvbtn lvbtn--approve" onClick={() => ask('approve', r)}>Approve</button>
+                            <button type="button" className="lvbtn lvbtn--reject" onClick={() => ask('reject', r)}>Reject</button>
+                          </div>
+                        )}
+                        <RowActions>
+                          <IconAction icon="eye" label="View request" onClick={() => setDetail(r)} />
+                        </RowActions>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PhoneTable>
         )}
-      </Modal>
-    </div>
+
+        <div className="lvfoot">
+          <ShowingCount page={data?.page || page} limit={PAGE} count={items.length} total={data?.total ?? items.length} />
+          <Pager page={data?.page || page} pages={items.length ? (data?.pages || 1) : 0} onPage={setPage} />
+        </div>
+      </section>
+
+      {/* Decisions only — reversing or shortening approved leave is the office's. */}
+      <RequestDrawer request={detail} onClose={() => setDetail(null)}
+        onDecide={(kind, r) => { if (kind === 'approve' || kind === 'reject') ask(kind, r); }}
+        busy={busy} />
+
+      <DecisionDialog
+        open={!!decision}
+        kind={decision?.kind}
+        request={decision?.request}
+        comment={comment}
+        onComment={setComment}
+        onClose={() => setDecision(null)}
+        onConfirm={run}
+        loading={busy}
+      />
+    </>
   );
 }

@@ -413,10 +413,52 @@ export const ReasonCell = ({ request: r }) => (
  * A slide-over rather than a route: the admin filtered their way to this row,
  * and deciding on it should hand the queue straight back.
  */
-export function RequestDrawer({ request: r, onClose, onDecide, onCancel, busy }) {
+/** True when an approved leave has not started yet — the employee may still withdraw it. */
+export const notStarted = (r) => !!r?.fromDate && String(r.fromDate).slice(0, 10) > todayIso();
+/** True when an approved, full-day leave still has a day left to give back (today or later). */
+export const canEndEarly = (r) => r?.status === 'approved' && r.leaveMode !== 'half_day'
+  && String(r.toDate).slice(0, 10) > String(r.fromDate).slice(0, 10)
+  && String(r.toDate).slice(0, 10) >= todayIso();
+/** Today as YYYY-MM-DD in the viewer's calendar. */
+export function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * What the requester has of this type, before and after this request — the one
+ * fact a decision needs. The server sends it on pending rows (`r.balance`).
+ */
+export const BalanceFacts = ({ balance: b, compact }) => {
+  if (!b) return null;
+  if (!b.allocated && !b.paidDays) {
+    return <span className="lvmuted">{compact ? 'Not allocated' : 'Not allocated · nothing drawn from a balance'}</span>;
+  }
+  if (compact) {
+    // A table cell: the two figures on one line, the year and any loss of pay under it.
+    return (
+      <span className="lvbalfacts" title={`${dayNum(b.available)} day(s) available now, ${dayNum(b.after)} after approval`}>
+        <b>{dayNum(b.available)} → {dayNum(b.after)}</b>
+        <small>{b.lopDays > 0 ? `${dayNum(b.lopDays)} LOP · ` : ''}{b.academicYear || 'left after'}</small>
+      </span>
+    );
+  }
+  return (
+    <span>
+      {dayNum(b.available)} available → <b>{dayNum(b.after)} after</b>
+      {b.lopDays > 0 ? <> · <span className="lvlop">{dayNum(b.lopDays)} loss of pay</span></> : null}
+      {b.academicYear ? <span className="lvmuted"> · {b.academicYear}</span> : null}
+    </span>
+  );
+};
+
+export function RequestDrawer({ request: r, onClose, onDecide, onCancel, onEndEarly, busy }) {
   if (!r) return null;
   const need  = Number(r.approvalsRequired) || 1;
   const trail = Array.isArray(r.approvals) ? r.approvals : [];
+  // The server says whether THIS user may decide the row (never their own,
+  // and only types they approve). Older rows without the flag stay decidable.
+  const mayDecide = !!onDecide && r.canDecide !== false;
 
   return (
     <Drawer open={!!r} onClose={onClose}>
@@ -447,6 +489,17 @@ export function RequestDrawer({ request: r, onClose, onDecide, onCancel, busy })
             ['Academic year', r.academicYear],
           ]}
         />
+
+        {r.status === 'pending' && r.balance && (
+          <DrawerSection
+            title="Balance"
+            fields={[
+              ['Available now', `${dayNum(r.balance.available)} day${Number(r.balance.available) === 1 ? '' : 's'}`],
+              ['After approval', `${dayNum(r.balance.after)} day${Number(r.balance.after) === 1 ? '' : 's'}`],
+              ['Drawn from balance', `${dayNum(r.balance.paidDays)} day${Number(r.balance.paidDays) === 1 ? '' : 's'}`],
+            ]}
+          />
+        )}
 
         <DrawerSection
           title="The request"
@@ -497,7 +550,7 @@ export function RequestDrawer({ request: r, onClose, onDecide, onCancel, busy })
             their own application, and they must not be offered the approve
             buttons — before this guard, opening it without `onDecide` rendered
             them and threw the moment one was pressed. */}
-        {onDecide && r.status === 'pending' && (
+        {mayDecide && r.status === 'pending' && (
           <>
             <Button variant="success" loading={busy} onClick={() => onDecide('approve', r)}>
               <Icon name="checkCircle" size={16} /> Approve
@@ -509,17 +562,29 @@ export function RequestDrawer({ request: r, onClose, onDecide, onCancel, busy })
         )}
         {/* Undoing an approval is the only way the days go back — and Comp Off
             refuses to withdraw a credit until the leave that spent it is
-            reversed here. */}
-        {onDecide && r.status === 'approved' && (
-          <Button variant="secondary" loading={busy} onClick={() => onDecide('reverse', r)}>
-            <Icon name="repeat" size={16} /> Reverse approval
+            reversed here. Shortening gives back only the days not taken. */}
+        {onDecide && r.status === 'approved' && r.canReverse && (
+          <>
+            {r.leaveMode !== 'half_day' && String(r.toDate).slice(0, 10) > String(r.fromDate).slice(0, 10) && (
+              <Button variant="secondary" loading={busy} onClick={() => onDecide('shorten', r)}>
+                <Icon name="calendar" size={16} /> Shorten
+              </Button>
+            )}
+            <Button variant="secondary" loading={busy} onClick={() => onDecide('reverse', r)}>
+              <Icon name="repeat" size={16} /> Reverse approval
+            </Button>
+          </>
+        )}
+        {/* Your own leave: withdraw it while it is pending or has not started,
+            or come back early from one already approved. */}
+        {onCancel && (r.status === 'pending' || (r.status === 'approved' && notStarted(r))) && (
+          <Button variant="danger" loading={busy} onClick={() => onCancel(r)}>
+            <Icon name="close" size={16} /> {r.status === 'pending' ? 'Cancel application' : 'Withdraw leave'}
           </Button>
         )}
-        {/* Withdrawing your own application, which is a different act from an
-            admin deciding on it. */}
-        {onCancel && r.status === 'pending' && (
-          <Button variant="danger" loading={busy} onClick={() => onCancel(r)}>
-            <Icon name="close" size={16} /> Cancel application
+        {onEndEarly && canEndEarly(r) && !notStarted(r) && (
+          <Button variant="secondary" loading={busy} onClick={() => onEndEarly(r)}>
+            <Icon name="calendar" size={16} /> End early
           </Button>
         )}
         <Button variant="secondary" onClick={onClose}>Close</Button>
@@ -547,13 +612,23 @@ const DECISION = {
     title: 'Reverse approved leave',
     verb: 'Reverse',
     variant: 'secondary',
-    note: 'The days are handed back and the approval is undone. Anything already arranged around the absence — cover, attendance — does not undo itself.',
+    note: 'The paid days are handed back and the approval is undone. The attendance rows it marked are removed, and substitute cover raised for its days is retired.',
+  },
+  shorten: {
+    title: 'Shorten approved leave',
+    verb: 'Shorten',
+    variant: 'secondary',
+    note: 'The leave ends on the day you pick. Days after it go back to the balance (loss-of-pay days first), and their attendance rows and cover are removed.',
   },
 };
 
-/** Approve, reject or reverse — one dialog behind all three. */
-export function DecisionDialog({ open, kind, request, comment, onComment, onClose, onConfirm, loading }) {
+/** Approve, reject, reverse or shorten — one dialog behind all four. */
+export function DecisionDialog({ open, kind, request, comment, onComment, onClose, onConfirm, loading, lastDay, onLastDay }) {
   const d = DECISION[kind] || DECISION.approve;
+  // A refusal the employee cannot act on is no answer, so rejecting needs one.
+  const needsComment = kind === 'reject';
+  const blocked = (needsComment && !String(comment || '').trim())
+    || (kind === 'shorten' && !lastDay);
   return (
     <Modal
       open={open}
@@ -563,7 +638,7 @@ export function DecisionDialog({ open, kind, request, comment, onComment, onClos
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant={d.variant} onClick={onConfirm} loading={loading}>{d.verb}</Button>
+          <Button variant={d.variant} onClick={onConfirm} loading={loading} disabled={blocked}>{d.verb}</Button>
         </>
       }
     >
@@ -572,8 +647,24 @@ export function DecisionDialog({ open, kind, request, comment, onComment, onClos
           <b>{request.teacher?.name}</b>
           <span>{request.leaveType?.name} · {fmtRange(request.fromDate, request.toDate)}</span>
           <span>{dayNum(request.totalDays)} day(s) · {modeLabel(request)}</span>
+          {kind === 'approve' && request.balance ? <span><BalanceFacts balance={request.balance} /></span> : null}
           {request.reason ? <em>“{request.reason}”</em> : null}
         </div>
+      )}
+
+      {kind === 'shorten' && request && (
+        <>
+          <label className="lvdec__label" htmlFor="leave-decision-lastday">New last day</label>
+          <input
+            id="leave-decision-lastday"
+            type="date"
+            className="form-control"
+            min={String(request.fromDate).slice(0, 10)}
+            max={(() => { const t = new Date(`${String(request.toDate).slice(0, 10)}T00:00:00Z`); t.setUTCDate(t.getUTCDate() - 1); return t.toISOString().slice(0, 10); })()}
+            value={lastDay || ''}
+            onChange={(e) => onLastDay?.(e.target.value)}
+          />
+        </>
       )}
 
       <p className="lvdec__note">
@@ -589,7 +680,7 @@ export function DecisionDialog({ open, kind, request, comment, onComment, onClos
       </p>
 
       <label className="lvdec__label" htmlFor="leave-decision-comment">
-        Comment {kind === 'reject' ? '' : <span>(optional)</span>}
+        {needsComment ? <>Reason <i className="lvstar" aria-label="required">*</i></> : <>Comment <span>(optional)</span></>}
       </label>
       <textarea
         id="leave-decision-comment"
@@ -1078,8 +1169,11 @@ export const HelpPanel = ({ title, text, action }) => (
  */
 export function BalanceDrawer({ open, teacher, academicYear, balances = [], tones = {}, low = 2, onClose, onAdjust }) {
   if (!open) return null;
-  const remainingOf = (b) =>
-    Math.max(0, (b.totalAllocated || 0) + (b.carriedForward || 0) - (b.used || 0) - (b.pending || 0));
+  // The server's figure — net of lapsed and carried-out days, which this
+  // drawer used to leave in (a closed year still showed its lapsed days).
+  const remainingOf = (b) => (b.remaining ?? Math.max(0,
+    (b.totalAllocated || 0) + (b.carriedForward || 0) - (b.used || 0) - (b.pending || 0)
+    - (b.expired || 0) - (b.carriedOut || 0)));
   const held = balances.filter(Boolean);
   const total = held.reduce((n, b) => n + remainingOf(b), 0);
 
@@ -1121,7 +1215,8 @@ export function BalanceDrawer({ open, teacher, academicYear, balances = [], tone
                 {/* Held by a request nobody has decided on — not spent, not
                     available, and the usual reason a figure looks short. */}
                 <div><dt>Pending</dt><dd>{dayNum(b.pending || 0)}</dd></div>
-                {b.expired ? <div><dt>Expired</dt><dd>{dayNum(b.expired)}</dd></div> : null}
+                {b.expired ? <div><dt>Lapsed</dt><dd>{dayNum(b.expired)}</dd></div> : null}
+                {b.carriedOut ? <div><dt>Carried out</dt><dd>{dayNum(b.carriedOut)}</dd></div> : null}
                 <div className="lvbal__left"><dt>Remaining</dt><dd>{dayNum(left)}</dd></div>
               </dl>
             </section>
@@ -1468,8 +1563,9 @@ export function CompOffDrawer({ request: r, onClose, onDecide, onSeeRequests, on
 
       <DrawerFoot>
         {/* Only where deciding is actually possible. Opened from a report the
-            drawer is a record, and the queue is where it gets acted on. */}
-        {onDecide && r.status === 'pending' && (
+            drawer is a record, and the queue is where it gets acted on.
+            Never on one's own claim (`canDecide` from the server). */}
+        {onDecide && r.status === 'pending' && r.canDecide !== false && (
           <>
             <Button variant="success" loading={busy} onClick={() => onDecide('approve', r)}>
               <Icon name="checkCircle" size={16} /> Approve
@@ -1479,7 +1575,7 @@ export function CompOffDrawer({ request: r, onClose, onDecide, onSeeRequests, on
             </Button>
           </>
         )}
-        {onDecide && r.status === 'approved' && (
+        {onDecide && r.status === 'approved' && r.canWithdraw !== false && (
           <Button variant="secondary" loading={busy} onClick={() => onDecide('cancel', r)}>
             <Icon name="repeat" size={16} /> Withdraw approval
           </Button>
@@ -1774,10 +1870,19 @@ export const BalanceCard = ({ balance: b, tone = 'indigo', onView }) => {
           <b>{type.name || 'Leave'}</b>
           <small>{[type.code, b.academicYear].filter(Boolean).join(' · ')}</small>
         </div>
-        <div className="lvbalcard__left">
-          <strong>{dayNum(left)}</strong>
-          <small>day{Number(left) === 1 ? '' : 's'} left</small>
-        </div>
+        {/* An unpaid type needs no allocation — every day of it is loss of
+            pay — and a type the office has not allocated has nothing to spend
+            yet. Neither is "0 days left". */}
+        {b.unpaid ? (
+          <div className="lvbalcard__left lvbalcard__left--word" title="Unpaid leave — no allocation needed; every day is loss of pay"><strong>—</strong><small>unpaid</small></div>
+        ) : b.allocated === false ? (
+          <div className="lvbalcard__left lvbalcard__left--word"><strong>—</strong><small>not allocated</small></div>
+        ) : (
+          <div className="lvbalcard__left">
+            <strong>{dayNum(left)}</strong>
+            <small>day{Number(left) === 1 ? '' : 's'} left</small>
+          </div>
+        )}
       </header>
 
       {/* Filled by what has been used, not by what is left — the bar is a
@@ -1829,9 +1934,13 @@ export function MyBalanceDrawer({ balance: b, policy, onClose, onApply }) {
         sub={[type.code, b.academicYear].filter(Boolean).join(' · ')}
         tone={typeLook(type).tone}
         tags={[
-          <span key="l" className={`lvbadge is-${left > 0 ? 'approved' : 'cancelled'}`}>
-            {dayNum(left)} day{Number(left) === 1 ? '' : 's'} left
-          </span>,
+          b.unpaid
+            ? <span key="l" className="lvbadge is-cancelled">Unpaid leave</span>
+            : b.allocated === false
+              ? <span key="l" className="lvbadge is-cancelled">Not allocated</span>
+              : <span key="l" className={`lvbadge is-${left > 0 ? 'approved' : 'cancelled'}`}>
+                  {dayNum(left)} day{Number(left) === 1 ? '' : 's'} left
+                </span>,
           policy && !policy.eligible
             ? <span key="e" className="lvbadge is-rejected" title={policy.ineligibleReason}>Not available to you</span>
             : null,
@@ -1849,9 +1958,16 @@ export function MyBalanceDrawer({ balance: b, policy, onClose, onApply }) {
             {/* Held by an application nobody has decided on — not spent, not
                 available, and the usual reason a figure looks short. */}
             <div><dt>Pending</dt><dd>{dayNum(b.pending || 0)}</dd></div>
-            {b.expired ? <div><dt>Expired</dt><dd>{dayNum(b.expired)}</dd></div> : null}
+            {b.expired ? <div><dt>Lapsed</dt><dd>{dayNum(b.expired)}</dd></div> : null}
+            {b.carriedOut ? <div><dt>Carried out</dt><dd>{dayNum(b.carriedOut)}</dd></div> : null}
             <div className="lvbal__left"><dt>Remaining</dt><dd>{dayNum(left)}</dd></div>
           </dl>
+          {b.unpaid && (
+            <p className="lvfield__hint">Every day of this leave is loss of pay, so it needs no allocation.</p>
+          )}
+          {!b.unpaid && b.allocated === false && (
+            <p className="lvfield__hint">The office has not allocated this leave to you for {b.academicYear || 'this year'} yet.</p>
+          )}
         </section>
 
         {policy && !policy.eligible && (

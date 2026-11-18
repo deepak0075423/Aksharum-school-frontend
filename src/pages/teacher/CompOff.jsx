@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/teacher.api';
-import { Table, Badge, Button, Modal, Spinner, Empty } from '../../components/ui/index';
+import { Button, Modal, Spinner, Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { IconAction, MenuItem, RowActions, RowMenu } from '../admin/listParts';
 import {
@@ -10,7 +10,7 @@ import {
   FilterSelect, FormStep, InfoPanels, LeaveStat, LeaveStats, LedgerDrawer, Pager,
   RulesNote, STATUS, ShowingCount, SignOffStep, StatusBadge, SubTabs, SummaryLine,
   ThSub, WORK_TYPES, fmtDate, fmtHours, hoursBetween, weekdayOf,
-  PhoneTable,
+  PhoneTable, WorkDateCell, EarnedCell,
 } from '../admin/leaveParts';
 
 // Mounted as the "Comp Off" tab of pages/teacher/Leave.jsx — Comp Off stays
@@ -18,10 +18,6 @@ import {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const STATUS_VARIANT = {
-  draft: 'info', pending: 'warning', approved: 'success',
-  rejected: 'danger', cancelled: 'muted', expired: 'muted',
-};
 
 const DAY_LABEL = {
   holiday: '🎉 Holiday', weekly_off: '🗓️ Weekly Off', sunday: '☀️ Sunday',
@@ -43,7 +39,9 @@ const EMPTY_FORM = { workDate: '', checkIn: '', checkOut: '', compOffDays: '', r
 
 export default function TeacherCompOff() {
   const [sub, setSub] = useState('overview');
-  const { data, loading, refetch } = useFetch(() => api.getMyCompOff());
+  // The whole history in one call (the server caps it) — the tab filters and
+  // pages it on screen. The default page of 20 used to hide everything older.
+  const { data, loading, refetch } = useFetch(() => api.getMyCompOff({ limit: 500 }));
 
   const enabled  = data?.enabled !== false;
   const balance  = data?.balance;
@@ -65,6 +63,9 @@ export default function TeacherCompOff() {
   const hoursWorked = preview?.workedHours > 0
     ? preview.workedHours
     : hoursBetween(form.checkIn, form.checkOut);
+  // No times typed and nothing in the register: the claim has no hours, and
+  // the server refuses it — say so before Submit.
+  const fromAttendance = preview?.hoursSource === 'attendance';
 
   // Live verdict from the same engine that will judge the submission, so the
   // employee is never surprised by a rejection they could have seen coming.
@@ -422,8 +423,10 @@ export default function TeacherCompOff() {
               </div>
               <p className="lvfield__hint">
                 {form.checkIn || form.checkOut
-                  ? 'Only extra hours beyond your standard working hours will be considered.'
-                  : 'Reading your recorded attendance for this date. Enter times above to override it.'}
+                  ? 'The hours you typed decide what this day earns under the school policy.'
+                  : fromAttendance
+                    ? `From your attendance for this date: ${preview.checkIn} – ${preview.checkOut}. Enter times above to override it.`
+                    : 'No attendance is recorded for this date — enter the times you worked.'}
               </p>
 
               {preview && preview.eligible === false && (
@@ -468,8 +471,8 @@ export default function TeacherCompOff() {
                 value={form.workDate
                   ? `${fmtDate(form.workDate)} (${weekdayOf(form.workDate).slice(0, 3)})`
                   : '—'} />
-              <SummaryLine label="Check In"  value={form.checkIn  || '—'} />
-              <SummaryLine label="Check Out" value={form.checkOut || '—'} />
+              <SummaryLine label="Check In"  value={form.checkIn  || (fromAttendance ? preview.checkIn : '—')} />
+              <SummaryLine label="Check Out" value={form.checkOut || (fromAttendance ? preview.checkOut : '—')} />
               <SummaryLine label="Total Hours" value={fmtHours(hoursWorked)} />
               {/* The engine's own verdict, not a guess — the same call that
                   will judge the submission. */}
@@ -668,15 +671,23 @@ function MyLedger() {
 //  (e.g. a Principal), who are teachers and so have no admin screen.
 // ════════════════════════════════════════════════════════════════════════════
 export function TeacherCompOffApprovals() {
+  // Approvers by designation, on the same kit as the office's queue. The
+  // server only answers an approver, never lists one's own claims, and marks
+  // each row it lets this user decide (`canDecide`).
+  const PAGE_SIZE = 10;
   const [status, setStatus] = useState('pending');
+  const [page,   setPage]   = useState(1);
   const { data, loading, refetch } = useFetch(
-    () => api.getCompOffApprovals({ status: status || undefined, limit: 50 }),
-    [status],
+    () => api.getCompOffApprovals({ status: status || undefined, page, limit: PAGE_SIZE }),
+    [status, page],
   );
-  const [action, setAction] = useState(null);
+  const [detail,  setDetail]  = useState(null);
+  const [action,  setAction]  = useState(null);   // { type, request }
   const [comment, setComment] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy,    setBusy]    = useState(false);
+  const items = data?.items || [];
 
+  const ask = (type, request) => { setComment(''); setAction({ type, request }); };
   const run = async () => {
     setBusy(true);
     try {
@@ -691,71 +702,125 @@ export function TeacherCompOffApprovals() {
         await api.rejectCompOff(request._id, { comment });
         toast.success('Rejected — no balance credited');
       }
-      setAction(null); setComment(''); refetch();
+      setAction(null); setDetail(null); setComment(''); refetch();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setBusy(false); }
   };
 
-  const columns = [
-    { key: 'employee', label: 'Employee', render: r => r.teacher?.name || '—' },
-    { key: 'workDate', label: 'Work Date', render: r => (
-      <div>
-        <div>{fmtDate(r.workDate)}</div>
-        <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{DAY_LABEL[r.dayCategory] || r.dayCategory}</div>
-      </div>
-    )},
-    { key: 'hours', label: 'Worked', render: r => r.workedHours ? `${r.workedHours} h` : '—' },
-    { key: 'days', label: 'Comp Off', render: r => <strong>{r.compOffDays}</strong> },
-    { key: 'status', label: 'Status', render: r => <Badge variant={STATUS_VARIANT[r.status] || 'muted'}>{r.status}</Badge> },
-    { key: 'reason', label: 'Reason', render: r => <span style={{ fontSize: '.82rem' }}>{r.reason || '—'}</span> },
-    { key: 'actions', label: '', render: r => r.status === 'pending' ? (
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button className="btn btn-success btn-sm" onClick={() => { setComment(''); setAction({ type: 'approve', request: r }); }}>Approve</button>
-        <button className="btn btn-danger btn-sm"  onClick={() => { setComment(''); setAction({ type: 'reject',  request: r }); }}>Reject</button>
-      </div>
-    ) : null },
-  ];
-
-  if (loading) return <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}><Spinner /></div>;
+  if (loading && !data) return <div className="lvtable__state"><Spinner /></div>;
   if (data?.enabled === false) {
-    return <div className="card"><div className="card-body"><Empty icon="🕓" title="Comp Off is not available" message={data.reason} /></div></div>;
+    return (
+      <section className="card lvcard">
+        <div className="lvtable__state"><Empty icon="🕓" title="Comp Off is not available" message={data.reason} /></div>
+      </section>
+    );
   }
+  const rejecting = action?.type === 'reject';
 
   return (
-    <div className="card">
-      <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <select className="form-control" style={{ width: 160 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="">All</option>
-        </select>
-      </div>
-      <div className="card-body" style={{ padding: 0 }}>
-        <Table columns={columns} data={data?.items || []} emptyIcon="✅" emptyTitle="Nothing waiting for you" />
-      </div>
+    <>
+      <section className="card lvcard">
+        <CardHead icon="checkSquare" title="Comp Off Approvals"
+          subtitle="Claims for days worked, from colleagues whose comp off you approve" />
+        <FilterRow>
+          <FilterSelect label="Filter by status" value={status} all="All statuses"
+            options={[
+              { value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' }, { value: 'cancelled', label: 'Cancelled' },
+              { value: 'expired', label: 'Expired' },
+            ]}
+            onChange={(v) => { setPage(1); setStatus(v); }} />
+        </FilterRow>
+
+        {!items.length ? (
+          <div className="lvtable__state">
+            <Empty icon="✅" title={status === 'pending' ? 'Nothing waiting for you' : 'No claims match'}
+              message={status === 'pending' ? 'New comp off claims land here.' : 'Try another status.'} />
+          </div>
+        ) : (
+          <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Comp Off']}>
+            <table className="lvtable">
+              <thead>
+                <tr>
+                  <th className="lvt-num">#</th>
+                  <th>Employee</th>
+                  <th>Work Date</th>
+                  <th>Day</th>
+                  <th>Comp Off</th>
+                  <th>Status</th>
+                  <th>Reason</th>
+                  <th className="lvt-acts">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((r, i) => (
+                  <tr key={r._id} data-focus-id={r._id}>
+                    <td className="lvt-num">{((data?.page || page) - 1) * PAGE_SIZE + i + 1}</td>
+                    <td>
+                      <div className="lvwho"><div>
+                        <b>{r.teacher?.name || '—'}</b>
+                        {r.teacher?.employeeId ? <small>{r.teacher.employeeId}</small> : null}
+                      </div></div>
+                    </td>
+                    <td><WorkDateCell request={r} /></td>
+                    <td>{DAY_LABEL[r.dayCategory] || r.dayCategory || '—'}</td>
+                    <td><EarnedCell request={r} /></td>
+                    <td><StatusBadge status={r.status} /><SignOffStep request={r} /></td>
+                    <td className="lvt-reason"><div className="lvreason" title={r.reason || ''}><span>{r.reason || '—'}</span></div></td>
+                    <td className="lvt-acts">
+                      <div className="lvrowacts">
+                        {r.status === 'pending' && r.canDecide !== false && (
+                          <div className="lvacts">
+                            <button type="button" className="lvbtn lvbtn--approve" onClick={() => ask('approve', r)}>Approve</button>
+                            <button type="button" className="lvbtn lvbtn--reject" onClick={() => ask('reject', r)}>Reject</button>
+                          </div>
+                        )}
+                        <RowActions>
+                          <IconAction icon="eye" label="View claim" onClick={() => setDetail(r)} />
+                        </RowActions>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PhoneTable>
+        )}
+        <div className="lvfoot">
+          <ShowingCount page={data?.page || page} limit={PAGE_SIZE} count={items.length} total={data?.total ?? items.length} noun="claim" />
+          <Pager page={data?.page || page} pages={items.length ? (data?.pages || 1) : 0} onPage={setPage} />
+        </div>
+      </section>
+
+      <CompOffDrawer request={detail ? { ...detail, canWithdraw: false } : null} onClose={() => setDetail(null)}
+        onDecide={(kind, r) => { if (kind === 'approve' || kind === 'reject') ask(kind, r); }} busy={busy} />
 
       <Modal open={!!action} onClose={() => setAction(null)}
         title={action?.type === 'approve' ? 'Approve Comp Off' : 'Reject Comp Off'}
         footer={<>
           <Button variant="secondary" onClick={() => setAction(null)}>Cancel</Button>
-          <Button variant={action?.type === 'approve' ? 'success' : 'danger'} onClick={run} loading={busy}>
+          <Button variant={action?.type === 'approve' ? 'success' : 'danger'} onClick={run} loading={busy}
+            disabled={rejecting && !comment.trim()}>
             {action?.type === 'approve' ? 'Approve' : 'Reject'}
           </Button>
         </>}>
         {action && (
-          <div>
-            <div style={{ background: 'var(--bg-muted)', borderRadius: 6, padding: '10px 14px', fontSize: '.85rem', marginBottom: 12 }}>
-              <div><strong>{action.request.teacher?.name}</strong></div>
-              <div>{fmtDate(action.request.workDate)} · {action.request.compOffDays} day(s)</div>
+          <>
+            <div className="lvdec__card">
+              <b>{action.request.teacher?.name}</b>
+              <span>{fmtDate(action.request.workDate)} · {action.request.compOffDays} day(s)</span>
+              {action.request.workedHours > 0 && <span>{action.request.workedHours} hour(s) worked</span>}
+              {action.request.reason ? <em>“{action.request.reason}”</em> : null}
             </div>
-            <div className="form-group">
-              <label className="form-label">Comment</label>
-              <textarea className="form-control" rows={3} value={comment} onChange={e => setComment(e.target.value)} />
-            </div>
-          </div>
+            <label className="lvdec__label" htmlFor="co-decision-comment">
+              {rejecting ? <>Reason <i className="lvstar" aria-label="required">*</i></> : <>Comment <span>(optional)</span></>}
+            </label>
+            <textarea id="co-decision-comment" className="form-control" rows={3} value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder={rejecting ? 'Why is this being rejected?' : 'Anything the employee should know…'} />
+          </>
         )}
       </Modal>
-    </div>
+    </>
   );
 }

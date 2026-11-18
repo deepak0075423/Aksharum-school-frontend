@@ -190,7 +190,7 @@ export const deleteSubject = (id) => api.delete(`/admin/subjects/${id}`);
 // The staff every leave picker chooses from. Deliberately not getTeachers():
 // /admin/teachers is school-admin-only, and a teacher whose designation grants
 // admin on the leave module reaches these screens too.
-export const getLeaveEmployees      = ()         => api.get('/admin/leave/employees');
+export const getLeaveEmployees      = (params)   => api.get('/admin/leave/employees', { params });
 export const getLeaveTypes          = ()         => api.get('/admin/leave/types');
 export const createLeaveType        = (data)     => api.post('/admin/leave/types', data);
 export const updateLeaveType        = (id, data) => api.put(`/admin/leave/types/${id}`, data);
@@ -227,6 +227,8 @@ export const exportLeaveAllocations = (params)   => api.get('/admin/leave/alloca
 export const getLeaveReports        = (params)   => api.get('/admin/leave/reports', { params });
 export const exportLeaveReports     = (params)   => api.get('/admin/leave/reports/export', { params, responseType: 'arraybuffer' });
 export const reverseApprovedLeave   = (id, data) => api.post(`/admin/leave/requests/${id}/reverse`, data);
+// Cut approved leave short: { toDate } is the new last day
+export const shortenApprovedLeave   = (id, data) => api.post(`/admin/leave/requests/${id}/shorten`, data);
 
 // Per-leave-type policies — every leave type carries its own rule set
 export const getLeavePolicies   = ()             => api.get('/admin/leave/policies');

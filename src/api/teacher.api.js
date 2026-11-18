@@ -65,7 +65,12 @@ export const getExamQuestionTemplate = () => api.get('/teacher/exams/questions/t
 export const getMyLeaves     = (params) => api.get('/teacher/leave', { params });
 export const getLeaveBalance = ()       => api.get('/teacher/leave/balance');
 export const applyLeave      = (data)   => api.post('/teacher/leave/apply', data);
+// Withdraws a pending request, or approved leave that has not started yet
 export const cancelLeave     = (id)     => api.delete(`/teacher/leave/${id}`);
+// Back early from approved leave: { toDate } is the new last day
+export const endLeaveEarly   = (id, data) => api.post(`/teacher/leave/${id}/end-early`, data);
+// What these dates would cost and leave me with — the same sums the submit does
+export const getLeaveApplyPreview = (params) => api.get('/teacher/leave/apply-preview', { params });
 
 // The rules behind each leave type, and whether I qualify for it
 export const getLeaveTypePolicies = ()          => api.get('/teacher/leave/policies');

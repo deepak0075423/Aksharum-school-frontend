@@ -235,7 +235,8 @@ export function AdminCompOff() {
   // Ticks are dropped whenever the visible page changes, so a bulk decision can
   // only ever touch rows the admin is actually looking at.
   const selection = useSelection(requests, `${page}|${fStatus}|${fTeacher}|${fCategory}|${fSource}|${fFrom}|${fTo}`);
-  const pendingPicked = selection.rows.filter((r) => r.status === 'pending');
+  // Only rows this user may decide — the server never lets anyone decide their own.
+  const pendingPicked = selection.rows.filter((r) => r.status === 'pending' && r.canDecide !== false);
 
   const anyFilter = !!(fStatus || fTeacher || fCategory || fSource || fFrom || fTo);
 
@@ -431,7 +432,7 @@ export function AdminCompOff() {
                         </td>
                         <td className="lvt-acts">
                           <div className="lvrowacts">
-                            {r.status === 'pending' && (
+                            {r.status === 'pending' && r.canDecide !== false && (
                               <div className="lvacts">
                                 <button type="button" className="lvbtn lvbtn--approve"
                                   onClick={() => { setComment(''); setAction({ type: 'approve', request: r }); }}>Approve</button>
@@ -519,7 +520,8 @@ export function AdminCompOff() {
         })()}
         footer={<>
           <Button variant="secondary" onClick={() => setAction(null)}>Cancel</Button>
-          <Button variant={action?.type === 'approve' ? 'success' : 'danger'} onClick={runAction} loading={actLoad}>
+          <Button variant={action?.type === 'approve' ? 'success' : 'danger'} onClick={runAction} loading={actLoad}
+            disabled={action?.type === 'reject' && !comment.trim()}>
             {action?.type === 'approve' ? 'Approve' : action?.type === 'reject' ? 'Reject' : 'Withdraw'}
           </Button>
         </>}>
@@ -554,14 +556,15 @@ export function AdminCompOff() {
             )}
             {action.type === 'cancel' && (
               <div className="alert alert-warning" style={{ marginBottom: 12, fontSize: '.82rem' }}>
-                Withdrawing removes the credited days from the balance. It is refused if the days have already been used —
-                reverse the leave first.
+                Withdrawing removes the credited days from the balance. It is refused if the days have already been used,
+                or are held by a Comp Off leave still waiting for a decision — settle that leave first.
               </div>
             )}
             <div className="form-group">
-              <label className="form-label">Comment</label>
+              {/* A refusal the employee cannot act on is no answer — a reject needs a reason. */}
+              <label className="form-label">{action.type === 'reject' ? <>Reason <i className="lvstar" aria-label="required">*</i></> : 'Comment'}</label>
               <textarea className="form-control" rows={3} value={comment} onChange={e => setComment(e.target.value)}
-                placeholder="Optional note for the employee" />
+                placeholder={action.type === 'reject' ? 'Why is this being rejected?' : 'Optional note for the employee'} />
             </div>
           </div>
         )}
@@ -666,12 +669,15 @@ export function AdminCompOff() {
               <div className="lvpolrow lvpolrow--2">
                 <label className="lvfield">
                   <span className="lvfield__label">Comp Off Days <i>*</i></span>
-                  <input type="number" className="form-control" min={0} step="0.5"
-                    value={applyForm.compOffDays}
-                    placeholder={preview?.compOffDays != null ? String(preview.compOffDays) : 'auto from hours'}
-                    onChange={(e) => setApplyForm((f) => ({ ...f, compOffDays: e.target.value }))} />
+                  {/* One work date earns a half day or a full day — never more. */}
+                  <select className="form-control" value={applyForm.compOffDays}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, compOffDays: e.target.value }))}>
+                    <option value="">{preview?.compOffDays != null ? `From the hours (${preview.compOffDays} day)` : 'From the hours worked'}</option>
+                    <option value="0.5">Half day (0.5)</option>
+                    <option value="1">Full day (1)</option>
+                  </select>
                   <span className="lvfield__hint">
-                    Leave blank to let the policy decide from the hours worked.
+                    Leave on “from the hours” to let the policy decide.
                   </span>
                 </label>
                 {policy && (
