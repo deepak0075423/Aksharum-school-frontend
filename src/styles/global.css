@@ -15199,7 +15199,7 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   }
   .adhero__acts .adact { flex: 0 0 36px; height: 36px; }
 
-  .adtools--com .adsearch { order: -1; flex: 1 1 100%; }
+  .adtools--com .adsearch { flex: 1 1 100%; }
   .adtools--com .adsel { flex: 1 1 0; min-width: 0; }
 }
 @media (max-width: 400px) {

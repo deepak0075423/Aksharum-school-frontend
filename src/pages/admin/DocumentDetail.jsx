@@ -899,6 +899,13 @@ function DocumentDetailPage() {
             lead="Communicate with students and keep track of important discussions."
             right={
               <div className="adtools adtools--com">
+                {/* Search, then which comments, then their order (Nov 2026) —
+                    the same order on a laptop and a phone. */}
+                <div className="adsearch">
+                  <Icon name="search" size={16} />
+                  <input className="form-control" value={comSearch} placeholder="Search comments…"
+                    onChange={(e) => setComSearch(e.target.value)} aria-label="Search comments" />
+                </div>
                 <select className="form-control adsel" value={comFilter} aria-label="Filter comments"
                   onChange={(e) => setComFilter(e.target.value)}>
                   <option value="">All Comments</option>
@@ -906,11 +913,6 @@ function DocumentDetailPage() {
                   <option value="staff">From staff</option>
                   <option value="pinned">Pinned only</option>
                 </select>
-                <div className="adsearch">
-                  <Icon name="search" size={16} />
-                  <input className="form-control" value={comSearch} placeholder="Search comments…"
-                    onChange={(e) => setComSearch(e.target.value)} aria-label="Search comments" />
-                </div>
                 <select className="form-control adsel" value={comOrder} aria-label="Order comments"
                   onChange={(e) => setComOrder(e.target.value)}>
                   <option value="newest">Newest First</option>
