@@ -14182,8 +14182,6 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .doccard__meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; margin-top: 2px; }
 .doccard__meta dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
-/* The icon each fact carries is for the phone card only. */
-.doccard__meta dt svg { display: none; }
 .doccard__meta dd { font-size: .82rem; margin-top: 3px; min-width: 0; overflow-wrap: anywhere; }
 .doccard__foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -14353,72 +14351,37 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .docfoot { padding: 14px; }
   .docform__row { grid-template-columns: 1fr; }
 }
-/* A phone (Nov 2026, the user's layout): the cards go two to a row — 2 side by
-   side, 3 as two and one, 4 as two and two, 5 as two, two and one — an odd
-   last card taking the whole row. Each card is pared down to fit half a
-   phone: no description (the drawer has it), the type under the file's mark,
-   the four facts one line each behind an icon instead of a caption, and the
-   uploader's name cut short before the two actions rather than wrapping. */
+/* ── A phone (Nov 2026) ────────────────────────────────────────────────────
+   One document card a row, the card it is on a tablet. The tab strips fit the
+   screen instead of scrolling sideways: each page swaps in shorter labels
+   (`short` in TABS), and here the tabs share the row out between them. The
+   filter bar: the search, then Targets and Categories side by side, then the
+   year beside the sort. Used on the assignment page's header too. */
 @media (max-width: 640px) {
-  .docgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; }
-  .docgrid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .doccard { padding: 11px; gap: 8px; }
+  .docgrid { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; }
   .doccard:hover { transform: none; }
-  .doccard__head {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "mark . menu" "type type type";
-    align-items: center; gap: 8px 6px;
+
+  .docpanel > .uitabs--line, .dvpanel > .uitabs--line, .adhead .uitabs--line { gap: 0; }
+  .docpanel > .uitabs--line .uitab,
+  .dvpanel > .uitabs--line .uitab,
+  .adhead .uitabs--line .uitab {
+    flex: 1 0 auto; justify-content: center; padding: 10px 7px; font-size: .82rem; gap: 5px;
   }
-  /* !important: FileMark sizes itself inline. */
-  .doccard__head > .docmark { grid-area: mark; width: 34px !important; height: 34px !important; border-radius: 10px; }
-  .doccard__head > .docpill {
-    grid-area: type; justify-self: start; max-width: 100%;
-    overflow: hidden; text-overflow: ellipsis; padding: 3px 8px; font-size: .7rem;
-  }
-  .doccard__head > .docact { grid-area: menu; margin-left: 0; width: 28px; height: 28px; }
-  .doccard__title {
-    font-size: .86rem;
-    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
-    -webkit-box-orient: vertical; overflow: hidden;
-  }
-  .doccard__sub { display: none; }
-  .doccard__meta { grid-template-columns: minmax(0, 1fr); gap: 5px; margin-top: 0; }
-  .doccard__fact { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  /* "Shared with" brings its own icon; the others show theirs, not a caption.
-     (Two classes deep, or the `dt { display: flex }` below would win.) */
-  .doccard__meta .doccard__fact--shared dt { display: none; }
-  .doccard__meta dt { display: flex; flex-shrink: 0; }
-  .doccard__meta dt span { display: none; }
-  .doccard__meta dt svg { display: block; }
-  .doccard__meta dd {
-    margin-top: 0; font-size: .76rem;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal;
-  }
-  .doccard__meta .docshared { gap: 6px; font-size: .76rem; max-width: 100%; }
-  .doccard__meta .docshared svg { width: 13px; height: 13px; }
-  .doccard__meta .docshared__label { max-width: none; min-width: 0; }
-  .doccard__foot { padding-top: 8px; gap: 6px; }
-  .doccard__foot .docwho { min-width: 0; gap: 6px; }
-  /* Half a phone has no room for a name beside the two actions — it came out
-     as "Dee…". The avatar says who; the name is still read out by a screen
-     reader, and the full-width last card shows it. */
-  .doccard__foot .docwho__name {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip: rect(0 0 0 0); white-space: nowrap;
-  }
-  .docgrid > :last-child:nth-child(odd) .doccard__foot .docwho__name {
-    position: static; width: auto; height: auto; clip: auto;
-    font-size: .8rem; max-width: none;
-  }
-  .doccard__foot .docacts { gap: 4px; flex-shrink: 0; }
-  .doccard__foot .docact { width: 28px; height: 28px; }
+
+  .doctools .docsel { flex: 1 1 calc(50% - 5px); min-width: 0; font-size: .8rem; padding-right: 26px; }
+  .doctools .docsel--year { flex: 1 1 0; }
+}
+@media (max-width: 400px) {
+  /* The narrowest phones (360px): the tabs and their counts a little tighter,
+     so the strip still fits without scrolling. */
+  .docpanel > .uitabs--line .uitab,
+  .dvpanel > .uitabs--line .uitab,
+  .adhead .uitabs--line .uitab { padding: 10px 4px; font-size: .78rem; gap: 4px; }
+  .dvpanel > .uitabs--line .uitab__count,
+  .adhead .uitabs--line .uitab__count { min-width: 18px; height: 18px; padding: 0 5px; font-size: .68rem; }
 }
 @media (max-width: 560px) {
   .docfoot { justify-content: center; }
-  /* A phone: each dropdown a full row, none cut short — "Shared with
-     Teachers" does not fit half a phone — and the year beside the sort. */
-  .doctools .docsel { flex: 1 1 100%; }
-  .doctools .docsel--year { flex: 1 1 0; min-width: 0; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -14812,6 +14775,10 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .adpage:hover:not(:disabled) { border-color: #c7d2fe; color: var(--primary); }
 .adpage.is-on    { background: var(--primary); border-color: var(--primary); color: #fff; }
+/* The current page keeps its white figure under the pointer: the hover rule
+   above is the more specific, and painted the number indigo on indigo — the
+   "1" vanished while hovered (Nov 2026, as .docpage's). */
+.adpage.is-on:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
 .adpage:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ── The Submissions workbench ─────────────────────────────────────────────
@@ -15185,6 +15152,60 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .adcomposer__foot, .adattached { padding-left: 0; }
   .adavg__pair, .adrow--lead-mid .adavg__pair { grid-template-columns: 1fr; }
 }
+/* ── An assignment's students as cards (phones and tablets, Nov 2026) ────────
+   RosterTable draws these below 1024px instead of its table, which needed
+   some 750px and scrolled sideways. One student a card, a card a row. */
+.adrcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.adrcard {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.adrcard.is-picked { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.10); }
+.adrcard__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.adrcard__head .adlink { min-width: 0; text-align: left; }
+.adrcard__head .adpill { flex-shrink: 0; }
+.adrcard__facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 14px;
+  margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--bg);
+}
+.adrcard__facts dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
+.adrcard__facts dd { margin: 2px 0 0; font-size: .84rem; min-width: 0; overflow-wrap: anywhere; }
+.adrcard__wide { grid-column: 1 / -1; }
+.adrcard__foot { display: flex; justify-content: flex-end; }
+
+/* ── An assignment on a phone (Nov 2026) ───────────────────────────────────
+   The facts are a true two-column grid — every divider in line down the
+   card, an odd last fact across the row; they used to split each row at a
+   different place. The four header buttons share one row (the "⋯" used to
+   fall onto a line of its own). The comments' search takes its own row, the
+   filter and the order the row under it. */
+@media (max-width: 640px) {
+  .admeta__row {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: -1px 0 0 -1px;
+  }
+  .admeta__cell { padding: 11px 12px 12px; min-width: 0; }
+  /* The left column's text lines up with the title's. */
+  .admeta__cell:nth-child(odd) { padding-left: 1px; }
+  .admeta__row > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .admeta__label { white-space: normal; }
+  .admeta__value { overflow-wrap: anywhere; }
+
+  .adhero__acts { flex-wrap: nowrap; gap: 6px; }
+  .adhero__acts .btn {
+    flex: 1 1 0; min-width: 0; justify-content: center;
+    padding: 8px 4px; font-size: .8rem; gap: 5px; white-space: nowrap; overflow: hidden;
+  }
+  .adhero__acts .adact { flex: 0 0 36px; height: 36px; }
+
+  .adtools--com .adsearch { order: -1; flex: 1 1 100%; }
+  .adtools--com .adsel { flex: 1 1 0; min-width: 0; }
+}
+@media (max-width: 400px) {
+  /* The narrowest phones: the three header buttons keep their words. */
+  .adhero__acts .btn > svg { display: none; }
+}
 @media (max-width: 560px) {
   /* On a phone the scores go back to one above the other. */
   .adrow--lead > .adscores { flex-direction: column; }
@@ -15321,15 +15342,17 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   background: var(--primary); color: #fff;
   font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
 }
-.dvunread {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-size: .8rem; font-weight: 600; color: var(--text);
+/* "Mark all as read" — a button, the unread count in a circle on it. */
+.btn.dvunread {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  padding: 8px 10px 8px 12px; font-size: .82rem; font-weight: 600;
 }
-.dvunread__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
-.dvunread button {
-  padding: 0; background: none; border: none; cursor: pointer;
-  font-size: .78rem; font-weight: 600; color: var(--primary);
-  text-decoration: underline; text-underline-offset: 2px;
+.dvunread > svg { color: var(--primary); }
+.dvunread__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
+  background: var(--primary); color: #fff;
+  font-size: .72rem; font-weight: 700; font-variant-numeric: tabular-nums;
 }
 
 /* The whole left side is the "open it" target — a card you have to aim at is a
@@ -15593,6 +15616,47 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 @media (max-width: 560px) {
   .dvcard__sub { max-width: none; white-space: normal; }
   .dvcard__end { padding-left: 0; }
+}
+/* ── The shelf on a phone (Nov 2026) ───────────────────────────────────────
+   Each document its own card instead of a row under a rule, laid out the same
+   way every time: the file's mark and the title at the top (the mark used to
+   float halfway down the row), what it is and when under the title, and a
+   bottom line with where it stands on the left and its buttons on the right
+   (they used to sit alone on a line at the left edge). The filter bar: the
+   search, the category beside the sort, and "Mark all as read" across the
+   last row. */
+@media (max-width: 640px) {
+  .dvlist { gap: 10px; padding: 12px; }
+  .dvcard {
+    flex-direction: column; align-items: stretch; gap: 10px; padding: 13px;
+    border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card);
+  }
+  .dvcard + .dvcard { border-top: 1px solid var(--border); }
+  .dvcard.is-unread { border-color: #c7d2fe; }
+  .dvcard__open { flex: none; align-items: flex-start; gap: 12px; }
+  .dvcard__open > .docmark { width: 40px !important; height: 40px !important; }
+  .dvcard__main { flex: 1; }
+  .dvcard__title {
+    font-size: .9rem;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .dvcard__sub {
+    max-width: none; white-space: normal;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .dvcard__meta { gap: 6px 10px; margin-top: 8px; }
+  .dvcard__end {
+    width: 100%; margin-left: 0; padding: 10px 0 0;
+    border-top: 1px dashed var(--border); gap: 8px;
+  }
+  .dvcard__end > .dvcard__acts { margin-left: auto; }
+  /* Nothing to say and nothing to press: no empty bottom line. */
+  .dvcard__end:has(> .dvcard__acts:only-child:empty) { display: none; }
+
+  /* The spacer would take a third of the row and cut both dropdowns short. */
+  .dvtools .dvtools__sep { display: none; }
+  .dvtools .dvsel { flex: 1 1 0; min-width: 0; }
+  .dvtools .dvunread { order: 9; flex: 1 1 100%; justify-content: center; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -15952,11 +16016,15 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .fvwait { display: flex; justify-content: center; padding: 56px; }
 .fvnone {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
-  max-width: 400px; padding: 32px 22px; text-align: center;
+  max-width: min(400px, 100%); padding: 32px 22px; text-align: center;
 }
 .fvnone h4 { font-size: 1rem; font-weight: 700; }
 .fvnone p  { font-size: .84rem; line-height: 1.55; color: var(--text-muted); }
 .fvnone .btn { margin-top: 6px; max-width: 100%; }
+/* A long file name ends in "…" inside the button instead of running out of it. */
+.fvnone__dl { min-width: 0; }
+.fvnone__dl > svg { flex-shrink: 0; }
+.fvnone__dl > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 640px) {
   .fv { padding: 0; }
   .fv__box { width: 100%; height: 100%; border-radius: 0; }

@@ -27,16 +27,19 @@ import {
 import Tabs from '../../components/ui/Tabs';
 import { ListStats, ListStat } from '../admin/listParts';
 import { useFileViewer } from './FileViewer';
+import usePhone from '../../hooks/usePhone';
 
 export { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, HANDIN_TYPES };
 
 // ── Words ────────────────────────────────────────────────────────────────────
 
+// `short` is what a phone shows (Nov 2026): with their counts, the full words
+// ran the strip well past the screen's edge, to be scrolled sideways.
 export const TABS = [
   { value: 'all',         label: 'All' },
   { value: 'assignments', label: 'Assignments' },
-  { value: 'notices',     label: 'Notices & Circulars' },
-  { value: 'study',       label: 'Study Material' },
+  { value: 'notices',     label: 'Notices & Circulars', short: 'Notices' },
+  { value: 'study',       label: 'Study Material', short: 'Study' },
 ];
 
 export const SORTS = [
@@ -149,15 +152,18 @@ export const ChildSwitch = ({ children: kids, value, onChange, countFor, allCoun
   );
 };
 
-export const ViewerTabs = ({ tabs, value, onChange, counts }) => (
-  <Tabs
-    variant="line"
-    label="Document types"
-    value={value}
-    onChange={onChange}
-    items={tabs.map(t => ({ ...t, count: counts?.[t.value] }))}
-  />
-);
+export const ViewerTabs = ({ tabs, value, onChange, counts }) => {
+  const phone = usePhone();
+  return (
+    <Tabs
+      variant="line"
+      label="Document types"
+      value={value}
+      onChange={onChange}
+      items={tabs.map((t) => ({ ...t, label: phone && t.short ? t.short : t.label, count: counts?.[t.value] }))}
+    />
+  );
+};
 
 export const ViewerTools = ({ children }) => <div className="dvtools">{children}</div>;
 
@@ -843,17 +849,22 @@ export function useReadMarks(docs, { one, many }) {
   return { docs: marked, read, readAll, stillUnread };
 }
 
-/** "3 unread · Mark all as read" — only there while something is unread. */
+/**
+ * "Mark all as read", as a button with the unread count in a circle on it
+ * (Nov 2026 — it was a line of text with an underlined link at the end).
+ * Only there while something is unread.
+ */
 export const UnreadNote = ({ docs, count, onClear }) => {
   // `count` is the whole shelf's figure from the server; without it, what is loaded.
   const n = count ?? (docs || []).filter((d) => d.isRead === false).length;
   if (!n) return null;
   return (
-    <span className="dvunread">
-      <span className="dvunread__dot" aria-hidden />
-      {n} unread
-      <button type="button" onClick={onClear}>Mark all as read</button>
-    </span>
+    <button type="button" className="btn btn-secondary dvunread" onClick={onClear}
+      aria-label={`Mark all ${n} unread as read`}>
+      <Icon name="checks" size={15} />
+      Mark all as read
+      <span className="dvunread__count" aria-hidden>{n > 99 ? '99+' : n}</span>
+    </button>
   );
 };
 
@@ -1043,8 +1054,9 @@ export function DocComments({ docId, load, post, update, remove }) {
           {threads.map((c) => (
             <React.Fragment key={c._id}>
               <CommentRow c={c} onReply={c.deleted ? null : reply} onEdit={onEdit} onDelete={onDelete} />
+              {/* Two levels and no more: a reply has no Reply of its own. */}
               {(c.replies || []).map((r) => (
-                <CommentRow key={r._id} c={r} reply onReply={reply && (() => reply(c.deleted ? r : c))} onEdit={onEdit} onDelete={onDelete} />
+                <CommentRow key={r._id} c={r} reply onEdit={onEdit} onDelete={onDelete} />
               ))}
             </React.Fragment>
           ))}

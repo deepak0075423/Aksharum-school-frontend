@@ -30,7 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../../components/ui/icons';
 import { saveFile } from '../../utils/downloadFile';
 import { fetchFile } from '../../utils/fileAccess';
-import { typeOf, FileMark, fmtSize, downloadUrl } from './documentParts';
+import { typeOf, downloadUrl } from './documentParts';
 import {
   Crumbs, DetailHero, MetaStrip, DetailTabs, StatTiles, Panel, Blank, Loading,
   SubmissionDonut, ScoreHistogram, SubmissionTrend, RankRows, QuestionBars,
@@ -154,6 +154,13 @@ function DocumentDetailPage() {
   const [picked,  setPicked]  = useState(null);   // the student in the side panel
   const [saving,  setSaving]  = useState(false);
   const [confirm, setConfirm] = useState(null);   // { kind, ... }
+  // The page's clock: a reminder button held until a time (the server's
+  // `remindAgainAt`) comes back by itself when that time passes.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 20000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => { setTerm(search.trim()); setPage(1); }, 250);
@@ -234,16 +241,7 @@ function DocumentDetailPage() {
   const [draft,     setDraft]     = useState('');
   const [replyTo,   setReplyTo]   = useState(null);
   const [visibility, setVisibility] = useState('all');
-  const [attach,    setAttach]    = useState([]);
-  // A comment carries up to four files (the upload route's own limit). Picking
-  // again adds to what is there; each file can be swapped or taken off.
-  const MAX_ATTACH = 4;
-  const addAttach = (picked) => {
-    if (!picked.length) return;
-    const next = [...attach, ...picked];
-    if (next.length > MAX_ATTACH) toast.error(`A comment can carry up to ${MAX_ATTACH} files`);
-    setAttach(next.slice(0, MAX_ATTACH));
-  };
+  // Comments are words only (Nov 2026) — files go on the document itself.
   const [posting,   setPosting]   = useState(false);
 
   const loadComments = useCallback(async () => {
@@ -305,6 +303,10 @@ function DocumentDetailPage() {
         : (r.message || 'Nobody to remind'));
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      // Sent or refused, the page reads back when each button may be pressed
+      // again, and holds it until then.
+      await load(false);
     }
   };
 
@@ -447,16 +449,13 @@ function DocumentDetailPage() {
 
   const postComment = async (e) => {
     e.preventDefault();
-    if (!draft.trim() && !attach.length) return toast.error('Write something, or attach a file');
+    if (!draft.trim()) return toast.error('Write something first');
     setPosting(true);
     try {
-      const fd = new FormData();
-      fd.append('body', draft.trim());
-      fd.append('visibility', visibility);
-      if (replyTo) fd.append('parent', replyTo._id);
-      attach.forEach((f) => fd.append('files', f));
-      await api.addComment(id, fd);
-      setDraft(''); setAttach([]); setReplyTo(null);
+      await api.addComment(id, {
+        body: draft.trim(), visibility, ...(replyTo ? { parent: replyTo._id } : {}),
+      });
+      setDraft(''); setReplyTo(null);
       await loadComments();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
@@ -483,7 +482,7 @@ function DocumentDetailPage() {
     try {
       if (c.kind === 'comment') { await api.deleteComment(c.comment._id); await loadComments(); toast.success('Comment deleted'); }
       if (c.kind === 'archive') { await api.archive(id, !doc.isArchived); toast.success(doc.isArchived ? 'Restored' : 'Archived'); await load(false); }
-      if (c.kind === 'remind')  { await remind(); await load(false); }
+      if (c.kind === 'remind')  { await remind(); }
       if (c.kind === 'delete')  { await api.remove(id); toast.success('Document deleted'); navigate(home); return; }
       setConfirm(null);
     } catch (err) {
@@ -531,6 +530,13 @@ function DocumentDetailPage() {
   const view = tabs.some((t) => t.value === tab) ? tab : 'overview';
   const crumbHere = tabs.find((t) => t.value === view)?.label || 'Overview';
   const outstanding = (counts.pending || 0) + (counts.missed || 0);
+  // "Remind everyone" waits out its hour (the server's `remindAgainAt`): the
+  // button is held, and says when it last went, until it may go again.
+  const remindWait  = !!doc.remindAgainAt && new Date(doc.remindAgainAt).getTime() > now;
+  const remindLabel = remindWait ? `Reminded at ${fmtTime(doc.remindedAt)}` : 'Send Reminder';
+  const remindTitle = remindWait
+    ? `A reminder went to everyone at ${fmtTime(doc.remindedAt)} — the next can go after ${fmtTime(doc.remindAgainAt)}`
+    : undefined;
   // Replying inside a staff-only thread stays staff-only, so the choice is
   // shown made rather than offered.
   const replyStaff = replyTo?.visibility === 'staff';
@@ -570,6 +576,7 @@ function DocumentDetailPage() {
     <RosterTable
       rows={(roster?.students || []).map((s, i) => ({ ...s, index: (page - 1) * PAGE_SIZE + i }))}
       loading={busy}
+      now={now}
       outOf={doc.totalMarks}
       showFeedback={view === 'overview'}
       selected={picked?._id}
@@ -717,8 +724,9 @@ function DocumentDetailPage() {
                     <Icon name="download" size={15} /> {working === 'export' ? 'Exporting…' : 'Export'}
                   </button>
                   {doc.canManage && (
-                    <button type="button" className="btn btn-primary" onClick={() => setConfirm({ kind: 'remind' })}>
-                      <Icon name="bell" size={15} /> Send Reminder
+                    <button type="button" className="btn btn-primary" onClick={() => setConfirm({ kind: 'remind' })}
+                      disabled={remindWait} title={remindTitle}>
+                      <Icon name="bell" size={15} /> {remindLabel}
                     </button>
                   )}
                 </div>
@@ -776,8 +784,9 @@ function DocumentDetailPage() {
               {rosterTools}
               <div className="adtools__group">
                 {doc.canManage && (
-                  <button type="button" className="btn btn-secondary" onClick={() => setConfirm({ kind: 'remind' })}>
-                    <Icon name="bell" size={15} /> Send Reminder
+                  <button type="button" className="btn btn-secondary" onClick={() => setConfirm({ kind: 'remind' })}
+                    disabled={remindWait} title={remindTitle}>
+                    <Icon name="bell" size={15} /> {remindLabel}
                   </button>
                 )}
                 <button type="button" className="btn btn-secondary" onClick={exportCsv} disabled={!!working}>
@@ -799,7 +808,7 @@ function DocumentDetailPage() {
 
               {picked && (
                 <div className="adwork__side" ref={sideRef}>
-                  <SubmissionPanel student={picked} doc={doc} saving={saving}
+                  <SubmissionPanel student={picked} doc={doc} saving={saving} now={now}
                     onClose={() => setPicked(null)} onSave={doc.canManage ? saveMarks : null}
                     onRemind={doc.canManage ? (s) => remind([s._id]) : null} onView={viewer.open} />
                 </div>
@@ -889,7 +898,7 @@ function DocumentDetailPage() {
           <Panel title="Comments & Discussions"
             lead="Communicate with students and keep track of important discussions."
             right={
-              <div className="adtools">
+              <div className="adtools adtools--com">
                 <select className="form-control adsel" value={comFilter} aria-label="Filter comments"
                   onChange={(e) => setComFilter(e.target.value)}>
                   <option value="">All Comments</option>
@@ -936,40 +945,7 @@ function DocumentDetailPage() {
                     <textarea id="ad-composer" className="form-control" rows={2} value={draft} maxLength={2000}
                       placeholder="Write a comment…" onChange={(e) => setDraft(e.target.value)} />
                   </div>
-                  {/* What is attached, by name — it used to be a bare "2 file(s)",
-                      with no way to take one back out short of reloading. */}
-                  {attach.length > 0 && (
-                    <ul className="adattached">
-                      {attach.map((f, i) => (
-                        <li key={`${f.name}-${f.size}-${i}`}>
-                          <FileMark file={{ originalName: f.name, mimeType: f.type }} size={28} />
-                          <span className="adfiles__name" title={f.name}>{f.name}</span>
-                          <span className="adfiles__size">{fmtSize(f.size)}</span>
-                          <label className="adattached__btn" title={`Replace ${f.name} with another file`}>
-                            <Icon name="refresh" size={13} /> Replace
-                            <input type="file" aria-label={`Replace ${f.name}`}
-                              onChange={(e) => {
-                                const swap = e.target.files?.[0];
-                                if (swap) setAttach(attach.map((x, k) => (k === i ? swap : x)));
-                                e.target.value = '';
-                              }} />
-                          </label>
-                          <button type="button" className="adattached__btn is-danger"
-                            aria-label={`Remove ${f.name}`}
-                            onClick={() => setAttach(attach.filter((_, k) => k !== i))}>
-                            <Icon name="close" size={13} /> Remove
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
                   <div className="adcomposer__foot">
-                    <label className="adattach">
-                      <Icon name="files" size={15} /> {attach.length ? 'Attach another' : 'Attach File'}
-                      <input type="file" multiple
-                        onChange={(e) => { addAttach(Array.from(e.target.files || [])); e.target.value = ''; }} />
-                    </label>
                     <span className="adtools__sep" />
                     <select className="form-control adsel" value={replyStaff ? 'staff' : visibility}
                       aria-label="Who can see this" disabled={replyStaff}

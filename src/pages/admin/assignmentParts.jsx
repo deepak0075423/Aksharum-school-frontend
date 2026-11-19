@@ -23,7 +23,8 @@ import {
 import Icon from '../../components/ui/icons';
 import { Spinner } from '../../components/ui/index';
 import { VIZ } from '../analytics/palette';
-import { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf } from './documentParts';
+import { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, CARDS_ONLY } from './documentParts';
+import useMediaQuery from '../../hooks/useMediaQuery';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { isDocumentPath } from '../../utils/fileAccess';
@@ -448,17 +449,93 @@ export const IconAction = ({ icon, label, onClick, disabled, variant = '' }) => 
 );
 
 /**
+ * Whether one student's reminder bell can be pressed, and what it says.
+ *
+ * Held while their ten minutes run (the server's own `remindAgainAt`, Nov
+ * 2026) — it used to stay pressable and only be refused once pressed — and
+ * for anyone who has already handed the work in.
+ */
+export function bellFor(r, now = Date.now()) {
+  const waiting = r.remindAgainAt && new Date(r.remindAgainAt).getTime() > now;
+  if (waiting) {
+    return {
+      disabled: true,
+      label: `Reminded at ${fmtTime(r.remindedAt)} — another can go after ${fmtTime(r.remindAgainAt)}`,
+    };
+  }
+  if (r.state === 'submitted' || r.state === 'late') return { disabled: true, label: 'Already handed in' };
+  return { disabled: false, label: 'Send a reminder to this student' };
+}
+
+/**
  * Who has handed what back.
  *
  * `columns` trims the table for the Overview tab, which shows the feedback
  * column the Submissions tab keeps in its side panel instead. Rows carry
  * `data-focus-id` so a notification can flag the student it was about.
+ *
+ * On a phone or a tablet it is one card per student instead (Nov 2026): the
+ * table needed some 750px and scrolled sideways there. `now` is the page's
+ * clock, so a held reminder bell comes back when its time is up.
  */
 export function RosterTable({
-  rows, loading, outOf, showFeedback, selected, onSelect, onOpen, onMark, empty,
+  rows, loading, outOf, showFeedback, selected, onSelect, onOpen, onMark, empty, now = Date.now(),
 }) {
+  const cards = useMediaQuery(CARDS_ONLY);
   if (loading) return <Loading />;
   if (!rows.length) return empty || <Blank text="No students match these filters" />;
+
+  const actions = (r) => {
+    const bell = bellFor(r, now);
+    return (
+      <RowActions>
+        <IconAction icon="eye" label="Open submission" onClick={() => onOpen(r)} />
+        {/* Open for everyone on the list: work done on paper, or a
+            zero for work never done, is marked here too. */}
+        {onMark && (
+          <IconAction icon="pencil" label="Mark and give feedback" variant="edit"
+            onClick={() => onMark(r)} />
+        )}
+        {onSelect && (
+          <IconAction icon="bell" label={bell.label} onClick={() => onSelect(r)} disabled={bell.disabled} />
+        )}
+      </RowActions>
+    );
+  };
+
+  if (cards) {
+    return (
+      <ul className="adrcards">
+        {rows.map((r) => (
+          <li key={r._id} data-focus-id={r._id} className={`adrcard${selected === r._id ? ' is-picked' : ''}`}>
+            <div className="adrcard__head">
+              <button type="button" className="adlink" onClick={() => onOpen(r)}>
+                <Person name={r.name} photo={r.photo}
+                  sub={[r.sectionLabel, r.rollNumber ? `Roll ${r.rollNumber}` : ''].filter(Boolean).join(' · ')} />
+              </button>
+              <StatePill state={r.state} />
+            </div>
+            <dl className="adrcard__facts">
+              <div>
+                <dt>Submitted on</dt>
+                <dd>{r.submittedAt ? `${fmtDate(r.submittedAt)}, ${fmtTime(r.submittedAt)}` : <span className="adnone">—</span>}</dd>
+              </div>
+              {(outOf || r.marks != null) && (
+                <div>
+                  <dt>Marks</dt>
+                  <dd>{r.marks == null ? <span className="adnone">—</span> : <b>{r.marks}{outOf ? ` / ${outOf}` : ''}</b>}</dd>
+                </div>
+              )}
+              {showFeedback && r.feedback ? (
+                <div className="adrcard__wide"><dt>Feedback</dt><dd>{r.feedback}</dd></div>
+              ) : null}
+            </dl>
+            <div className="adrcard__foot">{actions(r)}</div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   return (
     <div className="table-wrap">
@@ -504,22 +581,7 @@ export function RosterTable({
                     : <span className="adnone">—</span>}
                 </td>
               )}
-              <td className="adtable__acts">
-                <RowActions>
-                  <IconAction icon="eye" label="Open submission" onClick={() => onOpen(r)} />
-                  {/* Open for everyone on the list: work done on paper, or a
-                      zero for work never done, is marked here too. */}
-                  {onMark && (
-                    <IconAction icon="pencil" label="Mark and give feedback" variant="edit"
-                      onClick={() => onMark(r)} />
-                  )}
-                  {onSelect && (
-                    <IconAction icon="bell" label="Send a reminder to this student"
-                      onClick={() => onSelect(r)}
-                      disabled={r.state === 'submitted' || r.state === 'late'} />
-                  )}
-                </RowActions>
-              </td>
+              <td className="adtable__acts">{actions(r)}</td>
             </tr>
           ))}
         </tbody>
@@ -557,7 +619,7 @@ export const Pager = ({ page, pages, onPage }) => {
  * things at once — a total, per-question scores and the feedback the student
  * reads — and half-saving any of them would be worse than not saving at all.
  */
-export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemind, onView }) {
+export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemind, onView, now = Date.now() }) {
   const [face, setFace]   = useState('work');
   const [marks, setMarks] = useState('');
   const [scores, setScores] = useState({});
@@ -706,11 +768,16 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                 <p><b>Marked {student.marks}{doc.totalMarks ? ` / ${doc.totalMarks}` : ''}</b> without a submission.</p>
               )}
               {student.feedback ? <p className="adside__quote">“{student.feedback}”</p> : null}
-              {onRemind && (
-                <button type="button" className="btn btn-secondary" onClick={() => onRemind(student)}>
-                  <Icon name="bell" size={15} /> Send a reminder
-                </button>
-              )}
+              {onRemind && (() => {
+                const bell = bellFor(student, now);
+                return (
+                  <button type="button" className="btn btn-secondary" onClick={() => onRemind(student)}
+                    disabled={bell.disabled} title={bell.label}>
+                    <Icon name="bell" size={15} />
+                    {bell.disabled && student.remindAgainAt ? `Reminded at ${fmtTime(student.remindedAt)}` : 'Send a reminder'}
+                  </button>
+                );
+              })()}
             </div>
           )
         )}
@@ -925,9 +992,14 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onVie
           <button type="button" className={`adchip${c.likedByMe ? ' is-on' : ''}`} onClick={() => onLike(c)}>
             <Icon name="heart" size={14} /> {c.likes || 0}
           </button>
-          <button type="button" className="adchip" onClick={() => onReply(c)}>
-            <Icon name="repeat" size={14} /> Reply
-          </button>
+          {/* Two levels and no more (Nov 2026): a comment and the replies
+              under it. A reply has no Reply of its own — answering one used
+              to stack reply on reply and break the thread's layout. */}
+          {!depth && onReply && (
+            <button type="button" className="adchip" onClick={() => onReply(c)}>
+              <Icon name="repeat" size={14} /> Reply
+            </button>
+          )}
           {canEdit && !editing && (
             <button type="button" className="adchip" onClick={() => { setEditing(true); setDraft(c.body); }}>
               <Icon name="pencil" size={14} /> Edit

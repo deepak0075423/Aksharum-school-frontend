@@ -98,8 +98,11 @@ export default function FileViewer({ files, index, onIndex, onClose, caption }) 
           ? 'It may have been removed, or your session may have expired. Try downloading it instead.'
           : 'Images, PDFs, text, audio and video open on this screen. Word, Excel and PowerPoint files need to be downloaded.'}
       </p>
-      <a className="btn btn-primary" href={saveUrl} target="_blank" rel="noreferrer" download={file.originalName}>
-        <Icon name="download" size={15} /> Download {file.originalName}
+      {/* The name is cut short to the button's width rather than running out
+          of it (Nov 2026) — it is in full in the header above and on hover. */}
+      <a className="btn btn-primary fvnone__dl" href={saveUrl} target="_blank" rel="noreferrer"
+        download={file.originalName} title={`Download ${file.originalName}`}>
+        <Icon name="download" size={15} /><span>Download {file.originalName}</span>
       </a>
     </div>
   );

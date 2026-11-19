@@ -30,16 +30,14 @@ import {
   Crumbs, DocHero, DocTabs, DocTools, SearchField, Picker, SortMenu,
   ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer,
   MenuItem, MenuSep,
-  TABS, sortsFor, TARGET_FILTERS, DOC_TYPES,
+  TABS, sortsFor, TARGET_FILTERS, DOC_TYPES, CARDS_ONLY,
 } from './documentParts';
 import ShareDocument from './ShareDocument';
 import { useFileViewer } from '../documents/FileViewer';
 import useMediaQuery from '../../hooks/useMediaQuery';
-
-// Phones and tablets get the cards and nothing else: the table needs more
-// room than they have and used to scroll sideways. The choice made on a wider
-// screen is kept, just not applied while the screen is this narrow.
-const CARDS_ONLY = '(max-width: 1024px)';
+// Phones and tablets get the cards and nothing else (documentParts CARDS_ONLY).
+// The choice made on a wider screen is kept, just not applied while the
+// screen is this narrow.
 
 // The axios interceptor resolves to the response body — { success, data, … } —
 // and only useFetch peels that off. These calls go straight to the api module,
@@ -229,7 +227,7 @@ export default function Documents() {
   // — but a document put away with no way back is a deleted one with extra
   // steps. The tab appears only once there is something in there.
   const tabs = useMemo(
-    () => (counts.archived > 0 ? [...TABS, { value: 'archived', label: `Archived (${counts.archived})` }] : TABS),
+    () => (counts.archived > 0 ? [...TABS, { value: 'archived', label: `Archived (${counts.archived})`, short: 'Archived' }] : TABS),
     [counts.archived],
   );
 

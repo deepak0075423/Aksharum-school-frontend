@@ -19,6 +19,7 @@ import { Empty, Spinner } from '../../components/ui/index';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { withFileToken } from '../../utils/fileAccess';
+import usePhone from '../../hooks/usePhone';
 
 // ── What a document can be ───────────────────────────────────────────────────
 
@@ -41,6 +42,13 @@ export const DOC_TYPES = [
 
 export const typeOf = (v) => DOC_TYPES.find((t) => t.value === v) || DOC_TYPES[DOC_TYPES.length - 1];
 
+/**
+ * Phones and tablets: lists in this module are cards there, never a table —
+ * a table needs more room than they have and scrolled sideways (Nov 2026).
+ * The documents list and an assignment's students both switch at this line.
+ */
+export const CARDS_ONLY = '(max-width: 1024px)';
+
 /** Who a document is shared with, and what the sharing form calls each choice. */
 export const TARGET_TYPES = [
   { value: 'whole_school',      label: 'Whole School',      icon: 'school', hint: 'Everyone in the school' },
@@ -52,12 +60,16 @@ export const TARGET_TYPES = [
 
 export const targetLabel = (v) => TARGET_TYPES.find((t) => t.value === v)?.label || v || '—';
 
-/** The tab strip. No counts in the labels — the tiles above already carry the figures. */
+/**
+ * The tab strip. No counts in the labels — the tiles above already carry the
+ * figures. `short` is what a phone shows (Nov 2026): the full words ran the
+ * strip a hundred pixels past the screen's edge, to be scrolled sideways.
+ */
 export const TABS = [
-  { value: 'all',         label: 'All Documents' },
-  { value: 'assignments', label: 'Assignments'   },
-  { value: 'notices',     label: 'Notices/Circulars' },
-  { value: 'study',       label: 'Study Material' },
+  { value: 'all',         label: 'All Documents',     short: 'All' },
+  { value: 'assignments', label: 'Assignments' },
+  { value: 'notices',     label: 'Notices/Circulars', short: 'Notices' },
+  { value: 'study',       label: 'Study Material',    short: 'Study' },
 ];
 
 export const SORTS = [
@@ -209,10 +221,14 @@ export const DocHero = ({ title, subtitle, action }) => (
 // The four figures over the shelf are the Students list's own tiles
 // (listParts ListStat, Nov 2026) — see pages/admin/Documents.jsx.
 
-/** The document kinds, as the app's one tab strip. */
-export const DocTabs = ({ tabs, value, onChange }) => (
-  <Tabs variant="line" items={tabs} value={value} onChange={onChange} label="Document types" />
-);
+/** The document kinds, as the app's one tab strip — a tab's `short` label on a phone. */
+export const DocTabs = ({ tabs, value, onChange }) => {
+  const phone = usePhone();
+  return (
+    <Tabs variant="line" value={value} onChange={onChange} label="Document types"
+      items={phone ? tabs.map((t) => (t.short ? { ...t, label: t.short } : t)) : tabs} />
+  );
+};
 
 // ── Toolbar ──────────────────────────────────────────────────────────────────
 
@@ -501,14 +517,9 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
  * The same shelf as cards — the second half of the view switch, and the only
  * view on a phone or a tablet.
  *
- * On a laptop or a tablet it is the card the page has always had, with the
- * school's category (Nov 2026) filling the fourth place beside Files. On a
- * phone (Nov 2026, the user's layout) the cards go two to a row — an odd last
- * card takes the whole row — and each one is pared to fit: the description
- * goes, the type sits under the file's mark, and the four facts become one
- * line each behind a small icon instead of a caption. The icons are in the
- * markup at every width and only shown on a phone (global.css), so the wider
- * card is exactly what it was.
+ * The card the page has always had, with the school's category (Nov 2026)
+ * filling the fourth place beside Files — one a row on a phone, as many
+ * ~272px cards across as fit everywhere else.
  */
 export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) {
   if (loading) return <div className="docloading"><Spinner /></div>;
@@ -529,18 +540,14 @@ export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) 
           </button>
           {r.description ? <p className="doccard__sub">{r.description}</p> : null}
           <dl className="doccard__meta">
-            <div className="doccard__fact doccard__fact--shared">
-              <dt>Shared with</dt><dd><SharedWith shared={r.sharedWith} /></dd>
-            </div>
-            <div className="doccard__fact">
-              <dt><Icon name="calendar" size={13} /><span>Uploaded</span></dt><dd>{fmtDate(r.createdAt)}</dd>
-            </div>
-            <div className="doccard__fact">
-              <dt><Icon name="files" size={13} /><span>Files</span></dt>
+            <div><dt>Shared with</dt><dd><SharedWith shared={r.sharedWith} /></dd></div>
+            <div><dt>Uploaded</dt><dd>{fmtDate(r.createdAt)}</dd></div>
+            <div>
+              <dt>Files</dt>
               <dd>{r.fileCount || 0}{r.fileCount ? ` · ${fmtSize(r.fileSize)}` : ''}</dd>
             </div>
-            <div className="doccard__fact">
-              <dt><Icon name="folder" size={13} /><span>Category</span></dt>
+            <div>
+              <dt>Category</dt>
               <dd title={r.category || undefined}>{r.category || <span className="docnone">—</span>}</dd>
             </div>
           </dl>
