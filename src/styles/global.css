@@ -931,6 +931,10 @@ select.form-control {
 }
 .modal-header h3 { font-size: 1.1rem; font-weight: 600; }
 .modal-body      { padding: 24px; overflow-y: auto; flex: 1; }
+/* A word with no break in it — a long title in "Delete “…”?" — breaks at the
+   edge instead of scrolling the dialog sideways. Only ever splits a word that
+   could not otherwise fit. */
+.modal-body p    { overflow-wrap: break-word; }
 .modal-footer {
   padding:         16px 24px;
   border-top:      1px solid var(--border);
@@ -2048,7 +2052,12 @@ select.form-control {
 .crumbs a > svg  { color: inherit; }
 /* A step in the middle with nowhere to go — a section that is not itself a
    page. Stated quietly, so it does not read as where you are. */
-.crumbs li span { padding: 3px 7px; color: var(--text-muted); }
+.crumbs li span {
+  padding: 3px 7px; color: var(--text-muted);
+  /* A long one — a document's own title — ends in "…" like the current
+     page's, instead of running off the screen (Nov 2026). */
+  max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 /* Where you are: stated, not offered. */
 .crumbs [aria-current="page"] {
   padding:   3px 7px;
@@ -2072,6 +2081,8 @@ select.form-control {
   /* On a phone the middle of a long trail is the first thing to give: where
      you are and the way back one step are what get used. */
   .crumbs li:not(:first-child):not(:last-child):not(:nth-last-child(2)) { display: none; }
+  /* Narrow enough that Home, a long title and the page still share a line. */
+  .crumbs li span, .crumbs [aria-current="page"] { max-width: 45vw; }
 }
 
 /* Legacy crumb classes — every call site now registers with the layout's crumb
@@ -14047,11 +14058,18 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .doctitle__text { min-width: 0; }
 .doctitle__name {
   display: block; font-weight: 600; font-size: .9rem; line-height: 1.3; color: var(--text);
+  /* A long title — or one with no spaces, like a file's name — wraps inside
+     the column instead of widening the table past the page (Nov 2026). */
+  overflow-wrap: anywhere;
 }
 .doctitle:hover .doctitle__name { color: var(--primary); }
 .doctitle__sub {
   display: block; font-size: .78rem; color: var(--text-muted); margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 290px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Cut to whatever width the title column has, never the reason it is wide:
+     `width: 0` adds nothing to the column's size, `min-width: 100%` then fills
+     it. A long description used to hold the column 290px wide. */
+  width: 0; min-width: 100%;
 }
 
 /* ── Pills ─────────────────────────────────────────────────────────────────── */
@@ -14178,7 +14196,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .doccard__sub {
   font-size: .8rem; color: var(--text-muted); line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden;
+  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
 .doccard__meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; margin-top: 2px; }
 .doccard__meta dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
@@ -14252,7 +14270,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .docdrawer__id h3 { font-size: 1.05rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .docdrawer__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
 .docdrawer__body { flex: 1; overflow-y: auto; padding: 20px 22px; }
-.docdrawer__desc { font-size: .88rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 22px; }
+.docdrawer__desc { font-size: .88rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 22px; overflow-wrap: anywhere; }
 .docdrawer__sec + .docdrawer__sec { margin-top: 24px; }
 .docdrawer__sec > h4 {
   font-size: .72rem; font-weight: 700; letter-spacing: .08em;
@@ -14421,8 +14439,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adhero__text h1 {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-.adhero__text p { color: var(--text-muted); font-size: .88rem; margin-top: 6px; line-height: 1.55; }
+.adhero__text p { color: var(--text-muted); font-size: .88rem; margin-top: 6px; line-height: 1.55; overflow-wrap: anywhere; }
 .adhero__acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 .adhero__acts .btn { padding: 8px 14px; font-size: .85rem; }
 
@@ -15365,11 +15384,13 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .dvcard__main  { min-width: 0; }
 .dvcard__title {
   display: block; font-size: .93rem; font-weight: 600; line-height: 1.35; color: var(--text);
+  overflow-wrap: anywhere;
 }
 .dvcard__open:hover .dvcard__title { color: var(--primary); }
 .dvcard__sub {
   display: block; font-size: .8rem; color: var(--text-muted); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 460px;
+  overflow-wrap: anywhere;
 }
 .dvcard__meta {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 7px;
@@ -15461,7 +15482,7 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .dvdrawer__id h3 { font-size: 1.02rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .dvdrawer__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .dvdrawer__body { flex: 1; overflow-y: auto; padding: 18px 20px; }
-.dvdrawer__desc { font-size: .87rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
+.dvdrawer__desc { font-size: .87rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; overflow-wrap: anywhere; }
 .dvdrawer__sec + .dvdrawer__sec { margin-top: 22px; }
 .dvdrawer__sec > h4 {
   font-size: .72rem; font-weight: 700; letter-spacing: .08em;
@@ -15990,7 +16011,10 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   display: block; font-size: .9rem; font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.fv__id small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
+.fv__id small {
+  display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .fv__nav { display: inline-flex; gap: 5px; padding-right: 8px; margin-right: 3px; border-right: 1px solid var(--border); }
 .fv__btn {
   width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px;
