@@ -2077,11 +2077,15 @@ select.form-control {
 
 @media (max-width: 768px) {
   .crumbs { padding: 14px 16px 0; }
-  .crumbs ol { font-size: .78rem; }
-  /* On a phone the middle of a long trail is the first thing to give: where
-     you are and the way back one step are what get used. */
-  .crumbs li:not(:first-child):not(:last-child):not(:nth-last-child(2)) { display: none; }
-  /* Narrow enough that Home, a long title and the page still share a line. */
+  .crumbs ol { font-size: .78rem; row-gap: 4px; }
+  /* The whole trail, as on a laptop (Nov 2026). Every step between Home and
+     the last two used to be dropped on a phone, so a document's page read
+     "Home › dd › Overview" with no "Documents" in it. Now it wraps onto a
+     second line when it has to, each step a little tighter. */
+  .crumbs li { gap: 0; }
+  .crumbs li > svg { width: 12px; height: 12px; }
+  .crumbs a, .crumbs li span { padding: 3px 3px; }
+  /* A long one — a document's title — is cut short rather than taking a line. */
   .crumbs li span, .crumbs [aria-current="page"] { max-width: 45vw; }
 }
 
@@ -14388,6 +14392,16 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 
   .doctools .docsel { flex: 1 1 calc(50% - 5px); min-width: 0; font-size: .8rem; padding-right: 26px; }
   .doctools .docsel--year { flex: 1 1 0; }
+
+  /* The heading on the same row as its mark (it fell under it — the text
+     wanted 320px beside a phone's 290); the line under them across the page. */
+  .dochero { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 14px; }
+  .dochero__mark { width: 46px; height: 46px; border-radius: 13px; }
+  .dochero__mark svg { width: 22px; height: 22px; }
+  .dochero__text { display: contents; }
+  .dochero__text h1 { grid-column: 2; }
+  .dochero__text p { grid-column: 1 / -1; margin-top: 0; }
+  .dochero__act { grid-column: 1 / -1; }
 }
 @media (max-width: 400px) {
   /* The narrowest phones (360px): the tabs and their counts a little tighter,
@@ -15678,6 +15692,15 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .dvtools .dvtools__sep { display: none; }
   .dvtools .dvsel { flex: 1 1 0; min-width: 0; }
   .dvtools .dvunread { order: 9; flex: 1 1 100%; justify-content: center; }
+
+  /* The heading on the same row as its mark, as on the office's page; the
+     line under them, then the year and the button, across the page. */
+  .dvhero { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 14px; }
+  .dvhero__mark { width: 46px; height: 46px; border-radius: 13px; }
+  .dvhero__text { display: contents; }
+  .dvhero__text h1 { grid-column: 2; }
+  .dvhero__text p { grid-column: 1 / -1; margin-top: 0; }
+  .dvhero__right { grid-column: 1 / -1; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

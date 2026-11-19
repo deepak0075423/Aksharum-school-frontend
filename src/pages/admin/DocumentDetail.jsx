@@ -509,16 +509,19 @@ function DocumentDetailPage() {
   const counts  = roster?.counts  || { total: 0, submitted: 0, pending: 0, missed: 0, late: 0, graded: 0 };
   const percent = roster?.percent || { submitted: 0, pending: 0, missed: 0, total: 0 };
 
+  // The thread's own figure once it has loaded; until then the count the
+  // document came with — it used to show only after the tab was opened.
+  const commentTotal = comments?.summary?.total ?? doc.commentCount;
   const tabs = isAssignment
     ? [
       { value: 'overview',    label: 'Overview' },
       { value: 'submissions', label: 'Submissions' },
       { value: 'analytics',   label: 'Analytics' },
-      { value: 'comments',    label: 'Comments', count: comments?.summary?.total },
+      { value: 'comments',    label: 'Comments', count: commentTotal },
     ]
     : [
       { value: 'overview', label: 'Overview' },
-      { value: 'comments', label: 'Comments', count: comments?.summary?.total },
+      { value: 'comments', label: 'Comments', count: commentTotal },
     ];
 
   const crumbTrail = isAssignment
