@@ -184,8 +184,11 @@ export default function ExamForm({ open, editing, meta, metaLoading, saving, onC
         </section>
 
         <section className="apxform__step">
+          {/* Required like Title and Date: an exam with no section cannot be saved. */}
           <h4>
             <span>2</span> Who sits it
+            <b className="apxform__req" aria-hidden="true">*</b>
+            <span className="sr-only">(required)</span>
             <small className="apxform__reach">
               {reach.sections
                 ? `${reach.sections} section${reach.sections === 1 ? '' : 's'} · ${reach.students} student${reach.students === 1 ? '' : 's'}`
@@ -203,7 +206,7 @@ export default function ExamForm({ open, editing, meta, metaLoading, saving, onC
                 </p>
               )
               : (
-                <div className="apxpick">
+                <div className={`apxpick${touched && !reach.sections ? ' is-invalid' : ''}`}>
                   {classes.map((c) => {
                     const open_ = c.sections.filter(allows).map((s) => String(s._id));
                     const n = open_.filter((id) => chosen.has(id)).length;

@@ -9,7 +9,7 @@
  *
  * Everything here is prefixed `apx` so nothing reaches another page.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
 import { VIZ, toneForPercent, toneColor } from '../analytics/palette';
@@ -270,8 +270,10 @@ export const ExamStat = ({ icon, tone, value, label, chip, note, onClick, on }) 
     </>
   );
   const cls = `apxstat apxstat--${tone}${on ? ' is-on' : ''}`;
+  // A tile that filters the list is a toggle (`on` given); one that only opens
+  // something (the whole list, the analytics) is a plain button.
   return onClick
-    ? <button type="button" className={cls} onClick={onClick} aria-pressed={!!on}>{body}</button>
+    ? <button type="button" className={cls} onClick={onClick} aria-pressed={on === undefined ? undefined : !!on}>{body}</button>
     : <div className={cls}>{body}</div>;
 };
 
@@ -371,7 +373,7 @@ export const RingMeter = ({ value, color, label, sub }) => {
   );
 };
 
-const clip = (t, width) => (t.length > width ? `${t.slice(0, width - 1)}…` : t);
+const clip = (t, width) => (t.length > width ? `${t.slice(0, width - 1).trimEnd()}…` : t);
 
 /**
  * A title over at most two lines of about `width` characters, split where the
@@ -421,6 +423,41 @@ function useWidth(fallback) {
 }
 
 /**
+ * Whether a box is at least `min` px wide — kept current as the sidebar opens
+ * or closes, the window is resized or a phone is turned.
+ *
+ * What decides between a table and its cards. A table here is never allowed to
+ * scroll sideways: where it cannot fit, its rows are drawn as cards instead —
+ * always on a phone, and on a tablet or a narrow laptop window too. Measured
+ * before paint, and first guessed from the window, so a phone never flashes
+ * the table up before its cards.
+ */
+export function useRoomy(min) {
+  const [el, setEl] = useState(null);
+  const [roomy, setRoomy] = useState(() => typeof window === 'undefined' || window.innerWidth > 1024);
+  useLayoutEffect(() => {
+    if (!el) return undefined;
+    const read = (w) => { if (w > 0) setRoomy(w >= min); };
+    read(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => read(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el, min]);
+  return [setEl, roomy];
+}
+
+/**
+ * A table where it fits, cards where it does not. `min` is the narrowest box
+ * the table still reads well in; `table` and `cards` are render functions, so
+ * only the one in use is built.
+ */
+export function TableOrCards({ min, table, cards }) {
+  const [ref, roomy] = useRoomy(min);
+  return <div ref={ref} className="apxtoc">{roomy ? table() : cards()}</div>;
+}
+
+/**
  * Single-series columns growing from one baseline — the insights panel's
  * recent averages, a teacher's score bands, a parent's trend. Values sit on
  * the caps in ink; the bar carries the colour. `max` fixes the scale (a
@@ -436,8 +473,32 @@ export function ColumnChart({ items, max = 100, ticks = [0, 25, 50, 75, 100], ar
   const left = 30, right = 6, top = 18, bottom = 34;
   const plotW = W - left - right, plotH = H - top - bottom;
   const band = plotW / items.length;
+
+  // Too narrow a column for its label to sit under it (ten score bands on a
+  // phone ran "10–1920–29…" together): the same figures as labelled rows.
+  if (band < 40) {
+    return (
+      <div ref={ref} className="apxchart__box">
+        <ul className="apxhbars" aria-label={ariaLabel}>
+          {items.map((it) => (
+            <li key={it.key} title={it.title}>
+              <span className="apxhbars__lab">{it.label}</span>
+              <span className="apxhbars__track">
+                <span style={{ width: `${Math.max(0, Math.min(100, (it.value / (max || 1)) * 100))}%`, background: VIZ.accent }} />
+              </span>
+              <span className="apxhbars__val">{format(it.value)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   const barW = Math.min(24, band * 0.5);
   const y = (v) => top + plotH - (Math.max(0, Math.min(max, v)) / (max || 1)) * plotH;
+  // Characters a label may take under its column at 9.5px — measured, not
+  // guessed generously: at 6.2px a character, neighbouring titles touched.
+  const chars = Math.max(5, Math.floor((band - 4) / 5.8));
 
   return (
     <div ref={ref} className="apxchart__box">
@@ -458,7 +519,7 @@ export function ColumnChart({ items, max = 100, ticks = [0, 25, 50, 75, 100], ar
         const d = h <= 0
           ? ''
           : `M${x0},${top + plotH} V${top0 + rr} Q${x0},${top0} ${x0 + rr},${top0} H${x0 + barW - rr} Q${x0 + barW},${top0} ${x0 + barW},${top0 + rr} V${top + plotH} Z`;
-        const [l1, l2] = twoLines(it.label, Math.max(10, Math.floor(band / 6.2)));
+        const [l1, l2] = twoLines(it.label, chars);
         return (
           <g key={it.key} className="apxchart__bar">
             <title>{it.title}</title>
@@ -622,40 +683,74 @@ export const RowButtons = ({ row, onView, onEdit, onDuplicate, menu, canEdit = (
 
 // ── The list ─────────────────────────────────────────────────────────────────
 
-const COLUMNS = ['Exam', 'Subject', 'Classes', 'Scheduled', 'Duration', 'Participants', 'Status', 'Results', 'Actions'];
+/**
+ * Every exam as a table — nine columns where there is room for them.
+ *
+ * It never scrolls sideways. As its card narrows, the columns that can live
+ * inside a neighbour move there (global.css, `@container apxlist`): Duration
+ * under the start time, Subject under the title, then Results under the
+ * status pill and Participants under the classes. Nothing is lost, and the eye
+ * opens the whole record. Narrower still, the page shows the cards instead
+ * (useRoomy, EXAM_TABLE_MIN).
+ */
+export const EXAM_TABLE_MIN = 860;
 
 export function ExamTable({ rows, loading, empty, onView, onEdit, onDuplicate, menu, tag, canEdit }) {
   if (loading) return <div className="apxloading"><Spinner /></div>;
   if (!rows.length) return empty;
   return (
-    <div className="table-wrap">
+    <div className="table-wrap apxlist">
       <table className="table apxtable">
         <thead>
-          <tr>{COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr>
+          <tr>
+            <th className="apxc-exam">Exam</th>
+            <th className="apxc-subject">Subject</th>
+            <th className="apxc-classes">Classes</th>
+            <th className="apxc-when">Scheduled</th>
+            <th className="apxc-dur">Duration</th>
+            <th className="apxc-part">Participants</th>
+            <th className="apxc-stage">Status</th>
+            <th className="apxc-res">Results</th>
+            <th className="apxc-acts">Actions</th>
+          </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r._id} data-focus-id={r._id}>
-              <td>
+              <td className="apxc-exam">
                 <button type="button" className="apxtitle" onClick={() => onView(r)}>
                   <ExamMark exam={r} size={34} />
-                  <span>
-                    {r.title}
-                    {tag?.(r) && <small className="apxtag">{tag(r)}</small>}
+                  <span className="apxtitle__text">
+                    <span>
+                      {r.title}
+                      {tag?.(r) && <small className="apxtag">{tag(r)}</small>}
+                    </span>
+                    <small className="apxfold apxfold--subject">{r.subjectName || 'General Aptitude'}</small>
                   </span>
                 </button>
               </td>
-              <td className="apxmuted">{r.subjectName || 'General Aptitude'}</td>
-              <td><Audience exam={r} /></td>
-              <td className="apxwhen">
-                <span>{fmtExamDay(r)}</span>
-                <small>{fmtClock(r.startTime)}</small>
+              <td className="apxc-subject apxmuted">{r.subjectName || 'General Aptitude'}</td>
+              <td className="apxc-classes">
+                <Audience exam={r} />
+                {/* Folded under the classes it needs its unit — a bare "112" said nothing. */}
+                <span className="apxfold apxfold--part">
+                  {['live', 'completed'].includes(r.stage) ? `${r.submitted} / ${r.eligible} submitted` : plural(r.eligible, 'student')}
+                </span>
               </td>
-              <td className="apxnowrap">{r.duration} min</td>
-              <td><Participants exam={r} /></td>
-              <td><StagePill stage={r.stage} /></td>
-              <td><ResultsCell exam={r} /></td>
-              <td><RowButtons row={r} onView={onView} onEdit={onEdit} onDuplicate={onDuplicate} menu={menu} canEdit={canEdit} /></td>
+              <td className="apxc-when apxwhen">
+                <span>{fmtExamDay(r)}</span>
+                <small>{fmtClock(r.startTime)}<span className="apxfold apxfold--dur"> · {r.duration} min</span></small>
+              </td>
+              <td className="apxc-dur apxnowrap">{r.duration} min</td>
+              <td className="apxc-part"><Participants exam={r} /></td>
+              <td className="apxc-stage">
+                <StagePill stage={r.stage} />
+                {r.results?.state && r.results.state !== 'none' && (
+                  <span className="apxfold apxfold--res"><ResultsCell exam={r} /></span>
+                )}
+              </td>
+              <td className="apxc-res"><ResultsCell exam={r} /></td>
+              <td className="apxc-acts"><RowButtons row={r} onView={onView} onEdit={onEdit} onDuplicate={onDuplicate} menu={menu} canEdit={canEdit} /></td>
             </tr>
           ))}
         </tbody>
@@ -664,6 +759,19 @@ export function ExamTable({ rows, loading, empty, onView, onEdit, onDuplicate, m
   );
 }
 
+/** One fact on an exam card: its caption over its value. */
+export const CardFact = ({ label, children, title }) => (
+  <div className="apxcard__fact">
+    <dt>{label}</dt>
+    <dd title={title}>{children}</dd>
+  </div>
+);
+
+/**
+ * The same exams as cards — the second half of the view switch, and the only
+ * view where the table cannot fit (a phone, a tablet). On a phone they are one
+ * to a row, at the phone's full width.
+ */
 export function ExamGrid({ rows, loading, empty, onView, onEdit, onDuplicate, menu, canEdit }) {
   if (loading) return <div className="apxloading"><Spinner /></div>;
   if (!rows.length) return empty;
@@ -678,12 +786,14 @@ export function ExamGrid({ rows, loading, empty, onView, onEdit, onDuplicate, me
           <button type="button" className="apxcard__title" onClick={() => onView(r)}>{r.title}</button>
           <p className="apxcard__sub">{r.subjectName || 'General Aptitude'}</p>
           <dl className="apxcard__meta">
-            <div><dt>Classes</dt><dd><Audience exam={r} chip /></dd></div>
-            <div><dt>Scheduled</dt><dd className="apxwhen"><span>{fmtExamDay(r)}</span><small>{fmtClock(r.startTime)}</small></dd></div>
-            <div><dt>Duration</dt><dd>{r.duration} min</dd></div>
-            <div><dt>Participants</dt><dd><Participants exam={r} /></dd></div>
-            <div><dt>Questions</dt><dd>{r.questionCount} / {r.totalQuestions}</dd></div>
-            <div><dt>Results</dt><dd><ResultsCell exam={r} /></dd></div>
+            <CardFact label="Classes" title={r.audience?.items?.join(', ')}><Audience exam={r} chip /></CardFact>
+            <CardFact label="Scheduled">
+              <span className="apxwhen"><span>{fmtExamDay(r)}</span><small>{fmtClock(r.startTime)}</small></span>
+            </CardFact>
+            <CardFact label="Duration">{r.duration} min</CardFact>
+            <CardFact label="Participants"><Participants exam={r} /></CardFact>
+            <CardFact label="Questions">{r.questionCount} / {r.totalQuestions}</CardFact>
+            <CardFact label="Results"><ResultsCell exam={r} /></CardFact>
           </dl>
           <footer className="apxcard__foot">
             <RowButtons row={r} onView={onView} onEdit={onEdit} onDuplicate={onDuplicate} menu={menu} canEdit={canEdit} />
@@ -693,6 +803,38 @@ export function ExamGrid({ rows, loading, empty, onView, onEdit, onDuplicate, me
     </div>
   );
 }
+
+// ── Analytics rows as cards ─────────────────────────────────────────────────
+
+/**
+ * One row of an analytics table drawn as a card — what the subject-wise,
+ * class-wise, exam-wise, section-wise, question and student tables become
+ * where they cannot fit. `facts` are `{ label, value, wide }`; a wide fact
+ * (a bar, a long title) takes the whole width of the card.
+ */
+export function StatCard({ lead, badge, title, sub, facts = [], foot, onOpen, className = '' }) {
+  return (
+    <article className={`apxsc${className ? ` ${className}` : ''}`}>
+      {(lead || badge) && <header className="apxsc__head">{lead}<span className="apxsc__badge">{badge}</span></header>}
+      {title && (onOpen
+        ? <button type="button" className="apxsc__title" onClick={onOpen}>{title}</button>
+        : <strong className="apxsc__title">{title}</strong>)}
+      {sub && <small className="apxsc__sub">{sub}</small>}
+      <dl className="apxsc__facts">
+        {facts.filter(Boolean).map((f) => (
+          <div key={f.label} className={f.wide ? 'is-wide' : undefined}>
+            <dt>{f.label}</dt>
+            <dd>{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {foot && <footer className="apxsc__foot">{foot}</footer>}
+    </article>
+  );
+}
+
+/** Cards in a grid — as many across as fit, one to a row on a phone. */
+export const CardGrid = ({ children }) => <div className="apxscgrid">{children}</div>;
 
 /** "Showing 1 to 5 of 12 exams", and the pager — the sentence stays even on one page. */
 export const ExamFoot = ({ page, pages, total, limit, count, onPage }) => {

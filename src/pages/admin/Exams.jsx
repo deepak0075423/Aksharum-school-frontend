@@ -29,6 +29,7 @@ import { SearchField, Picker, MenuItem, MenuSep } from './documentParts';
 import {
   ExamHero, ExamStats, ExamStat, Panel, UpcomingList, InsightsPanel, DateRange, ViewSwitch,
   ExamTable, ExamGrid, ExamFoot, ExamEmpty, ExamDrawer, STAGE_FILTERS, fmtShortDate,
+  useRoomy, EXAM_TABLE_MIN,
 } from './examParts';
 import ExamForm from './ExamForm';
 import ImportQuestions from './ImportQuestions';
@@ -54,6 +55,9 @@ export default function AdminExams() {
 
 function ExamsHome() {
   const navigate = useNavigate();
+  // The table only where it fits; a phone, a tablet or a narrow window gets
+  // the cards and no List/Card switch.
+  const [listBox, roomy] = useRoomy(EXAM_TABLE_MIN);
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [search, setSearch]   = useState('');
@@ -371,7 +375,7 @@ function ExamsHome() {
   const Tile = overLoading && !over ? () => <div className="apxstat apxstat--skeleton" /> : ExamStat;
 
   const empty = <ExamEmpty filtered={filtered} onClear={clearFilters} onCreate={openCreate} />;
-  const List = view === 'grid' ? ExamGrid : ExamTable;
+  const List = !roomy || view === 'grid' ? ExamGrid : ExamTable;
   const c = confirm && CONFIRMS[confirm.kind];
 
   return (
@@ -391,8 +395,10 @@ function ExamsHome() {
       } />
 
       <ExamStats>
+        {/* Every tile opens what it counts: Total Exams the whole list, Average Score the analytics. */}
         <Tile icon="fileDoc" tone="indigo" label="Total Exams" value={t.total?.value}
-          chip={delta(t.total?.change)} note={over?.comparedWith ? since : yearNote} />
+          chip={delta(t.total?.change)} note={over?.comparedWith ? since : yearNote}
+          onClick={() => showList('')} />
         <Tile icon="pencil" tone="amber" label="Drafts" value={t.drafts?.value}
           chip={t.drafts?.needQuestions
             ? { text: `${t.drafts.needQuestions} need questions`, tone: 'warn' }
@@ -412,7 +418,8 @@ function ExamsHome() {
         <Tile icon="trophy" tone="violet" label="Average Score"
           value={t.average?.value == null ? '—' : `${t.average.value}%`}
           chip={t.average?.change != null ? delta(t.average.change, ' pts') : { text: `${t.average?.attempts || 0} attempts`, tone: 'flat' }}
-          note={t.average?.change != null ? since : yearNote} />
+          note={t.average?.change != null ? since : yearNote}
+          onClick={() => navigate('/admin/exams/analytics')} />
       </ExamStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -432,22 +439,26 @@ function ExamsHome() {
         <InsightsPanel data={insights} loading={insLoading} period={period} onPeriod={setPeriod} />
       </div>
 
+      {/* The List/Card switch sits beside the title; the filters take their own
+          row under it, from the card's left edge to its right — beside the
+          title they wrapped and hung off the right-hand side. Duplicate lives
+          in the ⋯ menu only, not as a fourth button on every row. */}
       <Panel id="apx-all" icon="fileDoc" title="All Exams"
         subtitle={`${year === 'all' ? 'Every academic year' : `${(over?.options?.academicYears || []).find((y) => (year ? y._id === year : y.current))?.name || 'This academic year'}`} · manage, edit and track aptitude exams`}
         className="apxall"
-        action={
-          <div className="apxtools">
-            <SearchField value={search} onChange={setSearch} placeholder="Search exams…" />
-            <Picker value={stage} onChange={go(setStage)} all="All statuses" options={STAGE_FILTERS} label="Filter by status" />
-            <Picker value={subject} onChange={go(setSubject)} all="All subjects" options={over?.options?.subjects || []} label="Filter by subject" />
-            <Picker value={klass} onChange={go(setKlass)} all="All classes" options={over?.options?.classes || []} label="Filter by class" />
-            <YearPicker years={over?.options?.academicYears} value={year} onChange={go(setYear)} />
-            <DateRange from={range.from} to={range.to} onChange={go(setRange)} />
-            <ViewSwitch value={view} onChange={setView} />
-          </div>
-        }>
-        <List rows={rows} loading={loading} empty={empty}
-          onView={setViewing} onEdit={openEdit} onDuplicate={duplicate} menu={rowMenu} />
+        action={roomy ? <ViewSwitch value={view} onChange={setView} /> : null}>
+        <div className="apxtools apxtools--bar apxtools--many">
+          <SearchField value={search} onChange={setSearch} placeholder="Search exams…" />
+          <Picker value={stage} onChange={go(setStage)} all="All statuses" options={STAGE_FILTERS} label="Filter by status" />
+          <Picker value={subject} onChange={go(setSubject)} all="All subjects" options={over?.options?.subjects || []} label="Filter by subject" />
+          <Picker value={klass} onChange={go(setKlass)} all="All classes" options={over?.options?.classes || []} label="Filter by class" />
+          <YearPicker years={over?.options?.academicYears} value={year} onChange={go(setYear)} />
+          <DateRange from={range.from} to={range.to} onChange={go(setRange)} />
+        </div>
+        <div ref={listBox} className="apxtoc">
+          <List rows={rows} loading={loading} empty={empty}
+            onView={setViewing} onEdit={openEdit} menu={rowMenu} />
+        </div>
         <ExamFoot page={page} pages={listMeta.pages} total={listMeta.total} limit={PAGE_SIZE}
           count={rows.length} onPage={setPage} />
       </Panel>

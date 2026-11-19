@@ -219,7 +219,10 @@ const TYPES = [
 function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave }) {
   const [f, setF] = useState(blank());
   const [tried, setTried] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // Which button is saving — 'again' (Save & add another) or 'once' (Add
+  // question / Save changes). Only that one spins; the other just waits.
+  // One shared flag made both spin, as if both had been pressed.
+  const [saving, setSaving] = useState(null);
 
   const left = Math.round(((exam?.totalMarks || 0) - otherMarks) * 100) / 100;
 
@@ -278,14 +281,14 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
 
   const save = async (again) => {
     setTried(true);
-    if (problems.length) return;
-    setSaving(true);
+    if (problems.length || saving) return;
+    setSaving(again ? 'again' : 'once');
     const ok = await onSave({
       questionText: f.questionText.trim(), questionType: f.questionType,
       options: f.questionType === 'true_false' ? TF : f.options.map((o) => ({ optionId: o.optionId, text: o.text.trim() })),
       correctAnswers: f.correctAnswers, marks: Number(f.marks),
     }, again);
-    setSaving(false);
+    setSaving(null);
     if (ok && again) setTried(false);
   };
 
@@ -304,8 +307,14 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
         <>
           {tried && problems.length > 0 && <span className="apxdlg__err">{problems[0]}</span>}
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          {!editing && room > 1 && <Button variant="secondary" onClick={() => save(true)} loading={saving}>Save &amp; add another</Button>}
-          <Button onClick={() => save(false)} loading={saving}>{editing ? 'Save changes' : 'Add question'}</Button>
+          {!editing && room > 1 && (
+            <Button variant="secondary" onClick={() => save(true)} loading={saving === 'again'} disabled={!!saving}>
+              Save &amp; add another
+            </Button>
+          )}
+          <Button onClick={() => save(false)} loading={saving === 'once'} disabled={!!saving}>
+            {editing ? 'Save changes' : 'Add question'}
+          </Button>
         </>
       }>
       <div className="apxform">

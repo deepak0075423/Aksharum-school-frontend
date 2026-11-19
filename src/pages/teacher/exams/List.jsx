@@ -19,7 +19,7 @@ import Icon from '../../../components/ui/icons';
 import { SearchField, MenuItem, MenuSep } from '../../admin/documentParts';
 import {
   ExamHero, ExamStats, ExamStat, Panel, ExamTable, ExamGrid, ViewSwitch, ExamMark, StagePill,
-  fmtExamDay, fmtClock, fmtShortDate,
+  fmtExamDay, fmtClock, fmtShortDate, useRoomy, EXAM_TABLE_MIN,
 } from '../../admin/examParts';
 import ExamForm from '../../admin/ExamForm';
 import ImportQuestions from '../../admin/ImportQuestions';
@@ -50,6 +50,8 @@ export default function TeacherExamsList() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState('list');
   const [year, setYear] = useState('');   // '' = the current academic year
+  // The table only where it fits; elsewhere the cards, and no switch.
+  const [listBox, roomy] = useRoomy(EXAM_TABLE_MIN);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -77,6 +79,15 @@ export default function TeacherExamsList() {
   }, [exams, filter, search]);
 
   const count = (k) => exams.filter(FILTERS[k]).length;
+
+  // A tile shows its exams in the list below and takes the reader there;
+  // My Exams clears the filter and the search (every exam this teacher sees).
+  const showList = (value) => {
+    if (value === 'all') setSearch('');
+    setFilter(value);
+    document.getElementById('apx-all')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const toggleList = (value) => showList(filter === value ? 'all' : value);
 
   // ── Needs your attention ───────────────────────────────────────────────────
   const attention = useMemo(() => {
@@ -167,7 +178,7 @@ export default function TeacherExamsList() {
   );
 
   const filtered = !!search || filter !== 'all';
-  const List = view === 'grid' ? ExamGrid : ExamTable;
+  const List = !roomy || view === 'grid' ? ExamGrid : ExamTable;
   const empty = (
     <Empty icon={filtered ? '🔍' : '📝'}
       title={filtered ? 'No exams match' : year === 'all' ? 'No aptitude exams yet' : 'No exams in this academic year'}
@@ -197,18 +208,20 @@ export default function TeacherExamsList() {
 
       <ExamStats>
         <ExamStat icon="fileDoc" tone="indigo" label="My Exams" value={board ? t.total : null}
-          chip={{ text: `${t.authored || 0} written by you`, tone: 'flat' }} />
+          chip={{ text: `${t.authored || 0} written by you`, tone: 'flat' }}
+          onClick={() => showList('all')} />
         <ExamStat icon="pencil" tone="amber" label="Drafts" value={board ? t.drafts : null}
           chip={t.notReady ? { text: `${t.notReady} not ready`, tone: 'warn' } : { text: t.drafts ? 'all ready' : '—', tone: t.drafts ? 'up' : 'flat' }}
-          on={filter === 'draft'} onClick={() => setFilter(filter === 'draft' ? 'all' : 'draft')} />
+          on={filter === 'draft'} onClick={() => toggleList('draft')} />
         <ExamStat icon="calendar" tone="blue" label="Scheduled" value={board ? t.scheduled : null}
           chip={t.live ? { text: `${t.live} live now`, tone: 'up' } : next ? { text: `next ${fmtShortDate(next.startsAt)}`, tone: 'flat' } : { text: '—', tone: 'flat' }}
-          on={filter === 'upcoming'} onClick={() => setFilter(filter === 'upcoming' ? 'all' : 'upcoming')} />
+          on={filter === 'upcoming'} onClick={() => toggleList('upcoming')} />
         <ExamStat icon="checkCircle" tone="green" label="Awaiting You" value={board ? t.tasks : null}
           chip={t.tasks ? { text: 'results to approve', tone: 'warn' } : { text: 'nothing pending', tone: 'flat' }}
-          on={filter === 'completed'} onClick={() => setFilter(filter === 'completed' ? 'all' : 'completed')} />
+          on={filter === 'completed'} onClick={() => toggleList('completed')} />
         <ExamStat icon="trophy" tone="violet" label="Average Score" value={t.average == null ? '—' : `${t.average}%`}
-          chip={{ text: 'closed exams', tone: 'flat' }} />
+          chip={{ text: 'closed exams', tone: 'flat' }}
+          onClick={() => navigate('/teacher/exams/analytics')} />
       </ExamStats>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -233,15 +246,15 @@ export default function TeacherExamsList() {
         </Panel>
       )}
 
-      <Panel icon="fileDoc" title="My Exams" className="apxall"
+      {/* Same frame as the admin's All Exams: the switch beside the title, the
+          search and year on their own full-width row under it. */}
+      <Panel id="apx-all" icon="fileDoc" title="My Exams" className="apxall"
         subtitle={`${year === 'all' ? 'Every academic year' : (board?.academicYears || []).find((y) => (year ? y._id === year : y.current))?.name || 'This academic year'} · exams you wrote, and exams for the sections you class-teach`}
-        action={
-          <div className="apxtools">
-            <SearchField value={search} onChange={setSearch} placeholder="Search exams…" />
-            <YearPicker years={board?.academicYears} value={year} onChange={setYear} />
-            <ViewSwitch value={view} onChange={setView} />
-          </div>
-        }>
+        action={roomy ? <ViewSwitch value={view} onChange={setView} /> : null}>
+        <div className="apxtools apxtools--bar">
+          <SearchField value={search} onChange={setSearch} placeholder="Search exams…" />
+          <YearPicker years={board?.academicYears} value={year} onChange={setYear} />
+        </div>
         <div className="apxsubbar">
           <Pills label="Filter exams" value={filter} onChange={setFilter} items={[
             { value: 'all', label: 'All', count: exams.length },
@@ -251,9 +264,11 @@ export default function TeacherExamsList() {
             ...(count('cancelled') ? [{ value: 'cancelled', label: 'Cancelled', count: count('cancelled') }] : []),
           ]} />
         </div>
-        <List rows={shown} loading={!board} empty={empty}
-          onView={(e) => open(e)} onEdit={openEdit} menu={menu}
-          canEdit={(e) => e.isAuthor} tag={(e) => (e.isAuthor ? null : 'Your class')} />
+        <div ref={listBox} className="apxtoc">
+          <List rows={shown} loading={!board} empty={empty}
+            onView={(e) => open(e)} onEdit={openEdit} menu={menu}
+            canEdit={(e) => e.isAuthor} tag={(e) => (e.isAuthor ? null : 'Your class')} />
+        </div>
         {board && (
           <div className="apxfoot">
             <span>Showing {plural(shown.length, 'exam')}{shown.length !== exams.length ? ` of ${exams.length}` : ''}</span>

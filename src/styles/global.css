@@ -14218,6 +14218,10 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .docpage:hover:not(:disabled) { border-color: #c7d2fe; color: var(--primary); }
 .docpage.is-on   { background: var(--primary); border-color: var(--primary); color: #fff; }
+/* The current page keeps its white figure under the pointer. The hover rule
+   above is the more specific of the two, and painted the number indigo on the
+   indigo button — the "1" vanished while hovered. */
+.docpage.is-on:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
 .docpage:disabled { opacity: .4; cursor: not-allowed; }
 .docpager__gap   { color: var(--text-light); padding: 0 2px; }
 
@@ -17840,7 +17844,9 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   font-weight: 600; color: var(--text); font-size: .88rem; min-width: 190px;
 }
 .apxtitle:hover { color: var(--primary); }
-.apxwhen span, .apxwhen small { display: block; white-space: nowrap; line-height: 1.35; }
+/* Its own two lines only — a span folded inside the time (the duration, on a
+   narrow table) must stay inline. */
+.apxwhen > span, .apxwhen > small { display: block; white-space: nowrap; line-height: 1.35; }
 .apxwhen small { color: var(--text-muted); font-size: .78rem; }
 .apxpart { display: inline-flex; align-items: center; gap: 6px; }
 .apxpart__n { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -17875,9 +17881,17 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .apxcard__title { text-align: left; font-weight: 700; font-size: .98rem; color: var(--text); line-height: 1.3; }
 .apxcard__title:hover { color: var(--primary); }
 .apxcard__sub { font-size: .8rem; color: var(--text-muted); }
-.apxcard__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 8px 0 4px; }
+/* minmax(0, 1fr), not 1fr: a plain 1fr track cannot shrink below its content,
+   so a long class list ("Seven, 8, 9, 10, Class 4, …") widened the first
+   column and pushed Scheduled, Participants and Results out of the card. */
+.apxcard__meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin: 8px 0 4px; }
+.apxcard__fact { min-width: 0; }
 .apxcard__meta dt { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-light); font-weight: 600; }
 .apxcard__meta dd { font-size: .84rem; margin-top: 2px; min-width: 0; }
+/* The full section list is in the chip's tooltip and in the drawer (the eye). */
+.apxcard__meta .apxchip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+.apxcard .apxpct { display: flex; width: 100%; }
+.apxcard .apxpct__track { flex: 1 1 auto; width: auto; min-width: 28px; }
 .apxcard__foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
 
 .apxfoot {
@@ -17912,6 +17926,9 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   background: #eef2ff; color: var(--primary); font-size: .74rem;
 }
 .apxform__reach { margin-left: auto; font-size: .78rem; font-weight: 500; color: var(--text-muted); }
+/* The required star on a step heading, set as close as a label's ' *'. */
+.apxform__req { color: var(--danger); font-weight: 700; margin-left: -6px; }
+.apxpick.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,.1); }
 .apxform__hint { font-size: .78rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
 .apxform__lead { font-size: .88rem; color: var(--text-muted); line-height: 1.55; }
 
@@ -17979,7 +17996,7 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .apxpick__class { flex-basis: auto; }
 }
 @media (max-width: 560px) {
-  .apxstats { grid-template-columns: 1fr; }
+  /* The figures stay two to a row on a phone — see "no sideways scrolling" below. */
   .apxhero__acts { width: 100%; }
   .apxhero__btn { flex: 1; justify-content: center; }
   .apxrings { grid-template-columns: 1fr; }
@@ -18631,8 +18648,202 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .apxrep__grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
-  .apxopts li { flex-wrap: wrap; }
-  .apxopts__bar { flex-basis: 120px; }
+  /* Narrow (a phone's Choices dialog): the option on one line, its bar and
+     count under the text — not a bar and a floating count on a loose line. */
+  .apxopts li {
+    display: grid; grid-template-columns: 26px minmax(0, 1fr) auto;
+    grid-template-areas: "letter text text" ". bar count"; column-gap: 10px; row-gap: 6px;
+  }
+  .apxopts li > .apxqr__letter { grid-area: letter; }
+  .apxopts__label { grid-area: text; }
+  .apxopts__bar { grid-area: bar; align-self: center; }
+  .apxopts__n { grid-area: count; flex: none; min-width: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   APTITUDE EXAMS — no sideways scrolling, and a phone layout (Nov 2026)
+   ───────────────────────────────────────────────────────────────────────────
+   The user's rules for the module:
+   • No table scrolls sideways on a laptop. What does not fit folds into a
+     neighbouring column, and the eye opens the whole record.
+   • Where a table cannot fit at all — always on a phone — its rows are cards,
+     with no List / Card switch (useRoomy / TableOrCards in examParts.jsx).
+     On a phone those cards are one to a row, the laptop card at full width.
+   • On a phone the summary tiles at the top go two to a row: 2 side by side,
+     3 as two and one, 4 as two and two, 5 as two, two and one — an odd last
+     one taking the whole row. The user's "the card(s)" there means the tiles;
+     this is the shared "Summary tiles on a phone" rule (.lstats, .antiles,
+     .fbstats), applied to .apxstats.
+   • A panel's filters sit on their own full-width row under its title.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.apxtoc { min-width: 0; }
+
+/* ── Filters: their own row, edge to edge ───────────────────────────────── */
+/* Beside the title they wrapped onto a line of their own and hung off its
+   right-hand end. Here the search takes whatever the dropdowns leave, so the
+   row starts at the card's left edge and ends at its right. */
+.apxtools.apxtools--bar { container: apxbar / inline-size; justify-content: flex-start; padding: 0 20px 16px; }
+.apxtools--bar .docsearch { flex: 1 1 220px; max-width: none; min-width: 180px; }
+.apxtools--bar .apxtools__btn { flex-shrink: 0; height: 40px; }
+/* Too narrow for one line: the search takes a line of its own and the rest
+   share the next one evenly — no ragged end, nothing pushed to the right. */
+@container apxbar (max-width: 960px) {
+  .apxtools--many > * { flex: 1 1 150px; min-width: 0; }
+  .apxtools--many > .docsearch { flex-basis: 100%; }
+  .apxtools--many .docsel, .apxtools--many .docsel.apxyear { width: auto; max-width: none; min-width: 0; }
+  .apxtools--many .apxrange__btn { width: 100%; min-width: 0; }
+}
+/* A phone: the search across, then two to a line. */
+@container apxbar (max-width: 560px) {
+  .apxtools--bar > * { flex: 1 1 140px; min-width: 0; }
+  .apxtools--bar > .docsearch { flex-basis: 100%; }
+  .apxtools--bar .docsel, .apxtools--bar .docsel.apxyear { width: auto; max-width: none; min-width: 0; }
+  .apxtools--bar .apxrange__btn { width: 100%; min-width: 0; }
+  .apxtools--bar .apxtools__btn { justify-content: center; }
+}
+
+/* ── The exam table folds instead of scrolling ──────────────────────────── */
+.apxlist { container: apxlist / inline-size; }
+.apxlist .apxfold { display: none; }
+.apxlist .apxtable th { padding-left: 11px; padding-right: 11px; }
+.apxlist .apxtable td { padding-left: 11px; padding-right: 11px; }
+.apxlist .apxtable th:first-child, .apxlist .apxtable td:first-child { padding-left: 20px; }
+.apxlist .apxtable th:last-child,  .apxlist .apxtable td:last-child  { padding-right: 20px; }
+.apxlist .apxtitle { min-width: 168px; }
+.apxtitle__text { display: flex; flex-direction: column; min-width: 0; }
+.apxtitle__text > small { font-size: .76rem; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
+/* Classes wrap to two lines rather than run on: "Seven, 8, 9, 10, Class 4,
+   Class 5, 6, 11" on one line was 265px of a 1160px row. All of it is in the
+   tooltip and the drawer. */
+.apxtable .apxaud {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; white-space: normal; min-width: 64px; max-width: 170px; line-height: 1.4;
+}
+.apxlist .apxfold--res .apxres { flex-direction: row; align-items: baseline; gap: 5px; margin-top: 5px; }
+.apxlist .apxfold--part { margin-top: 3px; font-size: .76rem; color: var(--text-muted); }
+.apxlist .apxfold--part .apxpart small { display: inline; margin-left: 3px; font-size: inherit; }
+.apxlist .apxfold--hl { margin-top: 3px; white-space: nowrap; }
+
+/* Each step folds one more column into a neighbour — never a sideways scroll.
+   Exams: Duration → under the start time; Subject → under the title; Results →
+   under the status; Participants → under the classes. Exam-wise results:
+   High / Low → under the average. Below the last step the page shows cards. */
+@container apxlist (max-width: 1239px) {
+  .apxlist .apxc-dur { display: none; }
+  .apxlist .apxfold--dur { display: inline; }
+  .apxlist .apxc-hl { display: none; }
+  .apxlist .apxfold--hl { display: block; }
+}
+@container apxlist (max-width: 1099px) {
+  .apxlist .apxc-subject { display: none; }
+  .apxlist .apxfold--subject { display: block; }
+}
+@container apxlist (max-width: 999px) {
+  .apxlist .apxc-res, .apxlist .apxc-part { display: none; }
+  .apxlist .apxfold--res, .apxlist .apxfold--part { display: block; }
+}
+
+/* ── Analytics tables that must fit their half of the page ──────────────── */
+/* Headers may take two lines, the score bars are shorter, long titles wrap —
+   the table fits its card instead of pushing out of it. */
+.apxtable--fit th { white-space: normal; }
+.apxtable--compact .apxpct__track { width: 56px; }
+.apxtable--compact th, .apxtable--compact td { padding-left: 12px; padding-right: 12px; }
+/* A half-width table (subject-wise, class-wise, section-wise) folds its count
+   column into the line under the name — "46 papers · 23 students" — before it
+   would have to turn into cards. */
+.apxhalf { container: apxhalf / inline-size; }
+.apxhalf .apxfold { display: none; }
+@container apxhalf (max-width: 559px) {
+  .apxhalf .apxc-n { display: none; }
+  .apxhalf .apxfold--n { display: inline; }
+  .apxhalf .apxfold--nb { display: block; margin-top: 3px; white-space: nowrap; }
+}
+.apxtable--fit .apxqcell { min-width: 180px; max-width: 300px; }
+.apxtable--fit .apxwrongcell { min-width: 150px; max-width: 240px; }
+/* Full-width tables with many columns (questions, students, exam-wise) sit a
+   little closer together, with a shorter bar, so they fit a 1280px laptop
+   with the sidebar open. */
+.apxtable--tight th, .apxtable--tight td { padding-left: 12px; padding-right: 12px; }
+.apxtable--tight .apxpct__track { width: 64px; }
+.apxtable--fit .apxlink--sm { overflow-wrap: anywhere; }
+
+/* ── Analytics rows as cards ────────────────────────────────────────────── */
+.apxscgrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px;
+  padding: 4px 20px 20px;
+}
+.apxsc {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+}
+.apxsc__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.apxsc__badge { display: inline-flex; min-width: 0; margin-left: auto; }
+.apxsc__title { display: block; text-align: left; font-weight: 700; font-size: .92rem; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+button.apxsc__title:hover { color: var(--primary); }
+.apxsc__sub { font-size: .76rem; color: var(--text-muted); line-height: 1.4; }
+.apxsc__facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px 12px; margin-top: 4px; }
+.apxsc__facts > div { min-width: 0; }
+.apxsc__facts > .is-wide { grid-column: 1 / -1; }
+.apxsc__facts dt { font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-light); font-weight: 600; }
+.apxsc__facts dd { font-size: .84rem; margin-top: 2px; min-width: 0; overflow-wrap: anywhere; }
+.apxsc__foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); display: flex; }
+.apxsc .apxpct { display: flex; width: 100%; }
+.apxsc .apxpct__track { flex: 1 1 auto; width: auto; min-width: 28px; }
+.apxsc .apxscore { width: 100%; }
+.apxsc--q .apxsc__title {
+  font-weight: 600; font-size: .86rem;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+}
+.apxsc__clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.apxsc--student .apxperson { width: 100%; }
+.apxcard__cta { flex: 1 1 auto; justify-content: center; }
+.apxcard__foot .apxcard__cta { width: 100%; }
+.apxchoices .apxopts { max-width: none; }
+
+/* ── A chart too narrow for its columns: labelled rows ──────────────────── */
+.apxhbars { list-style: none; display: flex; flex-direction: column; gap: 8px; padding: 2px 0; }
+.apxhbars li {
+  display: grid; grid-template-columns: minmax(56px, 32%) minmax(0, 1fr) auto;
+  align-items: center; gap: 10px; font-size: .78rem;
+}
+.apxhbars__lab { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.apxhbars__track { height: 10px; border-radius: 99px; background: #eef2ff; overflow: hidden; }
+.apxhbars__track > span { display: block; height: 100%; border-radius: 99px; }
+.apxhbars__val { min-width: 26px; text-align: right; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ── Summary tiles: two to a row ────────────────────────────────────────── */
+/* Wherever the tiles are two across, an odd last one takes the whole row. */
+@media (min-width: 641px) and (max-width: 820px) {
+  .apxstats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  /* As the shared "Summary tiles on a phone" block: two to a row, an odd one
+     out across the last row, every row as tall as its tallest tile, and the
+     icon above the figure so a half-width tile never squeezes its words. */
+  .apxstats, .apxstats--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
+  .apxstats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .apxstat {
+    flex-direction: column; align-items: flex-start; justify-content: flex-start;
+    gap: 10px; padding: 14px; min-width: 0; height: 100%;
+  }
+  .apxstat__icon { width: 38px; height: 38px; border-radius: 11px; }
+  .apxstat__icon svg { width: 19px; height: 19px; }
+  .apxstat__body { width: 100%; }
+  .apxstat__value { font-size: 1.35rem; line-height: 1.15; overflow-wrap: anywhere; }
+  .apxstat__label { font-size: .8rem; line-height: 1.3; margin-top: 2px; }
+  .apxstat__meta { margin-top: 7px; gap: 4px 6px; }
+  .apxstat__chip { white-space: normal; }
+
+  /* A list's cards: one to a row, the laptop card at the phone's full width. */
+  .apxgrid, .apxscgrid { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; }
+  .apxcard, .apxsc { padding: 14px; }
+
+  /* A panel's own control (the question order) drops under the title: the
+     whole width there, not hanging off the right. */
+  .apxall .apxpanel__act { flex: 1 1 100%; margin-left: 0; }
+  .apxall .apxpanel__act > .apxperiod { width: 100%; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -7,17 +7,29 @@
  * what stands out, how the marks spread and how each section did, which
  * questions worked (difficulty, discrimination, the options students chose),
  * and every student's result — searchable, sortable and exportable.
+ *
+ * No table here scrolls sideways: section-wise results, the question analysis
+ * and the student results are drawn as cards where they cannot fit (always on
+ * a phone, one card to a row there). On a phone a question card's Choices
+ * button opens what students picked in a dialog.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Spinner } from '../../../components/ui/index';
+import { Modal, Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import { saveFile } from '../../../utils/downloadFile';
-import { Panel, ExamStats, ExamStat, ColumnChart, countScale, QUESTION_TYPE_LABEL } from '../../admin/examParts';
+import {
+  Panel, ExamStats, ExamStat, ColumnChart, countScale, QUESTION_TYPE_LABEL, TableOrCards, StatCard, CardGrid,
+} from '../../admin/examParts';
 import { AttemptPill, Person, PctBar, Pills, fmtSpent, plural } from '../examShared';
 
 const unwrap = (res) => res?.data ?? res;
 const errText = (err) => err?.data?.message || err?.message || 'Something went wrong';
+
+/** The narrowest box each table reads well in; below it, cards. */
+const SECTION_TABLE_MIN = 440;
+const QUESTION_TABLE_MIN = 960;
+const STUDENT_TABLE_MIN = 820;
 
 const TONE_ICON = { good: 'checkCircle', warn: 'alert', bad: 'closeCircle', info: 'info' };
 
@@ -134,22 +146,41 @@ export default function ExamReport({ load, examTitle }) {
         </Panel>
 
         <Panel icon="layers" title="Section-wise results" subtitle="How each class section did">
-          <div className="table-wrap">
-            <table className="table apxtable apxtable--compact">
-              <thead><tr><th>Section</th><th>Submitted</th><th>Average</th><th>High / Low</th><th>Pass rate</th></tr></thead>
-              <tbody>
+          <TableOrCards min={SECTION_TABLE_MIN}
+            table={() => (
+              <div className="table-wrap apxhalf">
+                <table className="table apxtable apxtable--compact apxtable--fit">
+                  <thead><tr><th>Section</th><th>Submitted</th><th>Average</th><th className="apxc-n">High / Low</th><th>Pass rate</th></tr></thead>
+                  <tbody>
+                    {data.sections.map((s) => (
+                      <tr key={s._id}>
+                        <td><strong>{s.label}</strong></td>
+                        <td className="apxnowrap">{s.submitted} / {s.eligible}<small className="apxsub">{s.completion ?? '—'}%</small></td>
+                        <td>
+                          <PctBar value={s.average} />
+                          {s.highest != null && <small className="apxsub apxfold apxfold--nb">high {s.highest}% · low {s.lowest}%</small>}
+                        </td>
+                        <td className="apxc-n apxnowrap">{s.highest == null ? '—' : `${s.highest}% / ${s.lowest}%`}</td>
+                        <td className="apxnowrap">{s.passRate == null ? '—' : `${s.passRate}%`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            cards={() => (
+              <CardGrid>
                 {data.sections.map((s) => (
-                  <tr key={s._id}>
-                    <td><strong>{s.label}</strong></td>
-                    <td className="apxnowrap">{s.submitted} / {s.eligible}<small className="apxsub">{s.completion ?? '—'}%</small></td>
-                    <td><PctBar value={s.average} /></td>
-                    <td className="apxnowrap">{s.highest == null ? '—' : `${s.highest}% / ${s.lowest}%`}</td>
-                    <td className="apxnowrap">{s.passRate == null ? '—' : `${s.passRate}%`}</td>
-                  </tr>
+                  <StatCard key={s._id} title={s.label}
+                    sub={`${s.submitted} of ${s.eligible} submitted${s.completion == null ? '' : ` · ${s.completion}%`}`}
+                    facts={[
+                      { label: 'Average', value: <PctBar value={s.average} />, wide: true },
+                      { label: 'Pass rate', value: s.passRate == null ? '—' : `${s.passRate}%` },
+                      { label: 'High / Low', value: s.highest == null ? '—' : `${s.highest}% / ${s.lowest}%` },
+                    ]} />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </CardGrid>
+            )} />
         </Panel>
       </div>
 
@@ -161,9 +192,57 @@ export default function ExamReport({ load, examTitle }) {
 
 // ── Questions ────────────────────────────────────────────────────────────────
 
+/** What students chose on one question — every option with its share, and the blanks. */
+function Choices({ q }) {
+  const sat = q.answered + q.unanswered;
+  return (
+    <>
+      <p className="apxopts__text">{q.questionText}</p>
+      <ul className="apxopts">
+        {q.options.map((o) => {
+          const share = sat ? Math.round((o.chosen / sat) * 100) : 0;
+          return (
+            <li key={o.optionId} className={o.isKey ? 'is-key' : ''}>
+              <span className="apxqr__letter">{o.letter}</span>
+              <span className="apxopts__label">{o.text}{o.isKey && <em>Correct</em>}</span>
+              <span className="apxopts__bar"><span style={{ width: `${share}%` }} /></span>
+              <span className="apxopts__n">{o.chosen} · {share}%</span>
+            </li>
+          );
+        })}
+        <li className="is-blank">
+          <span className="apxqr__letter">–</span>
+          <span className="apxopts__label">Left blank</span>
+          <span className="apxopts__bar"><span style={{ width: `${sat ? Math.round((q.unanswered / sat) * 100) : 0}%` }} /></span>
+          <span className="apxopts__n">{q.unanswered}</span>
+        </li>
+      </ul>
+      {q.questionType === 'mcq_multiple' && <small className="apxmuted">Multiple choice: a student can pick several options, so the shares add up to more than 100%.</small>}
+    </>
+  );
+}
+
+const DiscPill = ({ q }) => {
+  const d = discrimination(q.discrimination);
+  return (
+    <span className={`apxdisc apxdisc--${d.tone}`} title={d.hint}>
+      {d.label}{q.discrimination != null && <small>{q.discrimination.toFixed(2)}</small>}
+    </span>
+  );
+};
+
+const Counts = ({ q }) => (
+  <span className="apxnowrap apxcounts"><b className="is-ok">{q.correct}</b> · <b className="is-bad">{q.incorrect}</b> · <b>{q.unanswered}</b></span>
+);
+
+const CommonWrong = ({ q }) => (q.commonWrong
+  ? <><b>{q.commonWrong.letter}</b> “{q.commonWrong.text}” · {q.commonWrong.chosen}</>
+  : '—');
+
 function QuestionAnalysis({ questions }) {
   const [order, setOrder] = useState('number');
-  const [open, setOpen] = useState(null);
+  const [open, setOpen] = useState(null);     // the table row opened in place
+  const [shown, setShown] = useState(null);   // the card whose choices are in the dialog
 
   const sorted = useMemo(() => [...questions].sort((a, b) => {
     if (order === 'hardest') return (a.successRate ?? 101) - (b.successRate ?? 101);
@@ -181,74 +260,74 @@ function QuestionAnalysis({ questions }) {
           <option value="discrimination">Weakest discrimination first</option>
         </select>
       }>
-      <div className="table-wrap">
-        <table className="table apxtable">
-          <thead>
-            <tr><th>#</th><th>Question</th><th>Right</th><th>Correct · Wrong · Blank</th><th>Discrimination</th><th>Most chosen wrong answer</th><th /></tr>
-          </thead>
-          <tbody>
-            {sorted.map((q) => {
-              const d = discrimination(q.discrimination);
-              const isOpen = open === q._id;
-              return (
-                <React.Fragment key={q._id}>
-                  <tr className={isOpen ? 'is-open' : ''}>
-                    <td><span className="apxqr__num">Q{q.number}</span></td>
-                    <td className="apxqcell">
-                      <strong title={q.questionText}>{q.questionText}</strong>
-                      <small>{QUESTION_TYPE_LABEL[q.questionType]} · {plural(q.marks, 'mark')}</small>
-                    </td>
-                    <td><PctBar value={q.successRate} /></td>
-                    <td className="apxnowrap apxcounts"><b className="is-ok">{q.correct}</b> · <b className="is-bad">{q.incorrect}</b> · <b>{q.unanswered}</b></td>
-                    <td>
-                      <span className={`apxdisc apxdisc--${d.tone}`} title={d.hint}>
-                        {d.label}{q.discrimination != null && <small>{q.discrimination.toFixed(2)}</small>}
-                      </span>
-                    </td>
-                    <td className="apxmuted">
-                      {q.commonWrong ? <><b>{q.commonWrong.letter}</b> “{q.commonWrong.text}” · {q.commonWrong.chosen}</> : '—'}
-                    </td>
-                    <td>
-                      <button type="button" className="apxact" onClick={() => setOpen(isOpen ? null : q._id)}
-                        aria-expanded={isOpen} title={isOpen ? 'Hide options' : 'Show what students chose'}>
-                        <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                  {isOpen && (
-                    <tr className="apxopts-row">
-                      <td />
-                      <td colSpan={6}>
-                        <p className="apxopts__text">{q.questionText}</p>
-                        <ul className="apxopts">
-                          {q.options.map((o) => {
-                            const share = q.answered + q.unanswered ? Math.round((o.chosen / (q.answered + q.unanswered)) * 100) : 0;
-                            return (
-                              <li key={o.optionId} className={o.isKey ? 'is-key' : ''}>
-                                <span className="apxqr__letter">{o.letter}</span>
-                                <span className="apxopts__label">{o.text}{o.isKey && <em>Correct</em>}</span>
-                                <span className="apxopts__bar"><span style={{ width: `${share}%` }} /></span>
-                                <span className="apxopts__n">{o.chosen} · {share}%</span>
-                              </li>
-                            );
-                          })}
-                          <li className="is-blank">
-                            <span className="apxqr__letter">–</span>
-                            <span className="apxopts__label">Left blank</span>
-                            <span className="apxopts__bar"><span style={{ width: `${q.answered + q.unanswered ? Math.round((q.unanswered / (q.answered + q.unanswered)) * 100) : 0}%` }} /></span>
-                            <span className="apxopts__n">{q.unanswered}</span>
-                          </li>
-                        </ul>
-                        {q.questionType === 'mcq_multiple' && <small className="apxmuted">Multiple choice: a student can pick several options, so the shares add up to more than 100%.</small>}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <TableOrCards min={QUESTION_TABLE_MIN}
+        table={() => (
+          <div className="table-wrap">
+            <table className="table apxtable apxtable--fit apxtable--tight">
+              <thead>
+                <tr><th>#</th><th>Question</th><th>Right</th><th>Correct · Wrong · Blank</th><th>Discrimination</th><th>Most chosen wrong answer</th><th><span className="sr-only">Choices</span></th></tr>
+              </thead>
+              <tbody>
+                {sorted.map((q) => {
+                  const isOpen = open === q._id;
+                  return (
+                    <React.Fragment key={q._id}>
+                      <tr className={isOpen ? 'is-open' : ''}>
+                        <td><span className="apxqr__num">Q{q.number}</span></td>
+                        <td className="apxqcell">
+                          <strong title={q.questionText}>{q.questionText}</strong>
+                          <small>{QUESTION_TYPE_LABEL[q.questionType]} · {plural(q.marks, 'mark')}</small>
+                        </td>
+                        <td><PctBar value={q.successRate} /></td>
+                        <td><Counts q={q} /></td>
+                        <td><DiscPill q={q} /></td>
+                        <td className="apxmuted apxwrongcell"><CommonWrong q={q} /></td>
+                        <td>
+                          <button type="button" className="apxact" onClick={() => setOpen(isOpen ? null : q._id)}
+                            aria-expanded={isOpen} title={isOpen ? 'Hide options' : 'Show what students chose'}>
+                            <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="apxopts-row">
+                          <td />
+                          <td colSpan={6}><Choices q={q} /></td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        cards={() => (
+          <CardGrid>
+            {sorted.map((q) => (
+              <StatCard key={q._id} className="apxsc--q"
+                lead={<span className="apxqr__num">Q{q.number}</span>}
+                badge={<DiscPill q={q} />}
+                title={q.questionText}
+                sub={`${QUESTION_TYPE_LABEL[q.questionType]} · ${plural(q.marks, 'mark')}`}
+                facts={[
+                  { label: 'Got it right', value: <PctBar value={q.successRate} />, wide: true },
+                  { label: 'Correct · Wrong · Blank', value: <Counts q={q} />, wide: true },
+                  { label: 'Most chosen wrong', value: <span className="apxsc__clamp"><CommonWrong q={q} /></span>, wide: true },
+                ]}
+                foot={(
+                  <button type="button" className="btn btn-secondary apxup__btn apxcard__cta" onClick={() => setShown(q)}>
+                    <Icon name="eye" size={15} /> Choices
+                  </button>
+                )} />
+            ))}
+          </CardGrid>
+        )} />
+
+      <Modal open={!!shown} onClose={() => setShown(null)} maxWidth={560}
+        title={shown ? `Q${shown.number} · what students chose` : ''}>
+        {shown && <div className="apxchoices"><Choices q={shown} /></div>}
+      </Modal>
     </Panel>
   );
 }
@@ -296,32 +375,50 @@ function StudentResults({ students, sections, kpis, title }) {
     toast.success(`Exported ${plural(rows.length, 'student')}`);
   };
 
+  const rank = (s) => (s.rank
+    ? <span className={`apxrank${s.rank <= 3 ? ` apxrank--${s.rank}` : ''}`}>{s.rank}</span>
+    : <span className="apxmuted">—</span>);
+  const outcome = (s) => (s.score != null
+    ? <span className={`apxpill apxpill--${s.passed ? 'green' : 'red'}`}>{s.passed ? 'Passed' : 'Not passed'}</span>
+    : <AttemptPill status={s.status} />);
+  const score = (s) => (s.score != null
+    ? <span className="apxscore"><strong>{s.score} / {kpis.totalMarks}</strong><PctBar value={s.percentage} /></span>
+    : <span className="apxmuted">—</span>);
+  const answers = (s) => (s.correct != null
+    ? <span className="apxnowrap apxcounts"><b className="is-ok">{s.correct}</b> · <b className="is-bad">{s.incorrect}</b> · <b>{s.unanswered}</b></span>
+    : '—');
+  const time = (s) => <>{fmtSpent(s.timeTaken)}{s.status === 'auto_submitted' && <small className="apxsub">auto-submitted</small>}</>;
+  const switches = (s) => (s.violations > 0
+    ? <span className="apxviol"><Icon name="alert" size={14} />{s.violations}</span>
+    : <span className="apxmuted">0</span>);
+  const who = (s) => [s.rollNumber && `Roll ${s.rollNumber}`, s.className].filter(Boolean).join(' · ');
+
   return (
     <Panel icon="users" title="Student results" className="apxall"
-      subtitle={`${done.length} scored · pass mark ${kpis.passMark} of ${kpis.totalMarks}`}
-      action={
-        <div className="apxtools">
-          <div className="docsearch">
-            <Icon name="search" size={17} />
-            <input className="form-control" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or roll no…" aria-label="Search students" />
-          </div>
-          {sections.length > 1 && (
-            <select className="form-control docsel" value={section} onChange={(e) => setSection(e.target.value)} aria-label="Section">
-              <option value="">All sections</option>
-              {sections.map((s) => <option key={s._id} value={s._id}>{s.label}</option>)}
-            </select>
-          )}
-          <select className="form-control docsel" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort students">
-            <option value="rank">By rank</option>
-            <option value="low">Lowest first</option>
-            <option value="name">By name</option>
-            <option value="time">Fastest first</option>
-          </select>
-          <button type="button" className="btn btn-secondary apxup__btn" onClick={exportCsv} disabled={!shown.length}>
-            <Icon name="download" size={15} /> Export CSV
-          </button>
+      subtitle={`${done.length} scored · pass mark ${kpis.passMark} of ${kpis.totalMarks}`}>
+      {/* The tools on their own row under the title, from the left edge — not
+          squeezed beside it and hanging off the right. */}
+      <div className="apxtools apxtools--bar">
+        <div className="docsearch">
+          <Icon name="search" size={17} />
+          <input className="form-control" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or roll no…" aria-label="Search students" />
         </div>
-      }>
+        {sections.length > 1 && (
+          <select className="form-control docsel" value={section} onChange={(e) => setSection(e.target.value)} aria-label="Section">
+            <option value="">All sections</option>
+            {sections.map((s) => <option key={s._id} value={s._id}>{s.label}</option>)}
+          </select>
+        )}
+        <select className="form-control docsel" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort students">
+          <option value="rank">By rank</option>
+          <option value="low">Lowest first</option>
+          <option value="name">By name</option>
+          <option value="time">Fastest first</option>
+        </select>
+        <button type="button" className="btn btn-secondary apxup__btn apxtools__btn" onClick={exportCsv} disabled={!shown.length}>
+          <Icon name="download" size={15} /> Export CSV
+        </button>
+      </div>
       <div className="apxsubbar">
         <Pills label="Filter students" value={filter} onChange={setFilter} items={[
           { value: 'all', label: 'All', count: count.all },
@@ -331,36 +428,44 @@ function StudentResults({ students, sections, kpis, title }) {
         ]} />
       </div>
       {shown.length === 0 ? <p className="apxempty">No students match.</p> : (
-        <div className="table-wrap">
-          <table className="table apxtable">
-            <thead>
-              <tr><th>Rank</th><th>Student</th><th>Status</th><th>Score</th><th>Correct · Wrong · Blank</th><th>Time</th><th>Tab switches</th></tr>
-            </thead>
-            <tbody>
+        <TableOrCards min={STUDENT_TABLE_MIN}
+          table={() => (
+            <div className="table-wrap">
+              <table className="table apxtable apxtable--fit apxtable--tight">
+                <thead>
+                  <tr><th>Rank</th><th>Student</th><th>Status</th><th>Score</th><th>Correct · Wrong · Blank</th><th>Time</th><th>Tab switches</th></tr>
+                </thead>
+                <tbody>
+                  {shown.map((s) => (
+                    <tr key={s._id}>
+                      <td>{rank(s)}</td>
+                      <td><Person name={s.name} photo={s.photo} sub={who(s)} /></td>
+                      <td>{outcome(s)}</td>
+                      <td>{score(s)}</td>
+                      <td>{answers(s)}</td>
+                      <td className="apxnowrap">{time(s)}</td>
+                      <td>{switches(s)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          cards={() => (
+            <CardGrid>
               {shown.map((s) => (
-                <tr key={s._id}>
-                  <td>{s.rank ? <span className={`apxrank${s.rank <= 3 ? ` apxrank--${s.rank}` : ''}`}>{s.rank}</span> : <span className="apxmuted">—</span>}</td>
-                  <td><Person name={s.name} photo={s.photo} sub={[s.rollNumber && `Roll ${s.rollNumber}`, s.className].filter(Boolean).join(' · ')} /></td>
-                  <td>
-                    {s.score != null
-                      ? <span className={`apxpill apxpill--${s.passed ? 'green' : 'red'}`}>{s.passed ? 'Passed' : 'Not passed'}</span>
-                      : <AttemptPill status={s.status} />}
-                  </td>
-                  <td>
-                    {s.score != null ? (
-                      <span className="apxscore"><strong>{s.score} / {kpis.totalMarks}</strong><PctBar value={s.percentage} /></span>
-                    ) : <span className="apxmuted">—</span>}
-                  </td>
-                  <td className="apxnowrap apxcounts">
-                    {s.correct != null ? <><b className="is-ok">{s.correct}</b> · <b className="is-bad">{s.incorrect}</b> · <b>{s.unanswered}</b></> : '—'}
-                  </td>
-                  <td className="apxnowrap">{fmtSpent(s.timeTaken)}{s.status === 'auto_submitted' && <small className="apxsub">auto-submitted</small>}</td>
-                  <td>{s.violations > 0 ? <span className="apxviol"><Icon name="alert" size={14} />{s.violations}</span> : <span className="apxmuted">0</span>}</td>
-                </tr>
+                <StatCard key={s._id} className="apxsc--student"
+                  lead={rank(s)} badge={outcome(s)}
+                  title={<Person name={s.name} photo={s.photo} sub={who(s)} size={30} />}
+                  facts={[
+                    { label: 'Score', value: score(s), wide: true },
+                    { label: 'Correct · Wrong · Blank', value: answers(s), wide: true },
+                    { label: 'Time', value: time(s) },
+                    { label: 'Tab switches', value: switches(s) },
+                  ]} />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </CardGrid>
+          )} />
       )}
     </Panel>
   );
