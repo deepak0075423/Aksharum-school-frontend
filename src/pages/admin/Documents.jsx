@@ -35,6 +35,7 @@ import {
 import ShareDocument from './ShareDocument';
 import { useFileViewer } from '../documents/FileViewer';
 import useMediaQuery from '../../hooks/useMediaQuery';
+import useCardPaging from '../../hooks/useCardPaging';
 // Phones and tablets get the cards and nothing else (documentParts CARDS_ONLY).
 // The choice made on a wider screen is kept, just not applied while the
 // screen is this narrow.
@@ -44,7 +45,8 @@ import useMediaQuery from '../../hooks/useMediaQuery';
 // so the payload is unwrapped here or every field reads one level too high.
 const unwrap = (res) => res?.data ?? res;
 
-// How many rows a page holds. Server-side, so this is also the query's LIMIT.
+// How many rows a page holds to begin with. Server-side, so this is also the
+// query's LIMIT; the footer offers others (whole rows of cards in Card view).
 const PAGE_SIZE = 10;
 
 /**
@@ -77,6 +79,7 @@ export default function Documents() {
   const [sort,     setSort]     = useState('newest');
   const [view,     setView]     = useState('list');
   const [page,     setPage]     = useState(1);
+  const [limit,    setLimit]    = useState(PAGE_SIZE);
 
   // ── Data ───────────────────────────────────────────────────────────────────
   const [rows,    setRows]    = useState([]);
@@ -131,7 +134,7 @@ export default function Documents() {
       const res = await getDocuments({
         tab,
         page,
-        limit: PAGE_SIZE,
+        limit,
         sort,
         search: term || undefined,
         target: target || undefined,
@@ -149,7 +152,7 @@ export default function Documents() {
     } finally {
       setLoading(false);
     }
-  }, [tab, page, sort, term, target, category, year]);
+  }, [tab, page, limit, sort, term, target, category, year]);
 
   useEffect(() => { loadList(); }, [loadList]);
 
@@ -316,7 +319,7 @@ export default function Documents() {
   // ── Picking several ────────────────────────────────────────────────────────
   // Forgotten whenever the list under it changes — a tick on a row that has
   // scrolled off to another page is a tick nobody can see.
-  const sel = useSelection(rows, `${tab}|${page}|${term}|${target}|${category}|${year}|${sort}`);
+  const sel = useSelection(rows, `${tab}|${page}|${limit}|${term}|${target}|${category}|${year}|${sort}`);
   const picked = sel.rows;
 
   // ── Archive / delete ───────────────────────────────────────────────────────
@@ -435,7 +438,10 @@ export default function Documents() {
 
   const empty = <DocEmpty filtered={filtered} onClear={clearFilters} onUpload={startNew} />;
   const cardsOnly = useMediaQuery(CARDS_ONLY);
-  const List  = cardsOnly || view === 'grid' ? DocGrid : DocTable;
+  const asCards = cardsOnly || view === 'grid';
+  const List  = asCards ? DocGrid : DocTable;
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: asCards });
 
   return (
     <div className="page docpg">
@@ -515,12 +521,13 @@ export default function Documents() {
           </button>
         </SelectionBar>
 
-        <List rows={rows} loading={loading} empty={empty} selection={sel}
+        <List rows={rows} loading={loading} empty={empty} selection={sel} gridRef={paging.gridRef}
           onOpen={(r) => navigate(`/admin/documents/${r._id}`)}
           onView={setViewDoc} onEdit={openEdit} menu={rowMenu} />
 
         <DocFoot page={page} pages={meta.pages} total={meta.total}
-          limit={PAGE_SIZE} count={rows.length} onPage={setPage} />
+          limit={limit} count={rows.length} onPage={setPage}
+          sizes={paging.sizes} onLimit={(n) => { setLimit(n); setPage(1); }} />
       </section>
 
       {/* ── Overlays ───────────────────────────────────────────────────────── */}

@@ -26,15 +26,19 @@ import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
-  DocList, DocDrawer, NothingHere, Field, UnreadNote, OpenFile,
+  ReaderList, useReaderView, DocDrawer, NothingHere, Field, UnreadNote, OpenFile,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
 import ShareDocument from './ShareDocument';
 import Tabs from '../../components/ui/Tabs';
-import { ResetFilters, ArchiveConfirm, BulkDeleteConfirm } from '../admin/documentParts';
+import { ResetFilters, ArchiveConfirm, BulkDeleteConfirm, ViewSwitch, DocFoot } from '../admin/documentParts';
+import useCardPaging from '../../hooks/useCardPaging';
 import { SelectionBar, useSelection } from '../admin/listParts';
 
+// "All" (Nov 23 2026): both halves together — what the Assignments tile
+// counts, so the tile has somewhere to open.
 const SCOPES = [
+  { value: 'all',    label: 'All' },
   { value: 'shared', label: 'Shared with me' },
   { value: 'mine',   label: 'My uploads' },
 ];
@@ -50,6 +54,10 @@ export default function TeacherDocuments() {
   const [search,   setSearch]   = useState('');
   const [sort,     setSort]     = useState('newest');
   const [open,     setOpen]     = useState(null);
+  const [limit,    setLimit]    = useState(10);
+  // List or Card on a laptop, cards only on a phone; a page of cards is whole rows.
+  const rv     = useReaderView('teacher.documents.view');
+  const paging = useCardPaging({ cards: rv.asCards });
 
   // `?edit=<id>` names one of their own documents to open the form on — how the
   // document's own page sends its owner back here. The server finds it
@@ -59,10 +67,11 @@ export default function TeacherDocuments() {
 
   // The server narrows, counts and pages; this page only says what it wants.
   const params = useMemo(
-    () => ({ year, scope, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort) }),
+    // No scope is both halves of the shelf.
+    () => ({ year, scope: scope === 'all' ? '' : scope, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort) }),
     [year, scope, tab, category, search, sort],
   );
-  const { docs: loaded, meta, loading, error, more, refetch } = useShelf(getDocuments, params, { focusRef });
+  const { docs: loaded, meta, loading, error, page, pages, total, setPage, refetch } = useShelf(getDocuments, params, { focusRef, limit });
 
   // The same list, with what has been opened on this visit already marked read.
   const { docs: all, read, readAll, stillUnread } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
@@ -150,9 +159,10 @@ export default function TeacherDocuments() {
 
   // Ticking several of their own uploads to delete together (Nov 23 2026).
   // Only on "My uploads", and only what is theirs — the server checks too.
+  // Their own rows, wherever they show — "My uploads" or "All".
   const sel = useSelection(
-    scope === 'mine' ? all.filter((d) => d.mine) : [],
-    `${scope}|${tab}|${category}|${search}|${sort}|${year}`,
+    scope === 'shared' ? [] : all.filter((d) => d.mine),
+    `${scope}|${tab}|${category}|${search}|${sort}|${year}|${page}|${limit}`,
   );
   const runBulkDelete = async () => {
     setBusy(true);
@@ -262,8 +272,15 @@ export default function TeacherDocuments() {
         <ViewerStat icon="upload" tone="purple" value={counts.mine} label="My uploads"
           caption="What you have shared"
           on={scope === 'mine'} onClick={() => { setScope('mine'); setTab('all'); }} />
+        {/* Opens what it counts (Nov 23 2026): every assignment on the shelf —
+            shared with them and set by them — so both halves, "All". */}
         <ViewerStat icon="clipboard" tone="green" value={counts.assignments} label="Assignments"
-          caption="Set across your sections" />
+          caption="Set across your sections"
+          on={scope === 'all' && tab === 'assignments'}
+          onClick={() => {
+            const off = scope === 'all' && tab === 'assignments';
+            setScope(off ? 'shared' : 'all'); setTab(off ? 'all' : 'assignments');
+          }} />
         <ViewerStat icon="pencil" tone="amber" value={counts.toMark} label="To mark"
           caption="Handed in, not yet marked"
           on={scope === 'mine' && tab === 'assignments'}
@@ -275,7 +292,9 @@ export default function TeacherDocuments() {
           value={scope} onChange={(v) => { setScope(v); setTab('all'); }}
           items={SCOPES.map((s) => ({
             key: s.value, label: s.label,
-            count: s.value === 'mine' ? counts.mine ?? 0 : counts.shared ?? 0,
+            count: s.value === 'mine' ? counts.mine ?? 0
+              : s.value === 'shared' ? counts.shared ?? 0
+                : (counts.mine ?? 0) + (counts.shared ?? 0),
           }))} />
 
         <ViewerTabs tabs={TABS} value={tab} counts={tabCounts} onChange={setTab} />
@@ -285,13 +304,14 @@ export default function TeacherDocuments() {
           <Picker value={category} onChange={setCategory} all="All categories"
             options={categories} label="Filter by category" />
           <span className="dvtools__sep" />
-          {scope === 'shared' && <UnreadNote count={unread.length} onClear={() => readAll(unread)} />}
+          {scope !== 'mine' && <UnreadNote count={unread.length} onClear={() => readAll(unread)} />}
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
           <ResetFilters on={!!(search || category || sort !== 'newest')}
             onClick={() => { setSearch(''); setCategory(''); setSort('newest'); }} />
+          {!rv.cardsOnly && <ViewSwitch value={rv.view} onChange={rv.setView} />}
         </ViewerTools>
 
-        {scope === 'mine' && (
+        {scope !== 'shared' && (
           <SelectionBar count={sel.ids.length} noun="document" onClear={sel.clear}>
             {!sel.allOn && (
               <button type="button" className="btn btn-secondary btn-sm" onClick={sel.toggleAll}>
@@ -305,11 +325,14 @@ export default function TeacherDocuments() {
           </SelectionBar>
         )}
 
-        <DocList
-          docs={shown} loading={loading} more={more} onOpen={(d) => { setOpen(d); read(d); }}
-          tick={scope === 'mine'
+        <ReaderList asCards={rv.asCards} gridRef={paging.gridRef}
+          docs={shown} loading={loading} onOpen={(d) => { setOpen(d); read(d); }}
+          // Their own uploads can be ticked to delete together, where they show.
+          tick={scope !== 'shared'
             ? (d) => (d.mine ? { checked: sel.has(d._id), onChange: () => sel.toggle(d._id) } : null)
             : undefined}
+          tickAll={sel.ids.length || all.some((d) => d.mine)
+            ? { checked: sel.allOn, some: sel.some, onChange: sel.toggleAll } : undefined}
           empty={<NothingHere filtered={filtered} onClear={clear}
             what={scope === 'mine' ? 'uploads' : 'documents'} />}
           badges={(d) => (d.isAssignment && d.mine
@@ -319,24 +342,10 @@ export default function TeacherDocuments() {
               </span>
             )
             : null)}
-          actions={(d) => (
-            <>
-              {d.isAssignment && (
-                <button type="button" className="dvact" title="Open submissions"
-                  aria-label={`Open submissions for ${d.title}`}
-                  onClick={() => { read(d); navigate(`/teacher/documents/${d._id}?tab=submissions`); }}>
-                  <Icon name="users" size={15} />
-                </button>
-              )}
-              {d.mine && (
-                <button type="button" className="dvact" title="Edit" aria-label={`Edit ${d.title}`}
-                  onClick={() => startEdit(d)}>
-                  <Icon name="pencil" size={15} />
-                </button>
-              )}
-            </>
-          )}
         />
+
+        <DocFoot page={page} pages={pages} total={total} limit={limit} count={shown.length}
+          onPage={setPage} sizes={paging.sizes} onLimit={(n) => { setLimit(n); setPage(1); }} />
       </section>
 
       <DocDrawer

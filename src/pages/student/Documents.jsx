@@ -22,10 +22,11 @@ import { Alert, Button, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
-  DocList, DocDrawer, NothingHere, StatePill, FileRows, Field, FileDrop, DocComments, UnreadNote, OpenFile,
+  ReaderList, useReaderView, DocDrawer, NothingHere, StatePill, FileRows, Field, FileDrop, DocComments, UnreadNote, OpenFile,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, HANDIN_TYPES,
 } from '../documents/viewerParts';
-import { ResetFilters } from '../admin/documentParts';
+import { ResetFilters, ViewSwitch, DocFoot } from '../admin/documentParts';
+import useCardPaging from '../../hooks/useCardPaging';
 
 export default function StudentDocuments() {
   const [year, setYear] = useState('');
@@ -34,6 +35,10 @@ export default function StudentDocuments() {
   const [search,   setSearch]   = useState('');
   const [sort,     setSort]     = useState('newest');
   const [state,    setState]    = useState('');   // set by the tiles
+  const [limit,    setLimit]    = useState(10);
+  // List or Card on a laptop, cards only on a phone; a page of cards is whole rows.
+  const rv     = useReaderView('student.documents.view');
+  const paging = useCardPaging({ cards: rv.asCards });
 
   const [open,     setOpen]     = useState(null); // the document in the drawer
   const [files,    setFiles]    = useState([]);
@@ -50,7 +55,7 @@ export default function StudentDocuments() {
     () => ({ year, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort), state }),
     [year, tab, category, search, sort, state],
   );
-  const { docs: loaded, meta, loading, error, more, refetch } = useShelf(getDocuments, params, { focusRef });
+  const { docs: loaded, meta, loading, error, page, pages, total, setPage, refetch } = useShelf(getDocuments, params, { focusRef, limit });
 
   // The same list, with what has been opened on this visit already marked read.
   const { docs, read, readAll, stillUnread } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
@@ -125,8 +130,10 @@ export default function StudentDocuments() {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <ViewerStats>
+        {/* Opens what it counts: everything on the shelf, no filter (Nov 23 2026). */}
         <ViewerStat icon="files" tone="indigo" value={counts.all} label="Shared with you"
-          caption={myClass || 'Your class and the school'} />
+          caption={myClass || 'Your class and the school'} on={!state && tab === 'all'}
+          onClick={() => { setState(''); setCategory(''); setSearch(''); setTab('all'); }} />
         <ViewerStat icon="clock" tone="amber" value={counts.pending} label="Still to do"
           caption="Assignments not handed in" on={state === 'pending'} onClick={() => pickState('pending')} />
         <ViewerStat icon="alert" tone="red" value={counts.missed} label="Missed"
@@ -148,14 +155,18 @@ export default function StudentDocuments() {
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
           <ResetFilters on={!!(search || category || state || sort !== 'newest')}
             onClick={() => { setSearch(''); setCategory(''); setState(''); setSort('newest'); }} />
+          {!rv.cardsOnly && <ViewSwitch value={rv.view} onChange={rv.setView} />}
         </ViewerTools>
 
-        <DocList
-          docs={shown} loading={loading} more={more}
+        <ReaderList asCards={rv.asCards} gridRef={paging.gridRef}
+          docs={shown} loading={loading}
           onOpen={(d) => { focusRef.current = d._id; setOpen(d); setFiles([]); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
-          badges={(d) => <StatePill state={d.state} />}
+          badges={(d) => (d.state ? <StatePill state={d.state} /> : null)}
         />
+
+        <DocFoot page={page} pages={pages} total={total} limit={limit} count={shown.length}
+          onPage={setPage} sizes={paging.sizes} onLimit={(n) => { setLimit(n); setPage(1); }} />
       </section>
 
       <DocDrawer

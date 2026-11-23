@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import PhoneCards from '../../components/ui/PhoneCards';
+import useCardPaging from '../../hooks/useCardPaging';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon, { SchoolScene, SupportScene } from '../../components/ui/icons';
@@ -63,6 +64,8 @@ export default function AcademicYears() {
 
   // List or Card (cards only on a phone), remembered.
   const [layout, setLayout, shownLayout] = useListLayout('admin.academicYears.layout');
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownLayout === 'card' });
   const [tab,    setTab]    = useState('all');
   const [search, setSearch] = useState('');
   const [term,   setTerm]   = useState('');
@@ -295,7 +298,7 @@ export default function AcademicYears() {
 
         {/* Cards on a phone (components/ui/PhoneCards): every column a line
             of its own, so nothing scrolls sideways. */}
-        <PhoneCards title="Academic Year" side="Status" keep={['Session', 'Classes', 'Students']}
+        <PhoneCards onColumns={paging.onColumns} title="Academic Year" side="Status" keep={['Session', 'Classes', 'Students']}
           cards={shownLayout === 'card'}>
           <ListTable
             columns={columns}
@@ -312,7 +315,7 @@ export default function AcademicYears() {
           />
         </PhoneCards>
 
-        <ListFooter
+        <ListFooter sizes={paging.sizes}
           page={Math.min(page, pages)} pages={pages} total={filtered.length}
           limit={limit} count={shown.length} noun="academic year"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}

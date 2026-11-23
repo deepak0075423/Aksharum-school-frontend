@@ -13,6 +13,7 @@
  * own styling.
  */
 import React, { useLayoutEffect, useRef } from 'react';
+import { gridColumns } from '../../hooks/useCardPaging';
 
 function columnLabels(thead) {
   const grid = [];
@@ -36,9 +37,28 @@ function columnLabels(thead) {
   return grid[grid.length - 1] || [];
 }
 
-export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false }) {
+export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false, onColumns }) {
   const ref = useRef(null);
   const spec = `${title}|${side}|${keep.join('|')}`;
+  // `onColumns(n)`: how many cards a row holds in the Card view, kept current
+  // as the page resizes — so the page size can be a whole number of rows
+  // (hooks/useCardPaging). Not reported while there are no rows to measure.
+  const report = useRef(onColumns);
+  report.current = onColumns;
+  useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root || !cards) return undefined;
+    const measure = () => {
+      const body = root.querySelector('table > tbody');
+      if (body && body.rows.length) report.current?.(gridColumns(body));
+    };
+    measure();
+    const watch = new MutationObserver(measure);
+    watch.observe(root, { childList: true, subtree: true });
+    const size = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    size?.observe(root);
+    return () => { watch.disconnect(); size?.disconnect(); };
+  }, [cards]);
   useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return undefined;

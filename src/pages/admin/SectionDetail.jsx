@@ -20,6 +20,7 @@ import { Alert, Badge, Button, Confirm, Modal, Spinner } from '../../components/
 import Icon from '../../components/ui/icons';
 import SectionCapacityModal from '../../components/SectionCapacityModal';
 import PhoneCards from '../../components/ui/PhoneCards';
+import useCardPaging from '../../hooks/useCardPaging';
 import SearchSelect from '../../components/ui/SearchSelect';
 import {
   Crumbs, ListStats, ListStat, ListTable, ListFooter, SearchField,
@@ -64,6 +65,8 @@ export default function SectionDetail() {
   // Teacher assignment modal (shared for class teacher + vice teacher)
   // The roster: List or Card on a laptop, cards only on a phone — remembered.
   const [layout, setLayout, shownLayout] = useListLayout('admin.sectionRoster.layout');
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownLayout === 'card' });
   const [teacherModal, setTeacherModal]   = useState(false);
   const [teacherRole, setTeacherRole]     = useState('class'); // 'class' | 'vice'
   const [selectedTeacher, setSelectedTeacher] = useState('');
@@ -616,7 +619,7 @@ export default function SectionDetail() {
         {/* Cards on a phone (components/ui/PhoneCards), and on a laptop when Card
             is chosen: the student and their status, then roll number (its Set
             button still works), gender and admission number, then the actions. */}
-        <PhoneCards title="Student" side="Status" keep={['Roll No', 'Gender', 'Adm. No']}
+        <PhoneCards onColumns={paging.onColumns} title="Student" side="Status" keep={['Roll No', 'Gender', 'Adm. No']}
           cards={shownLayout === 'card'}>
         <ListTable
           columns={columns}
@@ -634,7 +637,7 @@ export default function SectionDetail() {
         </PhoneCards>
 
         {enrolled.length > 0 && (
-          <ListFooter
+          <ListFooter sizes={paging.sizes}
             page={Math.min(page, pages)} pages={pages} total={roster.length}
             limit={limit} count={shown.length} noun="student"
             onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}

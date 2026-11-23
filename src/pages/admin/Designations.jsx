@@ -12,6 +12,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import PhoneCards from '../../components/ui/PhoneCards';
+import useCardPaging from '../../hooks/useCardPaging';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as api from '../../api/admin.api';
@@ -62,6 +63,8 @@ export default function Designations() {
 
   // List or Card (cards only on a phone), remembered per page.
   const [layout, setLayout, shownLayout] = useListLayout('admin.designations.layout');
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownLayout === 'card' });
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
   const [modules, setModules] = useState([]);
@@ -399,7 +402,7 @@ export default function Designations() {
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
             a few lines, then the row's actions — nothing scrolls sideways. */}
-        <PhoneCards title="Designation" side="Status" keep={['Users', 'Module Access']} cards={shownLayout === 'card'}>
+        <PhoneCards onColumns={paging.onColumns} title="Designation" side="Status" keep={['Users', 'Module Access']} cards={shownLayout === 'card'}>
           <ListTable
             columns={columns}
             rows={shown}
@@ -420,7 +423,7 @@ export default function Designations() {
           />
         </PhoneCards>
 
-        <ListFooter
+        <ListFooter sizes={paging.sizes}
           page={Math.min(page, pages)} pages={pages} total={filtered.length}
           limit={limit} count={shown.length} noun="designation"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); setExpanded(null); }}

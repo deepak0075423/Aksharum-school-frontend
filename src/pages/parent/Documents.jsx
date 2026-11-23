@@ -24,10 +24,11 @@ import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
-  ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile, DocComments,
+  ChildSwitch, ReaderList, useReaderView, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile, DocComments,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
-import { ResetFilters } from '../admin/documentParts';
+import { ResetFilters, ViewSwitch, DocFoot } from '../admin/documentParts';
+import useCardPaging from '../../hooks/useCardPaging';
 
 export default function ParentDocuments() {
   const [year, setYear] = useState('');
@@ -39,6 +40,10 @@ export default function ParentDocuments() {
   const [sort,     setSort]     = useState('newest');
   const [state,    setState]    = useState('');
   const [open,     setOpen]     = useState(null);
+  const [limit,    setLimit]    = useState(10);
+  // List or Card on a laptop, cards only on a phone; a page of cards is whole rows.
+  const rv     = useReaderView('parent.documents.view');
+  const paging = useCardPaging({ cards: rv.asCards });
 
   // A notification names one document (`?focus=`); the server finds it
   // wherever it is filed.
@@ -51,7 +56,7 @@ export default function ParentDocuments() {
     () => ({ year, child: who, tab: tab === 'all' ? '' : tab, category, search, sort: sortOn(tab, sort), state }),
     [year, who, tab, category, search, sort, state],
   );
-  const { docs: loaded, meta, loading, error, more } = useShelf(getDocuments, params, { focusRef });
+  const { docs: loaded, meta, loading, error, page, pages, total, setPage } = useShelf(getDocuments, params, { focusRef, limit });
 
   // The same list, with what has been opened on this visit already marked read.
   const { docs: all, read, readAll, stillUnread } = useReadMarks(loaded, { one: markDocumentRead, many: markDocumentsRead });
@@ -162,10 +167,14 @@ export default function ParentDocuments() {
       ) : null}
 
       <ViewerStats>
+        {/* Both open what they count (Nov 23 2026): everything, and every assignment. */}
         <ViewerStat icon="files" tone="indigo" value={counts.all} label="Shared"
-          caption={forChild ? `With ${forChild.name}` : 'With your children'} />
+          caption={forChild ? `With ${forChild.name}` : 'With your children'}
+          on={!state && tab === 'all'}
+          onClick={() => { setState(''); setCategory(''); setSearch(''); setTab('all'); }} />
         <ViewerStat icon="clipboard" tone="purple" value={counts.assignments} label="Assignments"
-          caption="Work that was set" />
+          caption="Work that was set" on={!state && tab === 'assignments'}
+          onClick={() => { setState(''); setCategory(''); setSearch(''); setTab(!state && tab === 'assignments' ? 'all' : 'assignments'); }} />
         <ViewerStat icon="clock" tone="amber" value={counts.pending} label="Still to do"
           caption="Not handed in yet" on={state === 'pending'} onClick={() => pickState('pending')} />
         <ViewerStat icon="alert" tone="red" value={counts.missed} label="Missed"
@@ -185,17 +194,21 @@ export default function ParentDocuments() {
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
           <ResetFilters on={!!(search || category || state || sort !== 'newest')}
             onClick={() => { setSearch(''); setCategory(''); setState(''); setSort('newest'); }} />
+          {!rv.cardsOnly && <ViewSwitch value={rv.view} onChange={rv.setView} />}
         </ViewerTools>
 
-        <DocList
-          docs={shown} loading={loading} more={more}
+        <ReaderList asCards={rv.asCards} gridRef={paging.gridRef}
+          docs={shown} loading={loading}
           onOpen={(d) => { focusRef.current = d._id; setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
           // One child, or one picked: that child's own state ("Submitted"),
           // which the row now carries. A parent of one child never picks one,
           // so their cards used to show only the due date.
-          badges={(d) => (who || children.length < 2 ? <StatePill state={d.state} /> : childStrip(d))}
+          badges={(d) => (who || children.length < 2 ? (d.state ? <StatePill state={d.state} /> : null) : childStrip(d))}
         />
+
+        <DocFoot page={page} pages={pages} total={total} limit={limit} count={shown.length}
+          onPage={setPage} sizes={paging.sizes} onLimit={(n) => { setLimit(n); setPage(1); }} />
       </section>
 
       <DocDrawer

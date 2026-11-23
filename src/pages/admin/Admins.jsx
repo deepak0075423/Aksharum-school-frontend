@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import PhoneCards from '../../components/ui/PhoneCards';
+import useCardPaging from '../../hooks/useCardPaging';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -36,6 +37,8 @@ export default function Admins() {
 
   // List or Card (cards only on a phone), remembered per page.
   const [layout, setLayout, shownLayout] = useListLayout('admin.admins.layout');
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownLayout === 'card' });
   const [page, setPage]   = useState(1);
   // Rows per page is the admin's choice; changing it starts again at page 1.
   const [limit, setLimit] = useState(20);
@@ -262,7 +265,7 @@ export default function Admins() {
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
             a few lines, then the row's actions — nothing scrolls sideways. */}
-        <PhoneCards title="Admin" side="Status" keep={['Role', 'Phone', 'Last Active']} cards={shownLayout === 'card'}>
+        <PhoneCards onColumns={paging.onColumns} title="Admin" side="Status" keep={['Role', 'Phone', 'Last Active']} cards={shownLayout === 'card'}>
           <ListTable
             columns={columns}
             rows={rows}
@@ -280,7 +283,7 @@ export default function Admins() {
           />
         </PhoneCards>
 
-        <ListFooter
+        <ListFooter sizes={paging.sizes}
           page={page} pages={data?.pages || 1} total={data?.total || 0}
           limit={limit} count={rows.length} noun="admin"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}

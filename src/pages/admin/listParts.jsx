@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Button, Confirm, Empty, Spinner, Pagination, PageSize } from '../../components/ui/index';
+import { LIST_SIZES, CARD_BASE, useSnapLimit } from '../../hooks/useCardPaging';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { DrawerHead as UiDrawerHead, DrawerSection as UiDrawerSection } from '../../components/ui/Drawer';
@@ -644,7 +645,14 @@ export const MenuSep = () => <div className="lmenu__sep" />;
  */
 // `plural` for the nouns English does not make by adding an s — a footer that
 // says "No copys to show" undoes a page's worth of care.
-export const ListFooter = ({ page, pages, total, limit, count, noun, plural, onPage, onLimit }) => {
+// `sizes`: the page sizes on offer. A Card view passes multiples of its cards
+// per row (hooks/useCardPaging); left out, a phone — one card a row — gets
+// 10 / 15 / 20 / 25 and a table 5 / 10 / 15 / 20 / 25 (Nov 23 2026). A page size
+// that is not on offer moves to the nearest one that is.
+export const ListFooter = ({ page, pages, total, limit, count, noun, plural, onPage, onLimit, sizes }) => {
+  const phone = usePhone();
+  const offered = sizes || (phone ? CARD_BASE : LIST_SIZES);
+  useSnapLimit(onLimit ? offered : null, limit, onLimit);
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to   = (page - 1) * limit + count;
   const many = plural || `${noun}s`;
@@ -657,7 +665,7 @@ export const ListFooter = ({ page, pages, total, limit, count, noun, plural, onP
       </span>
       <div className="lfoot__right">
         <Pagination page={page} pages={pages} total={total} onPage={onPage} />
-        <PageSize value={limit} total={total} onChange={onLimit} />
+        <PageSize value={limit} total={total} onChange={onLimit} options={offered} minTotal={offered[0]} />
       </div>
     </div>
   );

@@ -14498,6 +14498,27 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 @media (max-width: 560px) {
   .docfoot { justify-content: center; }
 }
+/* ── The readers' shelf as a table or cards (Nov 23 2026) ──────────────────
+   Teacher / student / parent Documents: the admin's table and card, with the
+   eye as the one action and a Status cell for the due date and the state. */
+.dvstate { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.dvtable td.dvtable__state { min-width: 120px; }
+.dvtable tr.is-unread td { background: #f8f9ff; }
+.dvtable tr.is-unread td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+.dvtable tr.is-unread .doctitle__name { font-weight: 800; }
+.dvtable .dvnew { margin-right: 6px; }
+.dvgcard .doccard__title .dvnew { margin-right: 6px; }
+.dvgcard.is-unread { border-color: #c7d2fe; background: #f8f9ff; }
+.dvgcard .doccard__foot { flex-wrap: nowrap; }
+.dvgcard .doccard__foot .dvstate { flex: 1 1 auto; }
+.dvgcard .doccard__foot .docacts { margin-left: auto; }
+/* Narrower laptops fold the quieter columns; the drawer has them all. */
+@media (max-width: 1360px) { .dvtable .dvtable__cat { display: none; } }
+@media (max-width: 1200px) { .dvtable .dvtable__type { display: none; } }
+
+/* The pager and the page size travel together at the footer's end (Nov 23 2026). */
+.docfoot__end { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .docfoot__end { justify-content: center; } }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ONE DOCUMENT, OPENED

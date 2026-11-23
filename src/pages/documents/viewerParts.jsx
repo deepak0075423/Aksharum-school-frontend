@@ -23,7 +23,9 @@ import Icon from '../../components/ui/icons';
 import { Empty, Spinner } from '../../components/ui/index';
 import {
   FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, UPLOAD_TYPES, UPLOAD_MAX_BYTES, HANDIN_TYPES,
+  TypePill, CategoryChip, SharedWith, RowActions, IconAction, Tick, CARDS_ONLY,
 } from '../admin/documentParts';
+import useMediaQuery from '../../hooks/useMediaQuery';
 import Tabs from '../../components/ui/Tabs';
 import { ListStats, ListStat } from '../admin/listParts';
 import { useFileViewer } from './FileViewer';
@@ -243,119 +245,194 @@ export const Avatar = ({ name, src, size = 28 }) => {
 
 export const Loading = () => <div className="dvloading"><Spinner /></div>;
 
-/**
- * One document, as something to read rather than a row to audit.
- *
- * `badges` and `actions` are what each of the three pages hangs off it — the
- * student's own state, a chip per child for a parent, a submissions count for a
- * teacher. Everything else is the same document to all three.
- */
 /** Work that has come in: its card says so, and no longer when it was due. */
 export const HANDED_IN = ['submitted', 'late', 'marked'];
 
-export function DocCard({ doc, onOpen, badges, actions, dense, tick }) {
-  const type = typeOf(doc.docType);
-  // Once it is in, the date it was due is history; the state pill beside it
-  // ("Submitted", "Marked") is the answer. A parent read "Due 18 Nov" on
-  // homework their child had already handed in.
-  const due  = doc.isAssignment && !HANDED_IN.includes(doc.state) ? dueLine(doc.dueDate, doc.state) : null;
-  // Both slots take a node or a function of the row — a parent's child chips
-  // differ per document, a teacher's "mark 3" button does too.
-  const slot = (v) => (typeof v === 'function' ? v(doc) : v);
-  // `isRead` is only ever false for something shared WITH the reader that they
-  // have not opened. Their own uploads, and lists that do not track it, carry
-  // no mark at all.
-  const unread = doc.isRead === false;
-  // A tick box, where the page lets this card be picked (a teacher's own
-  // uploads, Nov 23 2026): `tick(doc)` is { checked, onChange } or null.
-  const box = tick ? tick(doc) : null;
-  return (
-    <article className={`dvcard${dense ? ' dvcard--dense' : ''}${unread ? ' is-unread' : ''}${box ? ' has-tick' : ''}${box?.checked ? ' is-picked' : ''}`}
-      data-focus-id={doc._id}>
-      {box && (
-        <input type="checkbox" className="doctick dvcard__tick" checked={box.checked}
-          onChange={box.onChange} aria-label={`Select ${doc.title}`} />
-      )}
-      <button type="button" className="dvcard__open" onClick={() => onOpen(doc)}
-        aria-label={unread ? `Open ${doc.title} (unread)` : `Open ${doc.title}`}>
-        <FileMark file={doc.files?.[0]} size={44} />
-        <span className="dvcard__main">
-          <span className="dvcard__title">
-            {unread ? <span className="dvnew">New</span> : null}
-            {doc.title}
-            {doc.isDraft ? <span className="dvpill dvpill--amber">Draft</span> : null}
-            {doc.isArchived ? <span className="dvpill dvpill--slate">Archived</span> : null}
-          </span>
-          {doc.description ? <span className="dvcard__sub">{doc.description}</span> : null}
-          <span className="dvcard__meta">
-            <span className={`dvpill dvpill--${type.tone}`}>{type.label}</span>
-            {doc.category ? <span className="dvchip">{doc.category}</span> : null}
-            <span className="dvmeta"><Icon name={doc.sharedWith?.icon || 'files'} size={13} />{doc.sharedWith?.label}</span>
-            <span className="dvmeta"><Icon name="calendar" size={13} />{fmtDate(doc.createdAt)}</span>
-            {doc.fileCount > 0 && (
-              <span className="dvmeta"><Icon name="files" size={13} />{doc.fileCount} file{doc.fileCount === 1 ? '' : 's'}</span>
-            )}
-          </span>
-        </span>
-      </button>
+// ── The shelf: a table, or cards (Nov 23 2026) ───────────────────────────────
+//
+// Students, parents and teachers get what the office has: a List / Card switch
+// on a laptop, cards only on a phone or a tablet (CARDS_ONLY), numbered pages,
+// and one action on a row — the eye, which opens the document's drawer. The
+// download button, a teacher's "submissions" and "edit" icons all live inside
+// that drawer now; the list is for finding the document.
 
-      <div className="dvcard__end">
-        {due && <span className={`dvdue dvdue--${due.tone}`}><Icon name="clock" size={13} />{due.text}</span>}
-        {slot(badges)}
-        <div className="dvcard__acts">
-          {slot(actions)}
-          {doc.files?.[0] && (
-            <a className="dvact" href={downloadUrl(doc.files[0].filePath)} target="_blank" rel="noreferrer"
-              title={`Download ${doc.files[0].originalName}`} aria-label={`Download ${doc.files[0].originalName}`}>
-              <Icon name="download" size={15} />
-            </a>
-          )}
-        </div>
-      </div>
-    </article>
+/** List or Card, remembered per page in this browser; cards only on a narrow screen. */
+export function useReaderView(key) {
+  const cardsOnly = useMediaQuery(CARDS_ONLY);
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem(key) === 'grid' ? 'grid' : 'list'; } catch { return 'list'; }
+  });
+  useEffect(() => { try { localStorage.setItem(key, view); } catch { /* private mode */ } }, [key, view]);
+  return { view, setView, cardsOnly, asCards: cardsOnly || view === 'grid' };
+}
+
+/** The pieces of one row both views draw. */
+const rowBits = (doc, badges) => {
+  // Once it is in, the date it was due is history; the state pill beside it
+  // ("Submitted", "Marked") is the answer.
+  const due = doc.isAssignment && !HANDED_IN.includes(doc.state) ? dueLine(doc.dueDate, doc.state) : null;
+  const extra = typeof badges === 'function' ? badges(doc) : badges;
+  // `isRead` is only ever false for something shared WITH the reader that they
+  // have not opened. Their own uploads carry no mark at all.
+  const unread = doc.isRead === false;
+  return { due, extra, unread };
+};
+
+const TitleFlags = ({ doc, unread }) => (
+  <>
+    {unread ? <span className="dvnew">New</span> : null}
+    {doc.title}
+    {doc.isDraft ? <span className="dvpill dvpill--amber">Draft</span> : null}
+    {doc.isArchived ? <span className="dvpill dvpill--slate">Archived</span> : null}
+  </>
+);
+
+const Eye = ({ doc, onOpen }) => (
+  <IconAction icon="eye" label={`View ${doc.title}`} onClick={() => onOpen(doc)} />
+);
+
+/**
+ * The shelf as a table. `tick(doc)` — { checked, onChange } or null — puts a
+ * tick box on the rows a page lets be picked (a teacher's own uploads);
+ * `tickAll` the one in the heading.
+ */
+export function ReaderTable({ docs, onOpen, badges, tick, tickAll }) {
+  return (
+    <div className="table-wrap">
+      <table className="table doctable dvtable">
+        <thead>
+          <tr>
+            {tick && (
+              <th className="doctable__tick">
+                {tickAll && (
+                  <input type="checkbox" className="doctick" checked={tickAll.checked}
+                    ref={(el) => { if (el) el.indeterminate = !!tickAll.some; }}
+                    onChange={tickAll.onChange} aria-label="Select every document of yours on this page" />
+                )}
+              </th>
+            )}
+            <th>Title</th>
+            <th className="dvtable__type">Type</th>
+            <th className="dvtable__cat">Category</th>
+            <th className="dvtable__with">Shared With</th>
+            <th className="dvtable__date">Shared On</th>
+            <th className="dvtable__state">Status</th>
+            <th className="doctable__acts">View</th>
+          </tr>
+        </thead>
+        <tbody>
+          {docs.map((d) => {
+            const { due, extra, unread } = rowBits(d, badges);
+            const box = tick ? tick(d) : null;
+            return (
+              <tr key={d._id} data-focus-id={d._id}
+                className={[unread ? 'is-unread' : '', box?.checked ? 'is-picked' : ''].filter(Boolean).join(' ') || undefined}>
+                {tick && (
+                  <td className="doctable__tick">
+                    {box && <Tick checked={box.checked} onChange={box.onChange} label={`Select ${d.title}`} />}
+                  </td>
+                )}
+                <td className="doctable__title">
+                  <button type="button" className="doctitle" onClick={() => onOpen(d)}>
+                    <FileMark file={d.files?.[0]} />
+                    <span className="doctitle__text">
+                      <span className="doctitle__name"><TitleFlags doc={d} unread={unread} /></span>
+                      {d.description
+                        ? <span className="doctitle__sub" title={d.description}>{d.description}</span>
+                        : null}
+                    </span>
+                  </button>
+                </td>
+                <td className="dvtable__type"><TypePill type={d.docType} /></td>
+                <td className="dvtable__cat"><CategoryChip name={d.category} /></td>
+                <td className="dvtable__with"><SharedWith shared={d.sharedWith} /></td>
+                <td className="docdate dvtable__date">{fmtDate(d.createdAt)}</td>
+                <td className="dvtable__state">
+                  <span className="dvstate">
+                    {due && <span className={`dvdue dvdue--${due.tone}`}><Icon name="clock" size={13} />{due.text}</span>}
+                    {extra}
+                    {!due && !extra && <span className="docnone">—</span>}
+                  </span>
+                </td>
+                <td className="doctable__acts"><RowActions><Eye doc={d} onOpen={onOpen} /></RowActions></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-/**
- * The cards on screen, and the way to the next page of them.
- *
- * `more` is `{ total, loading, onMore }` from useShelf: the server sends a page
- * at a time, and "Show more" asks for the next one.
- */
-export const DocList = ({ docs, loading, empty, more, ...rest }) => {
-  if (loading) return <Loading />;
-  if (!docs.length) return empty;
-  const left = (more?.total || 0) - docs.length;
+/** The same shelf as cards — the admin's card, with the eye as its one action. */
+export function ReaderGrid({ docs, onOpen, badges, tick, gridRef }) {
   return (
-    <div className="dvlist">
-      {docs.map((d) => <DocCard key={d._id} doc={d} {...rest} />)}
-      {left > 0 && (
-        <button type="button" className="btn btn-secondary dvmore" onClick={more.onMore} disabled={more.loading}>
-          {more.loading ? 'Loading…' : <>Show {Math.min(SHELF_PAGE, left)} more <small>({left} not shown)</small></>}
-        </button>
-      )}
+    <div className="docgrid dvgrid" ref={gridRef}>
+      {docs.map((d) => {
+        const { due, extra, unread } = rowBits(d, badges);
+        const box = tick ? tick(d) : null;
+        return (
+          <article key={d._id} data-focus-id={d._id}
+            className={`doccard dvgcard${unread ? ' is-unread' : ''}${box?.checked ? ' is-picked' : ''}`}>
+            <header className="doccard__head">
+              {box && <Tick checked={box.checked} onChange={box.onChange} label={`Select ${d.title}`} />}
+              <FileMark file={d.files?.[0]} size={40} />
+              <TypePill type={d.docType} />
+              <span />
+            </header>
+            <button type="button" className="doccard__title" onClick={() => onOpen(d)}>
+              <TitleFlags doc={d} unread={unread} />
+            </button>
+            {d.description ? <p className="doccard__sub">{d.description}</p> : null}
+            <dl className="doccard__meta">
+              <div><dt>Shared with</dt><dd><SharedWith shared={d.sharedWith} /></dd></div>
+              <div><dt>Shared on</dt><dd>{fmtDate(d.createdAt)}</dd></div>
+              <div>
+                <dt>Files</dt>
+                <dd>{d.fileCount || 0}</dd>
+              </div>
+              <div>
+                <dt>Category</dt>
+                <dd title={d.category || undefined}>{d.category || <span className="docnone">—</span>}</dd>
+              </div>
+            </dl>
+            <footer className="doccard__foot">
+              <span className="dvstate">
+                {due && <span className={`dvdue dvdue--${due.tone}`}><Icon name="clock" size={13} />{due.text}</span>}
+                {extra}
+              </span>
+              <RowActions><Eye doc={d} onOpen={onOpen} /></RowActions>
+            </footer>
+          </article>
+        );
+      })}
     </div>
   );
+}
+
+/** Table or cards, whichever `asCards` says; the spinner and the empty state either way. */
+export const ReaderList = ({ asCards, docs, loading, empty, ...rest }) => {
+  if (loading) return <Loading />;
+  if (!docs.length) return empty;
+  return asCards ? <ReaderGrid docs={docs} {...rest} /> : <ReaderTable docs={docs} {...rest} />;
 };
 
 // ── The shelf, a page at a time ──────────────────────────────────────────────
-
-export const SHELF_PAGE = 30;
 
 /**
  * One reader's shelf, read from the server a page at a time.
  *
  * The tabs, the category, the search, the sort and the tiles' state filter are
- * all `params` — the server narrows and counts, and sends back only the page
- * being shown (it used to send every document of the year, files and all, and
- * this file did the narrowing). `meta` is the whole answer: the figures, the
- * years, the ids still unread under these filters, and `focused` — the one
- * document named by `focusRef`, wherever it is filed.
+ * all `params` — the server narrows, counts and sends back only the page being
+ * shown. `meta` is the whole answer: the figures, the years, the ids still
+ * unread under these filters, and `focused` — the one document named by
+ * `focusRef`, wherever it is filed.
  *
- * A change of params starts again from the first page; `refetch()` re-reads
- * what is already on screen in place, without blanking it.
+ * Numbered pages (Nov 23 2026 — it used to be "Show more"): `page` / `setPage`
+ * here, `limit` from the page. A change of filters goes back to page 1;
+ * `refetch()` re-reads the page on screen in place, without blanking it.
  */
-export function useShelf(load, params, { focusRef } = {}) {
+export function useShelf(load, params, { focusRef, limit = 10 } = {}) {
   // A keystroke is not a search; wait for a pause.
   const [term, setTerm] = useState(params.search || '');
   useEffect(() => {
@@ -370,51 +447,36 @@ export function useShelf(load, params, { focusRef } = {}) {
     return q;
   }, [key]);
 
-  const [box, setBox] = useState({ docs: [], meta: null, loading: true, more: false, error: '' });
-  const held = useRef(box);
-  held.current = box;
-  const turn = useRef(0);
+  // The page belongs to the filters it was picked under: new filters, page 1 —
+  // without a first request for the old page number under the new filters.
+  const [at, setAt] = useState({ key, page: 1 });
+  const page = at.key === key ? at.page : 1;
+  const setPage = useCallback((n) => setAt({ key, page: n }), [key]);
 
-  const ask = useCallback((page, limit) => load({
-    ...query, page, limit, ...(focusRef?.current ? { focus: focusRef.current } : {}),
-  }), [query, load]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [box, setBox] = useState({ docs: [], meta: null, loading: true, error: '' });
+  const turn = useRef(0);
 
   const read = useCallback(async (keep) => {
     const mine = ++turn.current;
     if (!keep) setBox((b) => ({ ...b, loading: true, error: '' }));
     try {
-      const limit = keep ? Math.min(100, Math.max(SHELF_PAGE, held.current.docs.length)) : SHELF_PAGE;
-      const res = await ask(1, limit);
+      const res = await load({ ...query, page, limit, ...(focusRef?.current ? { focus: focusRef.current } : {}) });
       if (mine !== turn.current) return;      // a newer question has been asked since
-      setBox({ docs: res?.data || [], meta: res, loading: false, more: false, error: '' });
+      setBox({ docs: res?.data || [], meta: res, loading: false, error: '' });
     } catch (err) {
       if (mine !== turn.current) return;
-      setBox((b) => ({ ...b, loading: false, more: false, error: err?.response?.data?.message || err.message || 'The documents could not be loaded' }));
+      setBox((b) => ({ ...b, loading: false, error: err?.response?.data?.message || err.message || 'The documents could not be loaded' }));
     }
-  }, [ask]);
+  }, [query, page, limit, load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { read(false); }, [read]);
 
-  const loadMore = useCallback(async () => {
-    const mine = turn.current;
-    setBox((b) => ({ ...b, more: true }));
-    try {
-      const res = await ask(Math.floor(held.current.docs.length / SHELF_PAGE) + 1, SHELF_PAGE);
-      if (mine !== turn.current) return;
-      setBox((b) => {
-        const have = new Set(b.docs.map((d) => d._id));
-        return { ...b, docs: [...b.docs, ...(res?.data || []).filter((d) => !have.has(d._id))], meta: res, more: false };
-      });
-    } catch (err) {
-      setBox((b) => ({ ...b, more: false }));
-      toast.error(err?.response?.data?.message || err.message);
-    }
-  }, [ask]);
-
   return {
     docs: box.docs, meta: box.meta, loading: box.loading, error: box.error,
+    page: box.meta?.page || page,
+    pages: box.meta?.pages || 1,
     total: box.meta?.total ?? box.docs.length,
-    more: { total: box.meta?.total ?? box.docs.length, loading: box.more, onMore: loadMore },
+    setPage,
     refetch: () => read(true),
   };
 }
@@ -927,7 +989,7 @@ const CommentRow = ({ c, onReply, reply, onEdit, onDelete }) => {
         <header>
           <b>{c.mine ? 'You' : c.author?.name}</b>
           <span className={`dvcom__role dvcom__role--${c.author?.role}`}>{ROLE_LABEL[c.author?.role] || c.author?.role}</span>
-          {c.isPinned ? <span className="dvpill dvpill--indigo"><Icon name="star" size={11} /> Pinned</span> : null}
+          {c.isPinned ? <span className="dvpill dvpill--indigo"><Icon name="star" size={11} style={{ fill: 'currentColor' }} /> Pinned</span> : null}
           {c.isEdited ? <em className="dvcom__edited">edited</em> : null}
           <time>{fmtWhen(c.createdAt)}</time>
         </header>

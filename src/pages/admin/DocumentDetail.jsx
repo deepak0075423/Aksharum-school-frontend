@@ -540,6 +540,11 @@ function DocumentDetailPage() {
   // shown made rather than offered.
   const replyStaff = replyTo?.visibility === 'staff';
 
+  // "Total Students" shows every student on it: no status, section or search.
+  const showAllStudents = () => {
+    setSearch(''); setTerm(''); setStatus(''); setSection(''); setPage(1);
+  };
+
   // Reset puts the search, both dropdowns and the sort back (Nov 23 2026).
   const resetRoster = () => {
     setSearch(''); setTerm(''); setStatus(''); setSection(''); setSort('roll'); setPage(1);
@@ -696,7 +701,8 @@ function DocumentDetailPage() {
         isAssignment ? (
           <>
             <StatTiles counts={counts} percent={percent} active={status}
-              onPick={(v) => { setStatus(v); setPage(1); }} />
+              onPick={(v) => { setStatus(v); setPage(1); }}
+              onAll={showAllStudents} allOn={!status && !section && !term} />
 
             {/* Not three equal columns: the ring needs room for its legend
                 beside it, the three scores need very little. */}
@@ -778,7 +784,8 @@ function DocumentDetailPage() {
       {view === 'submissions' && isAssignment && (
         <>
           <StatTiles counts={counts} percent={percent} active={status}
-            onPick={(v) => { setStatus(v); setPage(1); }} />
+            onPick={(v) => { setStatus(v); setPage(1); }}
+            onAll={showAllStudents} allOn={!status && !section && !term} />
 
           <Panel className="adworkbench">
             {/* One bar: what narrows the list on the left, what acts on all of

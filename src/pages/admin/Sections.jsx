@@ -30,6 +30,7 @@ import {
   SectionForm, SectionSetupPanel, SeatBar, ShuffleBanner, StatusBadge, TeacherLine,
   countOf, fillOf, needsSetup, seatsOf, setupIssues,
 } from './sectionParts';
+import useCardPaging from '../../hooks/useCardPaging';
 
 const SORTS = [
   { value: 'name',     label: 'Section name (A–Z)' },
@@ -71,6 +72,8 @@ export default function Sections() {
   // The saved choice is left alone for when the screen is wide again.
   const phone = usePhone();
   const shownView = phone ? 'grid' : view;
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownView === 'grid' });
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(15);
 
@@ -389,7 +392,7 @@ export default function Sections() {
                   />
                 )
                 : (
-                  <div className="clsgrid">
+                  <div className="clsgrid" ref={paging.gridRef}>
                     {shown.map((s) => (
                       <SectionCard key={s._id} sec={s} classId={id} classSubjects={classSubjects}
                         onCapacity={setCapacity} onDelete={setDel} />
@@ -412,7 +415,7 @@ export default function Sections() {
             />
           )}
 
-        <ListFooter
+        <ListFooter sizes={paging.sizes}
           page={Math.min(page, pages)} pages={pages} total={filtered.length}
           limit={limit} count={shown.length} noun="section"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}

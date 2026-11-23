@@ -23,6 +23,7 @@ import { getScope, getOverview, getStudents } from '../../api/analytics.api';
 import { Empty, Spinner, Badge } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ListFoot } from '../directory/employeeParts';
+import useCardPaging, { useSnapLimit } from '../../hooks/useCardPaging';
 import { VIZ, fmtMoney, toneForPercent } from './viz';
 import {
   Chip, Crumbs, FeeCell, Hero, LibraryCell, NoData, Panel, PercentCell, RankList,
@@ -84,6 +85,11 @@ export default function StudentAnalytics() {
   const [showMore,  setShowMore]  = useState(false);
   const [page,      setPage]      = useState(1);
   const [limit,     setLimit]     = useState(20);
+  // Card view: a page holds whole rows of cards, rounded from this page's own
+  // sizes (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownLayout === 'card', base: PAGE_SIZES });
+  const sizes  = paging.sizes || PAGE_SIZES;
+  useSnapLimit(sizes, limit, (n) => { setLimit(n); setPage(1); });
 
   const { data: scope, loading: scopeLoading, error: scopeError, refetch: retryScope } = useFetch(getScope, []);
 
@@ -436,7 +442,7 @@ export default function StudentAnalytics() {
               // Cards on a phone (components/ui/PhoneCards): the student, then the
               // figures this page exists for, then View.
               <PhoneCards title="Student" keep={['Class', 'Roll', 'Attendance', 'Avg. result', 'Fees', 'Library']}
-                cards={shownLayout === 'card'}>
+                cards={shownLayout === 'card'} onColumns={paging.onColumns}>
               <div className="table-wrap">
                 <table className="table antable">
                   <thead>
@@ -489,7 +495,7 @@ export default function StudentAnalytics() {
           <ListFoot
             page={roster?.page || 1} pages={roster?.pages || 1} total={roster?.total || 0}
             limit={limit} count={students.length} noun="student"
-            onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} sizes={PAGE_SIZES}
+            onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} sizes={sizes}
           />
         )}
       </section>

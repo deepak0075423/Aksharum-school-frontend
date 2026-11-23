@@ -30,6 +30,7 @@ import {
   ClassCard, ClassCell, ClassForm, CountCell, DeleteClassDialog, HasStudentsDialog,
   SeatCell, SetupPanel, StatusBadge, fillOf, needsSetup, setupIssues,
 } from './classParts';
+import useCardPaging from '../../hooks/useCardPaging';
 
 const SORTS = [
   { value: 'grade',    label: 'Grade (low to high)' },
@@ -90,6 +91,8 @@ export default function Classes() {
   // The saved choice is left alone — a desktop that picked List keeps it.
   const phone = usePhone();
   const shownView = phone ? 'grid' : view;
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownView === 'grid' });
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(15);
 
@@ -399,7 +402,7 @@ export default function Classes() {
                 : !shown.length
                   ? empty
                   : (
-                    <div className="clsgrid">
+                    <div className="clsgrid" ref={paging.gridRef}>
                       {shown.map((c) => (
                         <ClassCard key={c._id} cls={c}
                           onEdit={openEdit}
@@ -426,7 +429,7 @@ export default function Classes() {
             />
           )}
 
-        <ListFooter
+        <ListFooter sizes={paging.sizes}
           page={Math.min(page, pages)} pages={pages} total={filtered.length}
           limit={limit} count={shown.length} noun="class" plural="classes"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}

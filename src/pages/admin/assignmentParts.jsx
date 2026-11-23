@@ -157,7 +157,9 @@ export const DetailTabs = ({ tabs, value, onChange }) => (
  * the four read as one split rather than four unrelated counts. They describe
  * the assignment and never move when the table below is filtered.
  */
-export const StatTiles = ({ counts, percent, active, onPick }) => {
+// `onAll` / `allOn` (Nov 23 2026): "Total Students" opens what it counts —
+// every student on the assignment, no filter — and is lit while that is shown.
+export const StatTiles = ({ counts, percent, active, onPick, onAll, allOn }) => {
   const tiles = [
     { key: 'submitted', icon: 'checkCircle', tone: 'green',  label: 'Submitted',     value: counts.submitted, pct: percent.submitted, bar: VIZ.good },
     { key: 'pending',   icon: 'clock',       tone: 'amber',  label: 'Pending',       value: counts.pending,   pct: percent.pending,   bar: VIZ.warn },
@@ -187,11 +189,12 @@ export const StatTiles = ({ counts, percent, active, onPick }) => {
             </span>
           </>
         );
-        if (!onPick || !t.key) return <div className="adtile" key={t.label}>{body}</div>;
+        if (!onPick || (!t.key && !onAll)) return <div className="adtile" key={t.label}>{body}</div>;
+        const on = t.key ? active === t.key : !!allOn;
         return (
-          <button type="button" key={t.label} aria-pressed={active === t.key}
-            className={`adtile${active === t.key ? ' is-on' : ''}`}
-            onClick={() => onPick(active === t.key ? '' : t.key)}>
+          <button type="button" key={t.label} aria-pressed={on}
+            className={`adtile${on ? ' is-on' : ''}`}
+            onClick={() => (t.key ? onPick(active === t.key ? '' : t.key) : onAll())}>
             {body}
           </button>
         );
@@ -929,6 +932,10 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
 
 const ROLE_LABEL = { school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' };
 
+// A pinned comment's star is filled (Nov 23 2026); "Pin" on one that is not
+// pinned keeps the outline. The style beats the <svg>'s fill="none".
+const FILLED = { fill: 'currentColor' };
+
 /**
  * One comment, with what this reader may do to it in plain sight.
  *
@@ -987,7 +994,7 @@ export function CommentCard({ c, onReply, onPin, onDelete, onEdit, onView, depth
           {c.visibility === 'staff' && <span className="adpill adpill--slate">Staff only</span>}
           {c.isPinned && (
             <span className="adcomment__end">
-              <span className="adpill adpill--indigo"><Icon name="star" size={12} /> Pinned</span>
+              <span className="adpill adpill--indigo"><Icon name="star" size={12} style={FILLED} /> Pinned</span>
             </span>
           )}
         </header>
@@ -1043,7 +1050,7 @@ export function CommentCard({ c, onReply, onPin, onDelete, onEdit, onView, depth
           )}
           {canPin && (
             <button type="button" className={`adchip${c.isPinned ? ' is-on' : ''}`} onClick={() => onPin(c, !c.isPinned)}>
-              <Icon name="star" size={14} /> {c.isPinned ? 'Unpin' : 'Pin'}
+              <Icon name="star" size={14} style={c.isPinned ? FILLED : undefined} /> {c.isPinned ? 'Unpin' : 'Pin'}
             </button>
           )}
           {canDelete && (

@@ -14,6 +14,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import PhoneCards from '../../components/ui/PhoneCards';
+import useCardPaging from '../../hooks/useCardPaging';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -58,6 +59,8 @@ export default function Subjects() {
   const { data: years, loading: yearsLoading } = useFetch(api.getAcademicYears);
   // List or Card (cards only on a phone), remembered per page.
   const [layout, setLayout, shownLayout] = useListLayout('admin.subjects.layout');
+  // Card view: a page holds whole rows of cards (hooks/useCardPaging).
+  const paging = useCardPaging({ cards: shownLayout === 'card' });
   const [year, setYear] = useState('');
 
   // Start on the year the school is working in, and fall back to the newest.
@@ -366,7 +369,7 @@ export default function Subjects() {
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
             a few lines, then the row's actions — nothing scrolls sideways. */}
-        <PhoneCards title="Subject" side="Status" keep={['Type', 'Teachers', `Used in ${yearName}`]} cards={shownLayout === 'card'}>
+        <PhoneCards onColumns={paging.onColumns} title="Subject" side="Status" keep={['Type', 'Teachers', `Used in ${yearName}`]} cards={shownLayout === 'card'}>
           <ListTable
             columns={columns}
             rows={shown}
@@ -392,7 +395,7 @@ export default function Subjects() {
           />
         </PhoneCards>
 
-        <ListFooter
+        <ListFooter sizes={paging.sizes}
           page={Math.min(page, pages)} pages={pages} total={filtered.length}
           limit={limit} count={shown.length} noun="subject"
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}

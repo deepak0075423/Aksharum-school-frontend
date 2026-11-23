@@ -15,7 +15,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
-import { Confirm, Empty, Spinner } from '../../components/ui/index';
+import { Confirm, Empty, Spinner, PageSize } from '../../components/ui/index';
+import { LIST_SIZES, CARD_BASE, useSnapLimit } from '../../hooks/useCardPaging';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { withFileToken } from '../../utils/fileAccess';
@@ -586,12 +587,12 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu, s
  * filling the fourth place beside Files — one a row on a phone, as many
  * ~272px cards across as fit everywhere else.
  */
-export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu, selection }) {
+export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu, selection, gridRef }) {
   if (loading) return <div className="docloading"><Spinner /></div>;
   if (!rows.length) return empty;
 
   return (
-    <div className="docgrid">
+    <div className="docgrid" ref={gridRef}>
       {rows.map((r) => (
         <article key={r._id} className={`doccard${selection?.has(r._id) ? ' is-picked' : ''}`} data-focus-id={r._id}>
           <header className="doccard__head">
@@ -665,7 +666,13 @@ export const Pager = ({ page, pages, onPage }) => {
  * Rendered even for a single page: the count sentence is the answer to "did my
  * filter do anything", and it must not vanish once the list is short.
  */
-export const DocFoot = ({ page, pages, total, limit, count, onPage }) => {
+// `sizes` / `onLimit` (Nov 23 2026): the page sizes on offer — a Card view
+// passes multiples of its cards per row (hooks/useCardPaging); left out, a
+// phone gets 10 / 15 / 20 / 25 and a table 5 / 10 / 15 / 20 / 25.
+export const DocFoot = ({ page, pages, total, limit, count, onPage, onLimit, sizes }) => {
+  const phone = usePhone();
+  const offered = sizes || (phone ? CARD_BASE : LIST_SIZES);
+  useSnapLimit(onLimit ? offered : null, limit, onLimit);
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to   = (page - 1) * limit + count;
   return (
@@ -675,7 +682,10 @@ export const DocFoot = ({ page, pages, total, limit, count, onPage }) => {
           ? 'No documents to show'
           : `Showing ${from} to ${to} of ${total} document${total === 1 ? '' : 's'}`}
       </span>
-      <Pager page={page} pages={pages} onPage={onPage} />
+      <div className="docfoot__end">
+        <Pager page={page} pages={pages} onPage={onPage} />
+        {onLimit && <PageSize value={limit} total={total} onChange={onLimit} options={offered} minTotal={offered[0]} />}
+      </div>
     </div>
   );
 };
