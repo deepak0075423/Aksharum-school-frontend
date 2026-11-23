@@ -85,9 +85,10 @@ export const SearchBox = ({ value, onChange, placeholder }) => (
  * Marked as set only when it differs from its own default, so a sort sitting on
  * "Name (A–Z)" never reads as a filter someone forgot to clear.
  */
-export const Pick = ({ value, onChange, all, options, label, defaultValue = '' }) => (
+export const Pick = ({ value, onChange, all, options, label, defaultValue = '', disabled, title }) => (
   <select className={`form-control edl-pick${value !== defaultValue ? ' is-set' : ''}`}
-    value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+    value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
+    disabled={disabled} title={title}>
     {all ? <option value="">{all}</option> : null}
     {options.map((o) => {
       const v = typeof o === 'string' ? o : o.value;

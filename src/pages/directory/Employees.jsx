@@ -40,9 +40,10 @@ const EMPTY = {
   joined: '',
   // Where the employment stands (probation, notice…), and who owes the office a document.
   stage: '', owed: '',
-  // Active by default. 'all' and 'inactive' are one pick away, and Clear returns
-  // here rather than to "everyone", so the list keeps its meaning.
-  accountStatus: 'active',
+  // Everyone by default (Nov 24 2026, the user's call — "All Employees" opened
+  // on active accounts only and the Total tile read as a different list).
+  // Active and inactive are one tile away; Clear comes back here.
+  accountStatus: 'all',
 };
 
 // The bar shows four; everything else lives behind More Filters, so the row
@@ -155,9 +156,18 @@ export default function Employees() {
   const opts  = meta?.filters || {};
   const stats = pageData?.stats || {};
   const employees = pageData?.employees || [];
+  // A section belongs to a class: the class is picked first (Nov 24 2026), and
+  // only then are its own sections offered — every section of the school in
+  // one list, before a class, was a long list to hunt through.
   const sections = filters.classId
     ? (opts.sections || []).filter((s) => s.classId === filters.classId)
-    : (opts.sections || []);
+    : [];
+  // A link that names only a section: fill its class in, so the pair reads right.
+  useEffect(() => {
+    if (!filters.sectionId || filters.classId) return;
+    const hit = (opts.sections || []).find((x) => x._id === filters.sectionId);
+    if (hit?.classId) setFilters((f) => ({ ...f, classId: hit.classId }));
+  }, [filters.sectionId, filters.classId, opts.sections]);
 
   const share = (n) => (stats.employees > 0 ? `${Math.round((n / stats.employees) * 100)}% of total` : '—');
 
@@ -201,7 +211,10 @@ export default function Employees() {
     .filter(([k, v]) => v && v !== EMPTY[k] && k !== 'search')
     .map(([k, v]) => ({
       key: k, label: labelFor[k] || k, value: valueFor(k, v),
-      onRemove: () => set(k, EMPTY[k]),
+      // Taking the class away takes its section with it.
+      onRemove: () => (k === 'classId'
+        ? (setFilters((f) => ({ ...f, classId: '', sectionId: '' })), setPage(1))
+        : set(k, EMPTY[k])),
     }));
 
   const filterCount = activeCount(filters, EMPTY, ['search', ...IN_BAR]);
@@ -304,7 +317,7 @@ export default function Employees() {
             {isDirectoryAdmin && (
               <Field label="Account">
                 <Pick value={filters.accountStatus} onChange={(v) => set('accountStatus', v)}
-                  defaultValue="active" label="Account state" options={[
+                  defaultValue="all" label="Account state" options={[
                     { value: 'active', label: 'Active accounts' },
                     { value: 'inactive', label: 'Inactive accounts' },
                     { value: 'all', label: 'All accounts' },
@@ -327,12 +340,15 @@ export default function Employees() {
                 all="Any subject" label="Subject" options={(opts.subjects || []).map((s) => ({ value: s._id, label: s.label }))} />
             </Field>
             <Field label="Class">
-              <Pick value={filters.classId} onChange={(v) => { set('classId', v); set('sectionId', ''); }}
+              <Pick value={filters.classId}
+                onChange={(v) => { setFilters((f) => ({ ...f, classId: v, sectionId: '' })); setPage(1); }}
                 all="Any class" label="Class" options={(opts.classes || []).map((c) => ({ value: c._id, label: c.label }))} />
             </Field>
             <Field label="Section">
               <Pick value={filters.sectionId} onChange={(v) => set('sectionId', v)}
-                all="Any section" label="Section" options={sections.map((s) => ({ value: s._id, label: s.label }))} />
+                all={filters.classId ? 'Any section' : 'Select a class first'} label="Section"
+                disabled={!filters.classId} title={filters.classId ? undefined : 'Pick a class first'}
+                options={sections.map((s) => ({ value: s._id, label: s.label }))} />
             </Field>
             {isDirectoryAdmin && (
               <Field label="Joined in">

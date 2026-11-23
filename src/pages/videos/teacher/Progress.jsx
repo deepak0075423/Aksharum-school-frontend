@@ -53,7 +53,9 @@ export default function TeacherVideoProgress() {
 
   const o = data?.options;
   const st = data?.students;
-  const sections = (o?.sections || []).filter((s) => !filters.class || String(s.class) === filters.class);
+  // The class first, then its own sections (Nov 24 2026) — not every section
+  // the teacher has, before a class is chosen.
+  const sections = filters.class ? (o?.sections || []).filter((s) => String(s.class) === filters.class) : [];
   const chapters = (data?.chapters || []).filter((c) => !filters.book || String(c.book) === filters.book);
   const active = Object.keys(filters).length + (status ? 1 : 0);
 
@@ -69,8 +71,9 @@ export default function TeacherVideoProgress() {
     { key: 'open', label: '', className: 'ltable__acts', render: (r) => <Link to={`/teacher/videos/progress/students/${r._id}`} className="btn btn-secondary btn-sm">Report</Link> },
   ];
 
-  const select = (label, key, options, all) => (
-    <select className={`form-control lsel${filters[key] ? ' lfsel--on' : ''}`} value={filters[key] || ''} onChange={(e) => set(key, e.target.value)} aria-label={label}>
+  const select = (label, key, options, all, disabled) => (
+    <select className={`form-control lsel${filters[key] ? ' lfsel--on' : ''}`} value={filters[key] || ''} onChange={(e) => set(key, e.target.value)} aria-label={label}
+      disabled={disabled}>
       <option value="">{all}</option>
       {options.map((x) => <option key={x._id} value={x._id}>{x.name || x.title}</option>)}
     </select>
@@ -93,7 +96,7 @@ export default function TeacherVideoProgress() {
               <div className="ltools">
                 {o.years.length > 1 ? select('Academic year', 'academicYear', [{ _id: 'all', name: 'All years' }, ...o.years], 'This year') : null}
                 {select('Class', 'class', o.classes, 'All classes')}
-                {select('Section', 'section', sections, 'All sections')}
+                {select('Section', 'section', sections, filters.class ? 'All sections' : 'Select a class first', !filters.class)}
                 {select('Subject', 'subject', o.subjects, 'All subjects')}
                 {select('Book', 'book', o.books, 'All books')}
                 {filters.book && chapters.length

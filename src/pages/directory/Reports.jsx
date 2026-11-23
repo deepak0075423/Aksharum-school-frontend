@@ -152,7 +152,7 @@ export default function Reports() {
         <Tile icon="checkCircle" tone="amber" value={totals.pendingVerification} label="Pending verification"
           captionTone={totals.pendingVerification ? 'down' : undefined}
           caption={totals.pendingVerification ? 'Still to be signed off' : 'All signed off'}
-          to={`${base}/employees?verification=pending`} />
+          to={`${base}/employees?verification=pending&accountStatus=active`} />
       </div>
 
       <ReportTabs reports={reports} active={active}

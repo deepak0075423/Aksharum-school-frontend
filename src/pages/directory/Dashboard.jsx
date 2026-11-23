@@ -198,7 +198,7 @@ export default function DirectoryDashboard() {
 
       <div className="edo-grid">
         <Panel title="Profile Completion"
-          action={<PanelLink to={`${base}/employees?completion=incomplete`}>View Details</PanelLink>}>
+          action={<PanelLink to={`${base}/employees?completion=incomplete&accountStatus=active`}>View Details</PanelLink>}>
           <Hero value={data?.averageCompletion ?? 0} label="Average completion"
             sub={`Across the ${t.liveAccounts ?? total} employee${(t.liveAccounts ?? total) === 1 ? '' : 's'} working here now`}
             tone={(data?.averageCompletion ?? 0) >= 75 ? VIZ.good : (data?.averageCompletion ?? 0) >= 50 ? VIZ.warn : VIZ.accent} />
@@ -220,7 +220,7 @@ export default function DirectoryDashboard() {
             {
               label: 'Incomplete Profiles', sub: 'Ask employees to complete', tone: 'orange',
               icon: <Icon name="clipboard" size={18} />, count: t.incompleteProfiles ?? 0,
-              to: `${base}/employees?completion=incomplete`,
+              to: `${base}/employees?completion=incomplete&accountStatus=active`,
             },
             {
               label: 'Documents Awaiting Review', sub: 'Uploaded, not yet looked at', tone: 'blue',
