@@ -16,7 +16,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
-import { Button, Empty, Spinner, Pagination, PageSize } from '../../components/ui/index';
+import { Button, Confirm, Empty, Spinner, Pagination, PageSize } from '../../components/ui/index';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { DrawerHead as UiDrawerHead, DrawerSection as UiDrawerSection } from '../../components/ui/Drawer';
@@ -252,13 +252,16 @@ export const FilterPanel = ({ children, onReset }) => (
  * sentence — "All Classes", not a blank box. `options` take either plain
  * strings or `{ value, label }`.
  */
-export const FilterField = ({ label, value, onChange, all, options, defaultValue = '' }) => (
+export const FilterField = ({ label, value, onChange, all, options, defaultValue = '', disabled = false, title }) => (
   <div>
     <label>{label}</label>
     {/* Marked as set only when it differs from its own default — a sort left on
-        "Name (A–Z)" is not a filter, and must not look like one. */}
+        "Name (A–Z)" is not a filter, and must not look like one. `disabled`
+        (with `all` as its prompt) is for a filter that needs another one first —
+        Section waits for a Class. */}
     <select className={`form-control${value !== defaultValue ? ' lfsel--on' : ''}`}
-      value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
+      disabled={disabled} title={title}>
       {all ? <option value="">{all}</option> : null}
       {options.map((o) => {
         const val = typeof o === 'string' ? o : o.value;
@@ -296,6 +299,63 @@ export const SelectionBar = ({ count, noun, onClear, children }) => {
         <button type="button" className="btn btn-secondary btn-sm" onClick={onClear}>Clear</button>
       </div>
     </div>
+  );
+};
+
+/**
+ * The Activate / Deactivate pair for a selection bar, offering only what the
+ * ticked rows can actually become: all active → Deactivate alone, all inactive
+ * → Activate alone, a mix → both. `rows` are the selected rows; pass only the
+ * ones the action may touch (Admins leaves the signed-in admin out).
+ */
+export const BulkActiveButtons = ({ rows, busy, onSet }) => {
+  const anyActive   = rows.some((r) => r.isActive !== false);
+  const anyInactive = rows.some((r) => r.isActive === false);
+  return (
+    <>
+      {anyInactive && (
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+          onClick={() => onSet(true)}>Activate</button>
+      )}
+      {anyActive && (
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+          onClick={() => onSet(false)}>Deactivate</button>
+      )}
+    </>
+  );
+};
+
+/**
+ * "Are you sure?" before anything is switched off (Nov 2026).
+ *
+ * `ask` is `{ rows, run }` — the rows about to be deactivated and the function
+ * that does it — or null when closed. Confirming closes the dialog and calls
+ * `run`; the page's own toasts report progress. Activating needs no question
+ * and never comes through here.
+ *
+ * `what` overrides the default sentence about what deactivating does — an
+ * account cannot sign in; a designation leaves the pickers.
+ */
+export const DeactivateConfirm = ({ ask, noun, onClose, what }) => {
+  const rows = ask?.rows || [];
+  const n = rows.length;
+  const Noun = noun ? noun[0].toUpperCase() + noun.slice(1) : '';
+  const names = rows.slice(0, 3).map((r) => r.name).filter(Boolean);
+  const who = n === 1
+    ? (rows[0]?.name || `this ${noun}`)
+    : `${n} ${noun}s${names.length ? ` (${names.join(', ')}${n > 3 ? ` and ${n - 3} more` : ''})` : ''}`;
+  const effect = what || (n === 1
+    ? 'They will not be able to sign in until the account is activated again. Nothing on their record is deleted.'
+    : 'None of them will be able to sign in until their accounts are activated again. Nothing on their records is deleted.');
+  return (
+    <Confirm
+      open={!!ask}
+      onClose={onClose}
+      onConfirm={() => { const go = ask?.run; onClose(); go?.(); }}
+      title={n === 1 ? `Deactivate ${Noun}` : `Deactivate ${n} ${Noun}s`}
+      confirmLabel="Deactivate"
+      message={`Deactivate ${who}? ${effect}`}
+    />
   );
 };
 

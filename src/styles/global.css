@@ -821,6 +821,69 @@ input, select, textarea {
 }
 .form-control.error { border-color: var(--danger); }
 .form-hint  { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+/* FormRow (components/ui/FormRow.jsx): two fields side by side. The columns
+   may shrink below their content (a long file name, a wide select) instead of
+   pushing the row off the screen; FormRow evens out the label heights so the
+   two inputs stay on one line when a label wraps. */
+.frow2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px; }
+
+/* FilePick (components/ui/FilePick.jsx): the file chooser, drawn by us so the
+   "No file chosen" text is never squeezed to "n…sen" in a narrow column. */
+.fpick {
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  width: 100%; min-height: 42px; padding: 6px 10px 6px 6px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.fpick:hover { border-color: var(--border-focus); }
+.fpick:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+.fpick--error { border-color: var(--danger); }
+.fpick--off { cursor: not-allowed; opacity: .6; }
+.fpick__input {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; opacity: 0;
+}
+.fpick__btn {
+  flex: none; padding: 5px 12px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: .82rem; font-weight: 600; color: var(--text); white-space: nowrap;
+}
+.fpick__name {
+  flex: 1 1 7.5rem; min-width: 0;
+  font-size: .85rem; color: var(--text-muted); line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.fpick__name.is-set { color: var(--text); }
+
+/* SearchSelect (components/ui/SearchSelect.jsx): a select box whose list opens
+   with a search field on top. Closed, it is drawn exactly like a select. */
+.ssel { position: relative; }
+.ssel__btn {
+  display: flex; align-items: center; text-align: left; cursor: pointer;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+}
+.ssel__btn:disabled { cursor: not-allowed; opacity: .6; }
+.ssel__btn--empty .ssel__value { color: var(--text-muted); }
+.ssel__value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ssel__search {
+  position: sticky; top: 0; z-index: 1; padding: 8px;
+  background: var(--bg-card); border-bottom: 1px solid var(--border);
+}
+.ssel__search .form-control { padding: 7px 12px; font-size: .88rem; }
+.ssel__opt {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 8px 12px; cursor: pointer; font-size: .9rem; color: var(--text);
+}
+.ssel__opt.is-hi { background: var(--bg); }
+.ssel__opt.is-on { font-weight: 600; color: var(--primary); }
+.ssel__opt.is-off { cursor: not-allowed; color: var(--text-muted); }
+.ssel__opt--none { color: var(--text-muted); font-style: italic; border-bottom: 1px solid var(--border); }
+.ssel__sub { font-size: .78rem; font-weight: 400; color: var(--text-muted); }
+.ssel__empty { padding: 12px; font-size: .85rem; color: var(--text-muted); }
 .form-error { font-size: 0.8rem; color: var(--danger); margin-top: 4px; }
 
 select.form-control {
@@ -10757,12 +10820,10 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
   padding: 16px 18px; font: inherit; color: inherit;
 }
-/* The tile a teacher is most likely to act on carries its tone, so the row of
-   three has a subject rather than reading as three equal boxes. */
-.tsec-tile.tsec-t--green {
-  background: color-mix(in srgb, var(--tone) 6%, #fff);
-  border-color: color-mix(in srgb, var(--tone) 22%, var(--border));
-}
+/* All three tiles are drawn alike (Nov 2026): the Vice Class Teacher tile
+   used to be tinted green — background and border — as the "one to act on",
+   which read as that role alone being marked out. Each tile's role colour is
+   its icon only. */
 .tsec-tile--go { cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition); }
 .tsec-tile--go:hover { border-color: var(--tone); box-shadow: var(--shadow); }
 .tsec-tile--go > svg:last-child { color: var(--text-light); flex-shrink: 0; }
@@ -11099,8 +11160,18 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .scls-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--tone, var(--primary)); }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
-.scls-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.scls-row2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* Cards in a row are one height (Nov 2026 — `align-items: start` left each
+   card its own height, a ragged row). A card wrapped in a div (Class Updates,
+   which the page scrolls to) fills that wrapper. A row of fewer cards than
+   columns (`--n1`, `--n2`) gives them the width instead of leaving a gap. */
+.scls-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.scls-row3--n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.scls-row3--n1 { grid-template-columns: minmax(0, 1fr); }
+.scls-row2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.scls-row3 > div:not(.scls-card),
+.scls-row2 > div:not(.scls-card) { display: flex; flex-direction: column; min-width: 0; }
+.scls-row3 > div:not(.scls-card) > .scls-card,
+.scls-row2 > div:not(.scls-card) > .scls-card { flex: 1; }
 
 .scls-card {
   background: var(--bg-card); border: 1px solid var(--border);
@@ -11241,7 +11312,7 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   .scls-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 1050px) {
-  .scls-row3, .scls-row2 { grid-template-columns: minmax(0, 1fr); }
+  .scls-row3, .scls-row3--n2, .scls-row2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 780px) {
   .scls-hero__art { display: none; }
@@ -22035,12 +22106,17 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .phc--cards .table-wrap, .phc--cards .lvtable__wrap { overflow: visible; }
 .phc--cards table { display: block; width: 100%; }
 .phc--cards table > thead { display: none; }
+/* Every card in a row is the height of the tallest (Nov 2026 — a card with
+   less in it, e.g. the active academic year with no "Set Active" button, used
+   to come out shorter than its neighbours). Inside a card the extra height
+   goes between its lines, so the first line stays at the top and the action
+   buttons at the bottom of every card. */
 .phc--cards table > tbody {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 14px; padding: 16px; align-items: start;
+  gap: 14px; padding: 16px; align-items: stretch;
 }
 .phc--cards table > tbody > tr {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  display: flex; flex-wrap: wrap; align-items: center; align-content: space-between; gap: 8px 10px;
   margin: 0; padding: 14px; min-width: 0;
   border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);

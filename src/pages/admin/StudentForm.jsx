@@ -5,6 +5,8 @@ import { Button, Modal, Spinner } from '../../components/ui/index';
 import ExistingDoc from '../../components/ExistingDoc';
 import AddressFields from '../../components/ui/AddressFields';
 import PhoneInput from '../../components/ui/PhoneInput';
+import FormRow from '../../components/ui/FormRow';
+import FilePick, { SCAN_ACCEPT, isScan } from '../../components/ui/FilePick';
 import { isPincode, STATES_AND_UTS } from '../../utils/indiaStates';
 import { GENDERS, snapToOption, isOptionOrBlank } from '../../utils/formOptions';
 import { phoneError } from '../../utils/validators';
@@ -90,9 +92,9 @@ const Err = ({ msg }) => msg
   ? <span style={{ fontSize: '.74rem', color: 'var(--danger)', marginTop: 3, display: 'block' }}>{msg}</span>
   : null;
 
-const Row = ({ children }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>{children}</div>
-);
+// Two fields side by side, their inputs kept on one line when a label wraps
+// on a phone (components/ui/FormRow).
+const Row = FormRow;
 
 const Hint = ({ children }) => (
   <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>{children}</p>
@@ -203,6 +205,14 @@ function FileField({ label, required, value, existing, onChange, error, hint, ph
       onChange(null);
       return;
     }
+    // Every other slot is a scan: a PDF or a picture. The picker's "All files"
+    // let an Excel sheet into the Aadhaar slot (the server refuses it too).
+    if (file && !photo && !isScan(file)) {
+      setNotPicture(`“${file.name}” is not a PDF or an image — choose a PDF, JPG or PNG.`);
+      if (ref.current) ref.current.value = '';
+      onChange(null);
+      return;
+    }
     setNotPicture('');
     onChange(file);
   };
@@ -211,8 +221,8 @@ function FileField({ label, required, value, existing, onChange, error, hint, ph
   return (
     <div className="form-group">
       <label className={`form-label${required ? ' required' : ''}`}>{label}</label>
-      <input ref={ref} type="file" className={`form-control${shownError ? ' error' : ''}`}
-        accept={photo ? '.jpg,.jpeg,.png,.webp' : '.pdf,.jpg,.jpeg,.png'}
+      <FilePick ref={ref} error={!!shownError} fileName={value?.name}
+        accept={photo ? '.jpg,.jpeg,.png,.webp' : SCAN_ACCEPT}
         onChange={e => pick(e.target.files?.[0] || null)} />
       {docOnFile && !shownError && (
         <span style={{ display: 'block', fontSize: '.72rem', color: 'var(--warning, #b45309)', marginTop: 4 }}>

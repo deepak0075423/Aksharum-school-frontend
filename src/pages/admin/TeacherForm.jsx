@@ -5,6 +5,8 @@ import { Button, Modal } from '../../components/ui/index';
 import AddressFields from '../../components/ui/AddressFields';
 import ExistingDoc from '../../components/ExistingDoc';
 import PhoneInput from '../../components/ui/PhoneInput';
+import FormRow from '../../components/ui/FormRow';
+import FilePick, { SCAN_ACCEPT, isScan } from '../../components/ui/FilePick';
 import { isPincode, STATES_AND_UTS } from '../../utils/indiaStates';
 import { GENDERS, snapToOption, isOptionOrBlank } from '../../utils/formOptions';
 import { phoneError } from '../../utils/validators';
@@ -56,9 +58,9 @@ const Err = ({ msg }) => msg
   ? <span style={{ fontSize: '.74rem', color: 'var(--danger)', marginTop: 3, display: 'block' }}>{msg}</span>
   : null;
 
-const Row = ({ children }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>{children}</div>
-);
+// Two fields side by side, their inputs kept on one line when a label wraps
+// on a phone (components/ui/FormRow).
+const Row = FormRow;
 
 function Stepper({ step }) {
   return (
@@ -94,12 +96,25 @@ function Stepper({ step }) {
  */
 function FileField({ label, required, value, existing, onChange, error, hint }) {
   const ref = React.useRef(null);
+  // A scan is a PDF or a picture. The picker's "All files" let an Excel sheet
+  // into the Aadhaar slot, so the pick is checked here (and on the server).
+  const [notScan, setNotScan] = React.useState('');
+  const pick = (file) => {
+    if (file && !isScan(file)) {
+      setNotScan(`“${file.name}” is not a PDF or an image — choose a PDF, JPG or PNG.`);
+      if (ref.current) ref.current.value = '';
+      onChange(null);
+      return;
+    }
+    setNotScan('');
+    onChange(file);
+  };
+  const shownError = error || notScan;
   return (
     <div className="form-group">
       <label className={`form-label${required ? ' required' : ''}`}>{label}</label>
-      <input ref={ref} type="file" className={`form-control${error ? ' error' : ''}`}
-        accept=".pdf,.jpg,.jpeg,.png"
-        onChange={e => onChange(e.target.files?.[0] || null)} />
+      <FilePick ref={ref} accept={SCAN_ACCEPT} error={!!shownError} fileName={value?.name}
+        onChange={e => pick(e.target.files?.[0] || null)} />
       {value ? (
         <div style={{ fontSize: '.75rem', color: 'var(--success)', marginTop: 4 }}>
           ✓ {value.name}
@@ -111,8 +126,8 @@ function FileField({ label, required, value, existing, onChange, error, hint }) 
       ) : (
         <ExistingDoc url={docUrl(existing)} name={existing} />
       )}
-      {hint && !error && <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{hint}</span>}
-      <Err msg={error} />
+      {hint && !shownError && <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{hint}</span>}
+      <Err msg={shownError} />
     </div>
   );
 }

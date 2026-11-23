@@ -13,7 +13,7 @@ import BulkImport from '../../components/BulkImport';
 import { saveFile } from '../../utils/downloadFile';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
-  FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
+  FilterField, activeFilterCount, SelectionBar, BulkActiveButtons, DeactivateConfirm, useSelection, ListTable, ListFooter,
   Who, Stack, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
   HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, useListLayout, LayoutToggle,
 } from './listParts';
@@ -104,9 +104,19 @@ export default function Students() {
   const { data: yearList } = useFetch(api.getAcademicYears, []);
   const years = Array.isArray(yearList) ? yearList : [];
   const classes  = Array.isArray(tree) ? tree : [];
+  // Class first, then Section (Nov 2026): a section means nothing without its
+  // class ("A" exists in every class), so the Section filter waits for a class
+  // and then lists only that class's sections.
   const sections = filters.classId
     ? (classes.find((c) => c._id === filters.classId)?.sections || [])
-    : classes.flatMap((c) => c.sections || []);
+    : [];
+  // A link carrying only ?sectionId= still names its class here, so the
+  // Section filter is never left set but locked.
+  useEffect(() => {
+    if (!filters.sectionId || filters.classId || !classes.length) return;
+    const owner = classes.find((c) => (c.sections || []).some((x) => x._id === filters.sectionId));
+    if (owner) setFilters((f) => ({ ...f, classId: owner._id }));
+  }, [filters.sectionId, filters.classId, classes]);
 
   const rows      = data?.data || [];
 
@@ -145,7 +155,13 @@ export default function Students() {
     finally { setDL(false); }
   };
 
-  const handleToggle = async (r) => {
+  // Deactivating asks first (DeactivateConfirm); activating does not.
+  const [offAsk, setOffAsk] = useState(null);   // { rows, run }
+  const handleToggle = (r) => {
+    if (r.isActive !== false) { setOffAsk({ rows: [r], run: () => runToggle(r) }); return; }
+    runToggle(r);
+  };
+  const runToggle = async (r) => {
     toast.loading(r.isActive ? 'Deactivating…' : 'Activating…', { id: 'tog' });
     try {
       await toggleStudent(r._id);
@@ -161,12 +177,16 @@ export default function Students() {
    * are skipped — otherwise "Activate 5" would switch off the two that were
    * already on. Failures are counted, not swallowed.
    */
-  const bulkSetActive = async (active) => {
+  const bulkSetActive = (active) => {
     const targets = selection.rows.filter((r) => (r.isActive !== false) !== active);
     if (!targets.length) {
       toast(`Nothing to change — every selected student is already ${active ? 'active' : 'inactive'}.`);
       return;
     }
+    if (active) runBulk(active, targets);
+    else setOffAsk({ rows: targets, run: () => runBulk(active, targets) });
+  };
+  const runBulk = async (active, targets) => {
     const word = active ? 'Activating' : 'Deactivating';
     toast.loading(`${word} ${targets.length} student${targets.length === 1 ? '' : 's'}…`, { id: 'bulk' });
     setBusy(true);
@@ -305,7 +325,9 @@ export default function Students() {
               all="All classes" options={classes.map((c) => ({ value: c._id, label: c.className }))} />
             <FilterField label="Section" value={filters.sectionId}
               onChange={(v) => set({ sectionId: v })}
-              all="All sections" options={sections.map((x) => ({ value: x._id, label: x.sectionName }))} />
+              disabled={!filters.classId} title={filters.classId ? undefined : 'Select a class first'}
+              all={filters.classId ? 'All sections' : 'Select a class first'}
+              options={sections.map((x) => ({ value: x._id, label: x.sectionName }))} />
             {/* In a section of that year's classes — read off the class rosters,
                 so a year that has ended still lists who sat in it. */}
             <FilterField label="Enrolled in" value={filters.academicYear}
@@ -326,10 +348,9 @@ export default function Students() {
         )}
 
         <SelectionBar count={selection.ids.length} noun="student" onClear={selection.clear}>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
-            onClick={() => bulkSetActive(true)}>Activate</button>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
-            onClick={() => bulkSetActive(false)}>Deactivate</button>
+          {/* Only the change the ticked rows can take: all active → Deactivate,
+              all inactive → Activate, a mix → both. */}
+          <BulkActiveButtons rows={selection.rows} busy={busy} onSet={bulkSetActive} />
         </SelectionBar>
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
@@ -408,6 +429,9 @@ export default function Students() {
         onClose={() => setViewing(null)}
         onEdit={(r) => { setViewing(null); openEdit(r); }}
       />
+
+      {/* Every switch-off is confirmed first — one row or a whole selection. */}
+      <DeactivateConfirm ask={offAsk} noun="student" onClose={() => setOffAsk(null)} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
         loading={delLoad} title="Delete Student"

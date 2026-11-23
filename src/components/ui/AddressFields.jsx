@@ -3,14 +3,14 @@ import * as api from '../../api/admin.api';
 import { STATES_AND_UTS, isPincode } from '../../utils/indiaStates';
 import { snapToOption } from '../../utils/formOptions';
 import { Spinner } from './index';
+import FormRow from './FormRow';
 
 const Err = ({ msg }) => msg
   ? <span style={{ fontSize: '.74rem', color: 'var(--danger)', marginTop: 3, display: 'block' }}>{msg}</span>
   : null;
 
-const Row = ({ children }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>{children}</div>
-);
+// Inputs kept on one line when a label wraps on a phone (FormRow).
+const Row = FormRow;
 
 /**
  * Address block with PIN-code autofill — street line plus city / state / PIN /

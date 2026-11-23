@@ -23,7 +23,7 @@ import { MODULES } from '../../utils/modules';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, ListTable, ListFooter,
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, HelpPanel, PageFoot, Blank, ListTabs,
-  Breakdown, useListLayout, LayoutToggle,
+  Breakdown, useListLayout, LayoutToggle, DeactivateConfirm,
 } from './listParts';
 import {
   AccessDetail, AccessSummary, DesignationCell, DesignationDrawer, DesignationEditor,
@@ -205,8 +205,15 @@ export default function Designations() {
    * so the server refuses it while teachers still hold it, and this shows who
    * they are rather than a toast nobody can act on.
    */
-  const toggleActive = async (row) => {
+  // Deactivating asks first; a designation still held goes to the holders
+  // list instead (the server refuses it), which explains why it cannot go yet.
+  const [offAsk, setOffAsk] = useState(null);   // { rows, run }
+  const toggleActive = (row) => {
     if (row.isActive && row.holderCount) { openHolders(row, true, 'deactivate'); return; }
+    if (row.isActive) { setOffAsk({ rows: [row], run: () => runToggle(row) }); return; }
+    runToggle(row);
+  };
+  const runToggle = async (row) => {
     try {
       await api.updateDesignation(row._id, { isActive: !row.isActive });
       toast.success(row.isActive ? `“${row.name}” deactivated` : `“${row.name}” activated`);
@@ -452,6 +459,9 @@ export default function Designations() {
 
       <ModulesEnabled open={modsOpen} onClose={() => setModsOpen(false)}
         modules={enabled} disabled={disabled} rows={rows} onPick={showModule} />
+
+      <DeactivateConfirm ask={offAsk} noun="designation" onClose={() => setOffAsk(null)}
+        what="It leaves the designation pickers until it is activated again. Its module access settings are kept." />
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} loading={deleting}
         title="Delete Designation"

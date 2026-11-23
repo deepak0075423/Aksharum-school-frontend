@@ -46,6 +46,9 @@ export default function StudentMyClass() {
   const strength = section.currentCount ?? classmates.length;
   const capacity = section.maxStudents;
   const year     = section.academicYear?.yearName || '';
+  // How many of the bottom row's cards this class has — the row takes that
+  // many columns, so one or two cards are not left beside an empty gap.
+  const extraCards = [subjectTeachers, subjects, monitors].filter((l) => l.length > 0).length;
 
   return (
     <div className="page sclspg">
@@ -115,8 +118,8 @@ export default function StudentMyClass() {
         </div>
       </div>
 
-      {(subjectTeachers.length > 0 || subjects.length > 0 || monitors.length > 0) && (
-        <div className="scls-row3">
+      {extraCards > 0 && (
+        <div className={`scls-row3 scls-row3--n${extraCards}`}>
           {subjectTeachers.length > 0 && (
             <Panel icon="book" tone="green" title="Subject Teachers">
               {subjectTeachers.map((s, i) => (

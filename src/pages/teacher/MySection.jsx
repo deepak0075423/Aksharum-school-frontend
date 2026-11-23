@@ -141,6 +141,10 @@ export default function MySection() {
   const ownRows  = isClassTeacher ? classTeacherOf : viceOf;
   const ownRole  = isClassTeacher ? 'classTeacher' : 'vice';
   const ownLabel = isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher';
+  // One colour per role, wherever it is shown: class teacher indigo, vice
+  // green (the tile, My Responsibilities and the vice list). A vice-only
+  // teacher's "My Class" block used to paint the vice role indigo.
+  const ownTone  = isClassTeacher ? 'indigo' : 'green';
   const viceList = isClassTeacher ? viceOf : [];
   // Where "Vice Class Teacher" on a tile or a responsibility leads.
   const toVice   = viceList.length ? goTo(viceRef) : goTo(mineRef);
@@ -233,11 +237,11 @@ export default function MySection() {
                 title={`My Class (${ownLabel})`}
                 link={{ label: 'View Details', onClick: () => setDrawer(section) }}>
                 <div className="tsec-mine">
-                  <span className="tsec-chip tsec-chip--lg tsec-t--indigo">{chipFor(section)}</span>
+                  <span className={`tsec-chip tsec-chip--lg tsec-t--${ownTone}`}>{chipFor(section)}</span>
                   <div className="tsec-mine__body">
                     <div className="tsec-mine__title">
                       {classLabel(section)}
-                      <span className="tsec-badge tsec-t--indigo">{ownLabel}</span>
+                      <span className={`tsec-badge tsec-t--${ownTone}`}>{ownLabel}</span>
                       <YearTag row={section} />
                     </div>
                     <div className="tsec-row__facts">
@@ -258,7 +262,7 @@ export default function MySection() {
                   <div className="tsec-rows tsec-rows--tight">
                     {ownRows.slice(1).map((s) => (
                       <SectionBlock key={s._id}>
-                        <SectionRow row={s} tone="indigo"
+                        <SectionRow row={s} tone={ownTone}
                           title={classLabel(s)}
                           facts={<>
                             <Fact icon="layers">Section {s.sectionName}</Fact>

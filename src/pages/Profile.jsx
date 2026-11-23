@@ -68,6 +68,10 @@ export default function Profile() {
 
   // Only staff have an employee record, and only when the school runs the module.
   const isStaff = user?.role === 'teacher' || user?.role === 'school_admin';
+  // The directory holds TEACHERS only (findEmployee looks for role 'teacher'),
+  // so asking it about a school admin is always a 404 — the console error the
+  // admin's profile page used to log on every visit.
+  const inDirectory = user?.role === 'teacher';
   // Asked only once the school's modules are actually known: until they load,
   // isEnabled() says yes to everything, so a reload of this page asked the
   // directory of a school that does not run it and got "This module is not
@@ -79,7 +83,7 @@ export default function Profile() {
   useEffect(() => {
     let alive = true;
     if (!modulesReady) return undefined;   // the answer is on its way
-    if (!userId || !isStaff || !directoryOn) { setEmpL(false); return undefined; }
+    if (!userId || !inDirectory || !directoryOn) { setEmpL(false); return undefined; }
     getEmployee(userId)
       .then((res) => { if (alive) setEmp(res?.data ?? res); })
       // A missing or forbidden record is not an error here — the account half
@@ -87,7 +91,7 @@ export default function Profile() {
       .catch(() => {})
       .finally(() => { if (alive) setEmpL(false); });
     return () => { alive = false; };
-  }, [userId, isStaff, directoryOn, modulesReady]);
+  }, [userId, inDirectory, directoryOn, modulesReady]);
 
   const openEdit = async () => {
     setForm({ name: user.name || '', phone: user.phone || '' });
@@ -133,7 +137,7 @@ export default function Profile() {
       setEdit(false);
       reload();
       // Re-read the employee half so the page shows what was just saved.
-      if (userId && isStaff && directoryOn) {
+      if (userId && inDirectory && directoryOn) {
         getEmployee(userId).then((r) => setEmp(r?.data ?? r)).catch(() => {});
       }
     } catch (err) { toast.error(err.message || 'Could not save'); }
@@ -378,7 +382,7 @@ export default function Profile() {
             </Block>
           )}
 
-          {isStaff && !emp && !empLoading && (
+          {inDirectory && !emp && !empLoading && (
             <Block icon={<BuildingIcon size={17} />} title="Employment Details">
               <p className="text-muted text-sm">
                 No employee record is linked to this account yet. Ask your school administrator
@@ -424,7 +428,9 @@ export default function Profile() {
               : <Avatar name={form.name || user.name} size={72} />}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', marginBottom: 0 }}>
-                {user.profileImage && !photo.remove ? 'Change photo' : 'Upload photo'}
+                {/* "Replace" whenever a photo is showing — the saved one or one
+                    just picked; "Upload" only when there is none. */}
+                {photo.preview || (user.profileImage && !photo.remove) ? 'Replace photo' : 'Upload photo'}
                 <input
                   type="file"
                   accept="image/*"

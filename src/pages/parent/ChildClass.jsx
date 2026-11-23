@@ -98,6 +98,11 @@ export default function ParentChildClass() {
     );
   }
 
+  // How many of the bottom row's cards this class has — the row takes that
+  // many columns, so one or two cards are not left beside an empty gap.
+  const extraCards = [child.subjectTeachers, child.subjects, child.monitors]
+    .filter((l) => (l || []).length > 0).length;
+
   return (
     <div className="page sclspg">
       {Switch}
@@ -169,9 +174,8 @@ export default function ParentChildClass() {
         </div>
       </div>
 
-      {((child.subjectTeachers || []).length > 0 || (child.subjects || []).length > 0
-        || (child.monitors || []).length > 0) && (
-        <div className="scls-row3">
+      {extraCards > 0 && (
+        <div className={`scls-row3 scls-row3--n${extraCards}`}>
           {(child.subjectTeachers || []).length > 0 && (
             <Panel icon="book" tone="green" title="Subject Teachers">
               {child.subjectTeachers.map((s, i) => (

@@ -11,7 +11,7 @@ import { isEmail, phoneError } from '../../utils/validators';
 import { saveFile } from '../../utils/downloadFile';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
-  FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
+  FilterField, activeFilterCount, SelectionBar, BulkActiveButtons, DeactivateConfirm, useSelection, ListTable, ListFooter,
   Who, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions, HelpPanel,
   PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, ago, useListLayout, LayoutToggle,
 } from './listParts';
@@ -90,8 +90,14 @@ export default function Admins() {
    * Switching your own account off would sign you out of a school you may be
    * the only administrator of, so it is refused here and again on the server.
    */
-  const handleToggle = async (r) => {
+  // Deactivating asks first (DeactivateConfirm); activating does not.
+  const [offAsk, setOffAsk] = useState(null);   // { rows, run }
+  const handleToggle = (r) => {
     if (isMe(r)) { toast.error('You cannot deactivate your own account'); return; }
+    if (r.isActive !== false) { setOffAsk({ rows: [r], run: () => runToggle(r) }); return; }
+    runToggle(r);
+  };
+  const runToggle = async (r) => {
     toast.loading(r.isActive !== false ? 'Deactivating…' : 'Activating…', { id: 'tog' });
     try {
       await api.toggleUser(r._id);
@@ -100,12 +106,16 @@ export default function Admins() {
     } catch (err) { toast.error(err.message, { id: 'tog' }); }
   };
 
-  const bulkSetActive = async (active) => {
+  const bulkSetActive = (active) => {
     const targets = selection.rows.filter((r) => !isMe(r) && (r.isActive !== false) !== active);
     if (!targets.length) {
       toast(`Nothing to change — every selected admin is already ${active ? 'active' : 'inactive'}.`);
       return;
     }
+    if (active) runBulk(active, targets);
+    else setOffAsk({ rows: targets, run: () => runBulk(active, targets) });
+  };
+  const runBulk = async (active, targets) => {
     toast.loading(`${active ? 'Activating' : 'Deactivating'} ${targets.length}…`, { id: 'bulk' });
     setBusy(true);
     let done = 0;
@@ -245,10 +255,9 @@ export default function Admins() {
         )}
 
         <SelectionBar count={selection.ids.length} noun="admin" onClear={selection.clear}>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
-            onClick={() => bulkSetActive(true)}>Activate</button>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
-            onClick={() => bulkSetActive(false)}>Deactivate</button>
+          {/* Only the change the ticked rows can take: all active → Deactivate,
+              all inactive → Activate, a mix → both. */}
+          <BulkActiveButtons rows={selection.rows.filter((r) => !isMe(r))} busy={busy} onSet={bulkSetActive} />
         </SelectionBar>
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
@@ -301,6 +310,9 @@ export default function Admins() {
         onClose={() => setVw(null)}
         onEdit={(r) => { setVw(null); setEd(r); }}
       />
+
+      {/* Every switch-off is confirmed first — one row or a whole selection. */}
+      <DeactivateConfirm ask={offAsk} noun="admin" onClose={() => setOffAsk(null)} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={handleDelete}
         loading={delLoad} title="Delete Admin"

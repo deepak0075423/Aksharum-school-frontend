@@ -107,7 +107,6 @@ export default function StudentDetail() {
   const att = data.attendance;
   const res = data.results?.summary;
   const fees = data.fees?.summary;
-  const lib = data.library?.summary;
 
   return (
     <div className="page sdpg">
@@ -134,7 +133,10 @@ export default function StudentDetail() {
 
       <Identity general={general} year={data.academicYear} roles={data.viewer?.roles} />
 
-      {/* The headline of each module, and the way into the tab that explains it. */}
+      {/* The headline of each module, and the way into the tab that explains it.
+          Library is not one of them (Nov 2026): its books-out / borrowed /
+          overdue figures are shown when the Library tab is opened, not on
+          every student's front page. */}
       <Tiles>
         {modules.attendance && (
           <Tile icon="checkSquare" tone="green" value={att?.percent} unit="%" label="Attendance"
@@ -151,11 +153,6 @@ export default function StudentDetail() {
             label="Fee balance"
             caption={fees?.charged ? `${fmtMoney(fees.paid)} paid of ${fmtMoney(fees.charged)}` : 'Nothing charged yet'}
             onClick={() => go('fees')} />
-        )}
-        {modules.library && (
-          <Tile icon="library" tone="blue" value={lib?.currentlyOut ?? 0} label="Library books"
-            caption={`${lib?.totalIssued || 0} borrowed · ${lib?.overdue || 0} overdue`}
-            onClick={() => go('library')} />
         )}
       </Tiles>
 

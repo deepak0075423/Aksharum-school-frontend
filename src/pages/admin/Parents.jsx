@@ -21,7 +21,7 @@ import { DrawerSection as Section } from '../../components/ui/Drawer';
 import { saveFile } from '../../utils/downloadFile';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
-  FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
+  FilterField, activeFilterCount, SelectionBar, BulkActiveButtons, DeactivateConfirm, useSelection, ListTable, ListFooter,
   Who, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions, HelpPanel,
   PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, ago, Blank, useListLayout, LayoutToggle,
 } from './listParts';
@@ -82,9 +82,11 @@ export default function Parents() {
   // A child's class and section, from the running academic year.
   const { data: tree } = useFetch(() => api.getClassesWithSections(), []);
   const classes  = Array.isArray(tree) ? tree : [];
+  // Class first, then Section: the Section filter waits for a class and then
+  // lists only that class's sections.
   const sections = filters.classId
     ? (classes.find((c) => c._id === filters.classId)?.sections || [])
-    : classes.flatMap((c) => c.sections || []);
+    : [];
 
   const rows      = data?.data || [];
   const stats     = data?.stats || {};
@@ -100,7 +102,13 @@ export default function Parents() {
   const clearAll    = () => { setSearch(''); setTerm(''); setFilters(EMPTY); setPage(1); };
 
   // ── Actions ────────────────────────────────────────────────────────────────
-  const handleToggle = async (r) => {
+  // Deactivating asks first (DeactivateConfirm); activating does not.
+  const [offAsk, setOffAsk] = useState(null);   // { rows, run }
+  const handleToggle = (r) => {
+    if (r.isActive !== false) { setOffAsk({ rows: [r], run: () => runToggle(r) }); return; }
+    runToggle(r);
+  };
+  const runToggle = async (r) => {
     toast.loading(r.isActive !== false ? 'Deactivating…' : 'Activating…', { id: 'tog' });
     try {
       await api.toggleUser(r._id);
@@ -109,12 +117,16 @@ export default function Parents() {
     } catch (err) { toast.error(err.message, { id: 'tog' }); }
   };
 
-  const bulkSetActive = async (active) => {
+  const bulkSetActive = (active) => {
     const targets = selection.rows.filter((r) => (r.isActive !== false) !== active);
     if (!targets.length) {
       toast(`Nothing to change — every selected parent is already ${active ? 'active' : 'inactive'}.`);
       return;
     }
+    if (active) runBulk(active, targets);
+    else setOffAsk({ rows: targets, run: () => runBulk(active, targets) });
+  };
+  const runBulk = async (active, targets) => {
     toast.loading(`${active ? 'Activating' : 'Deactivating'} ${targets.length}…`, { id: 'bulk' });
     setBusy(true);
     let done = 0;
@@ -238,7 +250,9 @@ export default function Parents() {
               all="All classes" options={classes.map((c) => ({ value: c._id, label: c.className }))} />
             <FilterField label="Child's section" value={filters.sectionId}
               onChange={(v) => set({ sectionId: v })}
-              all="All sections" options={sections.map((x) => ({ value: x._id, label: x.sectionName }))} />
+              disabled={!filters.classId} title={filters.classId ? undefined : 'Select a class first'}
+              all={filters.classId ? 'All sections' : 'Select a class first'}
+              options={sections.map((x) => ({ value: x._id, label: x.sectionName }))} />
             <FilterField label="Status" value={filters.status}
               onChange={(v) => set({ status: v })}
               all="All status" options={STATUSES} />
@@ -251,10 +265,9 @@ export default function Parents() {
         )}
 
         <SelectionBar count={selection.ids.length} noun="parent" onClear={selection.clear}>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
-            onClick={() => bulkSetActive(true)}>Activate</button>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
-            onClick={() => bulkSetActive(false)}>Deactivate</button>
+          {/* Only the change the ticked rows can take: all active → Deactivate,
+              all inactive → Activate, a mix → both. */}
+          <BulkActiveButtons rows={selection.rows} busy={busy} onSet={bulkSetActive} />
         </SelectionBar>
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
@@ -299,6 +312,9 @@ export default function Parents() {
       <PageFoot schoolName={me?.school?.name} />
 
       <ParentDrawer row={viewing} onClose={() => setViewing(null)} />
+
+      {/* Every switch-off is confirmed first — one row or a whole selection. */}
+      <DeactivateConfirm ask={offAsk} noun="parent" onClose={() => setOffAsk(null)} />
     </div>
   );
 }

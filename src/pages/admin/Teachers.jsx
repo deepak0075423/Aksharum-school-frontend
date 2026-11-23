@@ -16,7 +16,7 @@ import BulkImport from '../../components/BulkImport';
 import { saveFile } from '../../utils/downloadFile';
 import {
   Crumbs, ListHero, ListStats, ListStat, SearchField, FiltersButton, FilterPanel,
-  FilterField, activeFilterCount, SelectionBar, useSelection, ListTable, ListFooter,
+  FilterField, activeFilterCount, SelectionBar, BulkActiveButtons, DeactivateConfirm, useSelection, ListTable, ListFooter,
   Who, Stack, Chips, RowActions, IconAction, RowMenu, MenuItem, MenuSep, QuickActions,
   HelpPanel, PageFoot, Drawer, DrawerHead, DrawerSection, DrawerFoot, orBlank, fmtDate, Breakdown, useListLayout, LayoutToggle,
 } from './listParts';
@@ -160,27 +160,56 @@ export default function Teachers() {
   };
 
   /**
-   * Bulk activation only — never the other way round.
+   * Activate or deactivate every ticked teacher not already that way round.
    *
    * Deactivating a teacher can strand a class, a subject, a library loan or a
-   * timetable period, and the dependency dialog is the only thing allowed to
-   * make that call. There is no safe way to answer it for ten people at once,
-   * so deactivation stays a one-at-a-time decision.
+   * timetable period. The server checks that on every switch-off and refuses
+   * (409) while anything still points at the teacher — so the batch sends the
+   * plain, never-forced request: the clear ones go off, the held ones are
+   * named and left alone, and each of those is settled one at a time through
+   * the dependency dialog. One ticked teacher goes straight to that dialog.
    */
-  const bulkActivate = async () => {
-    const targets = selection.rows.filter((r) => r.isActive === false);
-    if (!targets.length) { toast('Every selected teacher is already active.'); return; }
-    toast.loading(`Activating ${targets.length} teacher${targets.length === 1 ? '' : 's'}…`, { id: 'bulk' });
+  // Several teachers switched off together are confirmed first; one goes to
+  // the dependency dialog, which is its own confirmation.
+  const [offAsk, setOffAsk] = useState(null);   // { rows, run }
+  const bulkSetActive = (active) => {
+    const targets = selection.rows.filter((r) => (r.isActive !== false) !== active);
+    if (!targets.length) {
+      toast(`Nothing to change — every selected teacher is already ${active ? 'active' : 'inactive'}.`);
+      return;
+    }
+    if (!active && targets.length === 1) {
+      setDepTarget({ teacher: targets[0], action: 'deactivate' });
+      return;
+    }
+    if (active) runBulk(active, targets);
+    else setOffAsk({ rows: targets, run: () => runBulk(active, targets) });
+  };
+  const runBulk = async (active, targets) => {
+    const word = active ? 'Activating' : 'Deactivating';
+    toast.loading(`${word} ${targets.length} teacher${targets.length === 1 ? '' : 's'}…`, { id: 'bulk' });
     setBusy(true);
     let done = 0;
     let failed = 0;
+    const held = [];
     for (const r of targets) {
       try { await toggleTeacher(r._id); done += 1; }
-      catch { failed += 1; }
+      catch (err) {
+        if (!active && err?.status === 409) held.push(r.name);
+        else failed += 1;
+      }
     }
     setBusy(false);
-    if (failed) toast.error(`${done} activated, ${failed} failed`, { id: 'bulk' });
-    else toast.success(`${done} teacher${done === 1 ? '' : 's'} activated`, { id: 'bulk' });
+    const past = active ? 'activated' : 'deactivated';
+    if (held.length) {
+      const names = held.length <= 3 ? held.join(', ') : `${held.slice(0, 3).join(', ')} and ${held.length - 3} more`;
+      toast.error(
+        `${done} ${past}. Not deactivated — still in charge of classes, periods or loans: ${names}. `
+        + 'Deactivate them one at a time to see what is attached.',
+        { id: 'bulk', duration: 8000 },
+      );
+    } else if (failed) toast.error(`${done} ${past}, ${failed} failed`, { id: 'bulk' });
+    else toast.success(`${done} teacher${done === 1 ? '' : 's'} ${past}`, { id: 'bulk' });
     selection.clear();
     refetch();
   };
@@ -322,10 +351,9 @@ export default function Teachers() {
         )}
 
         <SelectionBar count={selection.ids.length} noun="teacher" onClear={selection.clear}>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={bulkActivate}>
-            Activate
-          </button>
-          {/* Deactivating is per-teacher on purpose — see bulkActivate. */}
+          {/* Only the change the ticked rows can take: all active → Deactivate,
+              all inactive → Activate, a mix → both. */}
+          <BulkActiveButtons rows={selection.rows} busy={busy} onSet={bulkSetActive} />
         </SelectionBar>
 
         {/* Cards on a phone (components/ui/PhoneCards): the heading, its status,
@@ -408,6 +436,10 @@ export default function Teachers() {
       />
 
       {/* Delete / Deactivate — dependencies first, the action only once clear */}
+      {/* Several teachers switched off at once are confirmed first. */}
+      <DeactivateConfirm ask={offAsk} noun="teacher" onClose={() => setOffAsk(null)}
+        what="None of them will be able to sign in until activated again. Anyone still in charge of a class, timetable periods or library loans is skipped and named, to be deactivated on their own." />
+
       <TeacherDependencyDialog
         open={!!depTarget}
         teacher={depTarget?.teacher}

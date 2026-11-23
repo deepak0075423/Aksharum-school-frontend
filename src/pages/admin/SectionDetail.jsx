@@ -20,6 +20,7 @@ import { Alert, Badge, Button, Confirm, Modal, Spinner } from '../../components/
 import Icon from '../../components/ui/icons';
 import SectionCapacityModal from '../../components/SectionCapacityModal';
 import PhoneCards from '../../components/ui/PhoneCards';
+import SearchSelect from '../../components/ui/SearchSelect';
 import {
   Crumbs, ListStats, ListStat, ListTable, ListFooter, SearchField,
   RowActions, IconAction, RowMenu, MenuItem, MenuSep, PageFoot, useListLayout, LayoutToggle,
@@ -664,16 +665,23 @@ export default function SectionDetail() {
         <form id="teacher-assign-form" onSubmit={handleAssignTeacher}>
           {teacherErr && <div style={{ marginBottom: 14 }}><Alert variant="danger">{teacherErr}</Alert></div>}
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Select teacher</label>
-            <select className={`form-control${teacherErr ? ' error' : ''}`} value={selectedTeacher}
-              onChange={(e) => { setTeacherErr(''); setSelectedTeacher(e.target.value); }}>
-              <option value="">— None / Remove —</option>
-              {teacherChoices.map((t) => (
-                <option key={t._id} value={t._id} disabled={t.blocked}>
-                  {t.name}{t.classTeacherOf ? ` — class teacher of ${t.classTeacherOf}` : ''}
-                </option>
-              ))}
-            </select>
+            <label className="form-label" htmlFor="teacher-assign-pick">Select teacher</label>
+            {/* Searchable: a school's whole staff is in this list. */}
+            <SearchSelect
+              id="teacher-assign-pick"
+              value={selectedTeacher}
+              error={!!teacherErr}
+              noneLabel="— None / Remove —"
+              searchPlaceholder="Search teachers by name…"
+              emptyText="No teacher matches"
+              options={teacherChoices.map((t) => ({
+                value: t._id,
+                label: t.name,
+                sub: t.classTeacherOf ? `Class teacher of ${t.classTeacherOf}` : '',
+                disabled: t.blocked,
+              }))}
+              onChange={(v) => { setTeacherErr(''); setSelectedTeacher(v); }}
+            />
             <div className="form-hint">
               {teacherRole === 'class'
                 ? 'A teacher can be class teacher of only one class. Teachers already leading a class are greyed out.'

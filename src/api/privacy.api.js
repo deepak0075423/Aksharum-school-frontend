@@ -14,7 +14,6 @@ export const getCookieConsents  = (days = 30) => api.get(`/admin/cookie-policy/c
 export const cookieConsentsCsvUrl = (days = 365) => `/admin/cookie-policy/consents?days=${days}&format=csv`;
 
 export const myCookiePolicy       = () => api.get('/profile/cookie-policy');
-export const platformCookiePolicy = () => api.get('/public/cookie-policy');
 
 const P = (slug) => `/admission/public/portals/${encodeURIComponent(slug)}`;
 export const portalCookiePolicy  = (slug) => api.get(`${P(slug)}/cookie-policy`);
