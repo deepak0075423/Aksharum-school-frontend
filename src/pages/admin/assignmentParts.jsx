@@ -623,7 +623,13 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
   const [face, setFace]   = useState('work');
   const [marks, setMarks] = useState('');
   const [scores, setScores] = useState({});
+  // The feedback box starts empty and empties itself once a save goes through
+  // (Nov 23 2026 — it used to be filled with what was saved, and stayed filled
+  // after Save, so the next words had to be cleared by hand first). What the
+  // student already has is shown above it; `rewriting` is that text loaded
+  // into the box to change, where an empty box then means "remove it".
   const [note, setNote]   = useState('');
+  const [rewriting, setRewriting] = useState(false);
 
   // Set with no "Out of", it takes feedback only (Nov 2026): whoever set it
   // chose no marks, so the form offers none and the server refuses any.
@@ -640,7 +646,8 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
     if (!student) return;
     setFace('work');
     setMarks(student.marks == null ? '' : String(student.marks));
-    setNote(student.feedback || '');
+    setNote('');
+    setRewriting(false);
     setScores(Object.fromEntries(
       [...questions.map((q) => q.label), OTHER_MARKS].map((label) => {
         const hit = (student.questionScores || []).find((s) => s.label === label);
@@ -807,16 +814,20 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
 
         {face === 'mark' && (
           !onSave ? <Blank text="Only the teacher who set this, or the office, can mark it." /> : (
-            <form className="admark" onSubmit={(e) => {
+            <form className="admark" onSubmit={async (e) => {
               e.preventDefault();
-              onSave(marked ? {
+              // An empty box leaves the feedback already given alone — unless
+              // that feedback was opened in the box to change, and emptied.
+              const feedback = note.trim() || rewriting ? note.trim() : undefined;
+              const ok = await onSave(marked ? {
                 marks: byQuestion ? undefined : marks,
-                feedback: note,
+                feedback,
                 questionScores: byQuestion
                   ? [...questions.map((q) => q.label), ...(room > 0 ? [OTHER_MARKS] : [])]
                     .map((label) => ({ label, score: scores[label] }))
                   : undefined,
-              } : { feedback: note });
+              } : { feedback });
+              if (ok) { setNote(''); setRewriting(false); }
             }}>
               {!handedIn && (
                 <p className="admark__note">
@@ -868,15 +879,42 @@ export function SubmissionPanel({ student, doc, onClose, onSave, saving, onRemin
                 </div>
               )}
 
+              {student.feedback && !rewriting && (
+                <div className="adfeedbox adfeedbox--given">
+                  <h4>
+                    <Icon name="chat" size={15} /> Feedback given
+                    <button type="button" className="adlinkbtn"
+                      onClick={() => { setNote(student.feedback); setRewriting(true); }}>
+                      <Icon name="pencil" size={13} /> Edit
+                    </button>
+                  </h4>
+                  <p>{student.feedback}</p>
+                  {student.reviewedAt && <small>{fmtDate(student.reviewedAt)}, {fmtTime(student.reviewedAt)}</small>}
+                </div>
+              )}
+
               <div className="form-group">
-                <label className="form-label" htmlFor="ad-note">Feedback</label>
+                <label className="form-label" htmlFor="ad-note">
+                  {rewriting ? 'Edit feedback' : student.feedback ? 'New feedback' : 'Feedback'}
+                </label>
                 <textarea id="ad-note" className="form-control" rows={4} value={note} maxLength={600}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="What they did well, and what to fix next time" />
-                <div className="form-hint">{marked ? 'The student sees this alongside their marks.' : 'The student sees this.'}</div>
+                <div className="form-hint">
+                  {rewriting
+                    ? 'Saving an empty box removes the feedback.'
+                    : student.feedback
+                      ? 'Replaces the feedback above. Leave it empty to keep that.'
+                      : marked ? 'The student sees this alongside their marks.' : 'The student sees this.'}
+                </div>
+                {rewriting && (
+                  <button type="button" className="adlinkbtn admark__cancel"
+                    onClick={() => { setNote(''); setRewriting(false); }}>Cancel editing</button>
+                )}
               </div>
 
-              <button type="submit" className="btn btn-primary" disabled={saving}>
+              <button type="submit" className="btn btn-primary"
+                disabled={saving || (!marked && !note.trim() && !rewriting && !!student.feedback)}>
                 {saving ? 'Saving…' : marked ? 'Save marks & feedback' : 'Save feedback'}
               </button>
             </form>
@@ -894,14 +932,15 @@ const ROLE_LABEL = { school_admin: 'Admin', teacher: 'Teacher', student: 'Studen
 /**
  * One comment, with what this reader may do to it in plain sight.
  *
- * Edit, Pin and Delete sit in the footer beside Like and Reply. They used to
+ * Edit, Pin and Delete sit in the footer beside Reply (comments have no likes
+ * since Nov 23 2026 — the user's call). They used to
  * hide behind a faint "⋯" at the far end of the header, and staff reported
  * that they could not edit or delete comments at all. The server says which
  * of them each reader has (`canEdit` / `canPin` / `canDelete`) and enforces
  * the same: your own words to edit and delete, anyone's to delete if you are
  * an admin, and pinning for an admin or the teacher who shared the document.
  */
-export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onView, depth = 0 }) {
+export function CommentCard({ c, onReply, onPin, onDelete, onEdit, onView, depth = 0 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(c.body);
   // Older payloads carried only `mine`.
@@ -927,7 +966,7 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onVie
             <div className="adcomment__replies">
               {c.replies.map((r) => (
                 <CommentCard key={r._id} c={r} depth={depth + 1} onView={onView}
-                  onReply={onReply} onLike={onLike} onPin={onPin} onDelete={onDelete} onEdit={onEdit} />
+                  onReply={onReply} onPin={onPin} onDelete={onDelete} onEdit={onEdit} />
               ))}
             </div>
           )}
@@ -989,9 +1028,6 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onVie
         )}
 
         <footer>
-          <button type="button" className={`adchip${c.likedByMe ? ' is-on' : ''}`} onClick={() => onLike(c)}>
-            <Icon name="heart" size={14} /> {c.likes || 0}
-          </button>
           {/* Two levels and no more (Nov 2026): a comment and the replies
               under it. A reply has no Reply of its own — answering one used
               to stack reply on reply and break the thread's layout. */}
@@ -1021,7 +1057,7 @@ export function CommentCard({ c, onReply, onLike, onPin, onDelete, onEdit, onVie
           <div className="adcomment__replies">
             {c.replies.map((r) => (
               <CommentCard key={r._id} c={r} depth={depth + 1} onView={onView}
-                onReply={onReply} onLike={onLike} onPin={onPin} onDelete={onDelete} onEdit={onEdit} />
+                onReply={onReply} onPin={onPin} onDelete={onDelete} onEdit={onEdit} />
             ))}
           </div>
         )}

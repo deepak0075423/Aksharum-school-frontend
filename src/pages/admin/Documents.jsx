@@ -21,15 +21,15 @@ import toast from 'react-hot-toast';
 import {
   getDocuments, getDocument, getDocumentOverview, uploadDocument, updateDocument, deleteDocument,
   archiveDocument, getDocumentCategories, createDocumentCategory, deleteDocumentCategory,
-  getDocumentClasses, getDocumentTeachers,
+  getDocumentClasses, getDocumentTeachers, bulkArchiveDocuments, bulkDeleteDocuments,
 } from '../../api/admin.api';
 import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
-import { ListStats, ListStat } from './listParts';
+import { ListStats, ListStat, SelectionBar, useSelection } from './listParts';
 import {
   Crumbs, DocHero, DocTabs, DocTools, SearchField, Picker, SortMenu,
   ViewSwitch, DocTable, DocGrid, DocFoot, DocEmpty, DocumentDrawer,
-  MenuItem, MenuSep,
+  MenuItem, MenuSep, ResetFilters, ArchiveConfirm, BulkDeleteConfirm,
   TABS, sortsFor, TARGET_FILTERS, DOC_TYPES, CARDS_ONLY,
 } from './documentParts';
 import ShareDocument from './ShareDocument';
@@ -96,6 +96,9 @@ export default function Documents() {
   const [viewDoc, setViewDoc] = useState(null);
   const [delDoc,  setDelDoc]  = useState(null);
   const [busy,    setBusy]    = useState(false);
+  // Asked before anything is archived, and before several go at once (Nov 23 2026).
+  const [archiveAsk, setArchiveAsk] = useState(null);   // documents to archive
+  const [bulkDel,    setBulkDel]    = useState(null);   // documents to delete
 
   const [showCats,  setShowCats]  = useState(false);
   const [newCat,    setNewCat]    = useState('');
@@ -200,6 +203,9 @@ export default function Documents() {
   const clearFilters = () => {
     setSearch(''); setTerm(''); setTarget(''); setCategory(''); setYear(thisYear); setPage(1);
   };
+  // The bar's Reset: the filters, and the sort as well.
+  const canReset = filtered || sort !== 'newest' || search !== '';
+  const resetAll = () => { clearFilters(); setSort('newest'); };
 
   // Not every tab offers every sort — "Due date" belongs to Assignments, "Type"
   // to the tabs that mix types — so arriving on a tab that does not offer the
@@ -307,15 +313,54 @@ export default function Documents() {
     }
   };
 
+  // ── Picking several ────────────────────────────────────────────────────────
+  // Forgotten whenever the list under it changes — a tick on a row that has
+  // scrolled off to another page is a tick nobody can see.
+  const sel = useSelection(rows, `${tab}|${page}|${term}|${target}|${category}|${year}|${sort}`);
+  const picked = sel.rows;
+
   // ── Archive / delete ───────────────────────────────────────────────────────
-  const toggleArchive = async (doc) => {
+  // Archiving asks first; restoring does not — it hides nothing.
+  // The quick-preview drawer closes as it asks: it sits above the dialog layer.
+  const toggleArchive = (doc) => {
+    if (doc.isArchived) runArchive([doc], false);
+    else { setViewDoc(null); setArchiveAsk([doc]); }
+  };
+
+  const runArchive = async (docs, archived = true) => {
+    setBusy(true);
     try {
-      await archiveDocument(doc._id, !doc.isArchived);
-      toast.success(doc.isArchived ? 'Document restored' : 'Document archived');
+      if (docs.length === 1) await archiveDocument(docs[0]._id, archived);
+      else await bulkArchiveDocuments(docs.map((d) => d._id), archived);
+      const n = docs.length;
+      toast.success(archived
+        ? (n === 1 ? 'Document archived' : `${n} documents archived`)
+        : (n === 1 ? 'Document restored' : `${n} documents restored`));
+      setArchiveAsk(null);
       setViewDoc(null);
-      refresh();
+      sel.clear();
+      // Archiving every row on a later page would leave an empty page behind.
+      if (docs.length >= rows.length && page > 1) setPage(page - 1); else refresh();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runBulkDelete = async () => {
+    setBusy(true);
+    try {
+      const r = await bulkDeleteDocuments(bulkDel.map((d) => d._id));
+      const n = r?.deleted ?? bulkDel.length;
+      toast.success(n === 1 ? 'Document deleted' : `${n} documents deleted`);
+      setBulkDel(null);
+      sel.clear();
+      if (bulkDel.length >= rows.length && page > 1) setPage(page - 1); else refresh();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -441,11 +486,36 @@ export default function Documents() {
             options={yearOptions} label="Filter by academic year" className="docsel--year" />
           <span className="doctools__sep" />
           <SortMenu value={sort} onChange={go(setSort)} options={sortsFor(tab)} />
+          <ResetFilters on={canReset} onClick={resetAll} />
           {/* No choice to offer where only one of them fits. */}
           {!cardsOnly && <ViewSwitch value={view} onChange={setView} />}
         </DocTools>
 
-        <List rows={rows} loading={loading} empty={empty}
+        <SelectionBar count={picked.length} noun="document" onClear={sel.clear}>
+          {!sel.allOn && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={sel.toggleAll}>
+              Select all {rows.length}
+            </button>
+          )}
+          {picked.some((d) => d.isArchived) && (
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+              onClick={() => runArchive(picked.filter((d) => d.isArchived), false)}>
+              <Icon name="refresh" size={14} /> Restore
+            </button>
+          )}
+          {picked.some((d) => !d.isArchived) && (
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
+              onClick={() => setArchiveAsk(picked.filter((d) => !d.isArchived))}>
+              <Icon name="package" size={14} /> Archive
+            </button>
+          )}
+          <button type="button" className="btn btn-danger btn-sm" disabled={busy}
+            onClick={() => setBulkDel(picked)}>
+            <Icon name="trash" size={14} /> Delete
+          </button>
+        </SelectionBar>
+
+        <List rows={rows} loading={loading} empty={empty} selection={sel}
           onOpen={(r) => navigate(`/admin/documents/${r._id}`)}
           onView={setViewDoc} onEdit={openEdit} menu={rowMenu} />
 
@@ -458,7 +528,8 @@ export default function Documents() {
       <DocumentDrawer doc={viewDoc} onClose={() => setViewDoc(null)}
         onView={viewer.open}
         onOpen={(d) => navigate(`/admin/documents/${d._id}`)}
-        onEdit={openEdit} onArchive={toggleArchive} onDelete={setDelDoc} />
+        onEdit={openEdit} onArchive={toggleArchive}
+        onDelete={(d) => { setViewDoc(null); setDelDoc(d); }} />
 
       {viewer.node}
 
@@ -507,6 +578,12 @@ export default function Documents() {
         message={delDoc
           ? `Permanently delete “${delDoc.title}”? Its ${delDoc.fileCount || 0} file(s) and any submissions against it go with it.`
           : ''} />
+
+      <ArchiveConfirm docs={archiveAsk} where="from the Archived tab" loading={busy}
+        onClose={() => setArchiveAsk(null)} onConfirm={() => runArchive(archiveAsk, true)} />
+
+      <BulkDeleteConfirm docs={bulkDel} loading={busy}
+        onClose={() => setBulkDel(null)} onConfirm={runBulkDelete} />
 
       <Confirm open={!!delCat} onClose={() => setDelCat(null)} onConfirm={removeCategory} loading={busy}
         title="Delete Category"

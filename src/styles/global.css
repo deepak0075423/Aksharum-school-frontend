@@ -14262,6 +14262,18 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .doccard__head { display: flex; align-items: center; gap: 10px; }
 /* The kebab is pushed to the edge whatever the pill beside it says. */
 .doccard__head > :last-child { margin-left: auto; }
+/* Picking documents to act on together (Nov 23 2026): a tick per row or card,
+   a lit row, and listParts' selection bar over the list. */
+.doctick { width: 16px; height: 16px; flex-shrink: 0; margin: 0; cursor: pointer; accent-color: var(--primary); }
+.doctable__tick { width: 44px; padding-right: 0 !important; }
+.doctable__tick .doctick { display: block; }
+.doctable tr.is-picked td { background: #f5f3ff; }
+.doccard.is-picked { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
+.docpanel > .lselbar { margin: 14px 18px 2px; }
+.lselbar__acts .btn-danger { color: #fff; }
+/* Reset sits with the filters, the same height as the dropdowns beside it. */
+.docreset { flex-shrink: 0; padding: 8px 12px; font-size: .84rem; white-space: nowrap; }
+.docreset:disabled { opacity: .5; cursor: not-allowed; }
 .doccard__title {
   padding: 0; background: none; border: none; text-align: left;
   font-size: .95rem; font-weight: 600; line-height: 1.35; color: var(--text);
@@ -15006,6 +15018,11 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .adfeedbox h4 { display: flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 700; color: #047857; }
 .adfeedbox p  { font-size: .84rem; line-height: 1.55; margin-top: 6px; }
 .adfeedbox small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 8px; }
+/* Feedback already given, over the marking form's empty box (Nov 23 2026). */
+.adfeedbox--given { margin: 0 0 14px; }
+.adfeedbox--given h4 .adlinkbtn { margin-left: auto; font-weight: 600; }
+.adfeedbox--given p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.admark__cancel { margin-top: 6px; font-size: .78rem; }
 
 .adhistory { list-style: none; display: flex; flex-direction: column; }
 .adhistory li { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
@@ -15303,8 +15320,11 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   }
   .adhero__acts .adact { flex: 0 0 36px; height: 36px; }
 
-  .adtools--com .adsearch { flex: 1 1 100%; }
-  .adtools--com .adsel { flex: 1 1 0; min-width: 0; }
+  /* Search with Reset beside it, then the two dropdowns on a row of their own
+     with room for their words (Nov 23 2026). */
+  .adtools--com .adsearch { flex: 1 1 60%; min-width: 0; order: -2; }
+  .adtools--com .docreset { order: -1; }
+  .adtools--com .adsel { flex: 1 1 40%; min-width: 0; }
 }
 @media (max-width: 400px) {
   /* The narrowest phones: the three header buttons keep their words. */
@@ -15432,6 +15452,9 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 .dvcard + .dvcard { border-top: 1px solid var(--border); }
 .dvcard:hover { background: #fafbff; }
+/* Picked to act on together (a teacher's own uploads, Nov 23 2026). */
+.dvcard.is-picked, .dvcard.is-picked:hover { background: #f5f3ff; }
+.dvpanel > .lselbar { margin: 12px 16px 2px; }
 
 /* Not opened yet. Three signals, so it does not rest on colour alone: a bar
    down the edge, a heavier title and the word "New" in front of it. Read cards
@@ -15758,10 +15781,19 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .dvcard__end > .dvcard__acts { margin-left: auto; }
   /* Nothing to say and nothing to press: no empty bottom line. */
   .dvcard__end:has(> .dvcard__acts:only-child:empty) { display: none; }
+  /* The tick in the top corner, clear of the title. */
+  .dvcard.has-tick { position: relative; }
+  .dvcard__tick { position: absolute; top: 15px; right: 13px; }
+  .dvcard.has-tick .dvcard__open { padding-right: 28px; }
+  .dvcard.is-picked { border-color: var(--primary); }
 
   /* The spacer would take a third of the row and cut both dropdowns short. */
   .dvtools .dvtools__sep { display: none; }
-  .dvtools .dvsel { flex: 1 1 0; min-width: 0; }
+  .dvtools .dvsel { flex: 1 1 40%; min-width: 0; }
+  /* Reset beside the search, so the two dropdowns keep a row to themselves
+     and their words (Nov 23 2026). */
+  .dvtools .dvsearch { order: -2; flex: 1 1 60%; min-width: 0; }
+  .dvtools .docreset { order: -1; }
   .dvtools .dvunread { order: 9; flex: 1 1 100%; justify-content: center; }
 
   /* The heading on the same row as its mark, as on the office's page; the

@@ -20,7 +20,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
   getDocuments, uploadDocument, updateDocument, deleteDocument, getDocumentCategories,
-  markDocumentRead, markDocumentsRead, archiveDocument, publishDocument,
+  markDocumentRead, markDocumentsRead, archiveDocument, publishDocument, bulkDeleteDocuments,
 } from '../../api/teacher.api';
 import { Alert, Button, Confirm, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
@@ -31,6 +31,8 @@ import {
 } from '../documents/viewerParts';
 import ShareDocument from './ShareDocument';
 import Tabs from '../../components/ui/Tabs';
+import { ResetFilters, ArchiveConfirm, BulkDeleteConfirm } from '../admin/documentParts';
+import { SelectionBar, useSelection } from '../admin/listParts';
 
 const SCOPES = [
   { value: 'shared', label: 'Shared with me' },
@@ -78,6 +80,9 @@ export default function TeacherDocuments() {
   const [saving,   setSaving]   = useState(false);
   const [del,      setDel]      = useState(null);
   const [busy,     setBusy]     = useState(false);
+  // Asked before archiving, and before several of their own go at once (Nov 23 2026).
+  const [archiveAsk, setArchiveAsk] = useState(null);
+  const [bulkDel,    setBulkDel]    = useState(null);
 
   const shown = all;
 
@@ -123,14 +128,45 @@ export default function TeacherDocuments() {
   };
 
   // Their own to put away and take back out. Archived, it leaves every
-  // reader's shelf and stays on this one, marked.
-  const toggleArchive = async (d) => {
+  // reader's shelf and stays on this one, marked. Archiving asks first.
+  const toggleArchive = (d) => {
+    if (d.isArchived) runArchive(d, false);
+    // The drawer closes as it asks: it sits above the dialog layer.
+    else { setOpen(null); setArchiveAsk([d]); }
+  };
+  const runArchive = async (d, archived = true) => {
+    setBusy(true);
     try {
-      await archiveDocument(d._id, !d.isArchived);
-      toast.success(d.isArchived ? 'Back on the shelf' : 'Archived — readers no longer see it');
+      await archiveDocument(d._id, archived);
+      toast.success(archived ? 'Archived — readers no longer see it' : 'Back on the shelf');
+      setArchiveAsk(null);
       refetch();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Ticking several of their own uploads to delete together (Nov 23 2026).
+  // Only on "My uploads", and only what is theirs — the server checks too.
+  const sel = useSelection(
+    scope === 'mine' ? all.filter((d) => d.mine) : [],
+    `${scope}|${tab}|${category}|${search}|${sort}|${year}`,
+  );
+  const runBulkDelete = async () => {
+    setBusy(true);
+    try {
+      const r = await bulkDeleteDocuments(bulkDel.map((d) => d._id));
+      const n = r?.deleted ?? bulkDel.length;
+      toast.success(n === 1 ? 'Document deleted' : `${n} documents deleted`);
+      setBulkDel(null); setOpen(null);
+      sel.clear();
+      refetch();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -251,10 +287,29 @@ export default function TeacherDocuments() {
           <span className="dvtools__sep" />
           {scope === 'shared' && <UnreadNote count={unread.length} onClear={() => readAll(unread)} />}
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
+          <ResetFilters on={!!(search || category || sort !== 'newest')}
+            onClick={() => { setSearch(''); setCategory(''); setSort('newest'); }} />
         </ViewerTools>
+
+        {scope === 'mine' && (
+          <SelectionBar count={sel.ids.length} noun="document" onClear={sel.clear}>
+            {!sel.allOn && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={sel.toggleAll}>
+                Select all {all.filter((d) => d.mine).length}
+              </button>
+            )}
+            <button type="button" className="btn btn-danger btn-sm" disabled={busy}
+              onClick={() => setBulkDel(sel.rows)}>
+              <Icon name="trash" size={14} /> Delete
+            </button>
+          </SelectionBar>
+        )}
 
         <DocList
           docs={shown} loading={loading} more={more} onOpen={(d) => { setOpen(d); read(d); }}
+          tick={scope === 'mine'
+            ? (d) => (d.mine ? { checked: sel.has(d._id), onChange: () => sel.toggle(d._id) } : null)
+            : undefined}
           empty={<NothingHere filtered={filtered} onClear={clear}
             what={scope === 'mine' ? 'uploads' : 'documents'} />}
           badges={(d) => (d.isAssignment && d.mine
@@ -322,7 +377,7 @@ export default function TeacherDocuments() {
                   <Icon name={live.isArchived ? 'refresh' : 'package'} size={15} />
                   {live.isArchived ? 'Restore' : 'Archive'}
                 </button>
-                <button type="button" className="btn btn-danger" onClick={() => setDel(live)}>
+                <button type="button" className="btn btn-danger" onClick={() => { setOpen(null); setDel(live); }}>
                   <Icon name="trash" size={15} /> Delete
                 </button>
                 <button type="button" className="btn btn-primary" onClick={() => startEdit(live)}>
@@ -343,6 +398,12 @@ export default function TeacherDocuments() {
         onClose={() => setShowForm(false)}
         onSave={save}
       />
+
+      <ArchiveConfirm docs={archiveAsk} loading={busy}
+        onClose={() => setArchiveAsk(null)} onConfirm={() => runArchive(archiveAsk[0], true)} />
+
+      <BulkDeleteConfirm docs={bulkDel} loading={busy}
+        onClose={() => setBulkDel(null)} onConfirm={runBulkDelete} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} loading={busy}
         title="Delete document"

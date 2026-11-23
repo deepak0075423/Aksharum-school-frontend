@@ -27,6 +27,7 @@ import {
   ChildSwitch, DocList, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile, DocComments,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
+import { ResetFilters } from '../admin/documentParts';
 
 export default function ParentDocuments() {
   const [year, setYear] = useState('');
@@ -182,6 +183,8 @@ export default function ParentDocuments() {
           <span className="dvtools__sep" />
           <UnreadNote count={unread.length} onClear={() => readAll(unread)} />
           <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
+          <ResetFilters on={!!(search || category || state || sort !== 'newest')}
+            onClick={() => { setSearch(''); setCategory(''); setState(''); setSort('newest'); }} />
         </ViewerTools>
 
         <DocList

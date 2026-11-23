@@ -98,6 +98,8 @@ export const uploadDocument      = (data)   => api.post('/teacher/documents', da
 export const getDocument         = (id)     => api.get(`/teacher/documents/${id}`);
 export const updateDocument      = (id, data) => api.put(`/teacher/documents/${id}`, data, DOC_SEND);
 export const deleteDocument      = (id)     => api.delete(`/teacher/documents/${id}`);
+// Several of their own at once (Nov 23 2026).
+export const bulkDeleteDocuments = (ids)    => api.delete('/teacher/documents/bulk-delete', { data: { ids } });
 // Read marks: one document as it is opened, or a list of them at once.
 export const markDocumentRead    = (id)     => api.post(`/teacher/documents/${id}/read`);
 export const markDocumentsRead   = (ids)    => api.post('/teacher/documents/read', { ids });
@@ -112,7 +114,6 @@ export const getDocumentComments    = (id, params) => api.get(`/teacher/document
 export const addDocumentComment     = (id, data)  => api.post(`/teacher/documents/${id}/comments`, data);
 export const updateDocumentComment  = (cid, data) => api.patch(`/teacher/documents/comments/${cid}`, data);
 export const deleteDocumentComment  = (cid)       => api.delete(`/teacher/documents/comments/${cid}`);
-export const likeDocumentComment    = (cid)       => api.post(`/teacher/documents/comments/${cid}/like`);
 // Their own documents: put away and take back out, earlier files, who opened it.
 export const archiveDocument        = (id, archived = true) => api.post(`/teacher/documents/${id}/archive`, { archived });
 export const getDocumentVersions    = (id)      => api.get(`/teacher/documents/${id}/versions`);

@@ -30,7 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../../components/ui/icons';
 import { saveFile } from '../../utils/downloadFile';
 import { fetchFile } from '../../utils/fileAccess';
-import { typeOf, downloadUrl } from './documentParts';
+import { typeOf, downloadUrl, ResetFilters } from './documentParts';
 import {
   Crumbs, DetailHero, MetaStrip, DetailTabs, StatTiles, Panel, Blank, Loading,
   SubmissionDonut, ScoreHistogram, SubmissionTrend, RankRows, QuestionBars,
@@ -96,7 +96,6 @@ function DocumentDetailPage() {
       addComment:    teacherApi.addDocumentComment,
       updateComment: teacherApi.updateDocumentComment,
       deleteComment: teacherApi.deleteDocumentComment,
-      likeComment:   teacherApi.likeDocumentComment,
       archive:   teacherApi.archiveDocument,  // their own only — the route checks
       remove:    teacherApi.deleteDocument,
       markRead:  teacherApi.markDocumentRead,
@@ -115,7 +114,6 @@ function DocumentDetailPage() {
       addComment:    adminApi.addDocumentComment,
       updateComment: adminApi.updateDocumentComment,
       deleteComment: adminApi.deleteDocumentComment,
-      likeComment:   adminApi.likeDocumentComment,
       archive:   adminApi.archiveDocument,
       remove:    adminApi.deleteDocument,
       versions:  adminApi.getDocumentVersions,
@@ -281,8 +279,10 @@ function DocumentDetailPage() {
       // The panel is showing a row that has just changed — pull the new one
       // through rather than leaving a stale copy beside a refreshed table.
       setPicked((p) => (p ? { ...p, _saved: Date.now() } : p));
+      return true;           // the panel empties its feedback box
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
+      return false;          // and keeps what was typed when nothing was saved
     } finally {
       setSaving(false);
     }
@@ -464,10 +464,6 @@ function DocumentDetailPage() {
     }
   };
 
-  const onLike = async (c) => {
-    try { await api.likeComment(c._id); await loadComments(); }
-    catch (err) { toast.error(err?.response?.data?.message || err.message); }
-  };
   const onPin = async (c, on) => {
     try { await api.updateComment(c._id, { isPinned: on }); await loadComments(); }
     catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -544,6 +540,11 @@ function DocumentDetailPage() {
   // shown made rather than offered.
   const replyStaff = replyTo?.visibility === 'staff';
 
+  // Reset puts the search, both dropdowns and the sort back (Nov 23 2026).
+  const resetRoster = () => {
+    setSearch(''); setTerm(''); setStatus(''); setSection(''); setSort('roll'); setPage(1);
+  };
+
   // What narrows the roster. The sort is not one of them — it orders what is
   // left — so it sits with the count and the pager, on the list itself.
   const rosterTools = (
@@ -565,6 +566,7 @@ function DocumentDetailPage() {
           <option key={s._id} value={s._id}>{s.label}</option>
         ))}
       </select>
+      <ResetFilters on={!!(search || status || section || sort !== 'roll')} onClick={resetRoster} />
     </>
   );
 
@@ -807,6 +809,10 @@ function DocumentDetailPage() {
               <div className="adlist">
                 {rosterHead}
                 {rosterTable}
+                {/* And under it, as on every other list (Nov 23 2026) — the
+                    pager used to be only at the top, a scroll back up away
+                    from the last row. */}
+                {rosterFoot}
               </div>
 
               {picked && (
@@ -921,6 +927,8 @@ function DocumentDetailPage() {
                   <option value="newest">Newest First</option>
                   <option value="oldest">Oldest First</option>
                 </select>
+                <ResetFilters on={!!(comSearch || comFilter || comOrder !== 'newest')}
+                  onClick={() => { setComSearch(''); setComTerm(''); setComFilter(''); setComOrder('newest'); }} />
               </div>
             }>
             {comLoading && !comments ? <Loading /> : (
@@ -930,7 +938,7 @@ function DocumentDetailPage() {
                     ? comments.threads.map((c) => (
                       <CommentCard key={c._id} c={c} onView={viewer.open}
                         onReply={(x) => { setReplyTo(x); document.getElementById('ad-composer')?.focus(); }}
-                        onLike={onLike} onPin={onPin} onEdit={onEditComment}
+                        onPin={onPin} onEdit={onEditComment}
                         onDelete={(x) => setConfirm({ kind: 'comment', comment: x })} />
                     ))
                     : <Blank text={comTerm || comFilter ? 'No comments match that' : 'No comments yet — start the discussion below.'} />}
@@ -1020,9 +1028,10 @@ function DocumentDetailPage() {
         onClose={() => setConfirm(null)}
         onConfirm={runConfirm}
         loading={busy}
-        confirmLabel={confirm?.kind === 'remind' ? 'Send reminder' : undefined}
+        confirmLabel={confirm?.kind === 'remind' ? 'Send reminder'
+          : confirm?.kind === 'archive' ? (doc.isArchived ? 'Restore' : 'Archive') : undefined}
         title={confirm?.kind === 'comment' ? 'Delete Comment'
-          : confirm?.kind === 'archive' ? (doc.isArchived ? 'Restore Document' : 'Archive Document')
+          : confirm?.kind === 'archive' ? (doc.isArchived ? 'Restore Document' : 'Archive this document?')
           : confirm?.kind === 'remind' ? 'Send Reminder'
           : 'Delete Document'}
         message={confirm?.kind === 'comment'
@@ -1032,7 +1041,10 @@ function DocumentDetailPage() {
               ? `Remind the ${outstanding} student${outstanding === 1 ? '' : 's'} who ${outstanding === 1 ? 'has' : 'have'} not handed in “${doc.title}”? Their parents are told too. It can be sent to everyone once an hour.`
               : `Everyone has handed in “${doc.title}” — there is nobody to remind.`)
           : confirm?.kind === 'archive'
-            ? (doc.isArchived ? `Put “${doc.title}” back on the shelf?` : `Archive “${doc.title}”? It stays here but leaves the main list.`)
+            ? (doc.isArchived
+              ? `Put “${doc.title}” back on the shelf?`
+              // The same warning the lists give (Nov 23 2026).
+              : `“${doc.title}” will be taken off the shelf of everyone it was shared with — students, parents and teachers will no longer see it. You can restore it later.`)
             : `Permanently delete “${doc.title}”? Its files and every submission against it go with it.`} />
 
       {/* Earlier sets of files. Replacing a file keeps what was there. */}

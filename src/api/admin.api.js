@@ -287,6 +287,9 @@ export const updateDocument  = (id, data)   => api.put(`/admin/documents/${id}`,
 export const deleteDocument  = (id)         => api.delete(`/admin/documents/${id}`);
 // One endpoint both ways — `archived: false` takes a document back out again.
 export const archiveDocument = (id, archived = true) => api.post(`/admin/documents/${id}/archive`, { archived });
+// Several at once (Nov 23 2026): put away / take back out, and delete.
+export const bulkArchiveDocuments = (ids, archived = true) => api.post('/admin/documents/bulk-archive', { ids, archived });
+export const bulkDeleteDocuments  = (ids) => api.delete('/admin/documents/bulk-delete', { data: { ids } });
 // One document, opened — the four tabs of the detail page.
 export const getAssignmentDetail   = (id, params) => api.get(`/admin/documents/${id}/assignment`, { params });
 export const getAssignmentAnalytics = (id)        => api.get(`/admin/documents/${id}/assignment/analytics`);
@@ -298,7 +301,6 @@ export const getDocumentComments   = (id, params) => api.get(`/admin/documents/$
 export const addDocumentComment    = (id, data)   => api.post(`/admin/documents/${id}/comments`, data);
 export const updateDocumentComment = (cid, data)  => api.patch(`/admin/documents/comments/${cid}`, data);
 export const deleteDocumentComment = (cid)        => api.delete(`/admin/documents/comments/${cid}`);
-export const likeDocumentComment   = (cid)        => api.post(`/admin/documents/comments/${cid}/like`);
 
 // Document Categories
 export const getDocumentCategories    = ()       => api.get('/admin/document-categories');

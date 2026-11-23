@@ -253,7 +253,7 @@ export const Loading = () => <div className="dvloading"><Spinner /></div>;
 /** Work that has come in: its card says so, and no longer when it was due. */
 export const HANDED_IN = ['submitted', 'late', 'marked'];
 
-export function DocCard({ doc, onOpen, badges, actions, dense }) {
+export function DocCard({ doc, onOpen, badges, actions, dense, tick }) {
   const type = typeOf(doc.docType);
   // Once it is in, the date it was due is history; the state pill beside it
   // ("Submitted", "Marked") is the answer. A parent read "Due 18 Nov" on
@@ -266,8 +266,16 @@ export function DocCard({ doc, onOpen, badges, actions, dense }) {
   // have not opened. Their own uploads, and lists that do not track it, carry
   // no mark at all.
   const unread = doc.isRead === false;
+  // A tick box, where the page lets this card be picked (a teacher's own
+  // uploads, Nov 23 2026): `tick(doc)` is { checked, onChange } or null.
+  const box = tick ? tick(doc) : null;
   return (
-    <article className={`dvcard${dense ? ' dvcard--dense' : ''}${unread ? ' is-unread' : ''}`} data-focus-id={doc._id}>
+    <article className={`dvcard${dense ? ' dvcard--dense' : ''}${unread ? ' is-unread' : ''}${box ? ' has-tick' : ''}${box?.checked ? ' is-picked' : ''}`}
+      data-focus-id={doc._id}>
+      {box && (
+        <input type="checkbox" className="doctick dvcard__tick" checked={box.checked}
+          onChange={box.onChange} aria-label={`Select ${doc.title}`} />
+      )}
       <button type="button" className="dvcard__open" onClick={() => onOpen(doc)}
         aria-label={unread ? `Open ${doc.title} (unread)` : `Open ${doc.title}`}>
         <FileMark file={doc.files?.[0]} size={44} />

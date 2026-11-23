@@ -15,7 +15,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
-import { Empty, Spinner } from '../../components/ui/index';
+import { Confirm, Empty, Spinner } from '../../components/ui/index';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
 import { withFileToken } from '../../utils/fileAccess';
@@ -295,6 +295,58 @@ export const ViewSwitch = ({ value, onChange }) => (
   </div>
 );
 
+/**
+ * Puts a filter bar back the way the page opened — search, every dropdown and
+ * the sort (Nov 23 2026). Always on the bar, so it can be found; greyed out
+ * while nothing is set. Used by every filter bar in Documents.
+ */
+export const ResetFilters = ({ on, onClick }) => (
+  <button type="button" className="btn btn-secondary docreset" onClick={onClick} disabled={!on}
+    title={on ? 'Clear the search, filters and sort' : 'No filters are set'}>
+    <Icon name="refresh" size={15} /> Reset
+  </button>
+);
+
+/**
+ * "Archive this?" — asked before anything is put away (Nov 23 2026). Taking a
+ * document back out never asks: it hides nothing. `docs` is what would be
+ * archived; `where` says where to find it again.
+ */
+export function ArchiveConfirm({ docs, onClose, onConfirm, loading, where = '' }) {
+  const list = docs || [];
+  const n = list.length;
+  const one = n === 1;
+  const names = list.slice(0, 3).map((d) => `“${d.title}”`).join(', ') + (n > 3 ? ` and ${n - 3} more` : '');
+  return (
+    <Confirm open={n > 0} onClose={onClose} onConfirm={onConfirm} loading={loading}
+      title={one ? 'Archive this document?' : `Archive ${n} documents?`}
+      confirmLabel={one ? 'Archive' : `Archive ${n}`}
+      message={n ? `${names} will be taken off the shelf of everyone ${one ? 'it was' : 'they were'} shared with — `
+        + `students, parents and teachers will no longer see ${one ? 'it' : 'them'}. `
+        + `You can restore ${one ? 'it' : 'them'} later${where ? ` ${where}` : ''}.` : ''} />
+  );
+}
+
+/** "Delete these?" for several documents at once — nothing comes back from this one. */
+export function BulkDeleteConfirm({ docs, onClose, onConfirm, loading }) {
+  const list = docs || [];
+  const n = list.length;
+  const names = list.slice(0, 3).map((d) => `“${d.title}”`).join(', ') + (n > 3 ? ` and ${n - 3} more` : '');
+  return (
+    <Confirm open={n > 0} onClose={onClose} onConfirm={onConfirm} loading={loading}
+      title={n === 1 ? 'Delete this document?' : `Delete ${n} documents?`}
+      confirmLabel={n === 1 ? 'Delete' : `Delete ${n}`}
+      message={n ? `Permanently delete ${names}? Their files, any work handed in against them and their `
+        + 'comments are deleted too. This cannot be undone.' : ''} />
+  );
+}
+
+/** A row's or a card's tick box (Nov 23 2026 — documents can be picked to act on together). */
+export const Tick = ({ checked, onChange, label, className = '' }) => (
+  <input type="checkbox" className={`doctick${className ? ` ${className}` : ''}`} checked={checked}
+    onChange={onChange} aria-label={label} onClick={(e) => e.stopPropagation()} />
+);
+
 // ── Row cells ────────────────────────────────────────────────────────────────
 
 export const TypePill = ({ type }) => {
@@ -462,7 +514,7 @@ const COLUMNS = ['Title', 'Type', 'Category', 'Shared With', 'Uploaded On', 'Upl
  * carry `data-focus-id` so a notification can flag the document it was about —
  * see hooks/useFocusHighlight.js.
  */
-export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu }) {
+export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu, selection }) {
   if (loading) return <div className="docloading"><Spinner /></div>;
   if (!rows.length) return empty;
 
@@ -471,6 +523,13 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
       <table className="table doctable">
         <thead>
           <tr>
+            {selection && (
+              <th className="doctable__tick">
+                <input type="checkbox" className="doctick" checked={selection.allOn}
+                  ref={(el) => { if (el) el.indeterminate = selection.some; }}
+                  onChange={selection.toggleAll} aria-label="Select every document on this page" />
+              </th>
+            )}
             {COLUMNS.map((c) => (
               <th key={c} className={c === 'Actions' ? 'doctable__acts' : undefined}>{c}</th>
             ))}
@@ -478,7 +537,13 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r._id} data-focus-id={r._id}>
+            <tr key={r._id} data-focus-id={r._id} className={selection?.has(r._id) ? 'is-picked' : undefined}>
+              {selection && (
+                <td className="doctable__tick">
+                  <Tick checked={selection.has(r._id)} onChange={() => selection.toggle(r._id)}
+                    label={`Select ${r.title}`} />
+                </td>
+              )}
               <td className="doctable__title">
                 <button type="button" className="doctitle" onClick={() => onOpen(r)}>
                   <FileMark file={r.files?.[0]} />
@@ -521,15 +586,19 @@ export function DocTable({ rows, loading, empty, onOpen, onView, onEdit, menu })
  * filling the fourth place beside Files — one a row on a phone, as many
  * ~272px cards across as fit everywhere else.
  */
-export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu }) {
+export function DocGrid({ rows, loading, empty, onOpen, onView, onEdit, menu, selection }) {
   if (loading) return <div className="docloading"><Spinner /></div>;
   if (!rows.length) return empty;
 
   return (
     <div className="docgrid">
       {rows.map((r) => (
-        <article key={r._id} className="doccard" data-focus-id={r._id}>
+        <article key={r._id} className={`doccard${selection?.has(r._id) ? ' is-picked' : ''}`} data-focus-id={r._id}>
           <header className="doccard__head">
+            {selection && (
+              <Tick checked={selection.has(r._id)} onChange={() => selection.toggle(r._id)}
+                label={`Select ${r.title}`} />
+            )}
             <FileMark file={r.files?.[0]} size={40} />
             <TypePill type={r.docType} />
             <RowMenu>{menu(r)}</RowMenu>
