@@ -1,7 +1,8 @@
 /**
  * ID Cards for a parent (Oct 2026): their own parent card, and each child's
- * — the card in force and every year before it. A child at another school
- * the parent also belongs to is shown with that school named.
+ * — the card in force and every year before it. Only the children at the
+ * school this sign-in is for (Nov 2026): a child at another school the same
+ * person is a parent at is seen by switching to that school.
  * GET /parent/id-cards.
  */
 import React, { useState } from 'react';
@@ -22,7 +23,6 @@ function ChildPanel({ child, onOpen }) {
         <div className="icf-child__who">
           <strong>{child.name}</strong>
           <span>{where}</span>
-          {child.otherSchool ? <span className="icf-child__school"><Ico name="school" size={12} />{child.schoolName}</span> : null}
         </div>
         {cur ? <StatusBadge status={cur.status} /> : null}
       </header>
@@ -105,7 +105,6 @@ export default function FamilyIdCards() {
         title={view?.title}
         onDownload={files.download}
         onPrint={files.print}
-        present
         startPresenting={view?.present}
         school={data?.school}
       />

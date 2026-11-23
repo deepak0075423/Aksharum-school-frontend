@@ -45,7 +45,6 @@ export default function MyIdCard({ role = 'student' }) {
         index={view?.index || 0}
         onDownload={files.download}
         onPrint={files.print}
-        present
         startPresenting={view?.present}
         school={data?.school}
       />

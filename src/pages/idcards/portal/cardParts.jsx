@@ -14,14 +14,16 @@ import { REISSUE_REASON, errorText, fmtDate, fmtDay, pdfName, printBlob, saveBlo
 
 /** Download / print a card the signed-in person may hold. */
 export function useCardFiles(role) {
-  const fetchPdf = (card) => downloadMyIdCard(role, card._id, 'card');
   return {
+    // A download keeps the card-sized pages (a file to keep, or for a card printer).
     download: async (card) => {
-      try { saveBlob(await fetchPdf(card), pdfName(card)); toast.success('ID card downloaded'); }
+      try { saveBlob(await downloadMyIdCard(role, card._id, 'card'), pdfName(card)); toast.success('ID card downloaded'); }
       catch (e) { toast.error(await errorText(e, 'The card could not be downloaded')); }
     },
+    // Printed at home, it goes on A4: front and back side by side at true size
+    // on one page — not each face blown up to a page of its own.
     print: async (card) => {
-      try { printBlob(await fetchPdf(card)); }
+      try { printBlob(await downloadMyIdCard(role, card._id, 'sheet')); }
       catch (e) { toast.error(await errorText(e, 'The card could not be printed')); }
     },
   };

@@ -3,10 +3,16 @@
  * stage, hanging from its lanyard, with every other card of the same holder
  * in a rail beside it (the years, the replacements).
  *
- * "Full screen view" turns it into a presentation: the card large and face
- * on, the school's name, whether the card is valid, and a clock ticking to
- * the second — a live screen, which a screenshot is not. The screen is kept
- * awake while it is shown (Wake Lock, where the browser has it).
+ * `startPresenting` opens it as the gate display instead (the page's own
+ * "Full screen view"): the card large and face on, the school's name, whether
+ * the card is valid, and a clock ticking to the second — a live screen, which
+ * a screenshot is not. The screen is kept awake while it is shown (Wake Lock,
+ * where the browser has it).
+ *
+ * The viewer itself has no "Full screen view" button (Nov 2026): it already
+ * fills the screen, and a second full-screen mode inside it was reported as
+ * redundant. The gate display has ONE way out — the ✕ at the top right; a
+ * second "Close" at its foot was the same button twice.
  *
  *   cards     card views (services/idCardViews.cardView)
  *   index     which one to open on
@@ -141,13 +147,12 @@ function Present({ card, school, onClose }) {
       <p className="icv-present__tip">{back ? 'The guard scans this code to check the card.' : 'The QR code is on the back of the card.'}</p>
       <div className="icv-present__acts">
         <Btn kind="light" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show QR code'}</Btn>
-        <Btn kind="dark" icon="close" onClick={onClose}>Close</Btn>
       </div>
     </div>
   );
 }
 
-export default function CardViewer({ open, onClose, cards = [], index = 0, title, onDownload, onPrint, present: presentable = false, startPresenting = false, school }) {
+export default function CardViewer({ open, onClose, cards = [], index = 0, title, onDownload, onPrint, startPresenting = false, school }) {
   const [at, setAt] = useState(index);
   const [back, setBack] = useState(false);
   const [presenting, setPresenting] = useState(false);
@@ -155,10 +160,9 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
   const closeRef = useRef(null);
   useLockScroll(open);
   const leave = useBackToClose(open, onClose);
-  // Opened straight into the gate display (the page's own "Full screen view"),
-  // closing it goes back to the page. Reached from this viewer's toolbar, it
-  // goes back to the viewer.
-  const endPresenting = () => { if (startPresenting) leave(); else setPresenting(false); };
+  // The gate display is only ever opened straight from the page's own "Full
+  // screen view", so closing it goes back to the page.
+  const endPresenting = leave;
 
   useEffect(() => { if (open) { setAt(index); setBack(false); setPresenting(!!startPresenting); } }, [open, index, startPresenting]);
   useEffect(() => { setBack(false); }, [at]);
@@ -227,7 +231,6 @@ export default function CardViewer({ open, onClose, cards = [], index = 0, title
             <Btn kind="dark" icon={back ? 'flip' : 'qr'} onClick={() => setBack((b) => !b)}>{back ? 'Show front' : 'Show back (QR code)'}</Btn>
             {onDownload ? <Btn kind="dark" icon="download" busy={busy === 'pdf'} onClick={() => run('pdf', onDownload)}>Download PDF</Btn> : null}
             {onPrint ? <Btn kind="dark" icon="printer" busy={busy === 'print'} onClick={() => run('print', onPrint)}>Print</Btn> : null}
-            {presentable && card.status !== 'expired' ? <Btn kind="light" icon="fullscreen" onClick={() => setPresenting(true)}>Full screen view</Btn> : null}
           </div>
           <div className="icv-meta">
             {card.kind === 'student' && (card.validUntil || card.snapshot?.yearEnd) ? <span>Valid till {fmtDay(card.validUntil || card.snapshot.yearEnd)}</span> : null}

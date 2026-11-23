@@ -150,8 +150,8 @@ export function useCardActions(onDone) {
         <p className="ic-dialog__lead">While blocked, the card does not verify — a scan says it is blocked. You can activate it again at any time.</p>
         <Reasons list={BLOCK_REASONS} value={form.reason} onPick={set('reason')} />
         <label className="ic-field">
-          <span className="ic-field__label">Reason</span>
-          <input className="ic-input" value={form.reason || ''} onChange={(e) => set('reason')(e.target.value)} placeholder="Why is it blocked?" maxLength={200} autoFocus />
+          <span className="ic-field__label">Reason <span className="ic-req" aria-hidden>*</span></span>
+          <input className="ic-input" value={form.reason || ''} onChange={(e) => set('reason')(e.target.value)} placeholder="Why is it blocked?" maxLength={200} autoFocus required aria-required="true" />
         </label>
       </Dialog>
     );
@@ -171,8 +171,8 @@ export function useCardActions(onDone) {
         <Note tone="red" icon="alert">A cancelled card never verifies again and cannot be reactivated. To give {card?.snapshot?.name || 'them'} a card later, generate a new one.</Note>
         <Reasons list={CANCEL_REASONS} value={form.reason} onPick={set('reason')} />
         <label className="ic-field">
-          <span className="ic-field__label">Reason</span>
-          <input className="ic-input" value={form.reason || ''} onChange={(e) => set('reason')(e.target.value)} placeholder="Why is it cancelled?" maxLength={200} />
+          <span className="ic-field__label">Reason <span className="ic-req" aria-hidden>*</span></span>
+          <input className="ic-input" value={form.reason || ''} onChange={(e) => set('reason')(e.target.value)} placeholder="Why is it cancelled?" maxLength={200} required aria-required="true" />
         </label>
       </Dialog>
     );
@@ -185,8 +185,9 @@ export function useCardActions(onDone) {
 
 /**
  * Print or download a set of cards. `cards` [{ _id, number, snapshot?, design? }];
- * the layout decides the paper: A4 sheets of nine (ten landscape) with crop
- * marks, or one card per page for a PVC card printer.
+ * the layout decides the paper: A4 sheets with crop marks — front and back of
+ * each card side by side, four cards a sheet (or nine of one side) — or one
+ * card per page for a PVC card printer.
  */
 export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
   const [layout, setLayout] = useState('sheet');
@@ -201,9 +202,9 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
   React.useEffect(() => { if (open) setAsking(false); }, [open]);
   const pages = useMemo(() => {
     if (!n) return 0;
-    const per = layout === 'card' ? 1 : 9;
-    const sheets = layout === 'card' ? n : Math.ceil(n / per);
-    return sheets * (sides === 'both' ? 2 : 1);
+    // A4: four cards a sheet with both faces side by side, nine of one face.
+    if (layout === 'sheet') return Math.ceil(n / (sides === 'both' ? 4 : 9));
+    return n * (sides === 'both' ? 2 : 1);
   }, [n, layout, sides]);
 
   const go = async (how) => {
@@ -269,9 +270,13 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
       </>}>
       <div className="ic-print">
         <button type="button" className={`ic-print__opt${layout === 'sheet' ? ' is-on' : ''}`} onClick={() => setLayout('sheet')}>
-          <span className="ic-print__art ic-print__art--sheet" aria-hidden>{Array.from({ length: 9 }, (_, i) => <i key={i} />)}</span>
+          {sides === 'both' ? (
+            <span className="ic-print__art ic-print__art--pairs" aria-hidden>{Array.from({ length: 4 }, (_, i) => <span key={i}><i /><i className="is-back" /></span>)}</span>
+          ) : <span className="ic-print__art ic-print__art--sheet" aria-hidden>{Array.from({ length: 9 }, (_, i) => <i key={i} />)}</span>}
           <strong>A4 sheets</strong>
-          <em>Nine cards a page with crop marks — print, cut and laminate.</em>
+          <em>{sides === 'both'
+            ? 'Four cards a page, each card’s front and back side by side at true size, with crop marks — print, cut and laminate.'
+            : 'Nine cards a page with crop marks — print, cut and laminate.'}</em>
         </button>
         <button type="button" className={`ic-print__opt${layout === 'card' ? ' is-on' : ''}`} onClick={() => setLayout('card')}>
           <span className="ic-print__art ic-print__art--card" aria-hidden><i /></span>
@@ -285,7 +290,7 @@ export function PrintDialog({ open, onClose, cards = [], onDone, title }) {
       </div>
       {layout === 'sheet' ? <Switch checked={marks} onChange={setMarks} label="Crop marks" hint="Fine lines at each card's corners to cut along." /> : null}
       <Note tone="slate" icon="info">
-        {plural(n, 'card')} · {plural(pages, 'page')}. Print at <b>actual size (100%)</b>{sides === 'both' && layout === 'sheet' ? ', double-sided, flipping on the long edge — each back lands behind its front' : ''}. After printing you will be asked whether the cards printed; downloading does not mark them as printed.
+        {plural(n, 'card')} · {plural(pages, 'page')}. Print at <b>actual size (100%)</b>{sides === 'both' && layout === 'sheet' ? ', on one side of the paper — every card’s back is printed beside its front' : ''}. After printing you will be asked whether the cards printed; downloading does not mark them as printed.
       </Note>
     </Dialog>
   );

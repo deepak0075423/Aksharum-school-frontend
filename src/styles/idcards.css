@@ -960,6 +960,7 @@
 .ic-dialog__subject { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: #f6f7fb; }
 .ic-dialog__subject strong { font-weight: 700; }
 .ic-dialog__subject span { color: var(--ic-faint); font-size: .82rem; letter-spacing: .02em; }
+.ic-req { color: var(--danger, #dc2626); font-weight: 700; }
 .ic-dialog .ic-field__label em { font-style: normal; font-weight: 500; color: var(--ic-faint); }
 .ic-changes { list-style: none; margin: -4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ic-changes li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 9px; background: #fffaf0; border: 1px solid #fde9c3; font-size: .85rem; }
@@ -983,6 +984,10 @@
 .ic-print__art { display: grid; place-items: center; width: 64px; height: 76px; border-radius: 6px; background: #f6f7fb; border: 1px solid #e5e8f2; }
 .ic-print__art--sheet { grid-template-columns: repeat(3, 14px); grid-auto-rows: 20px; gap: 3px; align-content: center; justify-content: center; }
 .ic-print__art--sheet i { display: block; width: 14px; height: 20px; border-radius: 2px; background: linear-gradient(#4f46e5 0 30%, #fff 30%); border: 1px solid #c7cdf0; }
+.ic-print__art--pairs { grid-template-columns: repeat(2, auto); gap: 6px 5px; align-content: center; justify-content: center; }
+.ic-print__art--pairs span { display: flex; gap: 1px; }
+.ic-print__art--pairs i { display: block; width: 10px; height: 15px; border-radius: 2px; background: linear-gradient(#4f46e5 0 30%, #fff 30%); border: 1px solid #c7cdf0; }
+.ic-print__art--pairs i.is-back { background: #fff; box-shadow: inset 0 -5px 0 #4f46e5; }
 .ic-print__art--card i { display: block; width: 30px; height: 46px; border-radius: 4px; background: linear-gradient(#4f46e5 0 32%, #fff 32%); border: 1px solid #c7cdf0; }
 .ic-print__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: .86rem; font-weight: 600; color: var(--ic-ink-2); }
 

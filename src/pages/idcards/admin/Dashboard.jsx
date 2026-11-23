@@ -139,7 +139,10 @@ export default function IdCardDashboard() {
           caption={`${data.year?.yearName || 'No current year'} · ${count(s.active || 0)} active · ${count(data.totals?.students || 0)} issued in all years`} onClick={() => nav(`${BASE}/students`)} />
         <Tile tone="amber" icon="hourglass" value={s.pending || 0} label="Pending student cards" caption="Students this year without a card" onClick={() => nav(`${BASE}/students?tab=pending`)} />
         <Tile tone="orange" icon="regen" value={reissue} label="Cards requiring reissue" caption="Details changed, or lost / damaged and not replaced" onClick={() => nav(`${BASE}/students?tab=attention`)} />
-        <Tile tone="slate" icon="history" value={data.expired || 0} label="Expired cards" caption={data.expiredYears ? `Student cards from ${plural(data.expiredYears, 'earlier year')}` : 'None yet'} />
+        {/* Opens what it counts: the expired cards of the one earlier year, or
+            of every earlier year at once when they span more than one. */}
+        <Tile tone="slate" icon="history" value={data.expired || 0} label="Expired cards" caption={data.expiredYears ? `Student cards from ${plural(data.expiredYears, 'earlier year')}` : 'None yet'}
+          onClick={() => nav(`${BASE}/students?tab=expired&year=${data.expiredYearIds?.length === 1 ? data.expiredYearIds[0] : 'past'}`)} />
       </Tiles>
 
       <div className="icdash-kinds">

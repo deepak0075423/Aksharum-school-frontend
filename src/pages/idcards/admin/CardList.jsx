@@ -98,6 +98,8 @@ export default function CardList({ kind = 'student' }) {
   const rows = data?.rows || [];
   const viewYear = data?.year || null;
   const pastYear = student && viewYear?.phase === 'past';
+  // year=past: every previous year in one list (the dashboard's Expired tile).
+  const allPast = student && viewYear?._id === 'past';
   const issuable = (data?.years || []).filter((y) => y.phase !== 'past');
   const counts = data?.counts || {};
   const tabs = useMemo(() => {
@@ -138,12 +140,12 @@ export default function CardList({ kind = 'student' }) {
     if (!c) {
       return [
         row.state === 'pending' && row.isActive ? { label: 'Generate card', icon: 'cardStack', onClick: () => setGen({ selected: [{ _id: row._id, name: row.name }] }) } : null,
-        { label: 'Earlier cards', icon: 'history', onClick: () => setDrawer({ cardId: null, holderId: row._id, kind, name: row.name }) },
+        { label: 'Earlier cards', icon: 'history', onClick: () => setDrawer({ cardId: null, holderId: row.holderId || row._id, kind, name: row.name }) },
       ];
     }
     const live = ['active', 'generated', 'blocked'].includes(row.state);
     return [
-      { label: 'View card', icon: 'eye', onClick: () => setDrawer({ cardId: c._id, holderId: row._id, kind, name: row.name }) },
+      { label: 'View card', icon: 'eye', onClick: () => setDrawer({ cardId: c._id, holderId: row.holderId || row._id, kind, name: row.name }) },
       { label: 'Download PDF', icon: 'download', onClick: () => download(c) },
       { label: 'Print', icon: 'printer', onClick: () => setPrint([c]) },
       live && !c.printedAt ? { label: 'Mark as printed', icon: 'checkCircle', onClick: () => markPrinted(c) } : null,
@@ -163,7 +165,10 @@ export default function CardList({ kind = 'student' }) {
     <>
       {student ? (
         <Select value={year || viewYear?._id || ''} onChange={(v) => { setYear(v); setClassId(''); setSectionId(''); }} label="Academic year" width={210}
-          options={(data?.years || []).map((y) => ({ value: y._id, label: `${y.yearName}${y.phase === 'current' ? ' · current' : y.phase === 'past' ? ' · previous' : ' · coming'}` }))} />
+          options={[
+            ...(data?.pastYears > 1 || allPast ? [{ value: 'past', label: 'All previous years' }] : []),
+            ...(data?.years || []).map((y) => ({ value: y._id, label: `${y.yearName}${y.phase === 'current' ? ' · current' : y.phase === 'past' ? ' · previous' : ' · coming'}` })),
+          ]} />
       ) : null}
       <Btn kind="primary" icon="cardStack" disabled={!data || (student && !issuable.length)} onClick={() => setGen({ selected: chosenPending.map((r) => ({ _id: r._id, name: r.name })) })}>Generate Cards</Btn>
     </>
@@ -177,7 +182,7 @@ export default function CardList({ kind = 'student' }) {
         <div className="icl-gap"><Note tone="amber" icon="calendar">This school has no academic year yet. Student cards belong to a year — add one under Academics → Academic Years.</Note></div>
       ) : null}
       {pastYear ? (
-        <div className="icl-gap"><Note tone="slate" icon="history"><b>{viewYear.yearName} is a previous year.</b> Its cards are kept exactly as they were issued — the class, section and roll they printed — and can be viewed, downloaded and printed, but not changed.</Note></div>
+        <div className="icl-gap"><Note tone="slate" icon="history">{allPast ? <b>Every previous year.</b> : <b>{viewYear.yearName} is a previous year.</b>} {allPast ? 'These cards are' : 'Its cards are'} kept exactly as they were issued — the class, section and roll they printed — and can be viewed, downloaded and printed, but not changed.</Note></div>
       ) : null}
       {student && viewYear?.phase === 'upcoming' ? (
         <div className="icl-gap"><Note tone="indigo" icon="hourglass"><b>{viewYear.yearName} has not begun.</b> Cards issued now show as Generated and come into force by themselves when it becomes the current year.</Note></div>
@@ -238,7 +243,7 @@ export default function CardList({ kind = 'student' }) {
             </li>
             {rows.map((r) => {
               const on = sel.has(r._id);
-              const openRow = () => setDrawer({ cardId: r.card?._id || null, holderId: r._id, kind, name: r.name });
+              const openRow = () => setDrawer({ cardId: r.card?._id || null, holderId: r.holderId || r._id, kind, name: r.name });
               const where = student ? [r.className, r.sectionName].filter(Boolean).join(' – ') || 'No class' : (r.line || '—');
               return (
                 <li key={r._id} className={`icl-pc${on ? ' is-sel' : ''}${!r.isActive ? ' is-off' : ''}`}>
@@ -255,7 +260,7 @@ export default function CardList({ kind = 'student' }) {
                   </div>
                   <dl className="icl-pc__facts">
                     <div><dt>{student ? 'Class' : kind === 'parent' ? 'Children' : 'Designation'}</dt>
-                      <dd>{where}{student && r.rollNumber ? <em> · Roll {r.rollNumber}</em> : null}</dd></div>
+                      <dd>{where}{student && r.rollNumber ? <em> · Roll {r.rollNumber}</em> : null}{r.yearName ? <em> · {r.yearName}</em> : null}</dd></div>
                     <div><dt>Card</dt>
                       <dd>{r.card ? <><span className="icl-mono">{r.card.number}</span><em> · {r.card.reissueNo ? `Reissue ${r.card.reissueNo}` : student ? r.card.yearName : 'Original'}</em></> : <span className="icl-none">None yet</span>}</dd></div>
                     <div><dt>Issued</dt>
@@ -282,7 +287,7 @@ export default function CardList({ kind = 'student' }) {
               <tbody>
                 {rows.map((r) => {
                   const on = sel.has(r._id);
-                  const openRow = () => setDrawer({ cardId: r.card?._id || null, holderId: r._id, kind, name: r.name });
+                  const openRow = () => setDrawer({ cardId: r.card?._id || null, holderId: r.holderId || r._id, kind, name: r.name });
                   return (
                     <tr key={r._id} className={`${on ? 'is-sel' : ''}${!r.isActive ? ' is-off' : ''}`} onClick={openRow}>
                       <td className="ic-table__check" onClick={(e) => e.stopPropagation()}><Check checked={on} onChange={() => toggle(r)} label={`Select ${r.name}`} /></td>
@@ -291,7 +296,7 @@ export default function CardList({ kind = 'student' }) {
                       </td>
                       <td>
                         {student ? (
-                          <span className="icl-two"><b>{[r.className, r.sectionName].filter(Boolean).join(' – ') || 'No class'}</b><em>{r.rollNumber ? `Roll ${r.rollNumber}` : '—'}</em></span>
+                          <span className="icl-two"><b>{[r.className, r.sectionName].filter(Boolean).join(' – ') || 'No class'}</b><em>{[r.yearName, r.rollNumber ? `Roll ${r.rollNumber}` : ''].filter(Boolean).join(' · ') || '—'}</em></span>
                         ) : (
                           <span className="icl-two"><b title={r.line}>{r.line || '—'}</b></span>
                         )}
