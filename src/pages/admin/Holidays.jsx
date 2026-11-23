@@ -26,7 +26,7 @@ import {
 import {
   AppliesCell, DateCell, HolidayCards, HolidayCell, HolidayDialog, HolidayForm, ImportDialog, MineList,
   MonthCalendar, STATUS, TypeChip, TypesDialog, TypesPanel, UpcomingPanel,
-  dayKey, daysOf, formFrom, spanDays, statusOf, today,
+  dayKey, daysOf, fmtDayKey, formFrom, holidayTextError, offDayMessage, spanDays, statusOf, today,
   clashesWith, duplicateAmong, movedFrom,
 } from './holidayParts';
 
@@ -218,14 +218,33 @@ export default function Holidays() {
   const pickYear = (v) => { setYear(v); setPage(1); };
 
   // ── Create / edit ──────────────────────────────────────────────────────────
-  const openNew = () => { setFormErr(''); setForm(formFrom(null, types)); setEditing('new'); };
-  const openEdit = (h) => { setFormErr(''); setForm(formFrom(h, types)); setEditing(h); };
+  // A new holiday is for the year on screen ("All years": the current one).
+  const formYear = year === 'all' ? currentYear : yearId;
+  const openNew = () => { setFormErr(''); setForm(formFrom(null, types, { years, yearId: formYear })); setEditing('new'); };
+  const openEdit = (h) => { setFormErr(''); setForm(formFrom(h, types, { years, yearId: formYear })); setEditing(h); };
 
   const save = async (e) => {
     e.preventDefault();
     const end = form.mode === 'single' ? form.startDate : (form.endDate || form.startDate);
     if (!form.name.trim())  return setFormErr('Give the holiday a name.');
+    // Letters, numbers and a few symbols — never only a number (left alone
+    // on an old holiday whose text is not being changed).
+    const stored = editing === 'new' ? {} : editing;
+    const badText = holidayTextError(form.name, 'Holiday name', stored.name)
+      || holidayTextError(form.description, 'Description', stored.description);
+    if (badText) return setFormErr(badText);
+    // Inside the academic year it is for, first day to last (Nov 2026).
+    const fy = years.find((y) => y._id === form.academicYear);
+    if (years.length && !fy) return setFormErr('Choose the academic year this holiday is for.');
     if (!form.startDate)    return setFormErr('Pick a date.');
+    if (fy && ((fy.start && form.startDate < fy.start) || (fy.end && end > fy.end))) {
+      return setFormErr(`A holiday of ${fy.name} must fall between ${fmtDayKey(fy.start)} and ${fmtDayKey(fy.end)}.`);
+    }
+    // Not on a Sunday, or a Saturday the school does not work — only asked
+    // when the dates are new or moved, as the server does.
+    const datesMoved = editing === 'new' || dayKey(editing.startDate) !== form.startDate || dayKey(editing.endDate) !== end;
+    const offDay = datesMoved ? offDayMessage(form.startDate, end, allMeta?.week) : '';
+    if (offDay) return setFormErr(offDay);
     if (!form.type)         return setFormErr('Choose a holiday type.');
     if (end < form.startDate) return setFormErr('The last day cannot be before the first.');
     if (form.scope === 'specific_classes' && !form.classes.length)
@@ -243,6 +262,7 @@ export default function Holidays() {
       type: form.type,
       description: form.description.trim(),
       applicability: { scope: form.scope, classes: form.scope === 'specific_classes' ? form.classes : [] },
+      ...(fy ? { academicYear: fy._id } : {}),
     };
 
     setSaving(true);
@@ -255,6 +275,13 @@ export default function Holidays() {
         toast.success('Holiday updated');
       }
       setEditing(null);
+      // Listed under its own year: when that is not the year on screen, the
+      // page moves to it — and the calendar to its month — so it can be seen.
+      if (fy && year !== 'all' && fy._id !== yearId) {
+        setYear(fy._id); setPage(1);
+        toast(`Showing ${fy.name}`, { icon: '📅' });
+      }
+      if (fy) setMonth([Number(form.startDate.slice(0, 4)), Number(form.startDate.slice(5, 7)) - 1]);
       refetch();
     } catch (err) {
       setFormErr(err.response?.data?.message || err.message);
@@ -545,7 +572,7 @@ export default function Holidays() {
       <HolidayForm
         open={!!editing}
         holiday={editing === 'new' ? null : editing}
-        form={form} setForm={setForm}
+        form={form} setForm={setForm} years={years} week={allMeta?.week}
         types={types} classes={classes} holidays={everyYear}
         saving={saving} error={formErr}
         onClose={() => { setEditing(null); setFormErr(''); }}

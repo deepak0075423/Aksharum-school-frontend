@@ -8313,6 +8313,11 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   margin-top: 8px; font-size: .76rem; color: var(--text-muted); line-height: 1.5;
 }
 .holhint svg { flex-shrink: 0; margin-top: 2px; color: var(--text-light); }
+/* The academic year's span, under the date pickers it bounds. */
+.holhint--year b { color: var(--text); font-weight: 600; }
+/* A Sunday or an off Saturday picked: said in red, under the dates. */
+.holhint--stop { color: #b91c1c; font-weight: 500; }
+.holhint--stop svg { color: #dc2626; }
 
 /* ── The form ──────────────────────────────────────────────────────────────── */
 .holform { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; }
@@ -8332,6 +8337,17 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .holdur__dates.is-range { grid-template-columns: 1fr auto 1fr; }
 .holdur__dates > span { color: var(--text-muted); }
 
+/* "Classes" with its Clear beside it. */
+.holclasshead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.holclasshead .form-label { margin-bottom: 0; }
+.holclasshead .form-label em { font-style: normal; font-weight: 500; color: var(--text-muted); }
+.holclear {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text-muted); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer;
+}
+.holclear:hover:not(:disabled) { border-color: #fecaca; background: #fef2f2; color: var(--danger); }
+.holclear:disabled { opacity: .45; cursor: not-allowed; }
 .holclasspick {
   display: flex; flex-wrap: wrap; gap: 8px 18px;
   padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
@@ -8493,6 +8509,31 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 @media (min-width: 1401px) and (max-width: 1500px) {
   .holpg:not(.holtch) .holgrid { grid-template-columns: minmax(0, 1fr) 296px; gap: 16px; }
 }
+/* The rail beside the table (Nov 24 2026, the user: "the right side cards
+   should be restricted to the table's height, and Need Help a full row").
+   The rail takes no part in sizing the row (height 0) and is then as tall as
+   the row the table makes (min-height 100%) — so its bottom edge is the
+   table's bottom edge. The calendar keeps its size; Next up and Holiday types
+   give way and scroll inside their own card if the table is short, and the
+   last card stretches when it is long, so the two columns end together. A
+   floor on the table card keeps a near-empty list from crushing the rail. */
+@media (min-width: 1401px) {
+  .holpg:not(.holtch) .holgrid { align-items: stretch; }
+  .holpg:not(.holtch) .holgrid > section.card { min-height: 640px; }
+  .holpg:not(.holtch) .holside { height: 0; min-height: 100%; }
+  .holpg:not(.holtch) .holside > .holcal { flex: none; }
+  .holpg:not(.holtch) .holside > .holrail {
+    flex: 0 1 auto; min-height: 104px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .holpg:not(.holtch) .holside > .holrail:last-child { flex-grow: 1; }
+  .holpg:not(.holtch) .holside > .holrail > .holnext,
+  .holpg:not(.holtch) .holside > .holrail > .holtypes,
+  .holpg:not(.holtch) .holside > .holrail > .holempty { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+}
+/* Need Help across the whole page, not in half of a two-column row. */
+.holpg:not(.holtch) .lbottom { grid-template-columns: minmax(0, 1fr); }
+
 /* Narrower than that (a 1366px laptop) the table needs the whole width, and
    the calendar, next-up and types sit under it in a row of three. */
 @media (min-width: 1101px) and (max-width: 1400px) {

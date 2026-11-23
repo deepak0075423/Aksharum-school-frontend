@@ -21,6 +21,9 @@
  *            letters, digits and spaces, starting with a letter
  *   sentence a short line of description with no symbols (a leave type's
  *            description): English letters, digits, spaces and . , ' - ( ) /
+ *   phrase   a holiday's name or description: English letters, digits, spaces
+ *            and . , ' - ( ) / & — at least one letter (never only a number),
+ *            starting with a letter or a digit
  *   code     an ID or a number with letters — admission number, employee ID,
  *            room number, a reference: English letters, digits and - / _ .
  *   author   one or more people's names, comma separated (a book's authors):
@@ -73,6 +76,8 @@ export const KINDS = {
   title:   { keep: /[^A-Za-z0-9 .,&'()/+:#%-]/g, ok: /^[A-Za-z0-9 .,&'()/+:#%-]+$/, msg: (l) => `${l} can only have English letters, numbers, spaces and . , - & ' ( ) / + : # %` },
   words:   { keep: /[^A-Za-z0-9 ]/g, ok: /^[A-Za-z][A-Za-z0-9 ]*$/, msg: (l) => `${l} must start with a letter and can only have English letters, numbers and spaces` },
   sentence: { keep: /[^A-Za-z0-9 .,'()/-]/g, ok: /^[A-Za-z0-9][A-Za-z0-9 .,'()/-]*$/, msg: (l) => `${l} must start with a letter or a number and can only have English letters, numbers, spaces and . , ' - ( ) /` },
+  // A holiday's name or description (Nov 2026): a few symbols, and at least one letter — never only a number.
+  phrase:  { keep: /[^A-Za-z0-9 .,'()\/&-]/g, ok: /^(?=[^A-Za-z]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9 .,'()\/&-]*$/, msg: (l, v = '') => (!/[A-Za-z]/.test(v) ? `${l} must have at least one letter — it cannot be only numbers or symbols` : /^[^A-Za-z0-9]/.test(v) ? `${l} must start with a letter or a number` : `${l} can only have English letters, numbers, spaces and . , ' - ( ) / &`) },
   code:    { keep: /[^A-Za-z0-9/._-]/g, ok: /^[A-Za-z0-9/._-]+$/, msg: (l) => `${l} can only have English letters, numbers and - / _ .` },
   author:  { keep: /[^A-Za-z .,'-]/g, ok: /^[A-Za-z][A-Za-z .,'-]*$/, msg: (l) => `${l} can only have English letters, spaces and . ' - (commas between names)` },
   isbn:    { keep: /[^0-9Xx -]/g, ok: /^[0-9Xx -]+$/, msg: (l) => `${l} can only have digits, hyphens, spaces and X` },
@@ -145,7 +150,7 @@ export function textError(value, label = 'This field', kind = 'text') {
   const rule = KINDS[kind];
   if (!rule?.ok) return null;
   if (rule.upper) v = v.toUpperCase();
-  return rule.ok.test(v) ? null : rule.msg(label);
+  return rule.ok.test(v) ? null : rule.msg(label, v);
 }
 
 /** What to tell a person whose field of `kind` holds `value` — for the field's own bubble. */

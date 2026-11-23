@@ -14,14 +14,14 @@
  * Shares the admin screen's parts, so a type is named, coloured and dated the
  * same way here as everywhere else.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import useFetch from '../../hooks/useFetch';
 import { getHolidays } from '../../api/parent.api';
 import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
 import {
-  HolidayDialog, HolidayList, MonthCalendar,
+  HolidayDialog, HolidayList, MonthCalendar, YearPick,
   dayKey, daysOf, daysUntil, statusOf, tintFor, today,
 } from '../admin/holidayParts';
 
@@ -40,7 +40,20 @@ const nextLine = (list) => {
 };
 
 export default function ParentHolidays() {
-  const { data, meta, loading } = useFetch(getHolidays);
+  // Which academic year (Nov 2026): this one to begin with, any other — or
+  // every year — from the picker beside the title.
+  const [year, setYear] = useState('current');
+  const { data, meta: fetched, loading } = useFetch(
+    () => getHolidays(year === 'current' ? undefined : { year }), [year]);
+  // The last answer is held while the next year loads, so the picker and the
+  // page do not blink away on every change.
+  const [meta, setMeta] = useState(null);
+  useEffect(() => { if (fetched) setMeta(fetched); }, [fetched]);
+  const years = meta?.years || [];
+  const currentYear = meta?.currentYear || '';
+  const yearId = year === 'current' ? currentYear : year;
+  const yearName = year === 'all' ? '' : (years.find((y) => y._id === yearId)?.name || '');
+  const yearCaption = year === 'all' ? 'Every academic year' : yearId === currentYear ? 'This academic year' : `Academic year ${yearName}`;
   const all      = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const children = useMemo(() => meta?.children || [], [meta]);
   const types    = meta?.types || [];
@@ -50,6 +63,14 @@ export default function ParentHolidays() {
   const { child: forChild, pick } = useChild(children);
   const who = forChild?._id || '';
   const [month, setMonth] = useState(MONTH_START);
+  // The calendar opens on the chosen year: this month for the current year,
+  // the year's first month for any other.
+  const pickYear = (v) => {
+    setYear(v);
+    const y = years.find((x) => x._id === v);
+    if (v === 'all' || !y || v === currentYear) setMonth(MONTH_START());
+    else if (y.start) setMonth([Number(y.start.slice(0, 4)), Number(y.start.slice(5, 7)) - 1]);
+  };
   const [picked, setPicked] = useState(null);
 
   const nameOf = useMemo(
@@ -86,7 +107,7 @@ export default function ParentHolidays() {
     return on.map((id) => nameOf[id]).filter(Boolean).join(', ') || null;
   };
 
-  if (loading) return <div className="loading-page"><Spinner /></div>;
+  if (loading && !meta) return <div className="loading-page"><Spinner /></div>;
 
   return (
     <div className="page holpg holtch">
@@ -102,6 +123,7 @@ export default function ParentHolidays() {
             </p>
           </div>
         </div>
+        <YearPick years={years} value={year} current={currentYear} onChange={pickYear} />
       </header>
 
       <ChildSwitch children={children} child={forChild} onPick={pick} label="Whose holidays" />
@@ -115,7 +137,7 @@ export default function ParentHolidays() {
 
       <div className="holtch-figs holtch-figs--wide">
         <Fig icon="calendar" tone="indigo" value={holidays.length} label="Total holidays"
-          caption={children.length > 1 && forChild ? `For ${forChild.name}` : 'This academic year'} />
+          caption={children.length > 1 && forChild ? `For ${forChild.name}` : yearCaption} />
         <Fig icon="sunrise" tone="green" value={coming.length} label="Still to come"
           caption={nextLine(holidays)} />
         <Fig icon="checkSquare" tone="amber" value={groups.past.length} label="Already passed"
@@ -153,7 +175,7 @@ export default function ParentHolidays() {
                       <i className={`tint-${tintFor(t, types)}`} />
                       <span>
                         <b>{t}</b>
-                        <small>{n ? `${n} this year` : 'None this year'}</small>
+                        <small>{n ? `${n} ${yearName ? `in ${yearName}` : 'in all'}` : `None ${yearName ? `in ${yearName}` : 'yet'}`}</small>
                       </span>
                     </li>
                   );

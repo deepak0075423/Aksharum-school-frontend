@@ -32,7 +32,8 @@ export const markDocumentsRead = (ids) => api.post('/parent/documents/read', { i
 // The discussion under a document that reaches one of their children — read
 // only: a parent has no route to write, edit or delete a comment.
 export const getDocumentComments   = (id)        => api.get(`/parent/documents/${id}/comments`);
-export const getHolidays      = () => api.get('/parent/holidays');
+// `{ year }` (Nov 2026): a year id or 'all'; omitted = this academic year.
+export const getHolidays      = (params) => api.get('/parent/holidays', { params });
 
 // Timetable — one child's week. `child` picks which; the reply lists `children`
 // to switch between, and always names the child it answered for.

@@ -13,9 +13,10 @@
  * second channel and never the only one; past the eighth type it drops to
  * neutral rather than starting the order again.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Modal, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
+import { textError } from '../../utils/textRules';
 
 // ── Dates ────────────────────────────────────────────────────────────────────
 
@@ -542,11 +543,79 @@ export const HolidayCards = ({ rows, types, onView, selection, meta }) => (rows.
 
 const EMPTY = {
   name: '', mode: 'single', startDate: '', endDate: '', type: '', description: '',
-  scope: 'all', classes: [], notify: true,
+  scope: 'all', classes: [], notify: true, academicYear: '',
 };
 
-export const formFrom = (h, types) => (h
+/**
+ * What is wrong with a holiday's name or description, or null (Nov 24 2026):
+ * English letters, digits, spaces and . , ' - ( ) / & only, with at least one
+ * letter — never only a number (utils/textRules 'phrase', the server's rule).
+ * `was` is the stored value: one left as it was is not re-judged.
+ */
+export const holidayTextError = (value, label, was) => {
+  const v = String(value ?? '').trim();
+  if (!v || (was !== undefined && v === String(was ?? '').trim())) return null;
+  return textError(v, label, 'phrase');
+};
+
+/**
+ * Why a day cannot carry a holiday, or '' (Nov 24 2026): every Sunday, and a
+ * Saturday the school does not work — `week` is the school's Saturday setting
+ * (School.leaveSettings: saturdayWorking, saturdayMode 'all' | '1_3_5' | '2_4'),
+ * the same rule as the server's offDayProblem.
+ */
+export const offDayOf = (key, week) => {
+  if (!key) return '';
+  const d = new Date(`${key}T00:00:00Z`);
+  if (d.getUTCDay() === 0) return 'a Sunday';
+  if (d.getUTCDay() === 6 && week) {
+    const nth = Math.ceil(d.getUTCDate() / 7);
+    const mode = week.saturdayMode || 'all';
+    const works = week.saturdayWorking !== false
+      && (mode === '1_3_5' ? nth % 2 === 1 : mode === '2_4' ? nth % 2 === 0 : true);
+    if (!works) return 'a Saturday the school does not work';
+  }
+  return '';
+};
+
+/** What is wrong with a holiday from `start` to `end` falling on a closed day, or ''. */
+export const offDayMessage = (start, end, week) => {
+  const a = offDayOf(start, week);
+  if (start === end || !end) return a ? `${fmtDayKey(start)} is ${a} — the school is already closed that day. Pick a working day.` : '';
+  if (a) return `The first day, ${fmtDayKey(start)}, is ${a} — the school is already closed. Start the holiday on a working day.`;
+  const b = offDayOf(end, week);
+  return b ? `The last day, ${fmtDayKey(end)}, is ${b} — the school is already closed. End the holiday on a working day.` : '';
+};
+
+/**
+ * The academic-year picker on the student and parent holiday pages (Nov 24
+ * 2026). Admins and teachers have the header's year switcher; students and
+ * parents do not, so their page carries its own. `value` 'current' shows as
+ * the current year.
+ */
+export const YearPick = ({ years, value, current, onChange }) => (years.length ? (
+  <select className={`form-control holyear holtch-year${value !== 'current' && value !== current ? ' lfsel--on' : ''}`}
+    value={value === 'current' ? current : value} onChange={(e) => onChange(e.target.value)}
+    aria-label="Academic year" title="Academic year">
+    {years.map((y) => <option key={y._id} value={y._id}>{y.name}{y._id === current ? ' (current)' : ''}</option>)}
+    <option value="all">All years</option>
+  </select>
+) : null);
+
+/** The year among `years` (each with `start`/`end` day keys) that a day falls in. */
+export const yearOfDay = (years, key) => (key
+  ? years.find((y) => y.start && y.end && y.start <= key && key <= y.end) || null
+  : null);
+
+/**
+ * The form's starting values. `yearId` is the year a new holiday is for — the
+ * year on screen. An existing holiday opens on the year its first day is in
+ * (which is where saving files it), else the year it names.
+ */
+export const formFrom = (h, types, { years = [], yearId = '' } = {}) => (h
   ? {
+    academicYear: yearOfDay(years, dayKey(h.startDate))?._id
+      || String(h.academicYear?._id ?? h.academicYear ?? '') || yearId,
     name: h.name || '',
     mode: dayKey(h.startDate) === (dayKey(h.endDate) || dayKey(h.startDate)) ? 'single' : 'range',
     startDate: dayKey(h.startDate),
@@ -559,7 +628,7 @@ export const formFrom = (h, types) => (h
     classes: (h.applicability?.classes || []).map((c) => String(c?._id ?? c)),
     notify: true,
   }
-  : { ...EMPTY, type: types[0] || '' });
+  : { ...EMPTY, type: types[0] || '', academicYear: yearId });
 
 const DESC_MAX = 250;
 
@@ -575,9 +644,14 @@ const DESC_MAX = 250;
  * notification, and a switch that did nothing would be a lie about it.
  */
 export const HolidayForm = ({
-  open, holiday, form, setForm, types, classes, holidays, saving, error, onClose, onSave,
+  open, holiday, form, setForm, types, classes, holidays, years = [], week = null, saving, error, onClose, onSave,
 }) => {
   const isEdit = !!holiday;
+  // The academic year it is for: its first and last day bound both date
+  // pickers (Nov 24 2026), and it is the year the holiday is listed under.
+  const year = years.find((y) => y._id === form.academicYear) || null;
+  const lo = year?.start || undefined;
+  const hi = year?.end || undefined;
   const start = form.startDate;
   const end = form.mode === 'single' ? form.startDate : (form.endDate || form.startDate);
   const clashes = start && end ? clashesWith(holidays, start, end, holiday?._id) : [];
@@ -586,6 +660,19 @@ export const HolidayForm = ({
   const days = start && end
     ? Math.max(1, Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1)
     : 0;
+  // Said the moment a Sunday or an off Saturday is picked — a date input
+  // cannot grey those days out itself.
+  // An old holiday left where it is is not held to it (the server agrees).
+  const datesMoved = !holiday || dayKey(holiday.startDate) !== start || dayKey(holiday.endDate) !== end;
+  const offDay = start && datesMoved ? offDayMessage(start, end, week) : '';
+
+  // The name and the description are judged as soon as a box has been left
+  // (or Save pressed) — not while the first characters are still going in.
+  const [seen, setSeen] = useState({});
+  useEffect(() => { if (open) setSeen({}); }, [open, holiday]);
+  const see = (k) => setSeen((s) => (s[k] ? s : { ...s, [k]: true }));
+  const nameErr = seen.name ? holidayTextError(form.name, 'Holiday name', holiday?.name) : null;
+  const descErr = seen.description ? holidayTextError(form.description, 'Description', holiday?.description) : null;
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const toggleClass = (id) => setForm((f) => ({
@@ -618,15 +705,41 @@ export const HolidayForm = ({
         </div>
       }>
       <div className="holform">
-        <form id="holiday-form" onSubmit={onSave} className="holform__main">
+        <form id="holiday-form" className="holform__main"
+          onSubmit={(e) => { setSeen({ name: true, description: true }); onSave(e); }}>
           {error ? <div className="holform__err"><Icon name="alert" size={15} />{error}</div> : null}
 
           <div className="form-group">
             <label className="form-label required" htmlFor="hol-name">Holiday name</label>
-            <input data-text="title" id="hol-name" className="form-control" required autoFocus maxLength={120}
+            <input data-text="phrase" id="hol-name" className={`form-control${nameErr ? ' error' : ''}`} required autoFocus maxLength={120}
               value={form.name} onChange={(e) => set({ name: e.target.value })}
+              onBlur={() => see('name')} onInvalid={() => see('name')}
+              aria-invalid={nameErr ? 'true' : undefined} aria-describedby="hol-name-help"
               placeholder="e.g. Diwali, Summer Break, Annual Day" />
+            {nameErr
+              ? <div className="form-error" id="hol-name-help">{nameErr}</div>
+              : <p className="holhint" id="hol-name-help">Letters, numbers, spaces and . , ' - ( ) / &amp; — not only a number.</p>}
           </div>
+
+          {years.length > 0 && (
+            <div className="form-group">
+              <label className="form-label required" htmlFor="hol-year">Academic year</label>
+              <select id="hol-year" className="form-control" required value={form.academicYear}
+                onChange={(e) => {
+                  const next = years.find((y) => y._id === e.target.value);
+                  // Dates that fall outside the newly chosen year are cleared,
+                  // not carried into a year they are not in.
+                  const inside = (k) => !k || !next || ((!next.start || k >= next.start) && (!next.end || k <= next.end));
+                  set({
+                    academicYear: e.target.value,
+                    ...(inside(form.startDate) && inside(form.endDate) ? {} : { startDate: '', endDate: '' }),
+                  });
+                }}>
+                <option value="">— Select —</option>
+                {years.map((y) => <option key={y._id} value={y._id}>{y.name}{y.status === 'active' ? ' (current)' : ''}</option>)}
+              </select>
+            </div>
+          )}
 
           <fieldset className="form-group holdur">
             <legend className="form-label required">Date</legend>
@@ -644,6 +757,7 @@ export const HolidayForm = ({
             </div>
             <div className={`holdur__dates${form.mode === 'range' ? ' is-range' : ''}`}>
               <input type="date" className="form-control" required value={form.startDate}
+                min={lo} max={hi} disabled={years.length > 0 && !year}
                 aria-label={form.mode === 'range' ? 'First day' : 'Date'}
                 onChange={(e) => set({
                   startDate: e.target.value,
@@ -653,12 +767,30 @@ export const HolidayForm = ({
               {form.mode === 'range' && (
                 <>
                   <span aria-hidden>→</span>
-                  <input type="date" className="form-control" required min={form.startDate}
+                  <input type="date" className="form-control" required
+                    min={form.startDate || lo} max={hi} disabled={years.length > 0 && !year}
                     aria-label="Last day" value={form.endDate}
                     onChange={(e) => set({ endDate: e.target.value })} />
                 </>
               )}
             </div>
+            {offDay ? (
+              <p className="holhint holhint--stop" role="alert">
+                <Icon name="alert" size={13} /><span>{offDay}</span>
+              </p>
+            ) : null}
+            {year ? (
+              <p className="holhint holhint--year">
+                <Icon name="calendar" size={13} />
+                {/* One span: .holhint is a flex row, which would set each bold
+                    date apart as its own piece. */}
+                <span>{year.start && year.end
+                  ? <>{year.name} runs from <b>{fmtDayKey(year.start)}</b> to <b>{fmtDayKey(year.end)}</b> — pick days in between.</>
+                  : <>{year.name} has no dates set.</>}</span>
+              </p>
+            ) : years.length > 0 ? (
+              <p className="holhint"><Icon name="alert" size={13} /> Choose the academic year first.</p>
+            ) : null}
           </fieldset>
 
           <div className="form-group">
@@ -689,7 +821,16 @@ export const HolidayForm = ({
 
           {form.scope === 'specific_classes' && (
             <div className="form-group">
-              <label className="form-label">Classes</label>
+              {/* Clear takes every ticked class off at once (Nov 24 2026). */}
+              <div className="holclasshead">
+                <label className="form-label">
+                  Classes{form.classes.length ? <em> · {form.classes.length} selected</em> : null}
+                </label>
+                <button type="button" className="holclear" disabled={!form.classes.length}
+                  onClick={() => set({ classes: [] })}>
+                  <Icon name="close" size={13} /> Clear
+                </button>
+              </div>
               {classes.length
                 ? (
                   <div className="holclasspick">
@@ -708,9 +849,12 @@ export const HolidayForm = ({
 
           <div className="form-group">
             <label className="form-label" htmlFor="hol-desc">Description</label>
-            <textarea id="hol-desc" className="form-control" rows={3} maxLength={DESC_MAX}
+            <textarea data-text="phrase" id="hol-desc" className={`form-control${descErr ? ' error' : ''}`} rows={3} maxLength={DESC_MAX}
               value={form.description} onChange={(e) => set({ description: e.target.value })}
+              onBlur={() => see('description')} onInvalid={() => see('description')}
+              aria-invalid={descErr ? 'true' : undefined}
               placeholder="Optional note — what this holiday is for" />
+            {descErr ? <div className="form-error">{descErr}</div> : null}
             <span className="holcount">{form.description.length}/{DESC_MAX}</span>
           </div>
         </form>
@@ -723,7 +867,7 @@ export const HolidayForm = ({
                 <>
                   <b>{fmtDayKey(start)}</b>
                   {end !== start ? <b>to {fmtDayKey(end)}</b> : null}
-                  <span>{days === 1 ? 'One day' : `${days} days`}</span>
+                  <span>{days === 1 ? 'One day' : `${days} days`}{year ? ` · ${year.name}` : ''}</span>
                   {form.type ? <TypeChip type={form.type} types={types} /> : null}
                 </>
               )
