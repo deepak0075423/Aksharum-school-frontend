@@ -318,7 +318,7 @@ export function NotifRow({ row, active, picked, onPick, onOpen, onRead, onUnread
  * button that silently deletes four hundred is the kind of control people learn
  * not to touch.
  */
-export const BulkBar = ({ count, total, allOn, some, onToggleAll, onClear, children }) => (
+export const BulkBar = ({ count, total, found, allOn, some, onToggleAll, onClear, children }) => (
   <div className={`nfbulk${count ? ' is-on' : ''}`}>
     <label className="nfbulk__tick">
       <input type="checkbox" checked={allOn}
@@ -329,6 +329,10 @@ export const BulkBar = ({ count, total, allOn, some, onToggleAll, onClear, child
         ? <span><b>{count}</b> selected</span>
         : <span>Select all {total} on this page</span>}
     </label>
+    {/* How many the search and filters found, across every page (Nov 2026). */}
+    {!count && found != null ? (
+      <span className="nfbulk__found"><b>{found}</b> {found === 1 ? 'result' : 'results'}</span>
+    ) : null}
     {count > 0 && (
       <div className="nfbulk__acts">
         {children}
@@ -442,40 +446,67 @@ export const ReadThrough = ({ delivered, opened }) => {
 
 /**
  * The Sent tab's list (Nov 2026). Every row opens the notification in full
- * (SentDetail), so a row is a button, not a table row with nothing to click.
- * On a wide screen it reads as columns; below 900px each row folds into a card
- * — the columns used to scroll sideways inside the card, with four of six out
- * of sight.
+ * (SentDetail); on a wide screen it reads as columns, below 900px each row
+ * folds into a card — the columns used to scroll sideways inside the card,
+ * with four of six out of sight.
+ *
+ * `selection` (listParts useSelection) puts a tick on every row and
+ * `onRemove(row)` a delete button at its end (Nov 24 2026 — Sent had neither).
+ * A row is a tick beside a button, not one big button: a checkbox cannot sit
+ * inside a button.
  */
-export function SentList({ rows, startIndex = 0, activeId, onOpen }) {
+export function SentList({ rows, startIndex = 0, activeId, onOpen, selection, onRemove }) {
   return (
-    <div className="nfsentlist" role="list">
+    <div className={`nfsentlist${selection ? ' is-picking' : ''}${onRemove ? ' has-remove' : ''}`} role="list">
       <div className="nfsentlist__head" aria-hidden="true">
-        <span className="nfsentrow__num">#</span>
-        <span>Notification</span>
-        <span>Audience</span>
-        <span>Channels</span>
-        <span>Opened</span>
-        <span>Sent</span>
+        {selection ? <span className="nfsentrow__tick" /> : null}
+        <span className="nfsentrow__grid">
+          <span className="nfsentrow__num">#</span>
+          <span>Notification</span>
+          <span>Audience</span>
+          <span>Channels</span>
+          <span>Opened</span>
+          <span>Sent</span>
+        </span>
+        {onRemove ? <span className="nfsentrow__del" /> : null}
       </div>
-      {rows.map((n, i) => (
-        <button key={n._id} type="button" role="listitem" data-focus-id={n._id}
-          className={`nfsentrow${activeId === n._id ? ' is-active' : ''}`}
-          onClick={() => onOpen(n)} aria-label={`Open ${plain(n.title)}`}>
-          <span className="nfsentrow__num">{startIndex + i + 1}</span>
-          <span className="nfsentrow__what"><SentCell n={n} /></span>
-          <span className="nfsentrow__aud">
-            <span className="lstack__main">{targetLabel(n.target?.type)}</span>
-            <span className="lstack__sub">{n.recipientCount} recipient{n.recipientCount === 1 ? '' : 's'}</span>
-          </span>
-          <span className="nfsentrow__chan"><Channels channels={n.channels} /></span>
-          <span className="nfsentrow__read"><ReadThrough delivered={n.delivered} opened={n.opened} /></span>
-          <span className="nfsentrow__when">
-            <span className="lstack__main">{when(n.createdAt)}</span>
-            <span className="lstack__sub">{fullWhen(n.createdAt)}</span>
-          </span>
-        </button>
-      ))}
+      {rows.map((n, i) => {
+        const picked = !!selection?.has(n._id);
+        return (
+          <div key={n._id} role="listitem" data-focus-id={n._id}
+            className={`nfsentrow${activeId === n._id ? ' is-active' : ''}${picked ? ' is-picked' : ''}`}>
+            {selection ? (
+              <label className="nfsentrow__tick">
+                <input type="checkbox" checked={picked} onChange={() => selection.toggle(n._id)}
+                  aria-label={`Select "${plain(n.title) || 'this notification'}"`} />
+              </label>
+            ) : null}
+            <button type="button" className="nfsentrow__grid nfsentrow__open"
+              onClick={() => onOpen(n)} aria-label={`Open ${plain(n.title)}`}>
+              <span className="nfsentrow__num">{startIndex + i + 1}</span>
+              <span className="nfsentrow__what"><SentCell n={n} /></span>
+              <span className="nfsentrow__aud">
+                <span className="lstack__main">{targetLabel(n.target?.type)}</span>
+                <span className="lstack__sub">{n.recipientCount} recipient{n.recipientCount === 1 ? '' : 's'}</span>
+              </span>
+              <span className="nfsentrow__chan"><Channels channels={n.channels} /></span>
+              <span className="nfsentrow__read"><ReadThrough delivered={n.delivered} opened={n.opened} /></span>
+              <span className="nfsentrow__when">
+                <span className="lstack__main">{when(n.createdAt)}</span>
+                <span className="lstack__sub">{fullWhen(n.createdAt)}</span>
+              </span>
+            </button>
+            {onRemove ? (
+              <span className="nfsentrow__del">
+                <button type="button" className="nfsentrow__delbtn" onClick={() => onRemove(n)}
+                  aria-label={`Delete "${plain(n.title) || 'this notification'}" from Sent`} title="Delete from Sent">
+                  <Icon name="trash" size={15} />
+                </button>
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

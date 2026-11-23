@@ -16,7 +16,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
-import { Button, Confirm, Empty, Spinner, Pagination, PageSize } from '../../components/ui/index';
+import { Button, Confirm, Empty, Spinner, PageButtons, PageSize } from '../../components/ui/index';
 import { LIST_SIZES, CARD_BASE, useSnapLimit } from '../../hooks/useCardPaging';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import Tabs from '../../components/ui/Tabs';
@@ -664,7 +664,10 @@ export const ListFooter = ({ page, pages, total, limit, count, noun, plural, onP
           : `Showing ${from} to ${to} of ${total} ${total === 1 ? noun : many}`}
       </span>
       <div className="lfoot__right">
-        <Pagination page={page} pages={pages} total={total} onPage={onPage} />
+        {/* The buttons alone: the shared Pagination repeats the total ("747
+            total records" beside "Showing 1 to 10 of 747") and adds a 16px top
+            margin, which made every list footer taller than it needs to be. */}
+        {pages > 1 ? <PageButtons page={page} pages={pages} onPage={onPage} compact={phone} /> : null}
         <PageSize value={limit} total={total} onChange={onLimit} options={offered} minTotal={offered[0]} />
       </div>
     </div>

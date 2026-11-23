@@ -30,7 +30,7 @@ import useFetch from '../../hooks/useFetch';
 import {
   getAllNotifications, getSent, markOneRead, markOneUnread, markAllRead,
   clearOne, restoreOne, archiveRead, resolveNotification,
-  bulkNotifications, deleteAllNotifications,
+  bulkNotifications, deleteAllNotifications, removeSent,
 } from '../../api/notifications.api';
 import { sendNotification as adminSend, getNotificationClasses } from '../../api/admin.api';
 import { sendNotification as teacherSend, getMySections } from '../../api/teacher.api';
@@ -184,6 +184,8 @@ export default function Notifications() {
   // The year the actions below act on: exactly what the list was read with.
   const yearScope = year === 'current' ? (yearId || 'current') : year;
   const yearName  = year === 'all' ? '' : (years.find((y) => y._id === yearId)?.name || '');
+  // The running year — the one a notification sent now belongs to.
+  const runningId = years.find((y) => y.status === 'active')?._id || '';
   const pickYear  = (v) => { setYear(v); setPage(1); setViewing(null); };
   // Two or more children and none named yet: start on the first.
   // Settle on the child picked on another parent page, else the first.
@@ -281,8 +283,11 @@ export default function Notifications() {
     setBusy(true);
     try {
       const res = await bulkNotifications(ids, action);
+      // The server counts only the rows it changed: ten ticked, one of them
+      // read, "Unread" → "1 notification marked as unread", not 10.
       const n = res?.affected ?? ids.length;
-      toast.success(`${BULK_DONE[action](n === 1 ? '1 notification' : `${n} notifications`)}`);
+      if (n) toast.success(`${BULK_DONE[action](n === 1 ? '1 notification' : `${n} notifications`)}`);
+      else toast(`Nothing to change — ${ids.length === 1 ? 'it already was' : 'they already were'}`);
       // A deleted or archived row may have been the one on screen behind the
       // panel, and a panel showing a record that no longer exists is a dead end.
       if (ids.includes(viewing?._id)) setViewing(null);
@@ -297,6 +302,26 @@ export default function Notifications() {
     message: `${selection.ids.length} notification${selection.ids.length === 1 ? '' : 's'} will be removed from your list permanently. This cannot be undone — archiving keeps them instead.`,
     label: 'Delete',
     run: () => runBulk('delete'),
+  });
+
+  // Sent: off the sender's own list. Those it reached keep their copies.
+  const askRemoveSent = (ids) => setConfirm({
+    title: ids.length === 1 ? 'Delete this sent notification?' : `Delete ${ids.length} sent notifications?`,
+    message: `${ids.length === 1 ? 'It' : 'They'} will be removed from your Sent list. Everyone who received ${ids.length === 1 ? 'it' : 'them'} keeps ${ids.length === 1 ? 'their copy' : 'their copies'} — this does not unsend anything.`,
+    label: 'Delete',
+    run: async () => {
+      setBusy(true);
+      try {
+        const res = await removeSent(ids);
+        const n = res?.affected ?? ids.length;
+        toast.success(`${n === 1 ? '1 notification' : `${n} notifications`} deleted from Sent`);
+        if (ids.includes(sentOpen)) setSentOpen(null);
+        selection.clear();
+        // The last row of a later page gone: step back rather than show an empty page.
+        if (page > 1 && n >= rows.length) setPage((p) => Math.max(1, p - 1)); else refetch();
+      } catch (err) { toast.error(err.response?.data?.message || err.message); }
+      finally { setBusy(false); setConfirm(null); }
+    },
   });
 
   const askDeleteAll = () => {
@@ -372,10 +397,14 @@ export default function Notifications() {
       const n    = res?.data?.recipientCount;
       toast.success(n ? `Sent to ${n} recipient${n === 1 ? '' : 's'}` : 'Notification sent');
       setSendOpen(false);
-      // Straight to Sent so what was just sent is visible, with the badge
-      // counted up here — the Sent response carries no box counts of its own,
-      // so the number would otherwise lag by one until the reader went back.
-      setBoxes((b) => ({ ...b, sent: (b.sent || 0) + 1 }));
+      // Straight to Sent, page one, so what was just sent is on screen. When
+      // the reader is ALREADY there nothing in the query changes, so nothing
+      // refetched and the new row only appeared after a reload (Nov 24 2026) —
+      // fetch it then. A list of another year cannot show it: back to this one.
+      // The Sent response carries the tab badges, so the count moves with it.
+      const showsNew = year === 'current' || year === 'all' || year === runningId;
+      if (!showsNew) setYear('current');
+      if (isSent && page === 1 && showsNew) refetch();
       setTab('sent'); setPage(1);
     } catch (err) { toast.error(err.response?.data?.message || err.message); }
     finally { setSaving(false); }
@@ -542,10 +571,20 @@ export default function Notifications() {
               ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
               : (tab === 'sent' && canSend ? <Button onClick={openSend}>Send your first notification</Button> : null)} />
         ) : isSent ? (
-          <SentList rows={rows} startIndex={(page - 1) * limit} activeId={activeId} onOpen={openSent} />
+          <>
+            <BulkBar count={selection.ids.length} total={rows.length} found={total}
+              allOn={selection.allOn} some={selection.some}
+              onToggleAll={selection.toggleAll} onClear={selection.clear}>
+              <Button variant="danger" size="sm" disabled={busy} onClick={() => askRemoveSent(selection.ids)}>
+                <Icon name="trash" size={14} /> Delete
+              </Button>
+            </BulkBar>
+            <SentList rows={rows} startIndex={(page - 1) * limit} activeId={activeId} onOpen={openSent}
+              selection={selection} onRemove={(n) => askRemoveSent([n._id])} />
+          </>
         ) : (
           <>
-            <BulkBar count={selection.ids.length} total={rows.length}
+            <BulkBar count={selection.ids.length} total={rows.length} found={total}
               allOn={selection.allOn} some={selection.some}
               onToggleAll={selection.toggleAll} onClear={selection.clear}>
               <Button variant="secondary" size="sm" disabled={busy || allRead} onClick={() => runBulk('read')}

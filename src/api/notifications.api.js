@@ -8,6 +8,8 @@ export const getInbox            = () => api.get('/notifications/inbox');
 export const getAllNotifications  = (params) => api.get('/notifications/all', { params });
 export const getUnreadCount      = () => api.get('/notifications/unread-count');
 export const getSent             = (params) => api.get('/notifications/sent', { params });
+// Off the sender's own Sent list; the people it reached keep their copies.
+export const removeSent          = (ids) => api.post('/notifications/sent/remove', { ids });
 // One sent notification, opened from the Sent tab — its details, then who it
 // reached (`q`, `read` = opened | unopened, `role`, `page`, `limit`).
 export const getSentDetail       = (id) => api.get(`/notifications/sent/${id}`);

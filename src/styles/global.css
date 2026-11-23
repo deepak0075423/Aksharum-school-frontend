@@ -13689,6 +13689,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); display: block;
 }
 .nfbulk__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+/* How many the search and filters found, across every page. */
+.nfbulk__found { margin-left: auto; white-space: nowrap; }
+.nfbulk__found b { color: var(--text); font-weight: 700; }
 
 /* ── Priority ──────────────────────────────────────────────────────────────
    The word is always printed; the tint is a second channel on top of it. */
@@ -13745,26 +13748,47 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
    a button laid out as columns — and below 900px it folds into a card rather
    than scrolling sideways inside the card with most columns out of sight. */
 .nfsentlist { display: block; }
+/* A row is [tick] [the columns, one button] [delete] (Nov 24 2026 — Sent got
+   ticks and a delete; a checkbox cannot sit inside the row's button). */
 .nfsentlist__head,
-.nfsentrow {
+.nfsentrow { display: flex; align-items: stretch; }
+.nfsentrow__grid {
+  flex: 1; min-width: 0;
   display: grid; align-items: center; column-gap: 16px;
   grid-template-columns: 34px minmax(0, 1fr) 160px 132px 160px 176px;
   padding: 12px 20px;
 }
+.nfsentlist.is-picking .nfsentrow__grid { padding-left: 12px; }
+.nfsentlist.has-remove .nfsentrow__grid { padding-right: 8px; }
+.nfsentrow__tick { display: flex; align-items: center; flex-shrink: 0; width: 36px; padding-left: 20px; cursor: pointer; }
+.nfsentrow__tick input { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--primary); display: block; }
+.nfsentrow__del { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 52px; padding-right: 12px; }
+.nfsentrow__delbtn {
+  width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px;
+  background: none; border: 1px solid transparent; color: var(--text-muted); cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.nfsentrow__delbtn:hover { background: #fef2f2; border-color: #fecaca; color: var(--danger); }
+.nfsentrow__delbtn:focus-visible { outline: 2px solid var(--danger); outline-offset: 1px; }
 .nfsentlist__head {
   background: var(--bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
   font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted);
 }
 .nfsentrow {
-  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
-  background: var(--bg-card); border: 0; border-bottom: 1px solid var(--border);
+  background: var(--bg-card); border-bottom: 1px solid var(--border);
   transition: background var(--transition);
 }
+.nfsentrow__open {
+  text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: none; border: 0;
+}
 .nfsentrow:hover { background: #f8f9ff; }
-.nfsentrow:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.nfsentrow__open:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .nfsentrow.is-active { background: #eef2ff; box-shadow: inset 3px 0 0 var(--primary); }
+.nfsentrow.is-picked { background: #f5f3ff; }
+.nfsentrow.is-picked:hover { background: #ede9fe; }
 .nfsentrow__num { font-size: .8rem; color: var(--text-muted); }
-.nfsentrow > span { min-width: 0; }
+.nfsentrow__grid > span { min-width: 0; }
 .nfsentrow .lstack__main, .nfsentrow .lstack__sub { display: block; }
 .nfsentrow__what .nfsent__what small { max-width: none; }
 
@@ -13908,12 +13932,17 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
    sideways. */
 @media (max-width: 900px) {
   .nfsentlist__head { display: none; }
-  .nfsentrow {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "what what" "aud chan" "read when";
-    row-gap: 10px; padding: 14px 16px;
+  /* The row number stays on the card (it was hidden here), before the title. */
+  .nfsentrow__grid {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "num what what" ". aud chan" ". read when";
+    column-gap: 10px; row-gap: 10px; padding: 14px 16px;
   }
-  .nfsentrow__num  { display: none; }
+  .nfsentlist.is-picking .nfsentrow__grid { padding-left: 10px; }
+  .nfsentrow__tick { align-items: flex-start; padding-top: 16px; padding-left: 16px; width: 32px; }
+  .nfsentrow__del  { align-items: flex-start; padding-top: 10px; width: 44px; padding-right: 8px; }
+  .nfsentrow__num  { grid-area: num; align-self: start; padding-top: 1px; font-weight: 600; }
+  .nfsentrow__num::after { content: '.'; }
   .nfsentrow__what { grid-area: what; }
   .nfsentrow__aud  { grid-area: aud; }
   .nfsentrow__chan { grid-area: chan; justify-self: end; }
@@ -13927,17 +13956,16 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .nfpg .uitabrow__side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .nfpg .uitabrow__side .btn { width: 100%; min-width: 0; padding-left: 10px; padding-right: 10px; }
   .nfpg .uitabrow__side .btn-primary { grid-column: 1 / -1; order: -1; }
-  .nfsentrow { grid-template-areas: "what what" "aud chan" "read read" "when when"; }
+  .nfsentrow__grid { grid-template-areas: "num what what" ". aud chan" ". read read" ". when when"; }
   .nfsentrow__when { justify-self: start; text-align: left; }
   .nfsentrow__when .lstack__main, .nfsentrow__when .lstack__sub { display: inline; }
   .nfsentrow__when .lstack__sub::before { content: ' · '; }
   .nfreach b { font-size: 1.1rem; }
   .nfhero__badge { width: 50px; height: 50px; border-radius: 14px; }
-  /* A phone keeps the tick, the module mark and the message. The unread dot
-     goes — the rail on the leading edge and the bold headline already say
-     unread — and its width goes back to the text. */
-  .nfrow { --nf-inset: 14px; --nf-gap: 10px; --nf-lead: 0px; --nf-dotspan: 0px; --nf-inner: 10px; --nf-icon: 34px; }
-  .nfrow__dot { display: none; }
+  /* A phone keeps the tick, the unread dot, the module mark and the message.
+     (The dot used to be dropped here; the user asked for it back, Nov 24 2026
+     — it is how an unread row is told apart at a glance.) */
+  .nfrow { --nf-inset: 14px; --nf-gap: 10px; --nf-lead: 0px; --nf-dot: 8px; --nf-inner: 10px; --nf-icon: 34px; }
   .nfrow .nfrow__icon { border-radius: 10px; }
   .nfrow__end { padding-right: 14px; gap: 8px; }
   /* The module is already drawn as the icon beside the text; on a phone the
