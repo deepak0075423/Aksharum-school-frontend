@@ -21,12 +21,13 @@ import { Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ErrorState, SkeletonRows, useDirectoryBase } from './parts';
 import {
-  Crumbs, ListFoot, MenuItem, MenuSep, PageTop, Pick, RowMenu, SearchBox, StatTile, ViewToggle,
+  Crumbs, ListFoot, MenuItem, MenuSep, PageTop, Pick, RowMenu, SearchBox, StatTile, ViewToggle, useShownView,
 } from './employeeParts';
 import {
-  AboutPanel, AccessSummary, DesignationCard, DesignationMark, Faces, StateChip,
+  AboutPanel, AccessSummary, DesignationCard, DesignationDrawer, DesignationMark, Faces, StateChip,
   accessOf, fmtDay, gapOf, merge, summarise,
 } from './designationParts';
+import useMediaQuery from '../../hooks/useMediaQuery';
 
 const VIEW_KEY   = 'employeeDirectory.designations.view';
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -73,9 +74,14 @@ export default function Designations() {
   });
   const [sort,   setSort]   = useState('size');
   const [view,   setView]   = useState(readView);
+  // Cards only below 1200px: even with its quieter columns folded the table
+  // needs more room than that (it scrolled sideways on a tablet).
+  const shownView = useShownView(view, 1200);
+  const cardsOnly = useMediaQuery('(max-width: 1200px)');
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(10);
   const [open,   setOpen]   = useState('');
+  const [viewing, setViewing] = useState(null);   // the designation in the drawer
 
   const heldList = useMemo(() => held.data?.designations || [], [held.data]);
   const modules  = useMemo(() => (master.data?.modules || []).filter((m) => m.enabled), [master.data]);
@@ -202,7 +208,7 @@ export default function Designations() {
             all="All designations" label="Filter by state" options={STATES} />
           <Pick value={sort} onChange={(v) => { setSort(v); setPage(1); }}
             label="Sort designations" options={SORTS} defaultValue="size" />
-          <ViewToggle value={view === 'card' ? 'card' : 'table'} onChange={setLayout} />
+          <ViewToggle value={view === 'card' ? 'card' : 'table'} onChange={setLayout} hidden={cardsOnly} />
         </div>
 
         <div className="edl-results">
@@ -220,7 +226,7 @@ export default function Designations() {
         <div className="edl-body">
           {shown.length === 0
             ? <Empty icon="🔍" title="No designations match" message="Try another state or search term." />
-            : view === 'card'
+            : shownView === 'card'
               ? (
                 <div className="dsggrid">
                   {shown.map((r) => (
@@ -238,7 +244,7 @@ export default function Designations() {
                         <th className="dsgcol-num">#</th>
                         <th>Designation</th>
                         <th className="dsgcol-n">Employees</th>
-                        <th className="dsgcol-n">Active</th>
+                        <th className="dsgcol-n dsgcol-active">Active</th>
                         <th className="dsgcol-faces">Members</th>
                         {hasMaster && <th className="dsgcol-access">Module access</th>}
                         <th className="dsgcol-state">State</th>
@@ -263,7 +269,7 @@ export default function Designations() {
                               </div>
                             </td>
                             <td className="dsgcol-n"><b>{r.total}</b></td>
-                            <td className="dsgcol-n">{r.active}</td>
+                            <td className="dsgcol-n dsgcol-active">{r.active}</td>
                             <td className="dsgcol-faces"><Faces members={r.members} base={base} /></td>
                             {hasMaster && (
                               <td className="dsgcol-access"><AccessSummary access={accessOf(r.permissions, modules)} /></td>
@@ -272,19 +278,16 @@ export default function Designations() {
                             {hasMaster && <td className="dsgcol-date">{fmtDay(r.createdAt)}</td>}
                             <td className="edl-table__acts">
                               <div className="edl-rowacts">
-                                <Link className="btn btn-secondary btn-sm"
-                                  to={`${base}/employees?designation=${encodeURIComponent(r.name)}&accountStatus=all`}>View</Link>
+                                {/* The designation's own details (Nov 23 2026) — it used to
+                                    open the employee list, which the ⋯ menu also did. */}
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setViewing(r)}>View</button>
                                 <RowMenu>
                                   {r.members.length > 0 && (
                                     <MenuItem icon="users" onClick={() => setOpen(open === r.name ? '' : r.name)}>
-                                      {open === r.name ? 'Hide members' : `List ${r.members.length} members`}
+                                      {open === r.name ? 'Hide members' : `List ${r.members.length} member${r.members.length === 1 ? '' : 's'}`}
                                     </MenuItem>
                                   )}
-                                  <MenuItem icon="folder"
-                                    to={`${base}/employees?designation=${encodeURIComponent(r.name)}&accountStatus=all`}>
-                                    Open in directory
-                                  </MenuItem>
-                                  {canManageAccounts && <MenuSep />}
+                                  {canManageAccounts && r.members.length > 0 && <MenuSep />}
                                   {canManageAccounts && (
                                     <MenuItem icon="settings" to="/admin/designations">
                                       {r.defined ? 'Configure module access' : 'Add it to the list'}
@@ -323,6 +326,9 @@ export default function Designations() {
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} sizes={PAGE_SIZES}
         />
       </section>
+
+      <DesignationDrawer row={viewing} modules={modules} base={base} canManage={canManageAccounts}
+        onClose={() => setViewing(null)} />
 
       <AboutPanel isAdmin={canManageAccounts} undefinedCount={stats.undefined_}
         unassigned={stats.unassigned} base={base} />

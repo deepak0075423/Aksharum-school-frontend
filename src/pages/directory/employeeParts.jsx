@@ -15,6 +15,8 @@ import {
 } from './parts';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import { PageButtons } from '../../components/ui/index';
+import usePhone from '../../hooks/usePhone';
+import useMediaQuery from '../../hooks/useMediaQuery';
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
@@ -103,14 +105,11 @@ export const MoreFiltersButton = ({ open, count, onClick }) => (
   </button>
 );
 
-export const MorePanel = ({ children, onReset }) => (
+// No "Reset all filters" button of its own any more (Nov 23 2026): the chip
+// row's "Clear all" does the same, and two buttons for one job read as two jobs.
+export const MorePanel = ({ children }) => (
   <div className="edl-morepanel">
     {children}
-    <div className="edl-morepanel__reset">
-      <button type="button" className="btn btn-secondary btn-sm" onClick={onReset}>
-        <Icon name="refresh" size={14} /> Reset all filters
-      </button>
-    </div>
   </div>
 );
 
@@ -141,7 +140,14 @@ export const ActiveChips = ({ items, onClear }) => {
 
 // ── Result bar ───────────────────────────────────────────────────────────────
 
-export const ViewToggle = ({ value, onChange }) => (
+/**
+ * Grid / List. Not offered on a phone (Nov 23 2026): a table cannot fit one, so
+ * a phone always gets the cards — see `useShownView`.
+ */
+export const ViewToggle = ({ value, onChange, hidden }) => {
+  const phone = usePhone();
+  if (phone || hidden) return null;
+  return (
   <div className="edl-view" role="group" aria-label="Layout">
     {[
       { v: 'card',  label: 'Grid', icon: 'grid' },
@@ -153,7 +159,19 @@ export const ViewToggle = ({ value, onChange }) => (
       </button>
     ))}
   </div>
-);
+  );
+};
+
+/**
+ * The layout to draw: the chosen one, except on a phone — or, with `cardsBelow`,
+ * on any screen narrower than that — which gets cards only. Pass the same
+ * width to ViewToggle's `hidden` (via `cardsOnly`) so no switch is offered.
+ */
+export const useShownView = (view, cardsBelow) => {
+  const phone = usePhone();
+  const narrow = useMediaQuery(cardsBelow ? `(max-width: ${cardsBelow}px)` : '(max-width: 0px)');
+  return phone || narrow ? 'card' : view;
+};
 
 // ── The card ─────────────────────────────────────────────────────────────────
 
@@ -208,8 +226,8 @@ export function EmployeeCard({ e, base, onCopy }) {
 
       <div className="edl-card__foot">
         <Link to={`${base}/employees/${e._id}`} className="btn btn-secondary btn-sm">View Profile</Link>
+        {/* No "View profile" in here: the button beside it is exactly that. */}
         <RowMenu label={`Actions for ${e.name}`} trigger="Actions">
-          <MenuItem icon="eye" to={`${base}/employees/${e._id}`}>View profile</MenuItem>
           {e.officialEmail && (
             <MenuItem icon="mail" href={`mailto:${e.officialEmail}`}>Send email</MenuItem>
           )}

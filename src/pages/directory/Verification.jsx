@@ -405,7 +405,7 @@ export default function Verification() {
                   ? <Empty icon="🔍" title="Nobody matches" message="Try another state or search term." />
                   : (
                     <div className="table-wrap">
-                      <table className="table edl-table">
+                      <table className="table edl-table vertable">
                         <thead>
                           <tr>
                             <th className="vercol-num">#</th>

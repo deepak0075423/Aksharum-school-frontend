@@ -24,7 +24,7 @@ import { Button, Confirm, Empty, Modal, Select } from '../../components/ui/index
 import Icon from '../../components/ui/icons';
 import { Chips, ErrorState, SkeletonCards, useDirectoryBase } from './parts';
 import {
-  Crumbs, ListFoot, MenuItem, MenuSep, PageTop, Pick, RowMenu, SearchBox, StatTile, ViewToggle,
+  Crumbs, ListFoot, MenuItem, MenuSep, PageTop, Pick, RowMenu, SearchBox, StatTile, ViewToggle, useShownView,
 } from './employeeParts';
 import {
   DepartmentCard, HowPanel, Members, StaffMix, TypeChip, UNASSIGNED, summarise, typeOf,
@@ -58,6 +58,8 @@ export default function Departments() {
   const [type,   setType]   = useState('');
   const [sort,   setSort]   = useState('size');
   const [view,   setView]   = useState(readView);
+  // A phone always gets the cards (no Grid / List switch there).
+  const shownView = useShownView(view);
   const [page,   setPage]   = useState(1);
   const [limit,  setLimit]  = useState(12);
   const [open,   setOpen]   = useState('');   // the department listing its members
@@ -220,7 +222,7 @@ export default function Departments() {
               <Empty icon="🔍" title="No departments match"
                 message="Try another staff type or search term." />
             )
-            : view === 'card'
+            : shownView === 'card'
               ? (
                 <div className="depgrid">
                   {shown.map((d) => (
@@ -276,14 +278,11 @@ export default function Departments() {
                                 <RowMenu>
                                   {d.members.length > 0 && (
                                     <MenuItem icon="users" onClick={() => setOpen(open === d.name ? '' : d.name)}>
-                                      {open === d.name ? 'Hide members' : `List ${d.members.length} members`}
+                                      {open === d.name ? 'Hide members' : `List ${d.members.length} member${d.members.length === 1 ? '' : 's'}`}
                                     </MenuItem>
                                   )}
-                                  <MenuItem icon="folder"
-                                    to={`${base}/employees?department=${encodeURIComponent(d.name)}&accountStatus=all`}>
-                                    Open in directory
-                                  </MenuItem>
-                                  {d.name !== UNASSIGNED && <MenuSep />}
+                                  {/* No "Open in directory": the View button beside it is that. */}
+                                  {d.name !== UNASSIGNED && d.members.length > 0 && <MenuSep />}
                                   {d.name !== UNASSIGNED && (
                                     <MenuItem icon="pencil" onClick={() => setDialog({ mode: 'edit', department: d })}>
                                       {d._id ? 'Rename, head & description' : 'Add it to the list'}

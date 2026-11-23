@@ -25,7 +25,7 @@ import {
 import {
   ActiveChips, Crumbs, EmployeeCard, Field, ListFoot, MenuItem, MenuSep,
   MoreFiltersButton, MorePanel, PageTop, Pick, RowMenu, SearchBox, StatTile,
-  ViewToggle, activeCount,
+  ViewToggle, activeCount, useShownView,
 } from './employeeParts';
 
 const VIEW_KEY  = 'employeeDirectory.view';
@@ -88,6 +88,8 @@ export default function Employees() {
   });
   const [showMore, setShowMore] = useState(false);
   const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || 'card');
+  // A phone always gets the cards (no Grid / List switch there).
+  const shownView = useShownView(view);
   const [exporting, setExporting] = useState(false);
   // Rows ticked for a change made to many people at once (administrators, list view).
   const [picked, setPicked] = useState(() => new Set());
@@ -298,7 +300,7 @@ export default function Employees() {
         </div>
 
         {showMore && (
-          <MorePanel onReset={clearAll}>
+          <MorePanel>
             {isDirectoryAdmin && (
               <Field label="Account">
                 <Pick value={filters.accountStatus} onChange={(v) => set('accountStatus', v)}
@@ -397,7 +399,7 @@ export default function Employees() {
           </div>
         </div>
 
-        {isDirectoryAdmin && view === 'table' && picked.size > 0 && (
+        {isDirectoryAdmin && shownView === 'table' && picked.size > 0 && (
           <div className="edl-results" role="region" aria-label="Change the selected employees">
             <span className="edl-results__count">{picked.size} selected</span>
             <div className="edl-results__right" style={{ gap: 8 }}>
@@ -416,7 +418,7 @@ export default function Employees() {
 
         {!error && loading && !shown && (
           <div className="edl-body">
-            {view === 'table' ? <SkeletonRows rows={8} cols={6} /> : <SkeletonCards count={8} />}
+            {shownView === 'table' ? <SkeletonRows rows={8} cols={6} /> : <SkeletonCards count={8} />}
           </div>
         )}
 
@@ -435,7 +437,7 @@ export default function Employees() {
 
         {!error && employees.length > 0 && (
           <div className="edl-body" style={{ opacity: loading ? 0.55 : 1 }}>
-            {view === 'card' ? (
+            {shownView === 'card' ? (
               <div className="edl-cards">
                 {employees.map((e) => <EmployeeCard key={e._id} e={e} base={base} onCopy={copy} />)}
               </div>
@@ -528,8 +530,8 @@ export default function Employees() {
                               title="View profile" aria-label={`View ${e.name}`}>
                               <Icon name="eye" size={16} />
                             </button>
+                            {/* The eye beside it opens the profile — not repeated here. */}
                             <RowMenu label={`Actions for ${e.name}`}>
-                              <MenuItem icon="eye" to={`${base}/employees/${e._id}`}>View profile</MenuItem>
                               {e.officialEmail && <MenuItem icon="mail" href={`mailto:${e.officialEmail}`}>Send email</MenuItem>}
                               {e.officialPhone && <MenuItem icon="phone" href={`tel:${e.officialPhone}`}>Call</MenuItem>}
                               <MenuSep />

@@ -20,7 +20,7 @@ import { Empty, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ErrorState, SkeletonRows, useDirectoryBase } from './parts';
 import { Crumbs, ListFoot, PageTop, Pick, SearchBox } from './employeeParts';
-import { Cell, ExportNote, ReportTabs, SortHead, Tile, metaFor, sortRows } from './reportsParts';
+import { ExportNote, ReportTable, ReportTabs, Tile, metaFor, sortRows } from './reportsParts';
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -209,28 +209,8 @@ export default function Reports() {
                     : 'No employee records fall into this report yet.'} />
               )
               : (
-                <div className="table-wrap">
-                  <table className="table edl-table edrtable">
-                    <thead>
-                      <tr>
-                        <th className="edrtable__num">#</th>
-                        {report.columns.map((c, i) => (
-                          <SortHead key={c} label={c} index={i} sort={sort} onSort={onSort} />
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* A report row is a positional array with no id of its
-                          own — the position IS its identity here. */}
-                      {shown.map((row, i) => (
-                        <tr key={start + i}>
-                          <td className="edrtable__num">{start + i + 1}</td>
-                          {row.map((cell, j) => <td key={j}><Cell value={cell} /></td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ReportTable columns={report.columns} rows={shown} start={start}
+                  sort={sort} onSort={onSort} />
               )
           )}
         </div>

@@ -12,8 +12,9 @@
  * does not recognise still renders, so a report added server-side appears here
  * without a frontend change.
  */
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import usePhone from '../../hooks/usePhone';
 import Icon from '../../components/ui/icons';
 import Tabs from '../../components/ui/Tabs';
 
@@ -111,8 +112,121 @@ export const sortRows = (rows, { by, dir }) => {
 
 /** An empty cell is a fact — say so rather than leaving a hole in the row. */
 export const Cell = ({ value }) => (
-  value === '' || value == null ? <span className="ed-none">—</span> : <>{String(value)}</>
+  value === '' || value == null
+    ? <span className="ed-none">—</span>
+    // One line; a long value (a list of classes) ends in "…" with the whole of
+    // it in the title — and in full under "More" or on a phone's card.
+    : <span className="edrcell" title={String(value)}>{String(value)}</span>
 );
+
+/**
+ * A report as a table that never scrolls sideways (Nov 23 2026).
+ *
+ * Reports differ in their columns, so which ones fit cannot be written into a
+ * stylesheet: the table is drawn with all of them, and while it is wider than
+ * its box the last column is folded away — before the browser paints, so it
+ * never shows half-drawn. What is folded opens under the row from its "+N"
+ * button. A wider window brings the columns back. On a phone every row is a
+ * card with every column.
+ */
+export function ReportTable({ columns, rows, start, sort, onSort }) {
+  const phone = usePhone();
+  const wrapRef = useRef(null);
+  const tableRef = useRef(null);
+  const [fit, setFit] = useState(columns.length);
+  const [open, setOpen] = useState(null);
+  const shape = `${columns.join('|')}#${start}#${rows.length}#${sort.by}#${sort.dir}`;
+
+  // New columns or a new page of rows: start from all of them again.
+  useLayoutEffect(() => { setFit(columns.length); setOpen(null); }, [shape]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fold one more until it fits — every render, before paint.
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const table = tableRef.current;
+    if (!wrap || !table) return;
+    if (table.scrollWidth > wrap.clientWidth + 1 && fit > 1) setFit(fit - 1);
+  });
+  // Room again: try every column once more (the fold above takes it back down).
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || typeof ResizeObserver === 'undefined') return undefined;
+    let was = wrap.clientWidth;
+    const ro = new ResizeObserver(() => {
+      const now = wrap.clientWidth;
+      if (now > was + 4) setFit(columns.length);
+      was = now;
+    });
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [columns.length, phone]);
+
+  if (phone) {
+    return (
+      <ol className="edrcards" start={start + 1}>
+        {rows.map((row, i) => (
+          <li key={start + i} className="edrcard">
+            <span className="edrcard__num">{start + i + 1}</span>
+            <dl>
+              {columns.map((c, j) => (
+                <div key={c}><dt>{c}</dt><dd><Cell value={row[j]} /></dd></div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  const hidden = columns.length - fit;
+  return (
+    <div className="table-wrap" ref={wrapRef}>
+      <table className="table edl-table edrtable" ref={tableRef}>
+        <thead>
+          <tr>
+            <th className="edrtable__num">#</th>
+            {columns.slice(0, fit).map((c, i) => (
+              <SortHead key={c} label={c} index={i} sort={sort} onSort={onSort} />
+            ))}
+            {hidden > 0 && <th className="edrtable__more"><span className="sr-only">More</span></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {/* A report row is a positional array with no id of its own — the
+              position IS its identity here. */}
+          {rows.map((row, i) => (
+            <React.Fragment key={start + i}>
+              <tr className={open === i ? 'is-open' : undefined}>
+                <td className="edrtable__num">{start + i + 1}</td>
+                {row.slice(0, fit).map((cell, j) => <td key={j}><Cell value={cell} /></td>)}
+                {hidden > 0 && (
+                  <td className="edrtable__more">
+                    <button type="button" className="edrmore" aria-expanded={open === i}
+                      onClick={() => setOpen(open === i ? null : i)}
+                      title={open === i ? 'Hide the other columns' : `Show ${columns.slice(fit).join(', ')}`}>
+                      +{hidden}
+                      <Icon name="chevronDown" size={13} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+              {hidden > 0 && open === i && (
+                <tr className="edrtable__detail">
+                  <td colSpan={fit + 2}>
+                    <dl className="edrdetail">
+                      {columns.slice(fit).map((c, j) => (
+                        <div key={c}><dt>{c}</dt><dd><Cell value={row[fit + j]} /></dd></div>
+                      ))}
+                    </dl>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 

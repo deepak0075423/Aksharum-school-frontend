@@ -20,6 +20,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import { Avatar } from './parts';
+import {
+  Drawer, DrawerHead, DrawerBody, DrawerSection, DrawerFields, DrawerFoot,
+} from '../../components/ui/Drawer';
 
 export const UNASSIGNED = 'Unassigned';
 
@@ -228,6 +231,90 @@ export function DesignationCard({ row, access, base, onMembers, open }) {
         </div>
       )}
     </article>
+  );
+}
+
+// ── One designation, in a drawer (Nov 23 2026) ───────────────────────────────
+
+const LEVEL = {
+  admin: { label: 'Admin', cls: 'dsglevel--admin' },
+  user:  { label: 'Access', cls: 'dsglevel--user' },
+  none:  { label: 'No access', cls: 'dsglevel--none' },
+};
+
+/**
+ * What "View" on a row opens: the designation itself — what it is, its state,
+ * how many hold it, and module by module what it opens — rather than the
+ * employee list filtered to it, which the ⋯ menu used to offer as well.
+ */
+export function DesignationDrawer({ row, modules = [], base, canManage, onClose }) {
+  if (!row) return null;
+  const access = accessOf(row.permissions, modules);
+  const byLevel = row.permissions
+    ? modules.map((m) => ({ ...m, level: row.permissions[m.key] || 'none' }))
+      .sort((a, b) => ['admin', 'user', 'none'].indexOf(a.level) - ['admin', 'user', 'none'].indexOf(b.level))
+    : [];
+  return (
+    <Drawer open={!!row} onClose={onClose} label={`${row.name} — details`}>
+      <DrawerHead
+        mark={<DesignationMark name={row.name} size={52} />}
+        name={row.name}
+        sub={row.description || (row.defined ? 'No description set' : 'Held by staff, but never defined')}
+        tags={<StateChip row={row} />}
+        onClose={onClose} />
+      <DrawerBody>
+        <DrawerSection title="Summary">
+          <DrawerFields fields={[
+            ['Employees', String(row.total)],
+            ['Active', String(row.active)],
+            ['Module access', access ? `${access.reach} of ${access.total} modules${access.admin ? ` · ${access.admin} admin` : ''}` : 'Not configured'],
+            ['Created', row.createdAt ? fmtDay(row.createdAt) : null],
+          ]} />
+        </DrawerSection>
+
+        <DrawerSection title="What it opens">
+          {!row.permissions ? (
+            <p className="dsgdrawer__note">
+              Not on the designation list, so nothing is configured — anyone holding it falls back to
+              the default access.
+            </p>
+          ) : (
+            <ul className="dsglevels">
+              {byLevel.map((m) => (
+                <li key={m.key}>
+                  <span className="dsglevels__name">{m.label}</span>
+                  <span className={`dsglevel ${LEVEL[m.level]?.cls || LEVEL.none.cls}`}>
+                    {LEVEL[m.level]?.label || 'No access'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DrawerSection>
+
+        <DrawerSection title={`Held by (${row.members.length})`}>
+          {row.members.length ? (
+            <div className="dsgmembers dsgmembers--drawer">
+              {row.members.map((m) => (
+                <Link key={m._id} to={`${base}/employees/${m._id}`} className="dsgmember">
+                  <Avatar name={m.name} size={26} />
+                  <span className="dsgmember__name">{m.name}</span>
+                  <span className="dsgmember__sub">{m.department || 'No department'}</span>
+                  <Icon name="chevronRight" size={14} />
+                </Link>
+              ))}
+            </div>
+          ) : <p className="dsgdrawer__note">Nobody holds this designation yet.</p>}
+        </DrawerSection>
+      </DrawerBody>
+      {canManage && (
+        <DrawerFoot>
+          <Link to="/admin/designations" className="btn btn-primary">
+            <Icon name="settings" size={15} /> {row.defined ? 'Configure module access' : 'Add it to the list'}
+          </Link>
+        </DrawerFoot>
+      )}
+    </Drawer>
   );
 }
 
