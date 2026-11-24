@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import Icon from '../../components/ui/icons';
 import {
   Avatar, Blank, BadgeIcon, BuildingIcon, MailIcon, PhoneIcon, SearchIcon,
-  STATUS_LABEL, STATUS_TONE,
+  STATUS_LABEL, STATUS_TONE, staffTypeTone,
 } from './parts';
 import { usePageCrumbs } from '../../contexts/BreadcrumbContext';
 import { PageButtons } from '../../components/ui/index';
@@ -201,7 +201,7 @@ export function EmployeeCard({ e, base, onCopy }) {
             {STATUS_LABEL[status] || status}
           </span>
         ) : e.staffType ? (
-          <span className="badge badge-muted">{e.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'}</span>
+          <span className={`badge badge-${staffTypeTone(e.staffType)}`}>{e.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'}</span>
         ) : null}
       </div>
 

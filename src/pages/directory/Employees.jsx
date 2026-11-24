@@ -20,7 +20,7 @@ import { Badge, Button, Empty, Modal, Select } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import {
   Avatar, Chips, SkeletonRows, SkeletonCards, ErrorState, Blank, fmtDate,
-  STATUS_TONE, STATUS_LABEL, STAGE_LABEL, useDirectoryBase,
+  STATUS_TONE, STATUS_LABEL, STAGE_LABEL, useDirectoryBase, staffTypeTone,
 } from './parts';
 import {
   ActiveChips, Crumbs, EmployeeCard, Field, ListFoot, MenuItem, MenuSep,
@@ -507,7 +507,7 @@ export default function Employees() {
                         {isDirectoryAdmin && (
                           <td>
                             <div className="ed-pills">
-                              <Badge variant={e.staffType === 'teaching' ? 'primary' : 'muted'}>
+                              <Badge variant={staffTypeTone(e.staffType)}>
                                 {e.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'}
                               </Badge>
                               <Badge variant={STATUS_TONE[e.employmentStatus]}>{STATUS_LABEL[e.employmentStatus]}</Badge>

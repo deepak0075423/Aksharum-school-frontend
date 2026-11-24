@@ -63,7 +63,11 @@ export const fmtDate = (d) => {
   return x.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export const STATUS_TONE = { active: 'success', on_leave: 'warning', inactive: 'muted' };
+// Inactive is red, not grey (Nov 24 2026): a switched-off account is a state to
+// notice, opposite the green of Active.
+export const STATUS_TONE = { active: 'success', on_leave: 'warning', inactive: 'danger' };
+/** Teaching light purple, Non-Teaching light blue — the two read apart at a glance (Nov 24 2026). */
+export const staffTypeTone = (t) => (t === 'teaching' ? 'primary' : 'info');
 export const STATUS_LABEL = { active: 'Active', on_leave: 'On Leave', inactive: 'Inactive' };
 export const VERIFY_TONE = { verified: 'success', pending: 'warning', rejected: 'danger', resubmitted: 'info', missing: 'muted' };
 export const STAGE_LABEL = {

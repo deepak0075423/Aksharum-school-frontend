@@ -394,6 +394,23 @@ function DepartmentDialog({ dialog, departments, managers, onClose, onDone, onMo
     finally { setBusy(false); }
   };
   const renaming = !adding && form.name.trim() && form.name.trim() !== d.name;
+
+  // A department's head is one of its own staff (Nov 24 2026) — not anyone in
+  // the school. The department's members come with the row; a brand-new name
+  // is matched against a department already typed on somebody's record. Only
+  // live accounts, as everywhere a head is picked; the server checks too.
+  const low = (s) => String(s || '').trim().toLowerCase();
+  const crew = d
+    ? d.members || []
+    : departments.find((x) => x.name !== UNASSIGNED && low(x.name) === low(form.name))?.members || [];
+  const crewIds = new Set(crew.filter((m) => m.isActive !== false).map((m) => String(m._id)));
+  const heads = managers.filter((m) => crewIds.has(String(m._id)));
+  const deptName = form.name.trim() || d?.name || 'this department';
+  // A head chosen before this rule who is not in the department (or has since
+  // been switched off) stays shown while they hold it; they cannot be picked again.
+  const keptHead = form.head && !heads.some((m) => String(m._id) === String(form.head))
+    ? `${d?.head?.name || 'Current head'} (${d?.head?.inactive ? 'deactivated' : `not in ${deptName}`})`
+    : null;
   return (
     <Modal open onClose={busy ? () => {} : onClose}
       title={dialog.mode === 'add' ? 'Add a department' : adding ? `Add ${d.name} to the list` : `Manage ${d.name}`}
@@ -415,11 +432,19 @@ function DepartmentDialog({ dialog, departments, managers, onClose, onDone, onMo
           <span className="form-hint">The {d.total} {d.total === 1 ? 'person' : 'people'} in {d.name} will be moved to the new name with it.</span>
         )}
       </div>
-      <Select label="Head of department" value={form.head} onChange={put('head')}>
-        <option value="">Nobody yet</option>
-        {managers.map((m) => <option key={m._id} value={m._id}>{m.label}{m.designation ? ` — ${m.designation}` : ''}</option>)}
-        {form.head && !managers.some((m) => m._id === form.head) && <option value={form.head}>{d?.head?.name || 'Current head'} (deactivated)</option>}
-      </Select>
+      <div className="form-group">
+        <label className="form-label" htmlFor="dep-head">Head of department</label>
+        <select id="dep-head" className="form-control" value={form.head} onChange={put('head')}>
+          <option value="">Nobody yet</option>
+          {heads.map((m) => <option key={m._id} value={m._id}>{m.label}{m.designation ? ` — ${m.designation}` : ''}</option>)}
+          {keptHead && <option value={form.head}>{keptHead}</option>}
+        </select>
+        <span className="form-hint">
+          {heads.length
+            ? `Chosen from the ${heads.length} ${heads.length === 1 ? 'person' : 'people'} in ${deptName}.`
+            : `Nobody is in ${deptName} yet — its head is chosen from its own staff, so add people to it first.`}
+        </span>
+      </div>
       <div className="form-group">
         <label className="form-label" htmlFor="dep-desc">Description</label>
         <input id="dep-desc" data-text="sentence" className="form-control" maxLength={200}
