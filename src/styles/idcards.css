@@ -374,6 +374,14 @@
 .ic-page *, .ic-page *::before, .ic-page *::after,
 .ic-pop *, .ic-dialog *, .icv * { box-sizing: border-box; }
 .ic-page :focus-visible, .ic-pop :focus-visible, .ic-dialog :focus-visible, .icv :focus-visible { outline: 2px solid var(--ic-primary); outline-offset: 2px; }
+/* Text boxes and dropdowns show focus with their own indigo border and soft
+   ring. A CLICKED text box counts as focus-visible too, so the outline above
+   drew a second, square frame around the search box (Nov 24 2026). Ticks,
+   colour and file pickers keep the outline — it is their only focus mark. */
+.ic-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.ic-pop :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.ic-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.icv :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible { outline: none; }
 
 /* Buttons. */
 .ic-btn {

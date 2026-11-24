@@ -38,6 +38,11 @@
 }
 .hs-page *, .hs-page *::before, .hs-page *::after { box-sizing: border-box; }
 .hs-page :focus-visible { outline: 2px solid var(--hs-primary); outline-offset: 2px; }
+/* Text boxes and dropdowns show focus with their own border and soft ring. A
+   CLICKED text box counts as focus-visible too, so the outline above drew a
+   second, square frame around the search box (Nov 24 2026, as in ID Cards).
+   Ticks, colour and file pickers keep the outline — it is their only focus mark. */
+.hs-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible { outline: none; }
 
 /* ── Tones: a mark's tint and its glyph ─────────────────────────────────────── */
 .hs-t-indigo     { --t-bg: #ecebfe; --t-ink: #4f46e5; }
@@ -365,7 +370,8 @@ a.hs-mtile:hover { box-shadow: 0 6px 18px rgba(16, 20, 58, .06); transform: tran
   cursor: pointer;
 }
 .hs-select select:hover { border-color: #cdd4e2; }
-.hs-select select:focus-visible { outline: 2px solid var(--hs-primary); outline-offset: 1px; }
+/* The soft ring every other dropdown has (Nov 24 2026 — it was an outline). */
+.hs-select select:focus-visible { border-color: var(--hs-primary); box-shadow: 0 0 0 3px #e2e1fd; }
 .hs-select > svg { position: absolute; right: 9px; color: #5b6285; pointer-events: none; }
 
 .hs-viewall {
@@ -977,6 +983,9 @@ a.hs-kpi:hover, button.hs-kpi:hover { box-shadow: 0 6px 18px rgba(16, 20, 58, .0
   font: 400 .8125rem var(--font);
   color: #1d2350;
 }
+/* The ring the search box and dropdowns beside it show (Nov 24 2026 — it relied
+   on the kit's outline, which text boxes no longer draw). */
+.hs-ffield > input:focus { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(79, 70, 229, .12); }
 
 /* ── Line tabs with count pills (the app's Tabs, dressed for these screens) ─ */
 .hs-page .hs-ltabs { gap: 0; border-bottom-color: transparent; margin-bottom: 0; }

@@ -35,6 +35,15 @@
 .md-page *, .md-page *::before, .md-page *::after,
 .md-pop *, .md-dialog *, .mdd *, .md-form * { box-sizing: border-box; }
 .md-page :focus-visible, .md-pop :focus-visible, .md-dialog :focus-visible, .mdd :focus-visible, .md-form :focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+/* Text boxes and dropdowns show focus with their own border and soft ring. A
+   CLICKED text box counts as focus-visible too, so the outline above drew a
+   second, square frame around the search box (Nov 24 2026, as in ID Cards).
+   Ticks, colour and file pickers keep the outline — it is their only focus mark. */
+.md-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.md-pop :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.md-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.mdd :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible,
+.md-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="range"]), select, textarea):focus-visible { outline: none; }
 .md-page > * + * { margin-top: 18px; }
 .md-spacer { flex: 1; }
 .md-none { color: #b8bed3; }
