@@ -30,7 +30,7 @@ import useFetch from '../../hooks/useFetch';
 import {
   getAllNotifications, getSent, markOneRead, markOneUnread, markAllRead,
   clearOne, restoreOne, archiveRead, resolveNotification,
-  bulkNotifications, deleteAllNotifications, removeSent,
+  bulkNotifications, deleteAllNotifications, removeSent, removeAllSent,
 } from '../../api/notifications.api';
 import { sendNotification as adminSend, getNotificationClasses } from '../../api/admin.api';
 import { sendNotification as teacherSend, getMySections } from '../../api/teacher.api';
@@ -330,6 +330,27 @@ export default function Notifications() {
     },
   });
 
+  // Sent's "Delete all" (Nov 25 2026 — the inbox had one, Sent did not): every
+  // one on the Sent list for the year on screen. Off the sender's list only.
+  const askDeleteAllSent = () => {
+    const n = boxes.sent;
+    setConfirm({
+      title: 'Delete everything in Sent?',
+      message: `All ${n} notification${n === 1 ? '' : 's'} in your Sent list${yearName ? ` from ${yearName}` : ''} will be removed from it. Everyone who received them keeps their copies — this does not unsend anything.`,
+      label: `Delete all ${n}`,
+      run: async () => {
+        setBusy(true);
+        try {
+          const res = await removeAllSent(yearScope);
+          const k = res?.affected ?? 0;
+          toast.success(`${k === 1 ? '1 notification' : `${k} notifications`} deleted from Sent`);
+          setSentOpen(null); selection.clear(); setPage(1); refetch();
+        } catch (err) { toast.error(err.response?.data?.message || err.message); }
+        finally { setBusy(false); setConfirm(null); }
+      },
+    });
+  };
+
   const askDeleteAll = () => {
     const n = tab === 'archived' ? boxes.archived : boxes.inbox;
     setConfirm({
@@ -477,6 +498,11 @@ export default function Notifications() {
         {tab !== 'sent' && (tab === 'archived' ? boxes.archived : boxes.inbox) > 0 && (
           <Button variant="danger" onClick={askDeleteAll}>
             <Icon name="trash" size={16} /> {tab === 'archived' ? 'Empty archive' : 'Delete all'}
+          </Button>
+        )}
+        {tab === 'sent' && boxes.sent > 0 && (
+          <Button variant="danger" onClick={askDeleteAllSent}>
+            <Icon name="trash" size={16} /> Delete all
           </Button>
         )}
         {canSend && (

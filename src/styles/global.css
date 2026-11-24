@@ -14032,6 +14032,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .nfpg .uitabrow__side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .nfpg .uitabrow__side .btn { width: 100%; min-width: 0; padding-left: 10px; padding-right: 10px; }
   .nfpg .uitabrow__side .btn-primary { grid-column: 1 / -1; order: -1; }
+  /* The odd one out (Sent's lone "Delete all", or a third under the inbox's
+     pair) fills its line instead of leaving half of it empty. */
+  .nfpg .uitabrow__side .btn:not(.btn-primary):nth-child(odd):is(:last-child, :has(+ .btn-primary)) { grid-column: 1 / -1; }
   .nfsentrow__grid { grid-template-areas: "num what what" ". aud chan" ". read read" ". when when"; }
   .nfsentrow__when { justify-self: start; text-align: left; }
   .nfsentrow__when .lstack__main, .nfsentrow__when .lstack__sub { display: inline; }
