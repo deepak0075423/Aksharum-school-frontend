@@ -488,7 +488,10 @@ export default function Documents() {
             options={TARGET_FILTERS} label="Filter by who it was shared with" />
           <Picker value={category} onChange={go(setCategory)} all="All Categories"
             options={categoryOptions} label="Filter by category" />
+          {/* The current year is where the page opens, not a filter someone
+              set — so it is not lit as one (as on the readers' pages). */}
           <Picker value={year || ''} onChange={go(setYear)} all="All Academic Years"
+            on={!!year && year !== thisYear}
             options={yearOptions} label="Filter by academic year" className="docsel--year" />
           <span className="doctools__sep" />
           <SortMenu value={sort} onChange={go(setSort)} options={sortsFor(tab)} />

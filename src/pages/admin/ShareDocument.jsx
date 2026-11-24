@@ -44,9 +44,15 @@ const AUDIENCES = [
     hint: 'By department, subject or designation' },
 ];
 
-/** Who an assignment cannot go to, in the form and by the server alike. */
-const STAFF_AUDIENCES = ['all_teachers', 'specific_teachers'];
-const STAFF_ONLY = 'Only students hand work in — pick classes, sections or the whole school for an assignment';
+/**
+ * Who an assignment cannot go to, in the form and by the server alike. Not
+ * teachers alone — they hand nothing in — and not the whole school either
+ * (Nov 24 2026): that is every parent and teacher too, and the work belongs to
+ * nobody's class. With one of these chosen the form does not offer an
+ * assignment at all.
+ */
+const NO_ASSIGNMENT = ['whole_school', 'all_teachers', 'specific_teachers'];
+const CLASSES_ONLY = 'An assignment is set for classes or sections — pick Whole classes or Specific sections';
 
 /** What a file-less assignment is told, in the form and by the server alike. */
 const NEEDS_FILE = 'Attach the assignment or its instructions — students need a file to work from';
@@ -220,7 +226,9 @@ export default function ShareDocument({
     if (form.targetType === 'class_sections' && !form.sectionIds.length) e.audience = 'Pick at least one section';
     if (form.targetType === 'specific_teachers' && !form.teacherIds.length) e.audience = 'Pick at least one teacher';
     if (form.isAssignment) {
-      if (STAFF_AUDIENCES.includes(form.targetType) && !e.audience) e.audience = STAFF_ONLY;
+      // Only an assignment opened for editing can be here — choosing one of
+      // these audiences takes the assignment off a new one.
+      if (NO_ASSIGNMENT.includes(form.targetType) && !e.audience) e.audience = CLASSES_ONLY;
       // Work that is handed in needs the paper it is handed in against. Files
       // already on the document count, for as long as they are not removed.
       if (!files.length && !kept.length) e.files = NEEDS_FILE;
@@ -248,6 +256,21 @@ export default function ShareDocument({
 
   const kind = DOC_TYPES.find((t) => t.value === form.docType);
   const picking = form.targetType === 'class' || form.targetType === 'class_sections';
+  // Whether this audience can be set work at all. An assignment already on the
+  // form (one opened for editing) stays visible, with the reason it cannot go.
+  const canAssign  = !NO_ASSIGNMENT.includes(form.targetType);
+  const showAssign = canAssign || form.isAssignment;
+  const types = DOC_TYPES.filter((t) => t.value !== 'assignment' || showAssign);
+
+  /** A new audience; one that cannot be set work takes the assignment off. */
+  const pickAudience = (value) => {
+    const off = NO_ASSIGNMENT.includes(value) && form.isAssignment;
+    set({
+      targetType: value, classIds: [], sectionIds: [], teacherIds: [],
+      ...(off ? { isAssignment: false, docType: form.docType === 'assignment' ? 'other' : form.docType } : {}),
+    });
+    setFind('');
+  };
 
   return (
     <Modal
@@ -273,7 +296,7 @@ export default function ShareDocument({
       <div className="shform">
         <Block step="1" title="What is it?" required hint="This decides what the rest of the form asks for.">
           <div className="shtypes" role="radiogroup" aria-label="Kind of document">
-            {DOC_TYPES.map((t) => (
+            {types.map((t) => (
               <button key={t.value} type="button" role="radio" aria-checked={form.docType === t.value}
                 className={`shtype${form.docType === t.value ? ' is-on' : ''}`}
                 onClick={() => set({
@@ -288,6 +311,12 @@ export default function ShareDocument({
               </button>
             ))}
           </div>
+          {!showAssign && (
+            <p className="shnote">
+              <Icon name="info" size={13} />
+              Assignments are set for classes or sections — choose Whole classes or Specific sections under “Who gets it?” to set one.
+            </p>
+          )}
 
           <div className="form-group">
             <label className="form-label required" htmlFor="ad-title">Title</label>
@@ -312,7 +341,7 @@ export default function ShareDocument({
             {AUDIENCES.map((a) => (
               <button key={a.value} type="button" role="radio" aria-checked={form.targetType === a.value}
                 className={`shaud__btn${form.targetType === a.value ? ' is-on' : ''}`}
-                onClick={() => { set({ targetType: a.value, classIds: [], sectionIds: [], teacherIds: [] }); setFind(''); }}>
+                onClick={() => pickAudience(a.value)}>
                 <Icon name={a.icon} size={17} />
                 <span><b>{a.label}</b><small>{a.hint}</small></span>
               </button>
@@ -467,9 +496,9 @@ export default function ShareDocument({
             </div>
           )}
 
-          {/* An assignment for teachers alone is a contradiction, not a field
-              left empty — said as soon as it is chosen. */}
-          <Err>{show('audience') || (errors.audience === STAFF_ONLY ? STAFF_ONLY : null)}</Err>
+          {/* An assignment for this audience is a contradiction, not a field
+              left empty — said as soon as it shows. */}
+          <Err>{show('audience') || (errors.audience === CLASSES_ONLY ? CLASSES_ONLY : null)}</Err>
 
           {reach && (
             <p className="shreach">
@@ -504,6 +533,7 @@ export default function ShareDocument({
             </div>
           </div>
 
+          {showAssign && (
           <label className="shtoggle">
             <input type="checkbox" checked={form.isAssignment}
               onChange={(e) => set({
@@ -517,6 +547,7 @@ export default function ShareDocument({
               <small>Turns it into an assignment with a submissions list and marking.</small>
             </span>
           </label>
+          )}
 
           {form.isAssignment && (
             <div className="shassign">

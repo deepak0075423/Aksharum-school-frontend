@@ -14110,7 +14110,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 /* Room at both ends — the magnifier on the left, the × on the right — so a long
    search term runs under neither. */
-.docsearch input { padding-left: 38px; padding-right: 36px; }
+.docsearch input { padding-left: 38px; padding-right: 36px; font-size: .85rem; }
 .docsearch__clear {
   position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
   display: flex; align-items: center; justify-content: center;
@@ -14127,8 +14127,10 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   padding:     9px 30px 9px 12px;
   cursor:      pointer;
 }
-/* A set filter says so, so an admin can see at a glance why the list is short. */
-.docsel.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+/* A set filter says so, so an admin can see at a glance why the list is short.
+   Colour only, never bold (Nov 24 2026): every dropdown, the search and the
+   sort in Documents are one size and one weight — a bold one read as bigger. */
+.docsel.is-on { border-color: var(--primary); color: var(--primary); }
 
 /* Sort, painted as a button. The native <select> is laid transparently over the
    face, so the keyboard, the screen reader and a phone's picker all behave as
@@ -14144,19 +14146,20 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   border-radius: var(--radius);
   background:    var(--bg-card);
   font-size:     .85rem;
-  font-weight:   500;
+  font-weight:   400;
   color:         var(--text);
   white-space:   nowrap;
 }
 .docsort:hover { border-color: #c7d2fe; }
 .docsort svg   { color: var(--text-muted); flex-shrink: 0; }
-.docsort.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.docsort.is-on { border-color: var(--primary); color: var(--primary); }
 .docsort.is-on svg { color: var(--primary); }
 .docsort select {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   opacity: 0; cursor: pointer;
   border: none; padding: 0;
+  font-size: .85rem;   /* its open list, like every other dropdown's */
 }
 .docsort:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
 
@@ -14543,7 +14546,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
     flex: 1 0 auto; justify-content: center; padding: 10px 7px; font-size: .82rem; gap: 5px;
   }
 
-  .doctools .docsel { flex: 1 1 calc(50% - 5px); min-width: 0; font-size: .8rem; padding-right: 26px; }
+  .doctools .docsel { flex: 1 1 calc(50% - 5px); min-width: 0; padding-right: 26px; }
   .doctools .docsel--year { flex: 1 1 0; }
 
   /* The heading on the same row as its mark (it fell under it — the text
@@ -14588,6 +14591,8 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 
 /* The pager and the page size travel together at the footer's end (Nov 23 2026). */
 .docfoot__end { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+/* Rows per page is a dropdown like the bar's; PageSize sets its size inline. */
+.docfoot__end select.form-control { font-size: .85rem !important; }
 @media (max-width: 640px) { .docfoot__end { justify-content: center; } }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -14928,8 +14933,8 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
   color: var(--text-light); pointer-events: none;
 }
-.adsearch input { padding-left: 34px; font-size: .84rem; }
-.adsel { width: auto; flex-shrink: 0; max-width: 176px; font-size: .84rem; padding: 8px 28px 8px 11px; cursor: pointer; }
+.adsearch input { padding-left: 34px; font-size: .85rem; }
+.adsel { width: auto; flex-shrink: 0; max-width: 176px; font-size: .85rem; padding: 8px 28px 8px 11px; cursor: pointer; }
 
 /* ── The roster table ──────────────────────────────────────────────────────── */
 .adtable td { padding: 11px 14px; }
@@ -15531,7 +15536,7 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   width: auto; flex-shrink: 0; max-width: 190px;
   font-size: .85rem; padding: 9px 28px 9px 11px; cursor: pointer;
 }
-.dvsel.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.dvsel.is-on { border-color: var(--primary); color: var(--primary); }
 
 /* ── The card ──────────────────────────────────────────────────────────────── */
 .dvloading { display: flex; justify-content: center; padding: 56px; }
@@ -15932,6 +15937,12 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   gap: 9px;
   margin-bottom: 16px;
 }
+/* Where the Assignment tile went, while the audience cannot be set work. */
+.shnote {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin: -6px 0 16px; font-size: .8rem; line-height: 1.5; color: var(--text-muted);
+}
+.shnote svg { flex-shrink: 0; margin-top: 2px; }
 .shtype {
   display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
   padding: 11px; border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -16097,8 +16108,9 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .shfilters {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px;
 }
-.shfilters select { font-size: .82rem; background: var(--bg-card); }
-.shfilters select.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+/* The form's own size, like the Category and Kind of work dropdowns beside them. */
+.shfilters select { background: var(--bg-card); }
+.shfilters select.is-on { border-color: var(--primary); color: var(--primary); }
 .shpeople { display: flex; flex-direction: column; gap: 6px; max-height: 264px; overflow-y: auto; }
 .shperson {
   display: flex; align-items: center; gap: 10px; width: 100%;

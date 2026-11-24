@@ -25,10 +25,12 @@ import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
   ChildSwitch, ReaderList, useReaderView, DocDrawer, NothingHere, StatePill, Avatar, Field, UnreadNote, OpenFile, DocComments,
+  ReaderPicks, tickProps,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate, STATES,
 } from '../documents/viewerParts';
 import { ResetFilters, ViewSwitch, DocFoot } from '../admin/documentParts';
 import useCardPaging from '../../hooks/useCardPaging';
+import { useSelection } from '../admin/listParts';
 
 export default function ParentDocuments() {
   const [year, setYear] = useState('');
@@ -87,6 +89,10 @@ export default function ParentDocuments() {
 
   const filtered = !!(category || search || state);
   const clear = () => { setCategory(''); setSearch(''); setState(''); setTab('all'); };
+
+  // Ticked to act on together (Nov 24 2026) — mark read, save their files.
+  // Another child, page or filter starts with nothing ticked.
+  const sel = useSelection(shown, `${who}|${tab}|${category}|${search}|${sort}|${state}|${year}|${page}|${limit}`);
   const pickState = (v) => { setState(state === v ? '' : v); setTab(state === v ? 'all' : 'assignments'); };
 
   const live = open
@@ -191,14 +197,17 @@ export default function ParentDocuments() {
             options={meta?.categories || []} label="Filter by category" />
           <span className="dvtools__sep" />
           <UnreadNote count={unread.length} onClear={() => readAll(unread)} />
-          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
+          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents"
+            on={sortOn(tab, sort) !== 'newest'} />
           <ResetFilters on={!!(search || category || state || sort !== 'newest')}
             onClick={() => { setSearch(''); setCategory(''); setState(''); setSort('newest'); }} />
           {!rv.cardsOnly && <ViewSwitch value={rv.view} onChange={rv.setView} />}
         </ViewerTools>
 
+        <ReaderPicks sel={sel} total={shown.length} read={readAll} />
+
         <ReaderList asCards={rv.asCards} gridRef={paging.gridRef}
-          docs={shown} loading={loading}
+          docs={shown} loading={loading} {...tickProps(sel)}
           onOpen={(d) => { focusRef.current = d._id; setOpen(d); read(d); }}
           empty={<NothingHere filtered={filtered} onClear={clear} />}
           // One child, or one picked: that child's own state ("Submitted"),

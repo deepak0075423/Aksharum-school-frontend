@@ -248,9 +248,13 @@ export const SearchField = ({ value, onChange, placeholder }) => (
   </div>
 );
 
-/** One inline dropdown. `all` is the everything option, so an unset filter still reads as a sentence. */
-export const Picker = ({ value, onChange, all, options, label, className = '' }) => (
-  <select className={`form-control docsel${value ? ' is-on' : ''}${className ? ` ${className}` : ''}`} value={value}
+/**
+ * One inline dropdown. `all` is the everything option, so an unset filter still
+ * reads as a sentence. `on` says whether it reads as a filter in force; without
+ * it, any value does.
+ */
+export const Picker = ({ value, onChange, all, options, label, className = '', on }) => (
+  <select className={`form-control docsel${(on ?? value) ? ' is-on' : ''}${className ? ` ${className}` : ''}`} value={value}
     onChange={(e) => onChange(e.target.value)} aria-label={label}>
     <option value="">{all}</option>
     {options.map((o) => (

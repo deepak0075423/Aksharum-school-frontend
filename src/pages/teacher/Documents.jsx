@@ -27,13 +27,14 @@ import Icon from '../../components/ui/icons';
 import {
   ViewerHero, ViewerStats, ViewerStat, ViewerTabs, ViewerTools, SearchField, Picker, YearPicker,
   ReaderList, useReaderView, DocDrawer, NothingHere, Field, UnreadNote, OpenFile,
+  ReaderPicks, tickProps,
   TABS, sortsFor, sortOn, useShelf, useReadMarks, fmtDate,
 } from '../documents/viewerParts';
 import ShareDocument from './ShareDocument';
 import Tabs from '../../components/ui/Tabs';
 import { ResetFilters, ArchiveConfirm, BulkDeleteConfirm, ViewSwitch, DocFoot } from '../admin/documentParts';
 import useCardPaging from '../../hooks/useCardPaging';
-import { SelectionBar, useSelection } from '../admin/listParts';
+import { useSelection } from '../admin/listParts';
 
 // "All" (Nov 23 2026): both halves together — what the Assignments tile
 // counts, so the tile has somewhere to open.
@@ -157,13 +158,11 @@ export default function TeacherDocuments() {
     }
   };
 
-  // Ticking several of their own uploads to delete together (Nov 23 2026).
-  // Only on "My uploads", and only what is theirs — the server checks too.
-  // Their own rows, wherever they show — "My uploads" or "All".
-  const sel = useSelection(
-    scope === 'shared' ? [] : all.filter((d) => d.mine),
-    `${scope}|${tab}|${category}|${search}|${sort}|${year}|${page}|${limit}`,
-  );
+  // Every row can be ticked, in every half of the shelf (Nov 24 2026 — it was
+  // their own uploads only): mark read and save files for any of them; Delete
+  // only ever takes the ones that are theirs — the server checks too.
+  const sel = useSelection(all, `${scope}|${tab}|${category}|${search}|${sort}|${year}|${page}|${limit}`);
+  const ownPicked = sel.rows.filter((d) => d.mine);
   const runBulkDelete = async () => {
     setBusy(true);
     try {
@@ -305,34 +304,27 @@ export default function TeacherDocuments() {
             options={categories} label="Filter by category" />
           <span className="dvtools__sep" />
           {scope !== 'mine' && <UnreadNote count={unread.length} onClear={() => readAll(unread)} />}
-          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents" />
+          <Picker value={sortOn(tab, sort)} onChange={setSort} options={sortsFor(tab)} label="Sort documents"
+            on={sortOn(tab, sort) !== 'newest'} />
           <ResetFilters on={!!(search || category || sort !== 'newest')}
             onClick={() => { setSearch(''); setCategory(''); setSort('newest'); }} />
           {!rv.cardsOnly && <ViewSwitch value={rv.view} onChange={rv.setView} />}
         </ViewerTools>
 
-        {scope !== 'shared' && (
-          <SelectionBar count={sel.ids.length} noun="document" onClear={sel.clear}>
-            {!sel.allOn && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={sel.toggleAll}>
-                Select all {all.filter((d) => d.mine).length}
-              </button>
-            )}
+        <ReaderPicks sel={sel} total={all.length} read={readAll}>
+          {ownPicked.length > 0 && (
             <button type="button" className="btn btn-danger btn-sm" disabled={busy}
-              onClick={() => setBulkDel(sel.rows)}>
-              <Icon name="trash" size={14} /> Delete
+              onClick={() => setBulkDel(ownPicked)}
+              title={ownPicked.length < sel.ids.length ? 'Only your own uploads can be deleted' : undefined}>
+              <Icon name="trash" size={14} />
+              {ownPicked.length < sel.ids.length ? ` Delete your ${ownPicked.length}` : ' Delete'}
             </button>
-          </SelectionBar>
-        )}
+          )}
+        </ReaderPicks>
 
         <ReaderList asCards={rv.asCards} gridRef={paging.gridRef}
           docs={shown} loading={loading} onOpen={(d) => { setOpen(d); read(d); }}
-          // Their own uploads can be ticked to delete together, where they show.
-          tick={scope !== 'shared'
-            ? (d) => (d.mine ? { checked: sel.has(d._id), onChange: () => sel.toggle(d._id) } : null)
-            : undefined}
-          tickAll={sel.ids.length || all.some((d) => d.mine)
-            ? { checked: sel.allOn, some: sel.some, onChange: sel.toggleAll } : undefined}
+          {...tickProps(sel)}
           empty={<NothingHere filtered={filtered} onClear={clear}
             what={scope === 'mine' ? 'uploads' : 'documents'} />}
           badges={(d) => (d.isAssignment && d.mine

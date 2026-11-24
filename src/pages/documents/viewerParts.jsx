@@ -27,9 +27,11 @@ import {
 } from '../admin/documentParts';
 import useMediaQuery from '../../hooks/useMediaQuery';
 import Tabs from '../../components/ui/Tabs';
-import { ListStats, ListStat } from '../admin/listParts';
+import { ListStats, ListStat, SelectionBar } from '../admin/listParts';
 import { useFileViewer } from './FileViewer';
 import usePhone from '../../hooks/usePhone';
+import { fetchFile } from '../../utils/fileAccess';
+import { saveFile } from '../../utils/downloadFile';
 
 export { FileMark, fileUrl, downloadUrl, fmtSize, fmtDate, typeOf, DOC_TYPES, HANDIN_TYPES };
 
@@ -293,7 +295,7 @@ const Eye = ({ doc, onOpen }) => (
 
 /**
  * The shelf as a table. `tick(doc)` — { checked, onChange } or null — puts a
- * tick box on the rows a page lets be picked (a teacher's own uploads);
+ * tick box on the rows a page lets be picked (every row, Nov 24 2026);
  * `tickAll` the one in the heading.
  */
 export function ReaderTable({ docs, onOpen, badges, tick, tickAll }) {
@@ -307,7 +309,7 @@ export function ReaderTable({ docs, onOpen, badges, tick, tickAll }) {
                 {tickAll && (
                   <input type="checkbox" className="doctick" checked={tickAll.checked}
                     ref={(el) => { if (el) el.indeterminate = !!tickAll.some; }}
-                    onChange={tickAll.onChange} aria-label="Select every document of yours on this page" />
+                    onChange={tickAll.onChange} aria-label="Select every document on this page" />
                 )}
               </th>
             )}
@@ -416,6 +418,91 @@ export const ReaderList = ({ asCards, docs, loading, empty, ...rest }) => {
   if (!docs.length) return empty;
   return asCards ? <ReaderGrid docs={docs} {...rest} /> : <ReaderTable docs={docs} {...rest} />;
 };
+
+// ── Several at once (Nov 24 2026) ────────────────────────────────────────────
+
+const fileSafe = (text) => String(text || 'document').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'document';
+
+/**
+ * Save every file of these documents to the reader's computer, one after
+ * another. Several documents' files land in one folder, so each is named after
+ * its document as well. Returns how many were saved.
+ */
+export async function saveDocumentFiles(docs) {
+  const items = docs.flatMap((d) => (d.files || []).filter((f) => f.filePath).map((f) => ({ d, f })));
+  const total = items.length;
+  if (!total) { toast.error('None of these has a file attached'); return 0; }
+  const note = toast.loading(`Saving ${total} file${total === 1 ? '' : 's'}…`);
+  let saved = 0;
+  for (const { d, f } of items) {
+    try {
+      const res = await fetchFile(downloadUrl(f.filePath));
+      if (!res.ok) throw new Error(String(res.status));
+      const name = docs.length > 1 ? `${fileSafe(d.title)}-${f.originalName}` : f.originalName;
+      saveFile(await res.blob(), name, f.mimeType || 'application/octet-stream');
+      saved += 1;
+      toast.loading(`Saving ${saved} of ${total}…`, { id: note });
+      // A breath between saves: browsers drop downloads fired in one burst.
+      await new Promise((r) => setTimeout(r, 350));
+    } catch { /* counted below */ }
+  }
+  toast.dismiss(note);
+  if (saved === total) toast.success(`${saved} file${saved === 1 ? '' : 's'} saved`);
+  else toast.error(`${saved} of ${total} files saved — the rest could not be opened`);
+  return saved;
+}
+
+/**
+ * What a reader can do with the documents they ticked: mark the unread ones
+ * read, and save every file on them. `sel` is listParts' useSelection over the
+ * page's rows; `read(docs)` is useReadMarks' `readAll`. A teacher's page adds
+ * Delete for their own (`children`).
+ */
+export function ReaderPicks({ sel, total, read, children }) {
+  const [saving, setSaving] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const unread    = sel.rows.filter((d) => d.isRead === false);
+  const withFiles = sel.rows.filter((d) => d.files?.length);
+
+  const markRead = async () => {
+    setMarking(true);
+    try {
+      const n = unread.length;
+      if (await read(unread)) toast.success(n === 1 ? 'Marked as read' : `${n} documents marked as read`);
+    } finally { setMarking(false); }
+  };
+  const save = async () => {
+    setSaving(true);
+    try { await saveDocumentFiles(withFiles); } finally { setSaving(false); }
+  };
+
+  return (
+    <SelectionBar count={sel.ids.length} noun="document" onClear={sel.clear}>
+      {!sel.allOn && (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={sel.toggleAll}>
+          Select all {total}
+        </button>
+      )}
+      {unread.length > 0 && (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={markRead} disabled={marking}>
+          <Icon name="checks" size={14} /> Mark as read
+        </button>
+      )}
+      <button type="button" className="btn btn-secondary btn-sm" onClick={save}
+        disabled={saving || !withFiles.length}
+        title={withFiles.length ? undefined : 'None of these has a file attached'}>
+        <Icon name="download" size={14} /> {saving ? 'Saving…' : 'Download files'}
+      </button>
+      {children}
+    </SelectionBar>
+  );
+}
+
+/** The tick props for a reader list: every row can be ticked, and the heading ticks the page. */
+export const tickProps = (sel) => ({
+  tick: (d) => ({ checked: sel.has(d._id), onChange: () => sel.toggle(d._id) }),
+  tickAll: { checked: sel.allOn, some: sel.some, onChange: sel.toggleAll },
+});
 
 // ── The shelf, a page at a time ──────────────────────────────────────────────
 
@@ -902,14 +989,17 @@ export function useReadMarks(docs, { one, many }) {
 
   // Ids, or documents: the server names everything unread under the current
   // filters (`meta.unreadIds`), which is more than the page on screen.
+  // True once the server has them as read.
   const readAll = useCallback(async (list) => {
     const ids = list.map((d) => (typeof d === 'string' ? d : d.isRead === false ? d._id : null)).filter(Boolean);
-    if (!ids.length) return;
+    if (!ids.length) return false;
     try {
       await many(ids);
       setSeen((s) => new Set([...s, ...ids]));
+      return true;
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message);
+      return false;
     }
   }, [many]);
 
