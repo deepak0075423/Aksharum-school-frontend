@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { viewYear, viewYearHeader, setViewYear, onViewYearChange } from '../../utils/yearView';
@@ -56,8 +57,13 @@ function useYears() {
   return { ...state, schoolId, staff };
 }
 
-export default function YearSwitcher() {
-  const { years, active, viewing, schoolId, staff } = useYears();
+/**
+ * The pill and its menu, on their own — the header's year switcher draws it,
+ * and so does a page that puts its own year choice in the header
+ * (HeaderYearPick). `years` are `{ _id, name }`, oldest first; `all` adds an
+ * "All years" entry under them.
+ */
+function YearMenu({ years, value, active, onPick, all = false, title = 'Academic year shown across the app' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -70,27 +76,19 @@ export default function YearSwitcher() {
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
   }, [open]);
 
-  // Nothing to switch between: say nothing.
-  if (!staff || years.length < 2) return null;
-
-  const current = years.find((y) => String(y._id) === String(viewing)) || null;
-  const elsewhere = !!current && String(current._id) !== String(active);
-
-  const pick = (id) => {
-    setOpen(false);
-    if (String(id) === String(viewing)) return;
-    setViewYear(schoolId, String(id) === String(active) ? '' : id);
-  };
+  const everyYear = all && value === 'all';
+  const current = everyYear ? null : (years.find((y) => String(y._id) === String(value)) || null);
+  const elsewhere = everyYear || (!!current && String(current._id) !== String(active));
+  const pick = (id) => { setOpen(false); if (String(id) !== String(value)) onPick(id); };
 
   return (
     <div className="dropdown yearsw" ref={ref}>
       <button type="button" className={`yearsw__btn${elsewhere ? ' is-elsewhere' : ''}`}
-        onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}
-        title="Academic year shown across the app">
+        onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open} title={title}>
         <Icon name="calendar" size={16} />
         <span className="yearsw__text">
           <span className="yearsw__label">Academic year</span>
-          <span className="yearsw__value">{current?.yearName || '—'}</span>
+          <span className="yearsw__value">{everyYear ? 'All years' : (current?.name || '—')}</span>
         </span>
         <Icon name="chevronDown" size={14} className="yearsw__caret" />
       </button>
@@ -99,20 +97,62 @@ export default function YearSwitcher() {
         <div className="dropdown-menu yearsw__menu" role="listbox" aria-label="Academic year">
           <div className="yearsw__head">Show data for</div>
           {[...years].reverse().map((y) => {
-            const on = String(y._id) === String(viewing);
+            const on = !everyYear && String(y._id) === String(value);
             return (
               <button key={y._id} type="button" role="option" aria-selected={on}
                 className={`dropdown-item yearsw__item${on ? ' is-on' : ''}`} onClick={() => pick(y._id)}>
-                <span className="yearsw__name">{y.yearName}</span>
+                <span className="yearsw__name">{y.name}</span>
                 {String(y._id) === String(active) && <span className="yearsw__tag">Current</span>}
                 {on && <Icon name="check" size={16} className="yearsw__check" />}
               </button>
             );
           })}
+          {all && (
+            <button type="button" role="option" aria-selected={everyYear}
+              className={`dropdown-item yearsw__item${everyYear ? ' is-on' : ''}`} onClick={() => pick('all')}>
+              <span className="yearsw__name">All years</span>
+              {everyYear && <Icon name="check" size={16} className="yearsw__check" />}
+            </button>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+export default function YearSwitcher() {
+  const { years, active, viewing, schoolId, staff } = useYears();
+
+  // Nothing to switch between: say nothing.
+  if (!staff || years.length < 2) return null;
+
+  return (
+    <YearMenu years={years.map((y) => ({ _id: y._id, name: y.yearName }))} value={viewing} active={active}
+      onPick={(id) => setViewYear(schoolId, String(id) === String(active) ? '' : id)} />
+  );
+}
+
+/**
+ * A page's own academic-year choice, drawn in the header where staff find the
+ * app-wide switcher (Nov 25 2026). Students and parents have no app-wide
+ * switcher — the server reads their current year — so a page that lets them
+ * look at another year (Holidays) puts its picker here rather than beside its
+ * title, and it looks and sits exactly like the staff one. It steers only that
+ * page: `value` is 'current', a year id, or 'all'.
+ *
+ * `years` are `{ _id, name }`, oldest first; `current` is the school's current
+ * year's id. Drawn into Header's #header-page-year slot; without a header (a
+ * page rendered on its own) it draws in place.
+ */
+export function HeaderYearPick({ years, value, current, onChange }) {
+  const [slot, setSlot] = useState(null);
+  useEffect(() => { setSlot(document.getElementById('header-page-year')); }, []);
+  if (!years?.length) return null;
+  const menu = (
+    <YearMenu years={years} value={value === 'current' ? current : value} active={current} all
+      onPick={onChange} title="Academic year shown on this page" />
+  );
+  return slot ? createPortal(menu, slot) : menu;
 }
 
 /**

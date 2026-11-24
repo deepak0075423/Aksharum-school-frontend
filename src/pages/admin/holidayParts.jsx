@@ -587,21 +587,6 @@ export const offDayMessage = (start, end, week) => {
   return b ? `The last day, ${fmtDayKey(end)}, is ${b} — the school is already closed. End the holiday on a working day.` : '';
 };
 
-/**
- * The academic-year picker on the student and parent holiday pages (Nov 24
- * 2026). Admins and teachers have the header's year switcher; students and
- * parents do not, so their page carries its own. `value` 'current' shows as
- * the current year.
- */
-export const YearPick = ({ years, value, current, onChange }) => (years.length ? (
-  <select className={`form-control holyear holtch-year${value !== 'current' && value !== current ? ' lfsel--on' : ''}`}
-    value={value === 'current' ? current : value} onChange={(e) => onChange(e.target.value)}
-    aria-label="Academic year" title="Academic year">
-    {years.map((y) => <option key={y._id} value={y._id}>{y.name}{y._id === current ? ' (current)' : ''}</option>)}
-    <option value="all">All years</option>
-  </select>
-) : null);
-
 /** The year among `years` (each with `start`/`end` day keys) that a day falls in. */
 export const yearOfDay = (years, key) => (key
   ? years.find((y) => y.start && y.end && y.start <= key && key <= y.end) || null

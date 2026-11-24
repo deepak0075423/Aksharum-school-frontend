@@ -21,9 +21,10 @@ import { Alert, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { ChildSwitch, useChild } from '../../components/parent/ChildSwitch';
 import {
-  HolidayDialog, HolidayList, MonthCalendar, YearPick,
+  HolidayDialog, HolidayList, MonthCalendar,
   dayKey, daysOf, daysUntil, statusOf, tintFor, today,
 } from '../admin/holidayParts';
+import { HeaderYearPick } from '../../components/layout/YearSwitcher';
 
 const MONTH_START = () => { const n = new Date(); return [n.getFullYear(), n.getMonth()]; };
 const inThisMonth = (key) => key.slice(0, 7) === today().slice(0, 7);
@@ -123,8 +124,9 @@ export default function ParentHolidays() {
             </p>
           </div>
         </div>
-        <YearPick years={years} value={year} current={currentYear} onChange={pickYear} />
       </header>
+      {/* The year is chosen in the header, where staff choose theirs (Nov 25 2026). */}
+      <HeaderYearPick years={years} value={year} current={currentYear} onChange={pickYear} />
 
       <ChildSwitch children={children} child={forChild} onPick={pick} label="Whose holidays" />
 

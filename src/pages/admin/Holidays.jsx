@@ -430,7 +430,7 @@ export default function Holidays() {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <div className="holgrid">
-        <section className="card">
+        <section className="card holmain">
           <ListTabs value={view} tabs={[
             { value: 'manage', label: 'School calendar', count: all.length },
             { value: 'mine',   label: 'Applies to me',   count: mine.length },
@@ -538,11 +538,15 @@ export default function Holidays() {
               />
               </div>
 
-              <ListFooter
-                page={Math.min(page, pages)} pages={pages} total={filtered.length}
-                limit={limit} count={shown.length} noun="holiday"
-                onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
-              />
+              {/* Not under an empty list: "No holidays to show" only repeated the
+                  message in the middle of the card (Nov 25 2026). */}
+              {filtered.length > 0 && (
+                <ListFooter
+                  page={Math.min(page, pages)} pages={pages} total={filtered.length}
+                  limit={limit} count={shown.length} noun="holiday"
+                  onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
+                />
+              )}
             </>
           )}
         </section>

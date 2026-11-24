@@ -274,6 +274,9 @@ export default function Header({ onMenuClick, onCollapseClick }) {
       <div className="header__actions">
         {/* Which academic year every screen is showing. */}
         <YearSwitcher />
+        {/* A page's own year choice (students' and parents' Holidays) —
+            YearSwitcher's HeaderYearPick draws into it. Empty otherwise. */}
+        <div id="header-page-year" className="header__pageyear" />
         {/* Bell */}
         <div className="dropdown" ref={bellRef}>
           <button className="header__btn" title="Notifications" onClick={openBell}

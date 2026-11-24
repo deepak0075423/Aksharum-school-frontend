@@ -482,6 +482,8 @@ input, select, textarea {
 }
 
 .header__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* A page's own year pill (HeaderYearPick) lands here; empty, it takes no room. */
+.header__pageyear { display: contents; }
 
 .header__btn {
   width:         40px;
@@ -8545,25 +8547,32 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 }
 /* The rail beside the table (Nov 24 2026, the user: "the right side cards
    should be restricted to the table's height, and Need Help a full row").
-   The rail takes no part in sizing the row (height 0) and is then as tall as
-   the row the table makes (min-height 100%) — so its bottom edge is the
-   table's bottom edge. The calendar keeps its size; Next up and Holiday types
-   give way and scroll inside their own card if the table is short, and the
-   last card stretches when it is long, so the two columns end together. A
-   floor on the table card keeps a near-empty list from crushing the rail. */
+   The two columns end together: a long table stretches the rail (its last
+   card grows), and a short one is stretched to the rail.
+
+   The rail is never squeezed below its own content (Nov 25 2026, the user:
+   "Next up and Holiday types items are not looking good"). It used to be cut
+   to the table's height whatever that was, so a one-holiday list left Next up
+   half a row and Holiday types one and a half, each behind its own scrollbar.
+   Its content is bounded — a month, at most five "next up", the school's few
+   types — so it is always shown whole. */
 @media (min-width: 1401px) {
   .holpg:not(.holtch) .holgrid { align-items: stretch; }
-  .holpg:not(.holtch) .holgrid > section.card { min-height: 640px; }
-  .holpg:not(.holtch) .holside { height: 0; min-height: 100%; }
-  .holpg:not(.holtch) .holside > .holcal { flex: none; }
-  .holpg:not(.holtch) .holside > .holrail {
-    flex: 0 1 auto; min-height: 104px;
-    display: flex; flex-direction: column; overflow: hidden;
-  }
+  .holpg:not(.holtch) .holside > .holcal,
+  .holpg:not(.holtch) .holside > .holrail { flex: none; }
   .holpg:not(.holtch) .holside > .holrail:last-child { flex-grow: 1; }
-  .holpg:not(.holtch) .holside > .holrail > .holnext,
-  .holpg:not(.holtch) .holside > .holrail > .holtypes,
-  .holpg:not(.holtch) .holside > .holrail > .holempty { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+  /* The list card, stretched to the rail, fills itself rather than leaving a
+     blank strip under its footer (Nov 25 2026): the list takes the spare
+     height, the footer sits on the card's bottom edge, and an empty list's
+     message is centred in the space. */
+  .holpg:not(.holtch) .holmain { display: flex; flex-direction: column; }
+  .holpg:not(.holtch) .holmain > .holtable,
+  .holpg:not(.holtch) .holmain > .holminewrap { flex: 1 0 auto; display: flex; flex-direction: column; }
+  .holpg:not(.holtch) .holmain > .holtable > .empty-state,
+  .holpg:not(.holtch) .holmain > .holminewrap > .empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
 }
 /* Need Help across the whole page, not in half of a two-column row. */
 .holpg:not(.holtch) .lbottom { grid-template-columns: minmax(0, 1fr); }
