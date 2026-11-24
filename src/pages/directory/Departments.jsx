@@ -270,10 +270,13 @@ export default function Departments() {
                             <td><Chips items={d.designations} max={2} empty="—" /></td>
                             <td className="edl-table__acts">
                               <div className="edl-rowacts">
-                                {/* Everyone the row counts, deactivated accounts included. */}
-                                <Link className="btn btn-secondary btn-sm"
-                                  to={`${base}/employees?department=${encodeURIComponent(d.name)}&accountStatus=all`}>
-                                  View
+                                {/* Everyone the row counts, deactivated accounts included.
+                                    The eye, as on the employee list (Nov 24 2026 — it was a
+                                    "View" button). */}
+                                <Link className="edl-kebab"
+                                  to={`${base}/employees?department=${encodeURIComponent(d.name)}&accountStatus=all`}
+                                  title={`View the people in ${d.name}`} aria-label={`View the people in ${d.name}`}>
+                                  <Icon name="eye" size={16} />
                                 </Link>
                                 <RowMenu>
                                   {d.members.length > 0 && (

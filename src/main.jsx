@@ -6,6 +6,10 @@ import App from './App.jsx';
 import './styles/global.css';
 import { installTextGuard } from './utils/textGuard';
 import { installFieldIds } from './utils/fieldIds';
+import { installNoFocusZoom } from './utils/noFocusZoom';
+
+// A tapped field no longer zooms an iPhone's page in for good — utils/noFocusZoom.
+installNoFocusZoom();
 
 // Every text box takes English and never markup, while it is typed in (utils/textRules).
 installTextGuard();
