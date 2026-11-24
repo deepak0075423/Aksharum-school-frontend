@@ -637,11 +637,39 @@ export const MenuSep = () => <div className="lmenu__sep" />;
 
 // ── Card footer ──────────────────────────────────────────────────────────────
 
+/** The element's own width, kept current through a resize or a sidebar fold. */
+function useBoxWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    setWidth(el.clientWidth);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return width;
+}
+
+// Narrower than this, the footer's one line ("Showing 1 to 20 of 209 students",
+// nine page buttons, "Show [20] per page") no longer fits — a tablet, or a
+// laptop list beside a rail — so the pager takes its five-slot form and the
+// page size drops "per page" rather than wrapping onto a second line.
+const ROOMY_FOOTER = 840;
+
 /**
  * "Showing 1 to 20 of 214 students", the pager and the rows-per-page control.
  *
  * Rendered even for a single page, because the count sentence is the answer to
- * "did my filter do anything" and it should not vanish once the list is short.
+ * "did my filter do anything" and it should not vanish once the list is short —
+ * and so are the page buttons ("‹ 1 ›"), so the pager is always where it is
+ * expected (Nov 24 2026). It sits at the end of the list — never pinned to the
+ * screen (the user's call).
+ *
+ * On a phone it is two short lines — "1–20 of 214 students · Show [20]" over
+ * the page buttons — instead of the three tall ones that wrapped "›" onto a
+ * line of its own at 320px.
  */
 // `plural` for the nouns English does not make by adding an s — a footer that
 // says "No copys to show" undoes a page's worth of care.
@@ -651,24 +679,44 @@ export const MenuSep = () => <div className="lmenu__sep" />;
 // that is not on offer moves to the nearest one that is.
 export const ListFooter = ({ page, pages, total, limit, count, noun, plural, onPage, onLimit, sizes }) => {
   const phone = usePhone();
+  const ref = useRef(null);
+  const width = useBoxWidth(ref);
+  const tight = phone || (width > 0 && width < ROOMY_FOOTER);
   const offered = sizes || (phone ? CARD_BASE : LIST_SIZES);
   useSnapLimit(onLimit ? offered : null, limit, onLimit);
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to   = (page - 1) * limit + count;
   const many = plural || `${noun}s`;
+  const what = total === 1 ? noun : many;
+  const counted = total === 0 ? `No ${many} to show`
+    : phone ? `${from}–${to} of ${total} ${what}`
+    : `Showing ${from} to ${to} of ${total} ${what}`;
+  const last = Math.max(1, pages || 1);
+  // The buttons alone: the shared Pagination repeats the total ("747 total
+  // records" beside "Showing 1 to 10 of 747") and adds a 16px top margin.
+  const buttons = total > 0
+    ? <PageButtons page={Math.min(Math.max(1, page), last)} pages={last} onPage={onPage} compact={tight} />
+    : null;
+  const size = <PageSize value={limit} total={total} onChange={onLimit} options={offered} minTotal={offered[0]} compact={tight} />;
+  const cls = `lfoot${phone ? ' lfoot--phone' : ''}`;
+
+  if (phone) {
+    return (
+      <div ref={ref} className={cls}>
+        <div className="lfoot__row">
+          <span className="lfoot__count">{counted}</span>
+          {size}
+        </div>
+        {buttons}
+      </div>
+    );
+  }
   return (
-    <div className="lfoot">
-      <span className="lfoot__count">
-        {total === 0
-          ? `No ${many} to show`
-          : `Showing ${from} to ${to} of ${total} ${total === 1 ? noun : many}`}
-      </span>
+    <div ref={ref} className={cls}>
+      <span className="lfoot__count">{counted}</span>
       <div className="lfoot__right">
-        {/* The buttons alone: the shared Pagination repeats the total ("747
-            total records" beside "Showing 1 to 10 of 747") and adds a 16px top
-            margin, which made every list footer taller than it needs to be. */}
-        {pages > 1 ? <PageButtons page={page} pages={pages} onPage={onPage} compact={phone} /> : null}
-        <PageSize value={limit} total={total} onChange={onLimit} options={offered} minTotal={offered[0]} />
+        {buttons}
+        {size}
       </div>
     </div>
   );

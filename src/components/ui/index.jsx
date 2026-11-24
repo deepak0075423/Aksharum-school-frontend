@@ -392,21 +392,24 @@ export const Pagination = ({ page, pages, total, onPage }) => {
  */
 export const PAGE_SIZES = [5, 10, 15, 20, 25];
 
-export const PageSize = ({ value, onChange, total, options = PAGE_SIZES, minTotal = 5 }) => {
+// `compact` (a phone footer): "Show [20]" without "per page", on a smaller box,
+// so it shares one line with the count above the page buttons.
+export const PageSize = ({ value, onChange, total, options = PAGE_SIZES, minTotal = 5, compact = false }) => {
   if (!total || total <= minTotal) return null;
+  const font = compact ? '.8rem' : '.82rem';
   return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '.82rem', color: 'var(--text-muted)' }}>
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: compact ? 6 : 8, fontSize: font, color: 'var(--text-muted)', flexShrink: 0 }}>
       Show
       <select
         className="form-control"
-        style={{ width: 'auto', padding: '5px 28px 5px 10px', fontSize: '.82rem' }}
+        style={{ width: 'auto', padding: compact ? '3px 26px 3px 9px' : '5px 28px 5px 10px', fontSize: font }}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label="Rows per page"
       >
         {options.map((n) => <option key={n} value={n}>{n}</option>)}
       </select>
-      per page
+      {compact ? null : 'per page'}
     </label>
   );
 };

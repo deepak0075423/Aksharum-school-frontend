@@ -3822,6 +3822,40 @@ button.lstat:hover, a.lstat:hover {
 .lfoot__right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .lfoot .pagination { margin: 0; }
 
+/* A phone: "1–20 of 209 students · Show [20]" over the page buttons, both on
+   one line each at every width down to 280px. */
+.lfoot.lfoot--phone {
+  flex-direction:  column;
+  align-items:     stretch;
+  flex-wrap:       nowrap;
+  gap:             8px;
+  padding:         10px 12px;
+}
+.lfoot__row {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             10px;
+  min-height:      28px;
+}
+.lfoot--phone .lfoot__count { font-size: .8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lfoot--phone .lfoot__row:only-child { justify-content: center; }
+
+/* The page buttons on a phone (PageButtons `compact`): five slots and the two
+   arrows on one line, never wrapping "›" under the rest. */
+.pagination--compact { flex-wrap: nowrap; justify-content: center; gap: 4px; }
+/* A width (not a flex-basis) so the pager asks for 32px buttons when its box
+   is sized; it gives way to 26px only on a screen too narrow for that. */
+.pagination--compact .pagination__btn {
+  flex:          0 1 auto;
+  width:         32px;
+  min-width:     26px;
+  height:        32px;
+  border-radius: 8px;
+  font-size:     .82rem;
+}
+.pagination--compact .pagination__gap { min-width: 14px; flex-shrink: 1; font-size: .8rem; }
+
 /* ── Closing panels ────────────────────────────────────────────────────────── */
 .lbottom {
   display:               grid;
@@ -3984,8 +4018,8 @@ button.lstat:hover, a.lstat:hover {
 }
 @media (max-width: 560px) {
   .lstats { grid-template-columns: 1fr; }
-  .lfoot { justify-content: center; }
-  .lfoot__right { width: 100%; justify-content: space-between; }
+  .lfoot:not(.lfoot--phone) { justify-content: center; }
+  .lfoot:not(.lfoot--phone) .lfoot__right { width: 100%; justify-content: space-between; }
   .lpagefoot { justify-content: center; text-align: center; }
 }
 
