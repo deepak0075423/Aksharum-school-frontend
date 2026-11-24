@@ -360,31 +360,39 @@ export default function TeacherDocuments() {
         )}
         foot={live && (
           <>
-            <OpenFile files={live.files} caption={live.title} />
-            {/* Every document has a page — the discussion under it lives
-                there, and a notice had no way to reach it from here. */}
-            <button type="button" className="btn btn-secondary"
-              onClick={() => navigate(`/teacher/documents/${live._id}${live.isAssignment ? '' : '?tab=comments'}`)}>
-              <Icon name="chat" size={15} /> {live.isAssignment ? 'Open page' : 'Comments'}
-            </button>
+            {/* Two fixed lines (Nov 25 2026, the user): looking at it — the
+                file, its page, archive — on one; changing it — delete, edit
+                (and share, for a draft) — on the other. One wrapping row put
+                Edit on a line of its own whenever a notice had no file. */}
+            <div className="dvfoot__row">
+              <OpenFile files={live.files} caption={live.title} />
+              {/* Every document has a page — the discussion under it lives
+                  there, and a notice had no way to reach it from here. */}
+              <button type="button" className="btn btn-secondary"
+                onClick={() => navigate(`/teacher/documents/${live._id}${live.isAssignment ? '' : '?tab=comments'}`)}>
+                <Icon name="chat" size={15} /> {live.isAssignment ? 'Open page' : 'Comments'}
+              </button>
+              {live.mine && (
+                <button type="button" className="btn btn-secondary" onClick={() => toggleArchive(live)}>
+                  <Icon name={live.isArchived ? 'refresh' : 'package'} size={15} />
+                  {live.isArchived ? 'Restore' : 'Archive'}
+                </button>
+              )}
+            </div>
             {live.mine && (
-              <>
+              <div className="dvfoot__row">
                 {live.isDraft && (
                   <button type="button" className="btn btn-primary" onClick={() => shareDraft(live)}>
                     <Icon name="upload" size={15} /> Share now
                   </button>
                 )}
-                <button type="button" className="btn btn-secondary" onClick={() => toggleArchive(live)}>
-                  <Icon name={live.isArchived ? 'refresh' : 'package'} size={15} />
-                  {live.isArchived ? 'Restore' : 'Archive'}
-                </button>
                 <button type="button" className="btn btn-danger" onClick={() => { setOpen(null); setDel(live); }}>
                   <Icon name="trash" size={15} /> Delete
                 </button>
                 <button type="button" className="btn btn-primary" onClick={() => startEdit(live)}>
                   <Icon name="pencil" size={15} /> Edit
                 </button>
-              </>
+              </div>
             )}
           </>
         )}

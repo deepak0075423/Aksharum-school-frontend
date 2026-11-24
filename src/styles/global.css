@@ -14289,6 +14289,10 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .docshared { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: .85rem; }
 .docshared svg { color: var(--text-light); flex-shrink: 0; }
 .docshared__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+/* In a card's two-column details the label gets its own half and no more —
+   "Class 6, Class 10, Class 12" ran on under "Shared on" (Nov 25 2026). */
+.doccard__meta .docshared { display: flex; max-width: 100%; }
+.doccard__meta .docshared__label { max-width: none; min-width: 0; flex: 0 1 auto; }
 .docshared__more {
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
   padding: 1px 6px; font-size: .7rem; font-weight: 600; color: var(--text-muted);
@@ -15741,6 +15745,25 @@ button.adtile:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .dvdrawer__foot {
   display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
   padding: 13px 20px; border-top: 1px solid var(--border); background: var(--bg);
+}
+/* A footer in lines (the teacher's drawer): each line keeps its buttons
+   together on one row, right-aligned, and never wraps into the next. On a
+   phone each line shares the width out evenly instead. */
+.dvdrawer__foot:has(> .dvfoot__row) { flex-direction: column; align-items: flex-end; flex-wrap: nowrap; }
+.dvfoot__row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: nowrap; max-width: 100%; }
+.dvfoot__row > .btn { white-space: nowrap; }
+@media (max-width: 560px) {
+  .dvdrawer__foot:has(> .dvfoot__row) { align-items: stretch; padding: 12px 14px; }
+  .dvfoot__row > .btn {
+    flex: 1 1 0; min-width: 0; justify-content: center;
+    padding-left: 8px; padding-right: 8px; overflow: hidden; text-overflow: ellipsis;
+  }
+}
+/* The narrowest phones: the words, without their icons, so "View the file"
+   and "Open page" are never clipped. */
+@media (max-width: 360px) {
+  .dvfoot__row > .btn { font-size: .8rem; gap: 0; }
+  .dvfoot__row > .btn svg { display: none; }
 }
 
 .dvduebar {
