@@ -54,7 +54,7 @@ export const STATUS_FILTERS = [
  */
 export const Cover = ({ book }) => (book?.coverImage
   ? (
-    <img className="libb-cover" src={fileUrl(book.coverImage)} alt="" loading="lazy" decoding="async"
+    <img className="libb-cover" src={fileUrl(book.coverImage)} alt="" decoding="async"
       onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
   )
   : <Spine title={book?.title} />);

@@ -429,7 +429,7 @@ export const Avatar = ({ name, tone = 'purple', size = 36, src }) => {
     .map((w) => w[0]).join('').toUpperCase();
   if (src && !broken && !isDocumentPath(src)) {
     return (
-      <img className="fbav fbav--img" src={fileUrl(src)} alt="" loading="lazy"
+      <img className="fbav fbav--img" src={fileUrl(src)} alt=""
         style={{ width: size, height: size }} onError={() => setBroken(true)} />
     );
   }

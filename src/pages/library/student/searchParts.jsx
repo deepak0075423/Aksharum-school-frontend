@@ -59,7 +59,7 @@ export function FacetSelect({ label, allLabel, options, value, onChange, min = 1
 export const Cover = ({ book, size = 'sm' }) => {
   const src = fileUrl(book.coverImage);
   return src
-    ? <img className={`libsr-cover libsr-cover--${size}`} src={src} alt="" loading="lazy" />
+    ? <img className={`libsr-cover libsr-cover--${size}`} src={src} alt="" />
     : (
       <span className={`libsr-cover libsr-cover--${size} libsr-cover--none`} aria-hidden="true">
         <Icon name="book" size={size === 'lg' ? 30 : 18} />

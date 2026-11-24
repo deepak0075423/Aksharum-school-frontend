@@ -68,7 +68,7 @@ export const Spine = ({ title, size = 'lg' }) => (
 export const Cover = ({ book, size = 'lg' }) => (book?.coverImage
   ? (
     <img className={`libbd-cover is-${size}`} src={fileUrl(book.coverImage)} alt=""
-      loading="lazy" decoding="async"
+      decoding="async"
       onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
   )
   : <Spine title={book?.title} size={size} />);

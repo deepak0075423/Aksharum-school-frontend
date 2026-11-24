@@ -89,7 +89,7 @@ export const Cover = ({ src, title, size }) => {
   const url = mediaUrl(src);
   return (
     <span className={`vl-cover${size ? ` vl-cover--${size}` : ''} tint-${tintOf(title)}`} aria-hidden>
-      {url && !broken ? <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} /> : initials(title)}
+      {url && !broken ? <img src={url} alt="" onError={() => setBroken(true)} /> : initials(title)}
     </span>
   );
 };
@@ -100,7 +100,7 @@ export const Thumb = ({ src, durationSec, percent, size }) => {
   const url = mediaUrl(src);
   return (
     <span className={`vl-thumb${size ? ` vl-thumb--${size}` : ''}`} aria-hidden>
-      {url && !broken ? <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} /> : <Icon name="film" size={size === 'sm' ? 18 : 26} />}
+      {url && !broken ? <img src={url} alt="" onError={() => setBroken(true)} /> : <Icon name="film" size={size === 'sm' ? 18 : 26} />}
       {durationSec ? <span className="vl-thumb__time">{clock(durationSec)}</span> : null}
       {percent > 0 ? <span className="vl-thumb__bar"><span style={{ width: `${Math.min(100, percent)}%` }} /></span> : null}
     </span>

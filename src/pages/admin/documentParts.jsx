@@ -410,7 +410,7 @@ export const Avatar = ({ name, src, size = 30 }) => {
     background: tone, objectFit: 'cover', overflow: 'hidden',
   };
   if (src && !broken) {
-    return <img src={fileUrl(src)} alt="" style={style} loading="lazy" decoding="async"
+    return <img src={fileUrl(src)} alt="" style={style} decoding="async"
       onError={() => setBroken(true)} />;
   }
   return <span style={style} aria-hidden>{initials || '?'}</span>;

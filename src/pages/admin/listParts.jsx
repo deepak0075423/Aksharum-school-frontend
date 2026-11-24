@@ -77,7 +77,7 @@ export function Avatar({ name, src, size = 38, tone = 'indigo' }) {
   };
   if (src && !isDocumentPath(src)) {
     return (
-      <img src={fileUrl(src)} alt="" style={style} loading="lazy" decoding="async"
+      <img src={fileUrl(src)} alt="" style={style} decoding="async"
         onError={(e) => { e.currentTarget.style.display = 'none'; }} />
     );
   }

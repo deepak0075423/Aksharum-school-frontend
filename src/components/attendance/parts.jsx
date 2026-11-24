@@ -187,7 +187,7 @@ const toneOf = (name) => SOFT[[...String(name || '')].reduce((n, c) => n + c.cha
 export function SoftAvatar({ name, src, size = 34 }) {
   const initials = String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const style = { width: size, height: size, fontSize: size * 0.36 };
-  if (src) return <img className="tat-av" src={fileUrl(src)} alt="" style={style} loading="lazy" />;
+  if (src) return <img className="tat-av" src={fileUrl(src)} alt="" style={style} />;
   return <span className={`tat-av tat-av--${toneOf(name)}`} style={style} aria-hidden>{initials || '?'}</span>;
 }
 

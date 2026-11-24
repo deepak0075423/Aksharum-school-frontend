@@ -784,7 +784,7 @@ export const Avatar = ({ name, src, size = 'md', id, square }) => {
   const cls = `inv-av${size !== 'md' ? ` inv-av--${size}` : ''}${square ? ' inv-av--square' : ''}`;
   return (
     <span className={cls} style={url ? undefined : { background: avatarTone(id || name) }} aria-hidden>
-      {url ? <img src={url} alt="" loading="lazy" /> : initials(name)}
+      {url ? <img src={url} alt="" /> : initials(name)}
     </span>
   );
 };
@@ -803,7 +803,7 @@ export const Who = ({ name, sub, src, id, size, right }) => (
 export const Thumb = ({ src, alt = '', icon = 'box', tone = 'indigo', lg, xl }) => {
   const url = src ? fileUrl(src) : '';
   const cls = `inv-thumb${lg ? ' inv-thumb--lg' : ''}${xl ? ' inv-thumb--xl' : ''}`;
-  if (url) return <span className={cls}><img src={url} alt={alt} loading="lazy" /></span>;
+  if (url) return <span className={cls}><img src={url} alt={alt} /></span>;
   return (
     <span className={`${cls} inv-t-${tone}`} aria-hidden>
       <Glyph name={icon} size={xl ? 30 : lg ? 25 : 18} />
@@ -819,7 +819,7 @@ export const ThumbStack = ({ items = [], max = 3 }) => {
     <span className="inv-stack">
       {shown.map((it, i) => (
         <span key={i} className={`inv-thumb inv-t-${it.tone || 'slate'}`} title={it.name}>
-          {it.image ? <img src={fileUrl(it.image)} alt="" loading="lazy" /> : <Glyph name={it.icon || 'box'} size={15} />}
+          {it.image ? <img src={fileUrl(it.image)} alt="" /> : <Glyph name={it.icon || 'box'} size={15} />}
         </span>
       ))}
       {rest > 0 ? <span className="inv-stack__more">+{rest}</span> : null}

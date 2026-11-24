@@ -109,7 +109,7 @@ export function Avatar({ name, src, size = 40 }) {
     return (
       <img
         src={fileUrl(src)} alt={name} style={style}
-        loading="lazy" decoding="async"
+        decoding="async"
         onError={() => setBroken(true)}
       />
     );

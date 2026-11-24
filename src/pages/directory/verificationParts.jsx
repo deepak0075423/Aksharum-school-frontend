@@ -307,7 +307,7 @@ export const DocPreview = ({ doc, onOpen }) => {
         ? (
           <button type="button" className="verdocview__hit" onClick={() => onOpen({ ...doc, url, image, pdf })}
             title="Open full size">
-            <img src={url} alt={doc.label} loading="lazy" decoding="async" />
+            <img src={url} alt={doc.label} decoding="async" />
           </button>
         )
         : pdf
