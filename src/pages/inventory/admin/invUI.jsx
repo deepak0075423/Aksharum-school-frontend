@@ -26,6 +26,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Icon, { ICON_NAMES } from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import { Drawer, DrawerFoot } from '../../../components/ui/Drawer';
 import '../../../styles/inventory.css';
 import { newestYear } from '../../../utils/listOrder';
@@ -990,62 +991,15 @@ export function Search({ value, onChange, placeholder = 'Search…', onEnter, ..
  * behind it, plus the shortcuts a school actually uses.
  */
 export function DateRange({ from, to, onChange, label = 'Date Range', placeholder = 'All dates' }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
-    const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
-  }, [open]);
-
-  const shift = (days) => {
-    const t = new Date();
-    const f = new Date(); f.setDate(f.getDate() - days);
-    onChange?.({ from: isoDay(f), to: isoDay(t) });
-    setOpen(false);
-  };
-  const thisMonth = () => {
-    const t = new Date();
-    onChange?.({ from: isoDay(new Date(t.getFullYear(), t.getMonth(), 1)), to: isoDay(t) });
-    setOpen(false);
-  };
-  const shown = from || to
-    ? `${from ? fmtDate(from) : 'Any'} – ${to ? fmtDate(to) : 'Today'}`
-    : placeholder;
-
+  const ago = (days) => { const f = new Date(); f.setDate(f.getDate() - days); return isoDay(f); };
+  const now = new Date();
   return (
-    <div className="inv-range" ref={box}>
-      <button type="button" className="inv-range__btn" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={label}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-          <Icon name="calendar" size={16} aria-hidden />
-          <span className="inv-trunc">{shown}</span>
-        </span>
-        <Icon name="chevronDown" size={15} aria-hidden />
-      </button>
-      {open ? (
-        <div className="inv-range__pop">
-          <div className="inv-range__grid">
-            <Field label="From">
-              <input className="inv-input" type="date" value={from || ''} max={to || undefined}
-                onChange={(e) => onChange?.({ from: e.target.value, to })} />
-            </Field>
-            <Field label="To">
-              <input className="inv-input" type="date" value={to || ''} min={from || undefined}
-                onChange={(e) => onChange?.({ from, to: e.target.value })} />
-            </Field>
-          </div>
-          <div className="inv-range__quick">
-            <button type="button" onClick={() => shift(6)}>Last 7 days</button>
-            <button type="button" onClick={() => shift(29)}>Last 30 days</button>
-            <button type="button" onClick={thisMonth}>This month</button>
-            <button type="button" onClick={() => { onChange?.({ from: '', to: '' }); setOpen(false); }}>Clear</button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <DateRangeFilter className="drf--h42" from={from || ''} to={to || ''} onChange={onChange} label={label} placeholder={placeholder}
+      presets={[
+        { label: 'Last 7 days', from: ago(6), to: isoDay(now) },
+        { label: 'Last 30 days', from: ago(29), to: isoDay(now) },
+        { label: 'This month', from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: isoDay(now) },
+      ]} />
   );
 }
 

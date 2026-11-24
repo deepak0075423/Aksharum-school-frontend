@@ -16,7 +16,7 @@ import { Drawer, DrawerHead, DrawerBody, DrawerSection, DrawerFields, DrawerFoot
 import { PassQr, useNewFromLink } from '../shared';
 import { PageHead, Glyph, words } from './hsUI';
 import {
-  Kpis, Kpi, FilterBar, FSearch, FSelect, LineTabs, Btn, Kebab, Popover, ListCard, DataTable, Pager, EmptyRows, BulkBar,
+  Kpis, Kpi, FilterBar, FSearch, FSelect, FDateRange, LineTabs, Btn, Kebab, Popover, ListCard, DataTable, Pager, EmptyRows, BulkBar,
   Badge, Avatar, Person, TwoLine, useListState, useBoardData, exportCsv, fmtDate, fmtTime, fmtPhone,
 } from './hsList';
 import { roomTight } from './hsPeople';
@@ -196,9 +196,7 @@ export default function Visitors() {
         {lists
           ? <FSelect value={state.listType} onChange={(v) => set({ listType: v })} all="Both lists" options={[{ value: 'authorized', label: 'Authorized' }, { value: 'restricted', label: 'Restricted' }]} grow={0} width="128px" />
           : <FSelect value={state.status} onChange={(v) => set({ status: v })} all="All statuses" options={Object.entries(STATUS).map(([value, [label]]) => ({ value, label }))} grow={0} width="128px" />}
-        <label className="hs-fdate hs-fdate--fixed"><input type="date" value={state.from} onChange={(e) => set({ from: e.target.value })} aria-label="From date" disabled={lists} /></label>
-        <span className="hs-fdash" aria-hidden>–</span>
-        <label className="hs-fdate hs-fdate--fixed"><input type="date" value={state.to} min={state.from || undefined} onChange={(e) => set({ to: e.target.value })} aria-label="To date" disabled={lists} /></label>
+        <FDateRange from={state.from} to={state.to} onChange={(v) => set(v)} grow={0} disabled={lists} label="Visits between" />
         <FSearch compact value={state.search} onChange={(v) => set({ search: v })} placeholder="Search visitor name, student name..." grow={1} width="262px" />
         <Btn ref={moreBtn} icon="filter" aria-haspopup="menu" aria-expanded={more} onClick={() => setMore((o) => !o)}>Filter</Btn>
         <Popover anchor={moreBtn} open={more} onClose={() => setMore(false)} label="Quick filters">

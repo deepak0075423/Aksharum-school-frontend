@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import { teacher as api } from '../../../api/video.api';
 import { Button, Empty } from '../../../components/ui/index';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import { ListStats, ListStat, ListTable, ListFooter, SearchField, Stack, Who } from '../../admin/listParts';
 import { Head, Panel, Loadable, Meter, StatusBadge, Icon, dayTime, spent, errText, saveBlob, useDebounced } from '../vlParts';
 
@@ -43,6 +44,12 @@ export default function TeacherVideoProgress() {
     setParams(next);
   };
   const clear = () => setParams({});
+  // Both ends at once — two set() calls would each start from the same address.
+  const setRange = (v) => {
+    const next = new URLSearchParams(params);
+    ['from', 'to'].forEach((k) => (v[k] ? next.set(k, v[k]) : next.delete(k)));
+    setParams(next);
+  };
 
   const exportAs = async (format) => {
     setExporting(format);
@@ -101,10 +108,8 @@ export default function TeacherVideoProgress() {
                 {select('Book', 'book', o.books, 'All books')}
                 {filters.book && chapters.length
                   ? select('Chapter', 'chapter', chapters.map((c) => ({ _id: c.chapter, name: `Chapter ${c.chapterNumber}: ${c.title}` })), 'All chapters') : null}
-                <label className="vl-row vl-small vl-muted" style={{ gap: 6 }}>Released from
-                  <input type="date" className="form-control lsel" value={filters.from || ''} onChange={(e) => set('from', e.target.value)} aria-label="Released from" /></label>
-                <label className="vl-row vl-small vl-muted" style={{ gap: 6 }}>to
-                  <input type="date" className="form-control lsel" value={filters.to || ''} min={filters.from || undefined} onChange={(e) => set('to', e.target.value)} aria-label="Released to" /></label>
+                <DateRangeFilter from={filters.from || ''} to={filters.to || ''} onChange={setRange}
+                  label="Released between" placeholder="Released between…" />
                 {active ? <Button variant="secondary" size="sm" onClick={clear}><Icon name="refresh" size={14} /> Reset</Button> : null}
               </div>
             </section>

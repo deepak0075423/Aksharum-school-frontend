@@ -12194,6 +12194,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvtype small { display: block; font-size: .73rem; color: var(--text-muted); margin-top: 2px; letter-spacing: .02em; }
 
 .lvperiod span  { display: block; white-space: nowrap; }
+.lvperiod span i { font-style: normal; white-space: nowrap; }
 .lvperiod small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
 .lvperiod__lop  { color: var(--danger) !important; font-weight: 600; }
 
@@ -18117,6 +18118,51 @@ button.apxstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 .apxtools .docsel { width: 124px; max-width: 124px; text-overflow: ellipsis; }
 .apxtools .docsel.apxyear { width: 170px; max-width: 170px; }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATE-RANGE FILTER (components/ui/DateRangeFilter.jsx, Nov 24 2026) — every
+   from/to filter in the app, drawn as the Aptitude Exams one: a button with a
+   calendar and "Select date range", opening From / To / Clear · Done.
+   `--drf-h` is the button's height; a kit whose filter row is taller or
+   shorter sets it on its own toolbar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.drf {
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+  height: var(--drf-h, 40px); min-width: 172px; max-width: 100%;
+  padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text-light); font: inherit; font-size: .85rem;
+  white-space: nowrap; cursor: pointer; text-align: left;
+  transition: border-color var(--transition), color var(--transition);
+}
+.drf svg { flex-shrink: 0; }
+.drf__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.drf:hover:not(:disabled) { border-color: #c7d2fe; }
+.drf:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.drf.is-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.drf:disabled { opacity: .55; cursor: not-allowed; }
+/* The height of the filter row it sits in — each kit's controls are a little
+   different (leave 44, fees/inventory 42, hostel 38, library/admission 36). */
+.drf.drf--h36 { --drf-h: 36px; }
+.drf.drf--h38 { --drf-h: 38px; }
+.drf.drf--h42 { --drf-h: 42px; }
+.drf.drf--h44 { --drf-h: 44px; }
+/* Inside a labelled field (a filter panel's grid): the field's full width. */
+.drf.drf--block { display: flex; width: 100%; min-width: 0; }
+.drf-pop {
+  position: fixed; z-index: 1250;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow);
+}
+.drf-pop__field { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: .76rem; font-weight: 600; color: var(--text-muted); }
+.drf-pop__field .form-control { width: 100%; }
+.drf-pop__presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.drf-pop__presets button {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg); color: var(--text-muted); font: inherit; font-size: .75rem; font-weight: 600; cursor: pointer;
+}
+.drf-pop__presets button:hover { border-color: #c7d2fe; color: var(--primary); }
+.drf-pop__presets button.is-on { border-color: var(--primary); background: #eef2ff; color: var(--primary); }
+.drf-pop__foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+
 .apxrange { position: relative; flex-shrink: 0; }
 .apxrange__btn {
   display: inline-flex; align-items: center; gap: 8px; height: 40px; min-width: 172px;
@@ -22541,4 +22587,64 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   }
   .vertable tr.verrow--review > td { padding: 10px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEAVE — a laptop at 100% (Nov 24 2026). The user: "at 90% the leave pages
+   are perfectly aligned — make 100% the same". 90% of a 1470px window is a
+   1633px page; at 1470 (and 1366) the same rows ran out of room: the hero's
+   subtitle broke, tile captions broke, the Requests filters spilled the date
+   range onto a second line, the Leave Types table cut off its delete buttons
+   and the Balance / Reports card heads dropped their controls under the title.
+   Between 1101px and 1599px everything keeps its 90% arrangement and gives
+   up a little padding, art and rail width instead.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 1101px) and (max-width: 1599px) {
+  /* Hero: the drawing and the quote give the title its room back. */
+  .leavepg .lvhero { grid-template-columns: auto minmax(0, 1fr) auto minmax(210px, 250px); gap: 18px; padding: 22px 24px; }
+  .leavepg .lvhero__art { width: 180px; }
+  .leavepg .lvhero__badge { width: 64px; height: 64px; border-radius: 18px; }
+  .leavepg .lvhero__quote { padding: 16px 18px; }
+
+  /* Tiles: label, figure and caption each on one line. */
+  .leavepg .lvstats { gap: 12px; }
+  .leavepg .lvstat { gap: 12px; padding: 16px 14px; }
+  .leavepg .lvstat__icon { width: 44px; height: 44px; border-radius: 12px; }
+
+  /* Rail beside a table: a little narrower, so the table keeps its last column. */
+  .leavepg .lvgrid { grid-template-columns: minmax(0, 1fr) 256px; gap: 16px; }
+  .leavepg .lvrail { padding: 16px; }
+
+  /* Policies: the type list keeps its width (narrower cut the type names
+     short); the rule cards close up a little. */
+  .leavepg .lvpolgrid { gap: 16px; }
+  .leavepg .lvpolsecs { gap: 16px; }
+  .leavepg .lvlink { padding: 10px; gap: 9px; }
+
+  /* Card heads keep their controls on the title's row; the subtitle wraps
+     before the controls drop under it. */
+  .leavepg .lvcardhead { flex-wrap: nowrap; padding: 20px 20px 16px; }
+  .leavepg .lvcardhead > :first-child { flex: 1 1 auto; min-width: 0; }
+  .leavepg .lvcardhead__acts { flex: 0 1 auto; flex-wrap: nowrap; }
+
+  /* Filters on one line: the search gives way first. */
+  .leavepg .lvfilters { gap: 10px; padding: 0 20px 16px; }
+  .leavepg .lvcard > .lvfilters:first-child { padding-top: 16px; }
+  .leavepg .lvsearch { flex: 1 1 200px; min-width: 170px; }
+
+  /* Tables: the same columns with less air between them, and the decision
+     buttons a little more compact — the Requests table was 19px wider than
+     its card at 1470 and scrolled its Actions out of sight. */
+  .leavepg .lvtable thead th, .leavepg .lvtable tbody td { padding-left: 10px; padding-right: 10px; }
+  .leavepg .lvrowacts { gap: 6px; }
+  .leavepg .lvacts { gap: 5px; }
+  .leavepg .lvacts .lvbtn { padding: 6px 10px; }
+  .leavepg .lvtable thead th:first-child, .leavepg .lvtable tbody td:first-child { padding-left: 20px; }
+  .leavepg .lvtable thead th:last-child,  .leavepg .lvtable tbody td:last-child  { padding-right: 20px; }
+}
+/* A 1366px laptop: the period may break between its two dates, and the
+   cells give up a little more air. */
+@media (min-width: 1101px) and (max-width: 1400px) {
+  .leavepg .lvperiod span { white-space: normal; }
+  .leavepg .lvtable thead th, .leavepg .lvtable tbody td { padding-left: 8px; padding-right: 8px; }
 }

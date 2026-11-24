@@ -10,6 +10,7 @@ import useFetch from '../../../hooks/useFetch';
 import { getStudentFeeList, getConcessionList } from '../../../api/fees.api';
 import { RowMenu, MenuItem } from '../../admin/listParts';
 import Icon from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import {
   FeHead, Btn, Card, Tile, Tiles, Select, Search, PillTabs, StatusBadge, DUE_STATUS, Avatar, IconBtn, Check, Pager,
   money, fmtDate, yearOptions, Empty, Loading, saveFile, toCsv,
@@ -102,8 +103,11 @@ export default function AdminStudentFees() {
         {more ? (
           <div className="fe-more">
             <Select label="Concession" value={draft.concession} onChange={setD('concession')} all="Any" options={[{ value: 'with', label: 'Has a concession' }, { value: 'without', label: 'No concession' }]} />
-            <label className="fe-field"><span className="fe-field__label">Last payment from</span><input className="fe-input" type="date" value={draft.lastFrom} onChange={e => setD('lastFrom')(e.target.value)} /></label>
-            <label className="fe-field"><span className="fe-field__label">Last payment to</span><input className="fe-input" type="date" value={draft.lastTo} min={draft.lastFrom || undefined} onChange={e => setD('lastTo')(e.target.value)} /></label>
+            {/* One range filter, as every from/to filter in the app is drawn (Nov 2026). */}
+            <div className="fe-field"><span className="fe-field__label">Last payment</span>
+              <DateRangeFilter from={draft.lastFrom} to={draft.lastTo} label="Last payment between" className="drf--block drf--h42"
+                onChange={(v) => { setD('lastFrom')(v.from); setD('lastTo')(v.to); }} />
+            </div>
             <Select label="Sort by" value={draft.sort} onChange={setD('sort')} options={[{ value: 'name', label: 'Name (A–Z)' }, { value: '-due', label: 'Highest due first' }, { value: 'class', label: 'Class' }]} />
           </div>
         ) : null}

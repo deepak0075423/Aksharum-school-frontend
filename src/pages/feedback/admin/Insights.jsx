@@ -20,6 +20,7 @@ import useFetch from '../../../hooks/useFetch';
 import usePhone from '../../../hooks/usePhone';
 import * as api from '../../../api/feedback.api';
 import Icon from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import { Spinner } from '../../../components/ui/index';
 import {
   Acts, Bar, CatBars, Columns, Crumbs, Dash, Donut, EmptyState, Field,
@@ -849,14 +850,8 @@ export default function Insights() {
               {showsField('dates') && (
               <div className="fbfield--span2">
               <Field label="Date Range" hint="Filters on the campaign's start date.">
-                <span className="fbrange">
-                  <Icon name="calendar" size={15} />
-                  <input type="date" value={draft.dateFrom} aria-label="From"
-                    onChange={(e) => setDraft({ ...draft, dateFrom: e.target.value })} />
-                  <span>→</span>
-                  <input type="date" value={draft.dateTo} aria-label="To"
-                    onChange={(e) => setDraft({ ...draft, dateTo: e.target.value })} />
-                </span>
+                <DateRangeFilter from={draft.dateFrom} to={draft.dateTo} label="Campaigns starting between"
+                  className="drf--block" onChange={(v) => setDraft({ ...draft, dateFrom: v.from, dateTo: v.to })} />
               </Field>
               </div>
               )}

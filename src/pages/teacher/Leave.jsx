@@ -27,7 +27,7 @@ const STATUS_VARIANT = {
   cancelled: 'muted',
 };
 
-const EMPTY_FORM = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
+const EMPTY_FORM = { academicYear: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 
 // What the dates cost is never worked out here: the server's preview answers it
 // with the same code the submit uses — weekends, school holidays, the sandwich
@@ -122,6 +122,10 @@ export default function TeacherLeave() {
 
   const activeYear = leavesMeta?.activeAcademicYear || '';
   const shownYear  = leavesMeta?.academicYear;
+  // Every academic year, each with its first and last day — the apply form's
+  // year picker and date limits (Nov 2026). Held across list reloads.
+  const [allYears, setAllYears] = useState([]);
+  useEffect(() => { if (Array.isArray(leavesMeta?.academicYears)) setAllYears(leavesMeta.academicYears); }, [leavesMeta]);
   const otherYears = (leavesMeta?.academicYears || []).filter((y) => y.label !== activeYear);
   const yearCaption = shownYear === 'all' || !shownYear ? 'All years'
     : shownYear === activeYear ? 'This academic year' : `In ${shownYear}`;
@@ -182,8 +186,24 @@ export default function TeacherLeave() {
   const [saving, setSaving] = useState(false);
   const docRef = useRef();
 
+  // The academic year the form is filling in, and that year's balances (the
+  // Balance tab shows the active year's; the form may be for another).
+  const formYear = allYears.find((y) => y.label === form.academicYear) || null;
+  const [formBalItems, setFormBalItems] = useState(null);
+  useEffect(() => {
+    if (!modal || !form.academicYear || form.academicYear === activeYear) { setFormBalItems(null); return undefined; }
+    let live = true;
+    getLeaveBalance({ academicYear: form.academicYear })
+      .then((r) => { if (live) setFormBalItems(r?.items ?? r?.data?.items ?? []); })
+      .catch(() => { if (live) setFormBalItems([]); });
+    return () => { live = false; };
+  }, [modal, form.academicYear, activeYear]);
+  const formBalanceMap = formBalItems
+    ? Object.fromEntries(formBalItems.map((b) => [b.leaveType?._id?.toString() || b.leaveType?.toString(), b]))
+    : balanceMap;
+
   const selLT      = leaveTypes.find(t => String(t._id) === form.leaveTypeId);
-  const selBal     = balanceMap[form.leaveTypeId] ?? null;
+  const selBal     = formBalanceMap[form.leaveTypeId] ?? null;
   const selPolicy  = policyMap[form.leaveTypeId] ?? null;
 
   // The server's own answer for these dates: the cost (weekends, holidays and
@@ -202,13 +222,14 @@ export default function TeacherLeave() {
           fromDate: form.fromDate || undefined,
           toDate:   form.toDate   || undefined,
           leaveMode: form.leaveMode,
+          academicYear: form.academicYear || undefined,
         });
         if (live) setPreview(res?.data ?? res);
       } catch { if (live) setPreview(null); }
       finally { if (live) setPreviewLoad(false); }
     }, 250);
     return () => { live = false; clearTimeout(t); };
-  }, [modal, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode]);
+  }, [modal, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode, form.academicYear]);
 
   const pBal       = preview?.balance || null;
   const pDays      = preview?.days || null;
@@ -224,7 +245,13 @@ export default function TeacherLeave() {
   const ruleWarning = preview?.warning || null;
   // The calendar's bounds come from the policy, not from a hardcoded "today" —
   // a type that permits back-dating within N days must actually offer those days.
-  const dateBounds  = leaveDateBounds(selPolicy);
+  const policyBounds = leaveDateBounds(selPolicy);
+  // …and the academic year: no day before its first or after its last.
+  const dateBounds  = {
+    ...policyBounds,
+    minFrom: [policyBounds.minFrom, formYear?.start].filter(Boolean).sort().pop() || '',
+    maxTo:   formYear?.end || '',
+  };
   const dateHint    = leaveDateHint(selPolicy);
 
   // The one figure this dialog exists to answer: what you would be left with.
@@ -236,6 +263,15 @@ export default function TeacherLeave() {
   // policy's own rule, so the form cannot disagree with the submit.
   const docRequired = preview?.dateRules?.documentNeeded
     ?? (!!selPolicy?.requiresDocument && !(selPolicy.documentRequiredAfterDays > 0));
+
+  // Another year: dates outside it are cleared rather than carried into a
+  // year they are not in.
+  const pickFormYear = (label) => {
+    const y = allYears.find((x) => x.label === label);
+    const inside = (k) => !k || !y || ((!y.start || k >= y.start) && (!y.end || k <= y.end));
+    setForm((f) => ({ ...f, academicYear: label, ...(inside(f.fromDate) && inside(f.toDate) ? {} : { fromDate: '', toDate: '' }) }));
+    setErrors((e) => ({ ...e, academicYear: '', fromDate: '', toDate: '' }));
+  };
 
   // Auto-sync toDate for half-day and keep toDate >= fromDate
   const setField = (key, val) => {
@@ -252,6 +288,7 @@ export default function TeacherLeave() {
 
   const validate = () => {
     const e = {};
+    if (allYears.length && !formYear) e.academicYear = 'Choose the academic year of this leave.';
     if (!form.leaveTypeId)          e.leaveTypeId = 'Please select a leave type.';
     if (!form.fromDate)             e.fromDate    = 'From date is required.';
     if (!form.toDate)               e.toDate      = 'To date is required.';
@@ -263,6 +300,9 @@ export default function TeacherLeave() {
                                       : selPolicy?.advanceNoticeDays > 0
                                         ? `This leave type needs ${selPolicy.advanceNoticeDays} day(s) advance notice.`
                                         : 'Cannot apply leave for a past date.';
+    if (formYear && form.fromDate && form.toDate
+      && ((formYear.start && form.fromDate < formYear.start) || (formYear.end && form.toDate > formYear.end)))
+                                    e.toDate      = `A leave in ${formYear.label} must fall between ${fmtDate(formYear.start)} and ${fmtDate(formYear.end)}.`;
     if (form.leaveMode === 'half_day' && form.fromDate && form.toDate && form.fromDate !== form.toDate)
                                     e.toDate      = 'Half-day leave must start and end on the same date.';
     if (datesError)                 e.toDate      = datesError;
@@ -276,7 +316,9 @@ export default function TeacherLeave() {
   };
 
   const openModal = () => {
-    setForm(EMPTY_FORM); setErrors({}); setDocName(''); setPreview(null);
+    // The year the list is showing ("All years": the active one).
+    const year = shownYear && shownYear !== 'all' ? shownYear : activeYear;
+    setForm({ ...EMPTY_FORM, academicYear: year || '' }); setErrors({}); setDocName(''); setPreview(null);
     if (docRef.current) docRef.current.value = '';
     setModal(true);
   };
@@ -289,6 +331,7 @@ export default function TeacherLeave() {
     try {
       const fd = new FormData();
       fd.append('leaveTypeId', form.leaveTypeId);
+      if (form.academicYear) fd.append('academicYear', form.academicYear);
       fd.append('fromDate',    form.fromDate);
       fd.append('toDate',      form.toDate);
       fd.append('leaveMode',   form.leaveMode);
@@ -297,6 +340,12 @@ export default function TeacherLeave() {
       if (docRef.current?.files?.[0]) fd.append('document', docRef.current.files[0]);
       await applyLeave(fd);
       toast.success('Leave application submitted');
+      // Listed under its own year: when the list shows another, it moves there.
+      const filedIn = form.academicYear;
+      if (filedIn && filterYear !== 'all' && filedIn !== (filterYear || activeYear)) {
+        setLeavePage(1); setFilterYear(filedIn === activeYear ? '' : filedIn);
+        toast(`Showing ${filedIn}`, { icon: '📅' });
+      }
       setModal(false); setForm(EMPTY_FORM); setErrors({});
       if (docRef.current) docRef.current.value = '';
       refetch(); refetchBal();
@@ -672,6 +721,21 @@ export default function TeacherLeave() {
           <form id="leave-form" className="lvapply__form" onSubmit={handleApply} noValidate>
 
             <FormStep n={1} title="Leave Details" note="Choose the type and duration of your leave.">
+              {allYears.length > 0 && (
+                <label className="lvfield">
+                  <span className="lvfield__label">Academic Year <i>*</i></span>
+                  <select className={`form-control${errors.academicYear ? ' is-error' : ''}`}
+                    value={form.academicYear} onChange={(e) => pickFormYear(e.target.value)}>
+                    <option value="">Select year…</option>
+                    {allYears.map((y) => (
+                      <option key={y.label} value={y.label} disabled={y.closed}>
+                        {y.label}{y.label === activeYear ? ' (current)' : ''}{y.closed ? ' — closed for leave' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.academicYear && <span className="lvfield__err">{errors.academicYear}</span>}
+                </label>
+              )}
               <label className="lvfield">
                 <span className="lvfield__label">Leave Type <i>*</i></span>
                 {leaveTypes.length === 0 ? (
@@ -683,7 +747,7 @@ export default function TeacherLeave() {
                     value={form.leaveTypeId} onChange={(e) => setField('leaveTypeId', e.target.value)}>
                     <option value="">Select type…</option>
                     {leaveTypes.map((t) => {
-                      const bal = balanceMap[t._id?.toString()];
+                      const bal = formBalanceMap[t._id?.toString()];
                       const rem = bal?.remaining ?? 0;
                       // The type's own policy decides eligibility, and may let
                       // this employee go past the balance — as an overdraft or
@@ -739,15 +803,16 @@ export default function TeacherLeave() {
                 <label className="lvfield">
                   <span className="lvfield__label">From Date <i>*</i></span>
                   <input type="date" className={`form-control${errors.fromDate ? ' is-error' : ''}`}
-                    min={dateBounds.minFrom || undefined} value={form.fromDate}
+                    min={dateBounds.minFrom || undefined} max={dateBounds.maxTo || undefined} value={form.fromDate}
+                    disabled={allYears.length > 0 && !formYear}
                     onChange={(e) => setField('fromDate', e.target.value)} />
                   {errors.fromDate && <span className="lvfield__err">{errors.fromDate}</span>}
                 </label>
                 <label className="lvfield">
                   <span className="lvfield__label">To Date <i>*</i></span>
                   <input type="date" className={`form-control${errors.toDate ? ' is-error' : ''}`}
-                    min={form.fromDate || dateBounds.minFrom || undefined} value={form.toDate}
-                    disabled={form.leaveMode === 'half_day'}
+                    min={form.fromDate || dateBounds.minFrom || undefined} max={dateBounds.maxTo || undefined} value={form.toDate}
+                    disabled={form.leaveMode === 'half_day' || (allYears.length > 0 && !formYear)}
                     onChange={(e) => setField('toDate', e.target.value)} />
                   {errors.toDate && <span className="lvfield__err">{errors.toDate}</span>}
                 </label>
@@ -768,6 +833,11 @@ export default function TeacherLeave() {
                   </span>
                 </div>
               </div>
+              {formYear?.start && formYear?.end && (
+                <p className="lvfield__hint">
+                  {formYear.label} runs from <b>{fmtDate(formYear.start)}</b> to <b>{fmtDate(formYear.end)}</b> — pick days in between.
+                </p>
+              )}
               {dateHint && <p className="lvfield__hint">{dateHint}</p>}
               {pDays && !pDays.error && pDays.sandwichDays > 0 && (
                 <p className="lvfield__hint">

@@ -19,6 +19,7 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import Icon, { ICON_NAMES } from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import Tabs from '../../../components/ui/Tabs';
 import { normalizePhone } from '../../../utils/validators';
 import { Glyph, Mark, count, num } from './hsUI';
@@ -356,16 +357,10 @@ export function FSelect({ value, onChange, options = [], all, label, grow = 1, w
   );
 }
 
-/** From → to, as the mockups draw it: one box, two dates, an arrow between. */
-export function FDateRange({ from, to, onChange, grow = 1, width, icon = true }) {
-  return (
-    <span className="hs-fdates" style={sizing(grow, width)}>
-      {icon ? <Icon name="calendar" size={16} aria-hidden /> : null}
-      <input type="date" value={from || ''} onChange={(e) => onChange({ from: e.target.value, to })} aria-label="From date" />
-      <Icon name="arrowRight" size={14} className="hs-fdates__arrow" aria-hidden />
-      <input type="date" value={to || ''} onChange={(e) => onChange({ from, to: e.target.value })} aria-label="To date" />
-    </span>
-  );
+/** From → to — the app's one date-range filter (components/ui/DateRangeFilter, Nov 2026). */
+// eslint-disable-next-line no-unused-vars
+export function FDateRange({ from, to, onChange, grow = 1, width, icon = true, disabled = false, label }) {
+  return <DateRangeFilter from={from} to={to} onChange={onChange} style={sizing(grow, width)} className="hs-drf drf--h38" disabled={disabled} label={label} />;
 }
 
 /** A labelled control, for the filter rows that name each field (Attendance). */

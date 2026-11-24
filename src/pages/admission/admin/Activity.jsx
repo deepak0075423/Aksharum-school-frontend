@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { admin } from '../../../api/admission.api';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import { Page, Head, Panel, Chip, Table, Toolbar, SearchBox, Select, Input, Pager, Empty, ErrorBox, Spin, useLoad } from '../admUI';
 import { fmtDateTime } from '../meta';
 import { useQueryState, useDebounced } from './parts';
@@ -33,8 +34,7 @@ export default function Activity() {
             <option value="">Everything</option>
             {Object.entries(TYPES).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}
           </Select>
-          <label className="adm-row" style={{ gap: 6, fontSize: '.82rem' }}>From <Input type="date" value={q.from} onChange={(e) => setQ({ from: e.target.value })} style={{ width: 150 }} /></label>
-          <label className="adm-row" style={{ gap: 6, fontSize: '.82rem' }}>to <Input type="date" value={q.to} onChange={(e) => setQ({ to: e.target.value })} style={{ width: 150 }} /></label>
+          <DateRangeFilter className="drf--h36" from={q.from || ''} to={q.to || ''} onChange={(v) => setQ({ from: v.from, to: v.to })} label="Activity between" />
         </Toolbar>
         {loading && !data ? <Spin /> : error && !data ? <ErrorBox error={error} onRetry={reload} /> : (
           <>

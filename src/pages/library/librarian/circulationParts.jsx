@@ -13,6 +13,7 @@
  */
 import React from 'react';
 import Icon from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
@@ -144,14 +145,7 @@ export const ROLE_FILTERS = [
 
 /** A date window on when the loan was made. Either end may be left open. */
 export const DateRange = ({ from, to, onChange }) => (
-  <span className="libc-range">
-    <Icon name="calendar" size={15} />
-    <input type="date" className="form-control" value={from} max={to || undefined}
-      aria-label="Issued from" onChange={(e) => onChange({ from: e.target.value, to })} />
-    <span aria-hidden>–</span>
-    <input type="date" className="form-control" value={to} min={from || undefined}
-      aria-label="Issued until" onChange={(e) => onChange({ from, to: e.target.value })} />
-  </span>
+  <DateRangeFilter className="drf--h36" from={from} to={to} onChange={onChange} label="Issued between" />
 );
 
 export const SearchBox = ({ value, onChange }) => (

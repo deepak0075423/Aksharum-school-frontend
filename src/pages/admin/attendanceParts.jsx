@@ -13,6 +13,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import Icon from '../../components/ui/icons';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import Tabs from '../../components/ui/Tabs';
 
 // ── Dates ────────────────────────────────────────────────────────────────────
@@ -212,16 +213,10 @@ export const Segmented = ({ options, value, onChange, label }) => (
   </div>
 );
 
-/** A from–to pair of dates as one control (the leave page's look, attendance's words). */
+/** A from–to pair of dates — the app's one date-range filter (components/ui/DateRangeFilter). */
 export const DayRange = ({ from, to, onFrom, onTo, max, what = 'Days' }) => (
-  <div className={`lvrange${from || to ? ' is-set' : ''}`}>
-    <Icon name="calendar" size={16} />
-    <input type="date" value={from} max={to || max || undefined}
-      onChange={(e) => onFrom(e.target.value)} aria-label={`${what} from`} />
-    <span aria-hidden>–</span>
-    <input type="date" value={to} min={from || undefined} max={max || undefined}
-      onChange={(e) => onTo(e.target.value)} aria-label={`${what} to`} />
-  </div>
+  <DateRangeFilter className="drf--h36" from={from} to={to} max={max} label={what}
+    onChange={(v) => { if (v.from !== from) onFrom(v.from); if (v.to !== to) onTo(v.to); }} />
 );
 
 export const EmptyNote = ({ icon = 'info', title, children }) => (

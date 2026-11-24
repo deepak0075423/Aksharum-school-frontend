@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon from '../../components/ui/icons';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import { Empty, Spinner } from '../../components/ui/index';
 import { VIZ, toneForPercent, toneColor } from '../analytics/palette';
 import { Drawer, Pager, RowMenu } from './documentParts';
@@ -593,55 +594,13 @@ const fmtInputDay = (ymd) => {
 };
 
 /**
- * The date filter: one button, like the other controls in the row, opening a
- * small panel with From and To. Either end may be left open. Each change
- * applies as it is made — Done only closes the panel.
+ * The date filter — the look every from/to filter in the app now has
+ * (components/ui/DateRangeFilter, Nov 2026); it started here.
  */
 export function DateRange({ from, to, onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const away = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open]);
-
-  const set = from || to;
-  const label = set ? `${from ? fmtInputDay(from) : 'Any'} – ${to ? fmtInputDay(to) : 'Any'}` : 'Select date range';
-
   return (
-    <div className="apxrange" ref={ref}>
-      <button type="button" className={`apxrange__btn${set ? ' is-on' : ''}`} onClick={() => setOpen((o) => !o)}
-        aria-expanded={open} aria-haspopup="dialog">
-        <Icon name="calendar" size={16} />
-        <span>{label}</span>
-      </button>
-      {open && (
-        <div className="apxrange__pop" role="dialog" aria-label="Exam date range">
-          <label>
-            <span>From</span>
-            <input type="date" className="form-control" value={from} max={to || undefined}
-              onChange={(e) => onChange({ from: e.target.value, to })} />
-          </label>
-          <label>
-            <span>To</span>
-            <input type="date" className="form-control" value={to} min={from || undefined}
-              onChange={(e) => onChange({ from, to: e.target.value })} />
-          </label>
-          <div className="apxrange__foot">
-            <button type="button" className="btn btn-secondary btn-sm" disabled={!set}
-              onClick={() => onChange({ from: '', to: '' })}>Clear</button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setOpen(false)}>Done</button>
-          </div>
-        </div>
-      )}
+    <div className="apxrange">
+      <DateRangeFilter from={from} to={to} onChange={onChange} label="Exam date range" className="apxrange__btn" />
     </div>
   );
 }

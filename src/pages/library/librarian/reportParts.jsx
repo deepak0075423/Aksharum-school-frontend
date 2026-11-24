@@ -21,6 +21,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from '../../admin/listParts';
 import Icon from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import DropdownPanel, { isInsideDropdown } from '../../../components/ui/DropdownPanel';
 import MemberPicker from '../../../components/library/MemberPicker';
 
@@ -280,60 +281,11 @@ export const rangeFor = (preset) => (PRESETS.find((p) => p.key === preset) || PR
  * border — so a popover opened from the card's header would be sliced off at
  * the header's edge with nothing to scroll to.
  */
-export const RangePicker = ({ from, to, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const box = useRef(null);
-  const btn = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    // The panel is no longer a DOM descendant of the button, so "clicked
-    // inside" has to account for the portal as well.
-    const away = (e) => { if (!isInsideDropdown(e.target, box.current)) setOpen(false); };
-    const esc  = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
-  }, [open]);
-
-  const label = !from && !to
-    ? 'All time'
-    : `${from ? fmtDate(from) : 'The beginning'} – ${to ? fmtDate(to) : 'today'}`;
-
-  return (
-    <div className="librep-range" ref={box}>
-      <button ref={btn} type="button" className="librep-range__btn"
-        onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <Icon name="calendarDays" size={15} />
-        <span>{label}</span>
-        <Icon name="chevronDown" size={14} />
-      </button>
-
-      <DropdownPanel anchorRef={btn} open={open} maxHeight={420} minWidth={300}>
-        <div className="librep-range__pop">
-          {PRESETS.filter((p) => p.key !== 'year').map((p) => (
-            <button key={p.key} type="button" className="librep-range__preset"
-              onClick={() => { onChange(p.range()); setOpen(false); }}>
-              {p.label}
-            </button>
-          ))}
-          <div className="librep-range__custom">
-            <label>
-              From
-              <input type="date" className="form-control" value={from || ''} max={to || today()}
-                onChange={(e) => onChange({ from: e.target.value, to })} />
-            </label>
-            <label>
-              To
-              <input type="date" className="form-control" value={to || ''} min={from || undefined} max={today()}
-                onChange={(e) => onChange({ from, to: e.target.value })} />
-            </label>
-          </div>
-        </div>
-      </DropdownPanel>
-    </div>
-  );
-};
+export const RangePicker = ({ from, to, onChange }) => (
+  <DateRangeFilter from={from} to={to} onChange={onChange} max={today()} label="Report period"
+    placeholder="All time"
+    presets={PRESETS.filter((p) => p.key !== 'year' && p.key !== 'all').map((p) => ({ label: p.label, ...p.range() }))} />
+);
 
 // ── The filter bar ───────────────────────────────────────────────────────────
 

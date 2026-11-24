@@ -11,6 +11,7 @@
  */
 import React from 'react';
 import Icon from '../../components/ui/icons';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import { Button, Modal, Spinner } from '../../components/ui/index';
 import { Breakdown, Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
 import Tabs from '../../components/ui/Tabs';
@@ -272,25 +273,12 @@ export const FilterSelect = ({ value, onChange, all, options, label }) => (
 );
 
 /**
- * The period filter: two native date inputs inside one bordered control, so it
- * reads as a single range rather than a pair of unrelated boxes. Each end
- * bounds the other, which is the only way to stop a range that cannot match.
+ * The period filter — the app's one date-range filter
+ * (components/ui/DateRangeFilter, Nov 2026). Each end bounds the other.
  */
 export const DateRange = ({ from, to, onFrom, onTo }) => (
-  <div className={`lvrange${from || to ? ' is-set' : ''}`}>
-    <Icon name="calendar" size={16} />
-    <input type="date" value={from} max={to || undefined}
-      onChange={(e) => onFrom(e.target.value)} aria-label="Leave starting on or after" />
-    <span aria-hidden>–</span>
-    <input type="date" value={to} min={from || undefined}
-      onChange={(e) => onTo(e.target.value)} aria-label="Leave starting on or before" />
-    {(from || to) && (
-      <button type="button" className="lvrange__clear" aria-label="Clear date range"
-        onClick={() => { onFrom(''); onTo(''); }}>
-        <Icon name="close" size={14} />
-      </button>
-    )}
-  </div>
+  <DateRangeFilter from={from} to={to} label="Leave starting between" className="drf--h44"
+    onChange={(v) => { if (v.from !== from) onFrom(v.from); if (v.to !== to) onTo(v.to); }} />
 );
 
 // ── Table cells ──────────────────────────────────────────────────────────────
@@ -343,7 +331,9 @@ export const LeaveTypeCell = ({ request: r }) => (
  */
 export const PeriodCell = ({ request: r }) => (
   <div className="lvperiod">
-    <span>{fmtRange(r.fromDate, r.toDate)}</span>
+    {/* Each date whole: where the row is short of room the range breaks
+        BETWEEN the two dates, never inside one. */}
+    <span><i>{fmtDate(r.fromDate)}</i> – <i>{fmtDate(r.toDate)}</i></span>
     {r.leaveMode === 'half_day' && <small>{modeLabel(r)}</small>}
     {r.lopDays > 0 && <small className="lvperiod__lop">{dayNum(r.lopDays)} day loss of pay</small>}
   </div>

@@ -15,6 +15,7 @@ import { getMember } from '../../../api/library.api';
 import { Drawer, DrawerFoot, DrawerHead, DrawerSection } from '../../admin/listParts';
 import { Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import Tabs from '../../../components/ui/Tabs';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
@@ -231,14 +232,7 @@ export const CopyCell = ({ row }) => {
 // ── Filter bar ───────────────────────────────────────────────────────────────
 
 export const DateRange = ({ from, to, onChange }) => (
-  <span className="libc-range">
-    <Icon name="calendar" size={15} />
-    <input type="date" className="form-control" value={from} max={to || undefined}
-      aria-label="Reserved from" onChange={(e) => onChange({ from: e.target.value, to })} />
-    <span aria-hidden>–</span>
-    <input type="date" className="form-control" value={to} min={from || undefined}
-      aria-label="Reserved until" onChange={(e) => onChange({ from, to: e.target.value })} />
-  </span>
+  <DateRangeFilter className="drf--h36" from={from} to={to} onChange={onChange} label="Reserved between" />
 );
 
 export const SearchBox = ({ value, onChange }) => (

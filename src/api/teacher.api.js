@@ -63,7 +63,8 @@ export const getExamQuestionTemplate = () => api.get('/teacher/exams/questions/t
 // carries `counts` — this teacher's whole history by status, unaffected by the
 // filters, so the tiles above the list do not move when one is pressed.
 export const getMyLeaves     = (params) => api.get('/teacher/leave', { params });
-export const getLeaveBalance = ()       => api.get('/teacher/leave/balance');
+// `{ academicYear }` (a year label) for another year's balance; omitted = the active year.
+export const getLeaveBalance = (params) => api.get('/teacher/leave/balance', { params });
 export const applyLeave      = (data)   => api.post('/teacher/leave/apply', data);
 // Withdraws a pending request, or approved leave that has not started yet
 export const cancelLeave     = (id)     => api.delete(`/teacher/leave/${id}`);

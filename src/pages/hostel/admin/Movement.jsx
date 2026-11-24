@@ -14,7 +14,7 @@ import useFetch from '../../../hooks/useFetch';
 import { Drawer, DrawerHead, DrawerBody, DrawerSection, DrawerFields } from '../../../components/ui/Drawer';
 import { PageHead, Mark, words, count } from './hsUI';
 import {
-  Kpis, Kpi, FilterBar, FSearch, FSelect, LineTabs, Btn, Kebab, Popover, ListCard, DataTable, Pager, EmptyRows, BulkBar,
+  Kpis, Kpi, FilterBar, FSearch, FSelect, FDateRange, LineTabs, Btn, Kebab, Popover, ListCard, DataTable, Pager, EmptyRows, BulkBar,
   Badge, Avatar, Person, TwoLine, useListState, useBoardData, exportCsv, fmtDate, fmtTime,
 } from './hsList';
 import { roomShort } from './hsPeople';
@@ -143,9 +143,7 @@ export default function Movement() {
         <FSelect value={state.room} onChange={(v) => set({ room: v })} all="All rooms" options={roomOptions.map((r) => ({ value: r._id, label: r.roomNumber }))} width="130px" />
         <FSelect value={state.movementType} onChange={(v) => set({ movementType: v })} all="All movement types" options={TYPES.map((x) => ({ value: x, label: words(x) }))} width="170px" />
         <FSelect value={state.status} onChange={(v) => set({ status: v })} all="All statuses" options={Object.entries(STATE).map(([value, [label]]) => ({ value, label }))} width="150px" />
-        <label className="hs-fdate"><input type="date" value={state.from} onChange={(e) => set({ from: e.target.value })} aria-label="From date" /></label>
-        <span className="hs-fdash" aria-hidden>→</span>
-        <label className="hs-fdate"><input type="date" value={state.to} min={state.from || undefined} onChange={(e) => set({ to: e.target.value })} aria-label="To date" /></label>
+        <FDateRange from={state.from} to={state.to} onChange={(v) => set(v)} grow={0} label="Movements between" />
       </FilterBar>
 
       <ListCard>

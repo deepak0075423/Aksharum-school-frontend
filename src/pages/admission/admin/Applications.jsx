@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { admin } from '../../../api/admission.api';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import Tabs from '../../../components/ui/Tabs';
 import {
   Page, Head, Panel, Btn, Chip, StatusChip, DocChip, FeeChip, Table, Pager, Toolbar, SearchBox, Select, Input,
@@ -104,8 +105,8 @@ export default function Applications() {
               <option value="admission_due">Admission fee due</option>
             </Select>
             <Input value={q.source} onChange={(e) => setQ({ source: e.target.value })} placeholder="Source" aria-label="Source" style={{ width: 140 }} data-text="words" />
-            <label className="adm-row" style={{ gap: 6, fontSize: '.82rem' }}>Submitted from <Input type="date" value={q.from} onChange={(e) => setQ({ from: e.target.value })} style={{ width: 150 }} /></label>
-            <label className="adm-row" style={{ gap: 6, fontSize: '.82rem' }}>to <Input type="date" value={q.to} onChange={(e) => setQ({ to: e.target.value })} style={{ width: 150 }} /></label>
+            <DateRangeFilter className="drf--h36" from={q.from || ''} to={q.to || ''} onChange={(v) => setQ({ from: v.from, to: v.to })}
+              label="Submitted between" placeholder="Submitted between…" />
           </Toolbar>
         ) : null}
         {sel.ids.size ? (

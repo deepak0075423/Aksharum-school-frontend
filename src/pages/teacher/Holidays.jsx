@@ -25,6 +25,7 @@ import { useModules } from '../../contexts/ModulesContext';
 import { getHolidays, getClassHolidays } from '../../api/teacher.api';
 import { Alert, Button, Modal, Spinner } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import { ListTable, ListFooter } from '../admin/listParts';
 import {
   DateCell, HolidayCards, HolidayDialog, HolidayList, MonthCalendar, TypeChip, dayKey, daysOf, daysUntil,
@@ -355,13 +356,8 @@ function ClassHolidays({ holidays, types, loading, classNames }) {
             {types.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
 
-          <label className="holtch-range">
-            <input type="date" className="form-control" value={from} max={to || undefined}
-              onChange={(e) => { setFrom(e.target.value); setPage(1); }} aria-label="From date" />
-            <Icon name="arrowRight" size={14} />
-            <input type="date" className="form-control" value={to} min={from || undefined}
-              onChange={(e) => { setTo(e.target.value); setPage(1); }} aria-label="To date" />
-          </label>
+          <DateRangeFilter className="drf--h36" from={from} to={to} label="Holidays between"
+            onChange={(v) => { setFrom(v.from); setTo(v.to); setPage(1); }} />
 
           <div className="holtch-search">
             <Icon name="search" size={15} />

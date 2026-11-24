@@ -5,6 +5,7 @@
  * (?tab=follow_up&focus=…) lands on exactly the same view.
  */
 import React, { useEffect, useRef } from 'react';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import * as api from '../../../api/medical.api';
 import { Panel, LineTabs, SearchBox, Select, Table, Pager, Toolbar, Btn, LoadError, useLoad, useQueryState } from '../mdUI';
 import { toCsv, downloadText } from '../mdMeta';
@@ -37,13 +38,9 @@ export function ClassFilter({ meta, q, setQ }) {
   );
 }
 
+/** The list's dates — the app's one date-range filter (components/ui/DateRangeFilter). */
 export function DateFilter({ q, setQ }) {
-  return (
-    <>
-      <input className="md-input" type="date" value={q.from || ''} onChange={(e) => setQ({ from: e.target.value })} aria-label="From date" />
-      <input className="md-input" type="date" value={q.to || ''} onChange={(e) => setQ({ to: e.target.value })} aria-label="To date" />
-    </>
-  );
+  return <DateRangeFilter from={q.from || ''} to={q.to || ''} onChange={(v) => setQ({ from: v.from, to: v.to })} />;
 }
 
 /**

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PageHeader, Card, Badge, Spinner, Empty, Input, StatCard } from '../../components/ui/index';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import { getMySubstitutions } from '../../api/substitute.api';
 
 /**
@@ -105,8 +106,8 @@ export default function MySubstitutions() {
 
       <Card>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', padding: 4 }}>
-          <Input label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ maxWidth: 180 }} />
-          <Input label="To"   type="date" value={to}   onChange={(e) => setTo(e.target.value)}   style={{ maxWidth: 180 }} />
+          <DateRangeFilter from={from} to={to} label="Covers between"
+            onChange={(v) => { setFrom(v.from); setTo(v.to); }} />
         </div>
       </Card>
 

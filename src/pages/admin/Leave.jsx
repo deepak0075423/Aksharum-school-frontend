@@ -36,7 +36,7 @@ const EMPTY_TYPE = {
   name: '', code: '', description: '', category: 'general', annualAllocation: 12, isPaid: true, isActive: true,
 };
 
-const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
+const EMPTY_APPLY = { academicYear: '', teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 const EMPTY_ALLOC = {
   teacherMode: 'all',        // 'all' | 'select' | 'except'
   checkedTeachers: [],       // 'select': included ids  |  'except': excluded ids
@@ -249,6 +249,18 @@ export default function AdminLeave() {
   const [preview,     setPreview]     = useState(null);
   const [previewLoad, setPreviewLoad] = useState(false);
 
+  // Every academic year with its first and last day (from the Requests list),
+  // for the form's year picker and date limits (Nov 2026).
+  const [applyYears, setApplyYears] = useState([]);
+  useEffect(() => { if (Array.isArray(reqMeta?.academicYears)) setApplyYears(reqMeta.academicYears); }, [reqMeta]);
+  const applyYear = applyYears.find((y) => y.label === applyForm.academicYear) || null;
+  // Another year: dates outside it are cleared, not carried into it.
+  const pickApplyYear = (label) => setApplyForm((f) => {
+    const y = applyYears.find((x) => x.label === label);
+    const inside = (k) => !k || !y || ((!y.start || k >= y.start) && (!y.end || k <= y.end));
+    return { ...f, academicYear: label, ...(inside(f.fromDate) && inside(f.toDate) ? {} : { fromDate: '', toDate: '' }) };
+  });
+
   useEffect(() => {
     if (!applyModal || !applyForm.teacherId || !applyForm.leaveTypeId) { setPreview(null); return; }
     // Guard against a slow early request landing after a faster later one and
@@ -263,13 +275,14 @@ export default function AdminLeave() {
           fromDate:    applyForm.fromDate || undefined,
           toDate:      applyForm.toDate   || undefined,
           leaveMode:   applyForm.leaveMode,
+          academicYear: applyForm.academicYear || undefined,
         });
         if (live) setPreview(res?.data ?? res);
       } catch { if (live) setPreview(null); }
       finally { if (live) setPreviewLoad(false); }
     }, 250);
     return () => { live = false; clearTimeout(timer); };
-  }, [applyModal, applyForm.teacherId, applyForm.leaveTypeId, applyForm.fromDate, applyForm.toDate, applyForm.leaveMode]);
+  }, [applyModal, applyForm.teacherId, applyForm.leaveTypeId, applyForm.fromDate, applyForm.toDate, applyForm.leaveMode, applyForm.academicYear]);
 
   const closeApply = () => {
     setApplyModal(false); setApplyForm(EMPTY_APPLY); setPreview(null); setApplyDocName('');
@@ -278,9 +291,17 @@ export default function AdminLeave() {
 
   const handleApply = async (e) => {
     e.preventDefault();
+    // Inside the academic year chosen on the form, first day to last.
+    if (applyYears.length && !applyYear) { toast.error('Choose the academic year of this leave'); return; }
+    if (applyYear && applyForm.fromDate && applyForm.toDate
+      && ((applyYear.start && applyForm.fromDate < applyYear.start) || (applyYear.end && applyForm.toDate > applyYear.end))) {
+      toast.error(`A leave in ${applyYear.label} must fall between ${fmtDate(applyYear.start)} and ${fmtDate(applyYear.end)}.`);
+      return;
+    }
     setApplyLoad(true);
     try {
       const fd = new FormData();
+      if (applyForm.academicYear) fd.append('academicYear', applyForm.academicYear);
       fd.append('teacherId',   applyForm.teacherId);
       fd.append('leaveTypeId', applyForm.leaveTypeId);
       fd.append('fromDate',    applyForm.fromDate);
@@ -291,6 +312,12 @@ export default function AdminLeave() {
       if (applyDocRef.current?.files?.[0]) fd.append('document', applyDocRef.current.files[0]);
       await api.adminApplyLeave(fd);
       toast.success('Leave applied');
+      // Listed under its own year: when the queue shows another, it moves there.
+      const filedIn = applyForm.academicYear;
+      if (filedIn && reqYear !== 'all' && filedIn !== (reqYear || activeYearLabel)) {
+        setReqPage(1); setReqYear(filedIn === activeYearLabel ? '' : filedIn);
+        toast(`Showing ${filedIn}`, { icon: '📅' });
+      }
       closeApply();
       refetchReq(); refetchOverview();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
@@ -1195,7 +1222,11 @@ export default function AdminLeave() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  const openApply = () => { setApplyForm(EMPTY_APPLY); setPreview(null); setApplyDocName(''); setApplyModal(true); };
+  // A new application is for the year the queue is showing ("All years": the active one).
+  const openApply = () => {
+    setApplyForm({ ...EMPTY_APPLY, academicYear: (reqYear && reqYear !== 'all' ? reqYear : activeYearLabel) || '' });
+    setPreview(null); setApplyDocName(''); setApplyModal(true);
+  };
 
   // The tiles are also the fastest way to narrow the queue — "Pending: 3" is a
   // question, and pressing it should answer it. Pressing the one already in
@@ -2090,7 +2121,13 @@ export default function AdminLeave() {
         </>}>
         {(() => {
         const applyLT     = leaveTypes.find((t) => t._id === applyForm.leaveTypeId);
-        const applyBounds = leaveDateBounds(applyLT, { onBehalf: true });
+        const policyBounds = leaveDateBounds(applyLT, { onBehalf: true });
+        // …and the academic year chosen: no day before its first or after its last.
+        const applyBounds = {
+          ...policyBounds,
+          minFrom: [policyBounds.minFrom, applyYear?.start].filter(Boolean).sort().pop() || '',
+          maxTo:   applyYear?.end || '',
+        };
         const applyHint   = leaveDateHint(applyLT, { onBehalf: true });
         const who         = teacherList.find((t) => t._id === applyForm.teacherId);
         const rules       = preview?.dateRules;
@@ -2126,6 +2163,20 @@ export default function AdminLeave() {
             </FormStep>
 
             <FormStep n={2} title="Leave Details" note="Select leave type, dates and mode.">
+              {applyYears.length > 0 && (
+                <label className="lvfield">
+                  <span className="lvfield__label">Academic Year <i>*</i></span>
+                  <select className="form-control" required value={applyForm.academicYear}
+                    onChange={(e) => pickApplyYear(e.target.value)}>
+                    <option value="">Select year…</option>
+                    {applyYears.map((y) => (
+                      <option key={y.label} value={y.label} disabled={y.closed}>
+                        {y.label}{y.label === activeYearLabel ? ' (current)' : ''}{y.closed ? ' — closed for leave' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <div className="lvpolrow lvpolrow--2">
                 <label className="lvfield">
                   <span className="lvfield__label">Leave Type <i>*</i></span>
@@ -2167,7 +2218,8 @@ export default function AdminLeave() {
                 <label className="lvfield">
                   <span className="lvfield__label">From Date <i>*</i></span>
                   <input type="date" className="form-control" required value={applyForm.fromDate}
-                    min={applyBounds.minFrom || undefined}
+                    min={applyBounds.minFrom || undefined} max={applyBounds.maxTo || undefined}
+                    disabled={applyYears.length > 0 && !applyYear}
                     onChange={(e) => {
                       const fromDate = e.target.value;
                       // A To date now earlier than From can only confuse — carry
@@ -2178,7 +2230,8 @@ export default function AdminLeave() {
                 <label className="lvfield">
                   <span className="lvfield__label">To Date <i>*</i></span>
                   <input type="date" className="form-control" required value={applyForm.toDate}
-                    min={applyForm.fromDate || applyBounds.minFrom || undefined}
+                    min={applyForm.fromDate || applyBounds.minFrom || undefined} max={applyBounds.maxTo || undefined}
+                    disabled={applyYears.length > 0 && !applyYear}
                     onChange={(e) => setApplyForm((f) => ({ ...f, toDate: e.target.value }))} />
                 </label>
                 <div className={`lvduration${preview?.days?.error ? ' is-bad' : ''}`}>
@@ -2191,6 +2244,11 @@ export default function AdminLeave() {
                   </span>
                 </div>
               </div>
+              {applyYear?.start && applyYear?.end && (
+                <p className="lvfield__hint">
+                  {applyYear.label} runs from <b>{fmtDate(applyYear.start)}</b> to <b>{fmtDate(applyYear.end)}</b> — pick days in between.
+                </p>
+              )}
               {applyHint && <p className="lvfield__hint">{applyHint}</p>}
 
               {/* What the picked dates actually cost. Weekends, school holidays

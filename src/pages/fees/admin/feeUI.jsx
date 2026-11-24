@@ -15,6 +15,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../../../components/ui/icons';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import '../../../styles/fees.css';
 import Tabs from '../../../components/ui/Tabs';
 
@@ -482,48 +483,12 @@ export const Loading = ({ rows = 5 }) => (
 /* ── Date range ───────────────────────────────────────────────────────────── */
 
 /**
- * A button reading "01 Apr 2026 – 30 Sep 2026" that opens two date fields and
- * a few presets. Portalled so a card's overflow cannot clip it.
+ * The date filter — the app's one date-range filter
+ * (components/ui/DateRangeFilter, Nov 2026), with the module's presets.
  */
+// eslint-disable-next-line no-unused-vars
 export function DateRange({ from, to, onChange, presets = [], className = '', compact }) {
-  const btn = useRef(null);
-  const [rect, setRect] = useState(null);
-  const [draft, setDraft] = useState({ from, to });
-  useEffect(() => { setDraft({ from, to }); }, [from, to]);
-  useEffect(() => {
-    if (!rect) return undefined;
-    const away = (e) => { if (!e.target.closest?.('.fe-drpop') && !btn.current?.contains(e.target)) setRect(null); };
-    const esc = (e) => { if (e.key === 'Escape') setRect(null); };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
-  }, [rect]);
-  const label = from || to ? `${from ? fmtDate(`${from}T00:00:00`) : '…'} – ${to ? fmtDate(`${to}T00:00:00`) : '…'}` : 'Any date';
-  const apply = (v) => { onChange(v); setRect(null); };
-  return (
-    <>
-      <button ref={btn} type="button" className={`fe-daterange${compact ? ' fe-daterange--compact' : ''} ${className}`}
-        onClick={() => setRect(rect ? null : btn.current.getBoundingClientRect())}>
-        <Icon name="calendar" size={compact ? 15 : 17} /><span>{label}</span>{compact ? <Icon name="chevronDown" size={15} /> : null}
-      </button>
-      {rect ? createPortal(
-        <div className="fe-drpop" style={{ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.left, window.innerWidth - 316)) }}>
-          <div className="fe-drpop__row">
-            <label>From<input type="date" value={draft.from || ''} onChange={e => setDraft(d => ({ ...d, from: e.target.value }))} /></label>
-            <label>To<input type="date" value={draft.to || ''} min={draft.from || undefined} onChange={e => setDraft(d => ({ ...d, to: e.target.value }))} /></label>
-          </div>
-          {presets.length ? (
-            <div className="fe-drpop__presets">
-              {presets.map(p => <button key={p.label} type="button" onClick={() => apply({ from: p.from, to: p.to })}>{p.label}</button>)}
-            </div>
-          ) : null}
-          <div className="fe-drpop__foot">
-            <Btn variant="link" onClick={() => apply({ from: '', to: '' })}>Clear</Btn>
-            <Btn variant="primary" size="sm" onClick={() => apply(draft)}>Apply</Btn>
-          </div>
-        </div>, document.body) : null}
-    </>
-  );
+  return <DateRangeFilter from={from || ''} to={to || ''} onChange={onChange} presets={presets} className={`drf--h42${className ? ` ${className}` : ''}`} placeholder="Any date" />;
 }
 
 /**

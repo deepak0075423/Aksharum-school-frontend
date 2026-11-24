@@ -8,6 +8,7 @@ import { useSearchParams } from 'react-router-dom';
 import * as api from '../../../api/medical.api';
 import { Page, PageHead, Panel, Btn, Badge, Select, Table, Empty, Spin, LoadError, Toolbar, useLoad } from '../mdUI';
 import { Bars } from '../mdShared';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import { useMeta } from './mdForms';
 import {
   STATUS_MAPS, ALLERGY_CATEGORY, ALLERGY_SEVERITY, CONDITION_TYPE, CONDITION_SEVERITY, PLAN_STATUS, BLOOD_GROUPS, VACCINATION_STATUS, CHECKUP_TYPE,
@@ -113,7 +114,7 @@ export default function MedicalReports() {
             {meta?.years?.length && (PERIOD.includes(kind) || STUDENT_SCOPE.includes(kind)) ? <Select value={f.year} onChange={(v) => set({ year: v })} all="Any academic year" label="Academic year" options={meta.years.map((y) => ({ value: y._id, label: y.yearName }))} /> : null}
             {STUDENT_SCOPE.includes(kind) ? <Select value={f.classId} onChange={(v) => set({ classId: v, sectionId: '' })} all="All classes" label="Class" options={classes.map((c) => ({ value: c._id, label: c.className }))} /> : null}
             {STUDENT_SCOPE.includes(kind) && f.classId && sections.length ? <Select value={f.sectionId} onChange={(v) => set({ sectionId: v })} all="All sections" label="Section" options={sections.map((x) => ({ value: x._id, label: `Section ${x.sectionName}` }))} /> : null}
-            {PERIOD.includes(kind) ? <><input className="md-input" type="date" value={f.from || ''} onChange={(e) => set({ from: e.target.value })} aria-label="From" style={{ width: 150 }} /><input className="md-input" type="date" value={f.to || ''} onChange={(e) => set({ to: e.target.value })} aria-label="To" style={{ width: 150 }} /></> : null}
+            {PERIOD.includes(kind) ? <DateRangeFilter from={f.from || ''} to={f.to || ''} onChange={(v) => set({ from: v.from, to: v.to })} label="Report period" /> : null}
             {KIND_SCOPE.includes(kind) ? <Select value={f.kind} onChange={(v) => set({ kind: v })} all="Medicines and supplies" label="Kind" options={[{ value: 'medicine', label: 'Medicines' }, { value: 'supply', label: 'First-aid supplies' }]} /> : null}
             {['current_stock', 'low_stock'].includes(kind) ? <Select value={f.category} onChange={(v) => set({ category: v })} all="Any category" label="Category" options={[...(meta?.settings?.medicineCategories || []), ...(meta?.settings?.supplyCategories || [])]} /> : null}
             {kind === 'vaccinations' ? <input data-text="title" className="md-input" value={f.category || ''} onChange={(e) => set({ category: e.target.value })} placeholder="Vaccine" style={{ width: 160 }} aria-label="Vaccine" /> : null}

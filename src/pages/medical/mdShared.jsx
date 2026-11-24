@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { VIZ } from '../analytics/palette';
 import { Ico, Badge, Btn, Avatar, Empty, Spin, Select, Pager, useLoad } from './mdUI';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import { apiUrl, fmtDay, fmtDate, fmtTime, ago, errorText, telOf, labelOf, RESCUE_PLACE } from './mdMeta';
 
 /* ── Emergency card ───────────────────────────────────────────────────────── */
@@ -211,8 +212,7 @@ export function Timeline({ fetcher, years = [], onOpen, kinds = Object.keys(KIND
         <Select value={f.kind} onChange={(v) => set({ kind: v })} all="All records" label="Type of record"
           options={kinds.map((k) => ({ value: k, label: `${KIND[k].label}${data?.counts?.[k] ? ` (${data.counts[k]})` : ''}` }))} />
         {years.length ? <Select value={f.year} onChange={(v) => set({ year: v })} all="Any academic year" label="Academic year" options={years.map((y) => ({ value: y._id, label: y.yearName }))} /> : null}
-        <input className="md-input" type="date" value={f.from} onChange={(e) => set({ from: e.target.value })} aria-label="From" style={{ width: 150 }} />
-        <input className="md-input" type="date" value={f.to} onChange={(e) => set({ to: e.target.value })} aria-label="To" style={{ width: 150 }} />
+        <DateRangeFilter from={f.from} to={f.to} onChange={(v) => set({ from: v.from, to: v.to })} />
         {(f.kind || f.year || f.from || f.to) ? <Btn size="sm" kind="ghost" icon="close" onClick={() => setF({ kind: '', year: '', from: '', to: '', page: 1 })}>Clear</Btn> : null}
       </div>
       {error && !data ? <Empty compact title="The history could not be loaded" action={<Btn onClick={reload} icon="refresh">Try again</Btn>}>{error.message}</Empty> : null}
