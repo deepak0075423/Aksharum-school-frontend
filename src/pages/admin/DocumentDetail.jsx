@@ -597,25 +597,29 @@ function DocumentDetailPage() {
     />
   );
 
+  // An empty roster says so once, in the middle of the list — not again in
+  // the line over it and the line under it (Nov 24 2026).
   const rosterCount = roster?.shown
     ? `Showing ${(page - 1) * PAGE_SIZE + 1} to ${(page - 1) * PAGE_SIZE + (roster.students?.length || 0)} of ${roster.shown} students`
-    : 'No students to show';
+    : null;
 
   const rosterPager = <Pager page={page} pages={roster?.pages || 1} onPage={setPage} />;
 
-  // Under the Overview's table.
+  // Under the table, on both tabs: how many, which page. The pager keeps the
+  // right edge even when there is no count beside it.
   const rosterFoot = (
     <div className="adfoot">
-      <span>{rosterCount}</span>
-      {rosterPager}
+      {rosterCount && <span>{rosterCount}</span>}
+      <span className="adfoot__end">{rosterPager}</span>
     </div>
   );
 
-  // Over the Submissions list: how many, in what order, which page.
+  // Over the Submissions list: how many, in what order. The pager lives only
+  // under the list (Nov 24 2026) — two pagers on one list was one too many.
   const rosterHead = (
     <div className="adfoot adfoot--head">
-      <span>{rosterCount}</span>
-      <span className="adfoot__end">{sortSelect}{rosterPager}</span>
+      {rosterCount && <span>{rosterCount}</span>}
+      <span className="adfoot__end">{sortSelect}</span>
     </div>
   );
 
@@ -816,9 +820,8 @@ function DocumentDetailPage() {
               <div className="adlist">
                 {rosterHead}
                 {rosterTable}
-                {/* And under it, as on every other list (Nov 23 2026) — the
-                    pager used to be only at the top, a scroll back up away
-                    from the last row. */}
+                {/* The pager sits under the list only, as on every other list
+                    (Nov 23 2026; the top one went Nov 24 2026). */}
                 {rosterFoot}
               </div>
 
