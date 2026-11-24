@@ -24,7 +24,7 @@
  * rather than a set of columns.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import {
@@ -99,7 +99,13 @@ export default function Notifications() {
   // they write to the whole school exactly as the school admin does (the
   // server's send() already allowed it — the page kept offering only their own
   // sections, and the class list it would need was behind an admin-only route).
-  const runsModule = me?.role === 'teacher' && isAdmin('notification');
+  // That is the module's admin side, so it lives where every module's admin
+  // side does — "Manage Notifications" under Module Admin (/admin/notifications).
+  // Their own "Notifications" in Modules stays a teacher's mailbox: their
+  // sections only, like any other teacher's (Nov 25 2026, the user's call).
+  const { pathname } = useLocation();
+  const runsModule = me?.role === 'teacher' && isAdmin('notification')
+    && pathname.startsWith('/admin/notifications');
   const role = runsModule
     ? { ...ROLES.teacher, sends: 'school',
         subtitle: 'Everything your school has sent you, and everything you have sent to the school.' }
