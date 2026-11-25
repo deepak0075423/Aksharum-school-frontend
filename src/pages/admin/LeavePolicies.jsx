@@ -209,10 +209,9 @@ export default function AdminLeavePolicies({ onSaved, onAddType }) {
 
             <RuleCard n={2} icon="fileCheck" tone="blue" title="Application Rules"
               note="Set limits and conditions for each application.">
-              <div className="lvpolrow lvpolrow--3">
-                <RuleNum label="Minimum days per application" step={0.5}
-                  value={form.minDaysPerApplication}
-                  onChange={(v) => set({ minDaysPerApplication: v })} />
+              {/* No "minimum days per application" (Nov 26 2026): an application
+                  is at least one day by its nature, so the rule said nothing. */}
+              <div className="lvpolrow lvpolrow--2">
                 <RuleNum label="Max consecutive days" step={0.5}
                   value={form.maxConsecutiveDays}
                   onChange={(v) => set({ maxConsecutiveDays: v })} />

@@ -5,6 +5,7 @@ import * as api from '../../api/admin.api';
 import useFocusTarget, { useFocusFilterReset } from '../../hooks/useFocusTarget';
 import { Button, Modal, Spinner, Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
+import SearchSelect from '../../components/ui/SearchSelect';
 import { IconAction, MenuItem, MenuSep, RowActions, RowMenu, useSelection } from './listParts';
 import {
   Avatar, CardHead, ChartCard, CompOffBalanceDrawer, CompOffDrawer, DateRange,
@@ -13,7 +14,7 @@ import {
   LeaveDonut, LeaveStat, LeaveStats, Pager, PolicyHead, RuleCard, RuleCheck, RuleList,
   RuleNum, RulePick, STATUS, SearchBox, SectionHead, ShowingCount, SignOffStep, StatusBadge,
   SubTabs, TYPE_TONES, TeacherCell, WORK_TYPES, WorkDateCell,
-  PhoneTable, ClearFilters,
+  PhoneTable, ClearFilters, LayoutToggle, LeaveFoot, useLeaveTable, TeacherOption, teacherOptions,
 } from './leaveParts';
 
 // Comp Off lives inside Leave Management — these two panels are mounted as
@@ -68,6 +69,7 @@ export function AdminCompOff() {
 
   // ── Requests ───────────────────────────────────────────────────────────────
   const [page, setPage] = useState(1);
+  const reqView = useLeaveTable('compoff-requests', { onReset: () => setPage(1) });
   const [fStatus, setFStatus] = useState('');
   const [fCategory, setFCategory] = useState('');
   const [fSource, setFSource] = useState('');
@@ -80,7 +82,7 @@ export function AdminCompOff() {
   const { focusId, release: releaseFocus } = useFocusTarget();
   const { data, loading, refetch } = useFetch(
     () => api.getCompOffRequests({
-      page, limit: 20,
+      page, limit: reqView.limit,
       status:      fStatus   || undefined,
       teacherId:   fTeacher  || undefined,
       dayCategory: fCategory || undefined,
@@ -89,7 +91,7 @@ export function AdminCompOff() {
       toDate:      fTo       || undefined,
       focus:       focusId   || undefined,
     }),
-    [page, fStatus, fTeacher, fCategory, fSource, fFrom, fTo, focusId],
+    [page, reqView.limit, fStatus, fTeacher, fCategory, fSource, fFrom, fTo, focusId],
   );
 
   const clearFilters = useCallback(() => {
@@ -313,11 +315,8 @@ export function AdminCompOff() {
                 onChange={onFilter(setFSource)} />
               <DateRange from={fFrom} to={fTo}
                 onFrom={onFilter(setFFrom)} onTo={onFilter(setFTo)} />
-              {anyFilter && (
-                <Button variant="secondary" onClick={() => { releaseFocus(); clearFilters(); }}>
-                  <Icon name="refresh" size={16} /> Reset
-                </Button>
-              )}
+              <ClearFilters on={anyFilter} onClick={() => { releaseFocus(); clearFilters(); }} />
+              <LayoutToggle value={reqView.cards ? 'card' : reqView.layout} onChange={reqView.setLayout} />
             </FilterRow>
 
             {/* The request the notification was about is not in this filtered
@@ -368,7 +367,7 @@ export function AdminCompOff() {
                     : <Button onClick={() => setGenModal(true)}>Generate from Attendance</Button>} />
               </div>
             ) : (
-              <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Hours / Days']}>
+              <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Hours / Days']} {...reqView.table}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -473,11 +472,9 @@ export function AdminCompOff() {
               </PhoneTable>
             )}
 
-            <div className="lvfoot">
-              <ShowingCount page={data?.page || page} limit={20} count={requests.length}
-                total={data?.total ?? requests.length} />
-              <Pager page={data?.page || page} pages={requests.length ? (data?.pages || 1) : 0} onPage={onPage} />
-            </div>
+            <LeaveFoot view={reqView} page={data?.page || page} count={requests.length}
+              total={data?.total ?? requests.length}
+              pages={requests.length ? (data?.pages || 1) : 0} onPage={onPage} />
           </section>
         </>
       )}
@@ -829,7 +826,8 @@ function CompOffBalances({ onOpenLedger }) {
   const [search, setSearch] = useState('');
   const [only, setOnly]     = useState('');   // '' | 'holding' | 'earned' | 'used' | 'expired'
   const [page, setPage]     = useState(1);
-  const PAGE = 10;
+  const view = useLeaveTable('compoff-balances', { onReset: () => setPage(1) });
+  const PAGE = view.limit;
 
   if (loading) return <div className="lvtable__state"><Spinner /></div>;
   if (data?.enabled === false) return <NotConfigured reason={data.reason} />;
@@ -878,6 +876,7 @@ function CompOffBalances({ onOpenLedger }) {
           <SearchBox value={search} onChange={(v) => { setSearch(v); setPage(1); }}
             placeholder="Search employee..." />
           <ClearFilters on={anyFilter} onClick={() => { setSearch(''); setOnly(''); setPage(1); }} />
+          <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         </CardHead>
 
         {!shown.length ? (
@@ -892,7 +891,7 @@ function CompOffBalances({ onOpenLedger }) {
                 : null} />
           </div>
         ) : (
-          <PhoneTable title="Employee" keep={['Used', 'Available']}>
+          <PhoneTable title="Employee" keep={['Used', 'Available']} {...view.table}>
             <table className="lvtable">
               <thead>
                 <tr>
@@ -937,11 +936,9 @@ function CompOffBalances({ onOpenLedger }) {
           </PhoneTable>
         )}
 
-        <div className="lvfoot">
-          <ShowingCount page={pageNow} limit={PAGE} count={shown.length}
-            total={rows.length} noun="employee" />
-          <Pager page={pageNow} pages={rows.length ? pages : 0} onPage={setPage} />
-        </div>
+        <LeaveFoot view={view} page={pageNow} count={shown.length}
+          total={rows.length} noun="employee"
+          pages={rows.length ? pages : 0} onPage={setPage} />
       </section>
 
       <CompOffBalanceDrawer
@@ -972,10 +969,11 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
   const [detail, setDetail] = useState(null);   // the entry the drawer is open on
   const [entryType, setEntryType] = useState('');
   const [page, setPage] = useState(1);
+  const view = useLeaveTable('compoff-ledger', { limit: 25, onReset: () => setPage(1) });
 
   const { data, loading, refetch } = useFetch(
-    () => api.getCompOffLedger({ teacherId: teacherId || undefined, entryType: entryType || undefined, page, limit: 50 }),
-    [teacherId, entryType, page],
+    () => api.getCompOffLedger({ teacherId: teacherId || undefined, entryType: entryType || undefined, page, limit: view.limit }),
+    [teacherId, entryType, page, view.limit],
   );
 
   const [adjModal, setAdjModal] = useState(false);
@@ -1009,6 +1007,8 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
         <FilterSelect label="Filter by entry type" value={entryType} all="All entry types"
           options={Object.keys(ENTRY_LABEL).map((v) => ({ value: v, label: ENTRY_LABEL[v] || v }))}
           onChange={(v) => { setEntryType(v); setPage(1); }} />
+        <ClearFilters on={anyFilter} onClick={() => { setTeacherId(''); setEntryType(''); setPage(1); }} />
+        <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         <Button variant="secondary" onClick={() => setAdjModal(true)}>
           <Icon name="plus" size={16} /> Adjustment
         </Button>
@@ -1028,7 +1028,7 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
               : null} />
         </div>
       ) : (
-        <PhoneTable title="Employee" keep={['When', 'Entry', 'Days', 'Balance After']}>
+        <PhoneTable title="Employee" keep={['When', 'Entry', 'Days', 'Balance After']} {...view.table}>
           <table className="lvtable">
             <thead>
               <tr>
@@ -1088,11 +1088,9 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
         </PhoneTable>
       )}
 
-      <div className="lvfoot">
-        <ShowingCount page={data?.page || page} limit={50} count={entries.length}
-          total={data?.total ?? entries.length} noun="entry" plural="entries" />
-        <Pager page={data?.page || page} pages={entries.length ? (data?.pages || 1) : 0} onPage={setPage} />
-      </div>
+      <LeaveFoot view={view} page={data?.page || page} count={entries.length}
+        total={data?.total ?? entries.length} noun="entry" plural="entries"
+        pages={entries.length ? (data?.pages || 1) : 0} onPage={setPage} />
 
       <Modal open={adjModal} onClose={() => setAdjModal(false)} title="Manual Comp Off Adjustment"
         footer={<>
@@ -1150,7 +1148,8 @@ function CompOffReports({ onOpenRequests }) {
   // 'credited' = the ones that reached a balance, or a status.
   const [only, setOnly] = useState('');
   const tableRef = useRef(null);
-  const PAGE = 10;
+  const view = useLeaveTable('compoff-report', { onReset: () => setPage(1) });
+  const PAGE = view.limit;
 
   const { data, loading } = useFetch(
     () => api.getCompOffReports({ fromDate: from || undefined, toDate: to || undefined }),
@@ -1250,6 +1249,7 @@ function CompOffReports({ onOpenRequests }) {
             ? `${rows.length} of ${all.length} claim${all.length === 1 ? '' : 's'} in the selected period — press the tile again to see them all.`
             : 'Every claim in the selected period.'}>
           <ClearFilters on={!!(only || from || to)} onClick={() => { setOnly(''); setFrom(''); setTo(''); setPage(1); }} />
+          <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         </CardHead>
 
         {!shown.length ? (
@@ -1261,7 +1261,7 @@ function CompOffReports({ onOpenRequests }) {
                 : null} />
           </div>
         ) : (
-          <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Claimed', 'Credited']}>
+          <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Claimed', 'Credited']} {...view.table}>
             <table className="lvtable">
               <thead>
                 <tr>
@@ -1300,10 +1300,8 @@ function CompOffReports({ onOpenRequests }) {
           </PhoneTable>
         )}
 
-        <div className="lvfoot">
-          <ShowingCount page={pageNow} limit={PAGE} count={shown.length} total={rows.length} />
-          <Pager page={pageNow} pages={rows.length ? pages : 0} onPage={setPage} />
-        </div>
+        <LeaveFoot view={view} page={pageNow} count={shown.length} total={rows.length}
+          pages={rows.length ? pages : 0} onPage={setPage} />
       </section>
 
       {/* The record, in place. No decide buttons: a report is a record, and the
@@ -1323,8 +1321,41 @@ function CompOffReports({ onOpenRequests }) {
 //  Comp Off Policy — every rule the engine reads, nothing hard-coded
 // ════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Named teachers, added one at a time from the searchable picker and shown as
+ * chips — a long staff list of tick boxes is no way to choose two people.
+ */
+function TeacherMultiPick({ teachers, selected, onChange }) {
+  const chosen = selected.map((id) => teachers.find((t) => String(t._id) === String(id)) || { _id: id, name: 'Former employee' });
+  return (
+    <div className="lvfield">
+      <span className="lvfield__label">Teachers who give the second sign-off</span>
+      <SearchSelect value="" placeholder="Add a teacher…" searchPlaceholder="Search name, employee no., department or email…"
+        emptyText="No teacher matches" maxHeight={340}
+        options={teacherOptions(teachers.filter((t) => !selected.includes(String(t._id))))}
+        renderOption={(r) => <TeacherOption teacher={r.teacher} />}
+        onChange={(v) => { if (v) onChange([...selected, String(v)]); }} />
+      {chosen.length > 0 ? (
+        <div className="lvchips">
+          {chosen.map((t) => (
+            <span key={t._id} className="lvchip">
+              {t.name}{t.employeeId ? <em>{t.employeeId}</em> : null}
+              <button type="button" aria-label={`Remove ${t.name}`}
+                onClick={() => onChange(selected.filter((x) => String(x) !== String(t._id)))}>
+                <Icon name="close" size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : <span className="lvfield__hint">Nobody named yet — until someone is, any approver may give the second sign-off.</span>}
+    </div>
+  );
+}
+
 export function AdminCompOffPolicy() {
   const { data, loading, refetch } = useFetch(() => api.getCompOffPolicy());
+  // The staff, for naming who gives the second sign-off (by department or by person).
+  const { data: staffData } = useFetch(() => api.getCompOffEmployees());
   const [edits, setEdits] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -1352,6 +1383,11 @@ export function AdminCompOffPolicy() {
   const designations = data?.designations || [];
   const modules = data?.modules || {};
   const num = (k) => ({ value: form[k], onChange: (v) => set({ [k]: v }) });
+  const staff = Array.isArray(staffData) ? staffData : (staffData?.items || staffData?.employees || []);
+  const departments = [...new Set(staff.map((t) => t.department).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const second = form.approval?.secondApprover || { kind: 'any', values: [] };
+  // Changing the kind starts the list afresh — a designation is not a department.
+  const setSecond = (patch) => setIn('approval', { secondApprover: { ...second, ...patch } });
 
   return (
     <form className="lvpolmain" onSubmit={save}>
@@ -1477,7 +1513,40 @@ export function AdminCompOffPolicy() {
           <RuleCheck label="Require two sign-offs before crediting"
             checked={form.approval?.twoLevel}
             onChange={(v) => setIn('approval', { twoLevel: v })}
-            hint="The second approver must be a different person; nothing is credited until both have signed" />
+            hint="The second approver must be a different person; nothing is credited until both have signed">
+            {/* Who gives the second one (Nov 26 2026). They give only the
+                second, so they are never spent on the first. */}
+            <RulePick label="Second sign-off by" value={second.kind || 'any'}
+              onChange={(v) => setSecond({ kind: v, values: [] })}
+              options={[
+                ['any', 'Any approver (but not the first)'],
+                ['designation', 'A designation'],
+                ['department', 'A department'],
+                ['teacher', 'Specific teachers'],
+              ]} />
+            {second.kind === 'designation' && (
+              <RuleList label="Designations that give the second sign-off"
+                options={designations.map((d) => [d, d])}
+                selected={second.values || []} onChange={(v) => setSecond({ values: v })}
+                empty="No designations configured" />
+            )}
+            {second.kind === 'department' && (
+              <RuleList label="Departments that give the second sign-off"
+                options={departments.map((d) => [d, d])}
+                selected={second.values || []} onChange={(v) => setSecond({ values: v })}
+                empty="No departments on the staff records yet" />
+            )}
+            {second.kind === 'teacher' && (
+              <TeacherMultiPick teachers={staff} selected={(second.values || []).map(String)}
+                onChange={(v) => setSecond({ values: v })} />
+            )}
+            {second.kind !== 'any' && (
+              <p className="lvpolnote">
+                They give only the second sign-off — the first comes from the approvers above. If none of
+                them is still active, a school admin may give it, so no claim is ever stuck.
+              </p>
+            )}
+          </RuleCheck>
         </RuleCard>
 
         <RuleCard n={8} icon="refresh" tone="teal" title="Automation and Notifications"

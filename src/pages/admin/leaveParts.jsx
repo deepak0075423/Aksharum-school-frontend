@@ -12,8 +12,9 @@
 import React from 'react';
 import Icon from '../../components/ui/icons';
 import DateRangeFilter from '../../components/ui/DateRangeFilter';
-import { Button, Modal, Spinner } from '../../components/ui/index';
-import { Breakdown, Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
+import { Button, Modal, PageSize, Spinner } from '../../components/ui/index';
+import { Breakdown, Drawer, DrawerFoot, DrawerHead, DrawerSection, LayoutToggle, useListLayout } from './listParts';
+import { LIST_SIZES, cardPageSizes, gridColumns, useSnapLimit } from '../../hooks/useCardPaging';
 import Tabs from '../../components/ui/Tabs';
 import { withFileToken } from '../../utils/fileAccess';
 
@@ -179,9 +180,11 @@ function columnLabels(thead) {
  * Measured, not guessed: the box is re-checked whenever it changes width (the
  * sidebar, the window) or its rows change, before the browser paints.
  */
-export function PhoneTable({ title, side, keep = [], fold = [], children }) {
+export function PhoneTable({ title, side, keep = [], fold = [], layout = 'list', onFit, children }) {
   const ref = React.useRef(null);
-  const spec = `${title}|${side}|${keep.join('|')}|${fold.join('|')}`;
+  const fitRef = React.useRef(onFit);
+  fitRef.current = onFit;
+  const spec = `${title}|${side}|${keep.join('|')}|${fold.join('|')}|${layout}`;
   React.useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return undefined;
@@ -216,12 +219,23 @@ export function PhoneTable({ title, side, keep = [], fold = [], children }) {
     };
     // Data attributes, not classes: React rewrites a cell's className when it
     // re-renders, but leaves attributes it never set alone.
+    // What the page is told: drawn as cards or not, and how many cards a row
+    // holds — the page sizes on offer are whole rows of them.
+    let told = '';
+    const tell = (cards) => {
+      const perRow = cards ? gridColumns(root.querySelector('table > tbody')) : 1;
+      const key = `${cards}|${perRow}`;
+      if (key === told) return;
+      told = key;
+      fitRef.current?.({ cards, perRow });
+    };
     const fit = () => {
       const table = root.querySelector('table');
       if (!table) return;
       root.removeAttribute('data-cards');
       root.querySelectorAll('[data-fold]').forEach((el) => el.removeAttribute('data-fold'));
-      if (phone.matches) { root.setAttribute('data-cards', ''); return; }
+      // Cards when asked for, and always on a phone.
+      if (phone.matches || layout === 'card') { root.setAttribute('data-cards', ''); tell(true); return; }
       const room = root.clientWidth;
       if (!room) return;                      // hidden: checked again when shown
       const over = () => table.getBoundingClientRect().width > room + 1;
@@ -231,7 +245,10 @@ export function PhoneTable({ title, side, keep = [], fold = [], children }) {
       if (over()) {
         root.querySelectorAll('[data-fold]').forEach((el) => el.removeAttribute('data-fold'));
         root.setAttribute('data-cards', '');
+        tell(true);
+        return;
       }
+      tell(false);
     };
     const run = () => { mark(); fit(); };
     run();
@@ -251,6 +268,56 @@ export function PhoneTable({ title, side, keep = [], fold = [], children }) {
   }, [spec]);
   return <div ref={ref} className="lvtable__wrap lvph">{children}</div>;
 }
+
+export { LayoutToggle };
+
+/**
+ * One leave table's view and page size (Nov 26 2026).
+ *
+ *   layout / setLayout  List or Card, chosen by the user and remembered per
+ *                       table in this browser — a phone is always Card
+ *   limit / setLimit    rows a page; sizes = 5…25 for a list, and whole rows
+ *                       of cards for a card view (3 across → 9 / 15 / 21 / 24)
+ *   table               spread onto <PhoneTable> so it draws the chosen view
+ *                       and reports back how many cards a row holds
+ *
+ * `onReset` is called whenever the page size changes (picked, or snapped onto
+ * a size the view offers), so the table goes back to its first page.
+ */
+export function useLeaveTable(key, { limit: initial = 10, onReset } = {}) {
+  const [layout, setLayout, shown] = useListLayout(`lv.view.${key}`);
+  const [limit, setLimit] = React.useState(initial);
+  const [fit, setFit] = React.useState({ cards: false, perRow: 1 });
+  const cards = shown === 'card' || fit.cards;
+  const sizes = cards ? cardPageSizes(fit.perRow) : LIST_SIZES;
+  useSnapLimit(sizes, limit, setLimit);
+  const reset = React.useRef(onReset);
+  reset.current = onReset;
+  const first = React.useRef(true);
+  React.useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    reset.current?.();
+  }, [limit]);
+  const onFit = React.useCallback((f) => setFit((o) => (o.cards === f.cards && o.perRow === f.perRow ? o : f)), []);
+  return { layout, setLayout, limit, setLimit, sizes, cards, table: { layout: shown, onFit } };
+}
+
+/**
+ * Every leave table's footer: "Showing 1 to 10 of 37", how many a page, and
+ * the pages. `children` sit beside the count (a sum the tile asked for).
+ */
+export const LeaveFoot = ({ view, page, count, total, noun, plural, pages, onPage, children }) => (
+  <div className="lvfoot">
+    <div className="lvfoot__left">
+      <ShowingCount page={page} limit={view.limit} count={count} total={total} noun={noun} plural={plural} />
+      {children}
+    </div>
+    <div className="lvfoot__right">
+      <PageSize value={view.limit} onChange={view.setLimit} total={total} options={view.sizes} minTotal={0} />
+      <Pager page={page} pages={pages} onPage={onPage} />
+    </div>
+  </div>
+);
 
 // ── Card furniture ───────────────────────────────────────────────────────────
 
@@ -297,6 +364,35 @@ export const SearchBox = ({ value, onChange, placeholder, label }) => (
     )}
   </div>
 );
+
+/**
+ * One teacher in a picker: who they are at a glance — the name with the
+ * employee number beside it, what they do and where, and their email — so
+ * two people with the same name are never confused.
+ */
+export const TeacherOption = ({ teacher: t }) => (
+  <span className="lvtopt">
+    <Avatar name={t.name} />
+    <span className="lvtopt__text">
+      <span className="lvtopt__top">
+        <b>{t.name}</b>
+        {t.employeeId ? <em>{t.employeeId}</em> : null}
+      </span>
+      <span className="lvtopt__line">
+        {[t.designation, t.department].filter(Boolean).join(' · ') || 'No designation or department'}
+      </span>
+      {t.email ? <span className="lvtopt__line lvtopt__mail">{t.email}</span> : null}
+    </span>
+  </span>
+);
+
+/** A teacher list as SearchSelect options: searched by name, number, role, department and email. */
+export const teacherOptions = (teachers = []) => teachers.map((t) => ({
+  value: t._id,
+  label: t.employeeId ? `${t.name} · ${t.employeeId}` : t.name,
+  search: [t.employeeId, t.designation, t.department, t.email].filter(Boolean).join(' '),
+  teacher: t,
+}));
 
 /**
  * The teachers a bulk allocate / clear reaches, ticked one by one.
@@ -458,6 +554,21 @@ export const STATUS = {
  */
 export const LEAVE_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'];
 export const STATUS_OPTIONS = LEAVE_STATUSES.map((value) => ({ value, label: STATUS[value].label }));
+
+/**
+ * Withdrawing approved leave goes through the office (Nov 26 2026): the
+ * employee asks, a school admin confirms or declines.
+ */
+export const withdrawalOpen = (r) => r?.status === 'approved' && !!r.withdrawalRequestedAt && !r.withdrawalDecision;
+
+/** "Withdrawal requested" / "Withdrawal declined", under a request's status. */
+export const WithdrawalTag = ({ request: r }) => {
+  if (withdrawalOpen(r)) return <span className="lvstep lvstep--warn">Withdrawal requested</span>;
+  if (r?.status === 'approved' && r.withdrawalDecision === 'declined') {
+    return <span className="lvstep lvstep--muted" title={r.withdrawalComment || ''}>Withdrawal declined</span>;
+  }
+  return null;
+};
 
 export const StatusBadge = ({ status }) => {
   const s = STATUS[status];
@@ -660,7 +771,17 @@ export function RequestDrawer({ request: r, onClose, onDecide, onCancel, onEndEa
         {/* Undoing an approval is the only way the days go back — and Comp Off
             refuses to withdraw a credit until the leave that spent it is
             reversed here. Shortening gives back only the days not taken. */}
-        {onDecide && r.status === 'approved' && r.canReverse && (
+        {onDecide && withdrawalOpen(r) && r.canReverse && (
+          <>
+            <Button variant="danger" loading={busy} onClick={() => onDecide('withdraw-decline', r)}>
+              <Icon name="close" size={16} /> Decline withdrawal
+            </Button>
+            <Button variant="success" loading={busy} onClick={() => onDecide('withdraw-confirm', r)}>
+              <Icon name="check" size={16} /> Confirm withdrawal
+            </Button>
+          </>
+        )}
+        {onDecide && r.status === 'approved' && r.canReverse && !withdrawalOpen(r) && (
           <>
             {r.leaveMode !== 'half_day' && String(r.toDate).slice(0, 10) > String(r.fromDate).slice(0, 10) && (
               <Button variant="secondary" loading={busy} onClick={() => onDecide('shorten', r)}>
@@ -674,9 +795,9 @@ export function RequestDrawer({ request: r, onClose, onDecide, onCancel, onEndEa
         )}
         {/* Your own leave: withdraw it while it is pending or has not started,
             or come back early from one already approved. */}
-        {onCancel && (r.status === 'pending' || (r.status === 'approved' && notStarted(r))) && (
+        {onCancel && (r.status === 'pending' || (r.status === 'approved' && notStarted(r) && !withdrawalOpen(r))) && (
           <Button variant="danger" loading={busy} onClick={() => onCancel(r)}>
-            <Icon name="close" size={16} /> {r.status === 'pending' ? 'Cancel application' : 'Withdraw leave'}
+            <Icon name="close" size={16} /> {r.status === 'pending' ? 'Cancel application' : 'Ask to withdraw'}
           </Button>
         )}
         {onEndEarly && canEndEarly(r) && !notStarted(r) && (
@@ -711,6 +832,18 @@ const DECISION = {
     variant: 'secondary',
     note: 'The paid days are handed back and the approval is undone. The attendance rows it marked are removed, and substitute cover raised for its days is retired.',
   },
+  'withdraw-confirm': {
+    title: 'Confirm leave withdrawal',
+    verb: 'Confirm withdrawal',
+    variant: 'success',
+    note: 'The teacher asked to withdraw this approved leave. Confirming undoes the approval: the paid days go back to their balance, and its attendance rows and substitute cover are removed.',
+  },
+  'withdraw-decline': {
+    title: 'Decline leave withdrawal',
+    verb: 'Decline',
+    variant: 'danger',
+    note: 'The leave stays approved and its days stay used. Say why — the teacher sees this comment.',
+  },
   shorten: {
     title: 'Shorten approved leave',
     verb: 'Shorten',
@@ -723,7 +856,7 @@ const DECISION = {
 export function DecisionDialog({ open, kind, request, comment, onComment, onClose, onConfirm, loading, lastDay, onLastDay }) {
   const d = DECISION[kind] || DECISION.approve;
   // A refusal the employee cannot act on is no answer, so rejecting needs one.
-  const needsComment = kind === 'reject';
+  const needsComment = kind === 'reject' || kind === 'withdraw-decline';
   const blocked = (needsComment && !String(comment || '').trim())
     || (kind === 'shorten' && !lastDay);
   return (
@@ -785,7 +918,8 @@ export function DecisionDialog({ open, kind, request, comment, onComment, onClos
         rows={3}
         value={comment}
         onChange={(e) => onComment(e.target.value)}
-        placeholder={kind === 'reject' ? 'Why is this being rejected?' : 'Anything the teacher should know…'}
+        placeholder={kind === 'reject' ? 'Why is this being rejected?'
+          : kind === 'withdraw-decline' ? 'Why must the leave stand?' : 'Anything the teacher should know…'}
       />
     </Modal>
   );
@@ -1555,6 +1689,17 @@ export const WORK_TYPES = {
 };
 
 /** The date worked, with the weekday under it — which is half the reason it counted. */
+/**
+ * A supporting document, opened in a new tab. Comp off claims kept theirs on
+ * the server but no screen ever showed it, so it looked lost (Nov 26 2026).
+ */
+export const DocLink = ({ name, label = 'Document' }) => (name ? (
+  <a href={docUrl(name)} target="_blank" rel="noopener noreferrer" className="lvdoc"
+    onClick={(e) => e.stopPropagation()}>
+    <Icon name="files" size={12} /> {label}
+  </a>
+) : null);
+
 export const WorkDateCell = ({ request: r }) => {
   const d = r.workDate ? new Date(r.workDate) : null;
   const ok = d && !Number.isNaN(d.getTime());
@@ -1562,6 +1707,7 @@ export const WorkDateCell = ({ request: r }) => {
     <div className="lvperiod">
       <span>{ok ? fmtDate(d) : '—'}</span>
       {ok && <small>{d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' })}</small>}
+      <DocLink name={r.document} />
     </div>
   );
 };
@@ -1636,6 +1782,7 @@ export function CompOffDrawer({ request: r, onClose, onDecide, onSeeRequests, on
           fields={[
             ['Comp off earned', `${dayNum(r.compOffDays)} day${Number(r.compOffDays) === 1 ? '' : 's'}`],
             ['Reason', r.reason],
+            ['Supporting document', r.document ? <DocLink name={r.document} label="Open document" /> : 'None attached'],
             ['Applied', r.appliedAt ? `${fmtDate(r.appliedAt)} (${relDay(r.appliedAt)})` : null],
           ]}
         />
@@ -2079,7 +2226,6 @@ export function MyBalanceDrawer({ balance: b, policy, onClose, onApply }) {
             <DrawerSection
               title="Applying"
               fields={[
-                ['Minimum per application', policy.minDaysPerApplication > 0 ? dayNum(policy.minDaysPerApplication) : 'No minimum'],
                 ['Longest single spell', cap(policy.maxConsecutiveDays, 'at a time')],
                 ['Notice needed', policy.advanceNoticeDays > 0
                   ? `${dayNum(policy.advanceNoticeDays)} ahead` : 'None'],

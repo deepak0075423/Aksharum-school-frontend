@@ -14,7 +14,7 @@ import {
   LeaveStats, LeaveTypeCell, MyBalanceDrawer, Pager, PeriodCell, RequestDrawer,
   STATUS_OPTIONS, ShowingCount, StatusBadge, SubTabs, SummaryRow,
   chipTones, dayNum, docUrl, fmtDate, fmtRange, notStarted, canEndEarly,
-  PhoneTable,
+  PhoneTable, LayoutToggle, LeaveFoot, useLeaveTable, WithdrawalTag, withdrawalOpen,
 } from '../admin/leaveParts';
 import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
 import TeacherLeaveApprovals from './LeaveApprovals';
@@ -101,7 +101,9 @@ export default function TeacherLeave() {
   const [filterYear,   setFilterYear]   = useState('');
   const [leavePage,    setLeavePage]    = useState(1);
   const [detail,       setDetail]       = useState(null);   // the row in the drawer
-  const LEAVE_PAGE = 5;
+  const leaveView = useLeaveTable('my-leaves', { limit: 5, onReset: () => setLeavePage(1) });
+  const recentView = useLeaveTable('my-recent');
+  const LEAVE_PAGE = leaveView.limit;
 
   const { data: leavesData, meta: leavesMeta, loading: leavesLoading, refetch } = useFetch(
     () => getMyLeaves({
@@ -113,7 +115,7 @@ export default function TeacherLeave() {
       academicYear: filterYear || undefined,
       page: leavePage, limit: LEAVE_PAGE,
     }),
-    [filterStatus, filterType, filterMode, filterFrom, filterTo, filterYear, leavePage],
+    [filterStatus, filterType, filterMode, filterFrom, filterTo, filterYear, leavePage, LEAVE_PAGE],
   );
   const leaves = leavesData?.data || leavesData || [];
   // These describe the whole year shown, not the filtered page — see the endpoint.
@@ -362,9 +364,12 @@ export default function TeacherLeave() {
     setCancLoad(true);
     try {
       const res = await cancelLeave(cancelItem._id);
-      toast.success(cancelItem.status === 'approved'
-        ? `Leave withdrawn${res?.restored ? ` — ${dayNum(res.restored)} day(s) back in your balance` : ''}`
-        : 'Leave cancelled');
+      // Approved leave is withdrawn only once the office confirms it.
+      toast.success(res?.requested
+        ? 'Withdrawal requested — the school admin will confirm it'
+        : cancelItem.status === 'approved'
+          ? `Leave withdrawn${res?.restored ? ` — ${dayNum(res.restored)} day(s) back in your balance` : ''}`
+          : 'Leave cancelled');
       setCancelItem(null); refetch(); refetchBal();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
     finally { setCancLoad(false); }
@@ -459,7 +464,7 @@ export default function TeacherLeave() {
 
           <section className="card lvcard">
             <FilterRow>
-              <FilterSelect label="Filter by academic year" value={filterYear}
+              <FilterSelect wide label="Filter by academic year" value={filterYear}
                 all={activeYear ? `${activeYear} (current)` : 'Current year'}
                 options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
                 onChange={onLeaveFilter(setFilterYear)} />
@@ -470,13 +475,14 @@ export default function TeacherLeave() {
                 onChange={onLeaveFilter(setFilterType)} />
               <DateRange from={filterFrom} to={filterTo}
                 onFrom={onLeaveFilter(setFilterFrom)} onTo={onLeaveFilter(setFilterTo)} />
-              <FilterSelect label="Filter by duration" value={filterMode} all="Full and half days"
+              <FilterSelect wide label="Filter by duration" value={filterMode} all="Full and half days"
                 options={[{ value: 'full_day', label: 'Full days only' }, { value: 'half_day', label: 'Half days only' }]}
                 onChange={onLeaveFilter(setFilterMode)} />
               <span className="lvfilters__sep" />
               <Button variant="secondary" onClick={clearLeaveFilters} disabled={!anyLeaveFilter}>
                 <Icon name="refresh" size={16} /> Reset
               </Button>
+              <LayoutToggle value={leaveView.cards ? 'card' : leaveView.layout} onChange={leaveView.setLayout} />
             </FilterRow>
 
             {leavesLoading && !leavesData ? (
@@ -495,7 +501,7 @@ export default function TeacherLeave() {
                 />
               </div>
             ) : (
-              <PhoneTable title="Leave Type" side="Status" keep={['Period', 'Duration']}>
+              <PhoneTable title="Leave Type" side="Status" keep={['Period', 'Duration']} {...leaveView.table}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -519,7 +525,12 @@ export default function TeacherLeave() {
                         <td className="lvt-total">
                           {dayNum(r.totalDays)} day{Number(r.totalDays) === 1 ? '' : 's'}
                         </td>
-                        <td className="lvt-status"><StatusBadge status={r.status} /></td>
+                        <td className="lvt-status">
+                          <div className="lvstatuscell lvstatuscell--col">
+                            <StatusBadge status={r.status} />
+                            <WithdrawalTag request={r} />
+                          </div>
+                        </td>
                         <td className="lvt-reason">
                           <div className="lvreason" title={r.reason || ''}><span>{r.reason || '—'}</span></div>
                         </td>
@@ -541,7 +552,7 @@ export default function TeacherLeave() {
                           <div className="lvrowacts">
                             {/* Withdrawing keeps its word — it is the one action
                                 here that cannot be undone. */}
-                            {(r.status === 'pending' || (r.status === 'approved' && notStarted(r))) && (
+                            {(r.status === 'pending' || (r.status === 'approved' && notStarted(r) && !withdrawalOpen(r))) && (
                               <div className="lvacts">
                                 <button type="button" className="lvbtn lvbtn--reject"
                                   onClick={() => setCancelItem(r)}>{r.status === 'pending' ? 'Cancel' : 'Withdraw'}</button>
@@ -566,13 +577,9 @@ export default function TeacherLeave() {
               </PhoneTable>
             )}
 
-            <div className="lvfoot">
-              <ShowingCount page={leavesMeta?.page || leavePage} limit={LEAVE_PAGE}
-                count={leaves.length} total={leavesMeta?.total ?? leaves.length}
-                noun="application" />
-              <Pager page={leavesMeta?.page || leavePage}
-                pages={leaves.length ? (leavesMeta?.pages || 1) : 0} onPage={setLeavePage} />
-            </div>
+            <LeaveFoot view={leaveView} page={leavesMeta?.page || leavePage}
+              count={leaves.length} total={leavesMeta?.total ?? leaves.length} noun="application"
+              pages={leaves.length ? (leavesMeta?.pages || 1) : 0} onPage={setLeavePage} />
           </section>
 
           {/* Your own application, in full. No approve buttons — this is the
@@ -631,6 +638,7 @@ export default function TeacherLeave() {
                 <section className="card lvcard">
                   <CardHead title="Recent Leave Activity"
                     subtitle="Your last few applications, whatever their state.">
+                    <LayoutToggle value={recentView.cards ? 'card' : recentView.layout} onChange={recentView.setLayout} />
                     <Button variant="secondary" onClick={() => { clearLeaveFilters(); setTab('my-leaves'); }}>
                       View All
                     </Button>
@@ -643,7 +651,7 @@ export default function TeacherLeave() {
                         action={<Button onClick={openModal}>+ Apply Leave</Button>} />
                     </div>
                   ) : (
-                    <PhoneTable title="Type" side="Status" keep={['Date', 'Duration']}>
+                    <PhoneTable title="Type" side="Status" keep={['Date', 'Duration']} {...recentView.table}>
                       <table className="lvtable">
                         <thead>
                           <tr>
@@ -663,7 +671,12 @@ export default function TeacherLeave() {
                               <td className="lvt-total">
                                 {dayNum(r.totalDays)} day{Number(r.totalDays) === 1 ? '' : 's'}
                               </td>
-                              <td className="lvt-status"><StatusBadge status={r.status} /></td>
+                              <td className="lvt-status">
+                          <div className="lvstatuscell lvstatuscell--col">
+                            <StatusBadge status={r.status} />
+                            <WithdrawalTag request={r} />
+                          </div>
+                        </td>
                               <td className="lvt-reason">
                                 <div className="lvreason" title={r.reason || ''}><span>{r.reason || '—'}</span></div>
                               </td>
@@ -968,9 +981,11 @@ export default function TeacherLeave() {
       {/* ── Cancel Confirm ── */}
       <Confirm open={!!cancelItem} onClose={() => setCancelItem(null)} onConfirm={handleCancel}
         loading={cancLoad}
-        title={cancelItem?.status === 'approved' ? 'Withdraw approved leave' : 'Cancel Leave'}
+        title={cancelItem?.status === 'approved' ? 'Ask to withdraw approved leave' : 'Cancel Leave'}
+        confirmLabel={cancelItem?.status === 'approved' ? 'Send request' : 'Cancel leave'}
         message={cancelItem?.status === 'approved'
-          ? `Withdraw your approved leave for ${fmtRange(cancelItem.fromDate, cancelItem.toDate)}? The days go back to your balance and your approvers are told.`
+          ? `Ask the school admin to withdraw your approved leave for ${fmtRange(cancelItem.fromDate, cancelItem.toDate)}? `
+            + 'It stays approved — and its days stay used — until they confirm; then the days go back to your balance.'
           : 'Are you sure you want to cancel this leave application?'} />
 
       {/* ── End early ── */}

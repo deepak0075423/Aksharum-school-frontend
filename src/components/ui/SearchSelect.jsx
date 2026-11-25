@@ -9,8 +9,11 @@ import DropdownPanel, { isInsideDropdown } from './DropdownPanel';
  * pickers with many people in them (Assign Class Teacher / Vice Class Teacher),
  * where a native <select> means scrolling past every teacher in the school.
  *
- *   options    [{ value, label, sub?, disabled? }] — `sub` is a muted second
- *              line and is searched too
+ *   options    [{ value, label, sub?, search?, disabled? }] — `sub` is a muted
+ *              second line and is searched too; `search` is more words the
+ *              search matches without showing them (an email, an ID)
+ *   renderOption  (row) => node — draws a row your own way (a person with
+ *              their details); the closed box still shows `label`
  *   noneLabel  when given, a first row that clears the choice (value '')
  *
  * The list is portalled (DropdownPanel), so it is never clipped by a modal's
@@ -19,7 +22,7 @@ import DropdownPanel, { isInsideDropdown } from './DropdownPanel';
 export default function SearchSelect({
   value = '', onChange, options = [], placeholder = 'Select…', noneLabel,
   searchPlaceholder = 'Search…', error = false, id, disabled = false,
-  emptyText = 'Nothing matches',
+  emptyText = 'Nothing matches', renderOption, maxHeight = 320,
 }) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
@@ -38,7 +41,7 @@ export default function SearchSelect({
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const hits = !q ? options : options.filter((o) =>
-      `${o.label} ${o.sub || ''}`.toLowerCase().includes(q));
+      `${o.label} ${o.sub || ''} ${o.search || ''}`.toLowerCase().includes(q));
     return (noneLabel && !q ? [{ value: '', label: noneLabel, none: true }] : []).concat(hits);
   }, [options, query, noneLabel]);
 
@@ -135,7 +138,7 @@ export default function SearchSelect({
         <span className="ssel__value">{picked ? picked.label : (noneLabel && value === '' ? noneLabel : placeholder)}</span>
       </button>
 
-      <DropdownPanel anchorRef={btnRef} open={open} maxHeight={320}>
+      <DropdownPanel anchorRef={btnRef} open={open} maxHeight={maxHeight}>
         <div className="ssel__search">
           <input
             ref={searchRef}
@@ -168,8 +171,12 @@ export default function SearchSelect({
                 // mousedown, not click: the search box keeps focus until the pick lands.
                 onMouseDown={(e) => { e.preventDefault(); choose(r); }}
               >
-                <span className="ssel__label">{r.label}</span>
-                {r.sub && <span className="ssel__sub">{r.sub}</span>}
+                {renderOption && !r.none ? renderOption(r) : (
+                  <>
+                    <span className="ssel__label">{r.label}</span>
+                    {r.sub && <span className="ssel__sub">{r.sub}</span>}
+                  </>
+                )}
               </div>
             );
           })}

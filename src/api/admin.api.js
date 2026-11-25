@@ -227,6 +227,7 @@ export const exportLeaveAllocations = (params)   => api.get('/admin/leave/alloca
 export const getLeaveReports        = (params)   => api.get('/admin/leave/reports', { params });
 export const exportLeaveReports     = (params)   => api.get('/admin/leave/reports/export', { params, responseType: 'arraybuffer' });
 export const reverseApprovedLeave   = (id, data) => api.post(`/admin/leave/requests/${id}/reverse`, data);
+export const decideLeaveWithdrawal  = (id, data) => api.post(`/admin/leave/requests/${id}/withdrawal`, data);
 // Cut approved leave short: { toDate } is the new last day
 export const shortenApprovedLeave   = (id, data) => api.post(`/admin/leave/requests/${id}/shorten`, data);
 

@@ -10,7 +10,7 @@ import {
   FilterSelect, FormStep, InfoPanels, LeaveStat, LeaveStats, LedgerDrawer, Pager,
   RulesNote, STATUS, ShowingCount, SignOffStep, StatusBadge, SubTabs, SummaryLine,
   ThSub, WORK_TYPES, fmtDate, fmtHours, hoursBetween, weekdayOf,
-  PhoneTable, WorkDateCell, EarnedCell,
+  PhoneTable, WorkDateCell, EarnedCell, LayoutToggle, LeaveFoot, useLeaveTable, DocLink,
 } from '../admin/leaveParts';
 
 // Mounted as the "Comp Off" tab of pages/teacher/Leave.jsx — Comp Off stays
@@ -66,6 +66,37 @@ export default function TeacherCompOff() {
   // No times typed and nothing in the register: the claim has no hours, and
   // the server refuses it — say so before Submit.
   const fromAttendance = preview?.hoursSource === 'attendance';
+
+  // "Fetch from Attendance" (Nov 26 2026): only where the SCHOOL runs the
+  // Attendance module (the comp off answer says so — the user's own module
+  // map is their designation's access, which a teacher without attendance
+  // rights reads as off) — and it FILLS the times from the register; it used
+  // to clear what you typed.
+  const attendanceOn = data?.attendanceModule === true;
+  const [fetchingAtt, setFetchingAtt] = useState(false);
+  const hhmm = (t) => {
+    const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]m)?$/i);
+    if (!m) return '';
+    let h = Number(m[1]);
+    if (m[3]) h = (h % 12) + (/p/i.test(m[3]) ? 12 : 0);
+    return `${String(h).padStart(2, '0')}:${m[2]}`;
+  };
+  const fetchFromAttendance = async () => {
+    if (!form.workDate) { toast.error('Pick the work date first'); return; }
+    setFetchingAtt(true);
+    try {
+      const res = await api.previewCompOffDate({ date: form.workDate });
+      const d = res?.data ?? res;
+      const inT = hhmm(d?.checkIn); const outT = hhmm(d?.checkOut);
+      if (d?.hoursSource === 'attendance' && inT && outT) {
+        setForm((f) => ({ ...f, checkIn: inT, checkOut: outT }));
+        toast.success(`Times taken from your attendance: ${inT} – ${outT}`);
+      } else {
+        toast.error('No check-in and check-out is recorded in attendance for this date');
+      }
+    } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setFetchingAtt(false); }
+  };
 
   // Live verdict from the same engine that will judge the submission, so the
   // employee is never surprised by a rejection they could have seen coming.
@@ -160,7 +191,8 @@ export default function TeacherCompOff() {
   const [fTo,     setFTo]     = useState('');
   const [page,    setPage]    = useState(1);
   const [detail,  setDetail]  = useState(null);
-  const PAGE = 10;
+  const view = useLeaveTable('my-compoff', { onReset: () => setPage(1) });
+  const PAGE = view.limit;
 
   const anyFilter = !!(fStatus || fType || fFrom || fTo);
   const clearFilters = () => { setFStatus(''); setFType(''); setFFrom(''); setFTo(''); setPage(1); };
@@ -261,6 +293,7 @@ export default function TeacherCompOff() {
             <Button variant="secondary" onClick={clearFilters} disabled={!anyFilter}>
               <Icon name="refresh" size={16} /> Reset
             </Button>
+            <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
           </FilterRow>
 
           {!shown.length ? (
@@ -275,7 +308,7 @@ export default function TeacherCompOff() {
                   : <Button onClick={() => { setForm(EMPTY_FORM); setDocName(''); setModal(true); }}>+ Apply Comp Off</Button>} />
             </div>
           ) : (
-            <PhoneTable title="Work Date" side="Status" keep={['Comp Off', 'Credited On']}>
+            <PhoneTable title="Work Date" side="Status" keep={['Comp Off', 'Credited On']} {...view.table}>
               <table className="lvtable">
                 <thead>
                   <tr>
@@ -303,6 +336,7 @@ export default function TeacherCompOff() {
                             {WORK_TYPES[r.dayCategory] || r.dayCategory}
                             {r.reason ? ` · ${r.reason}` : ''}
                           </small>
+                          <DocLink name={r.document} />
                         </div>
                       </td>
                       <td className="lvt-total">
@@ -351,10 +385,8 @@ export default function TeacherCompOff() {
             </PhoneTable>
           )}
 
-          <div className="lvfoot">
-            <ShowingCount page={pageNow} limit={PAGE} count={shown.length} total={filtered.length} />
-            <Pager page={pageNow} pages={filtered.length ? pages : 0} onPage={setPage} />
-          </div>
+          <LeaveFoot view={view} page={pageNow} count={shown.length} total={filtered.length}
+            pages={filtered.length ? pages : 0} onPage={setPage} />
         </section>
       )}
 
@@ -423,20 +455,23 @@ export default function TeacherCompOff() {
                   <small>Total Hours Worked</small>
                   <b>{fmtHours(hoursWorked)}</b>
                 </div>
-                {/* Clears the times so the engine reads your recorded
-                    attendance for that date instead of what you typed. */}
-                <Button type="button" variant="secondary"
-                  disabled={!form.checkIn && !form.checkOut}
-                  onClick={() => setForm((f) => ({ ...f, checkIn: '', checkOut: '' }))}>
-                  Auto Calculate
-                </Button>
+                {/* The hours work themselves out from the times; this only
+                    fetches the times your attendance recorded for the date. */}
+                {attendanceOn && (
+                  <Button type="button" variant="secondary" loading={fetchingAtt}
+                    disabled={!form.workDate} onClick={fetchFromAttendance}>
+                    <Icon name="clock" size={15} /> Fetch from Attendance
+                  </Button>
+                )}
               </div>
               <p className="lvfield__hint">
                 {form.checkIn || form.checkOut
-                  ? 'The hours you typed decide what this day earns under the school policy.'
+                  ? 'The hours are worked out from these times, and decide what this day earns under the school policy.'
                   : fromAttendance
                     ? `From your attendance for this date: ${preview.checkIn} – ${preview.checkOut}. Enter times above to override it.`
-                    : 'No attendance is recorded for this date — enter the times you worked.'}
+                    : attendanceOn
+                      ? 'No attendance is recorded for this date — enter the times you worked.'
+                      : 'Enter the times you worked — the hours are worked out from them.'}
               </p>
 
               {preview && preview.eligible === false && (
@@ -566,7 +601,8 @@ function MyLedger() {
   const [fType, setFType] = useState('');
   const [page,  setPage]  = useState(1);
   const [detail, setDetail] = useState(null);
-  const PAGE = 10;
+  const view = useLeaveTable('my-compoff-ledger', { onReset: () => setPage(1) });
+  const PAGE = view.limit;
 
   if (loading && !data) return <div className="lvtable__state"><Spinner /></div>;
   if (data?.enabled === false) {
@@ -600,6 +636,7 @@ function MyLedger() {
             options={kinds.map((v) => ({ value: v, label: ENTRY_LABEL[v] || v }))}
             onChange={(v) => { setFType(v); setPage(1); }} />
         )}
+        <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
       </CardHead>
 
       {!shown.length ? (
@@ -614,7 +651,7 @@ function MyLedger() {
               : null} />
         </div>
       ) : (
-        <PhoneTable title="Entry" keep={['When', 'Days', 'Balance After']}>
+        <PhoneTable title="Entry" keep={['When', 'Days', 'Balance After']} {...view.table}>
           <table className="lvtable">
             <thead>
               <tr>
@@ -673,11 +710,8 @@ function MyLedger() {
         </PhoneTable>
       )}
 
-      <div className="lvfoot">
-        <ShowingCount page={pageNow} limit={PAGE} count={shown.length} total={rows.length}
-          noun="entry" plural="entries" />
-        <Pager page={pageNow} pages={rows.length ? pages : 0} onPage={setPage} />
-      </div>
+      <LeaveFoot view={view} page={pageNow} count={shown.length} total={rows.length}
+        noun="entry" plural="entries" pages={rows.length ? pages : 0} onPage={setPage} />
 
       <LedgerDrawer
         entry={detail}
@@ -697,12 +731,13 @@ export function TeacherCompOffApprovals() {
   // Approvers by designation, on the same kit as the office's queue. The
   // server only answers an approver, never lists one's own claims, and marks
   // each row it lets this user decide (`canDecide`).
-  const PAGE_SIZE = 10;
   const [status, setStatus] = useState('pending');
   const [page,   setPage]   = useState(1);
+  const view = useLeaveTable('compoff-approvals', { onReset: () => setPage(1) });
+  const PAGE_SIZE = view.limit;
   const { data, loading, refetch } = useFetch(
     () => api.getCompOffApprovals({ status: status || undefined, page, limit: PAGE_SIZE }),
-    [status, page],
+    [status, page, PAGE_SIZE],
   );
   const [detail,  setDetail]  = useState(null);
   const [action,  setAction]  = useState(null);   // { type, request }
@@ -753,6 +788,7 @@ export function TeacherCompOffApprovals() {
               { value: 'expired', label: 'Expired' },
             ]}
             onChange={(v) => { setPage(1); setStatus(v); }} />
+          <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         </FilterRow>
 
         {!items.length ? (
@@ -761,7 +797,7 @@ export function TeacherCompOffApprovals() {
               message={status === 'pending' ? 'New comp off claims land here.' : 'Try another status.'} />
           </div>
         ) : (
-          <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Comp Off']}>
+          <PhoneTable title="Employee" side="Status" keep={['Work Date', 'Comp Off']} {...view.table}>
             <table className="lvtable">
               <thead>
                 <tr>
@@ -809,10 +845,8 @@ export function TeacherCompOffApprovals() {
             </table>
           </PhoneTable>
         )}
-        <div className="lvfoot">
-          <ShowingCount page={data?.page || page} limit={PAGE_SIZE} count={items.length} total={data?.total ?? items.length} noun="claim" />
-          <Pager page={data?.page || page} pages={items.length ? (data?.pages || 1) : 0} onPage={setPage} />
-        </div>
+        <LeaveFoot view={view} page={data?.page || page} count={items.length} total={data?.total ?? items.length}
+          noun="claim" pages={items.length ? (data?.pages || 1) : 0} onPage={setPage} />
       </section>
 
       <CompOffDrawer request={detail ? { ...detail, canWithdraw: false } : null} onClose={() => setDetail(null)}

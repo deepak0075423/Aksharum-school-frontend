@@ -12301,6 +12301,8 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   border-radius: 6px; background: #eef2ff; color: var(--primary);
   font-size: .7rem; font-weight: 600; white-space: nowrap;
 }
+.lvstep--warn  { background: #fef3c7; color: #92400e; }
+.lvstep--muted { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 .lvtag {
   font-size: .72rem; font-weight: 600; letter-spacing: .02em;
   background: var(--bg); border: 1px solid var(--border);
@@ -12371,6 +12373,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   border-top:      1px solid var(--border);
 }
 .lvfoot__count { font-size: .84rem; color: var(--text-muted); }
+.lvfoot__right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-left: auto; }
 .lvfoot__left  { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
 .lvfoot__sum   { font-size: .84rem; color: var(--text-muted); }
 .lvfoot__sum b { color: var(--text); font-weight: 600; }
@@ -12437,6 +12440,8 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvmuted    { color: var(--text-light); font-style: italic; }
 
 .lvstatuscell { display: flex; align-items: center; gap: 10px; }
+.lvstatuscell--col { flex-direction: column; align-items: flex-start; gap: 4px; }
+.lvstatuscell--col .lvstep { margin-top: 0; }
 
 /* A real checkbox under the paint, so the switch is reachable by keyboard and
    reads as a control rather than as a coloured div. */
@@ -12861,7 +12866,22 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
   padding: 13px 15px; border-radius: var(--radius-lg); background: var(--bg);
 }
+.lvwhofacts--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .lvwhofacts small { display: block; font-size: .7rem; color: var(--text-muted); }
+/* A teacher in a picker (SearchSelect renderOption). */
+.lvtopt { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.lvtopt .lvavatar { width: 32px; height: 32px; font-size: .72rem; flex-shrink: 0; margin-top: 1px; }
+.lvtopt__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.lvtopt__top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.lvtopt__top b { font-size: .88rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvtopt__top em {
+  flex-shrink: 0; font-style: normal; font-size: .7rem; font-weight: 600; letter-spacing: .02em;
+  padding: 1px 7px; border-radius: 999px; background: #eef2ff; color: var(--primary);
+}
+.lvtopt__line { font-size: .76rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvtopt__mail { color: var(--text-light); }
+.ssel__opt.is-on .lvtopt__top b { color: var(--primary); }
+.ssel__opt:has(.lvtopt) + .ssel__opt:has(.lvtopt) { border-top: 1px solid var(--border); }
 .lvwhofacts b     { display: block; font-size: .84rem; font-weight: 600; margin-top: 3px;
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -12890,6 +12910,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvpolbox b { font-size: .92rem; font-weight: 700; }
 
 .lvnotice--bad { background: #fee2e2; color: #991b1b; }
+.lvnotice--warn { background: #fef3c7; color: #92400e; }
 
 @media (max-width: 820px) {
   .lvwhofacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -12998,6 +13019,19 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   font-size: .84rem; font-weight: 600;
 }
 .lvselbar > svg { flex-shrink: 0; }
+/* Chosen people, each removable (comp off second sign-off). */
+.lvchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lvchip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px;
+  border: 1px solid #c7d2fe; border-radius: 999px; background: #eef2ff;
+  font-size: .8rem; font-weight: 600; color: var(--primary);
+}
+.lvchip em { font-style: normal; font-weight: 500; font-size: .72rem; opacity: .8; }
+.lvchip button {
+  display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 50%;
+  background: transparent; color: inherit; cursor: pointer;
+}
+.lvchip button:hover { background: #c7d2fe; }
 /* The teacher checklist in the Allocate / Clear Allocation popups. */
 .lvpick__head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: .82rem; }
 .lvpick__all  { display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -13031,6 +13065,8 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 
 /* A ledger row's sign is the whole meaning of it — +2 and −2 are opposite
    facts, so the colour carries what the glyph already says. */
+/* Days still waiting on a decision — not taken yet, so not the ink of a total. */
+.lvpending { color: #b45309; font-weight: 600; }
 .lvup   { color: #047857; }
 .lvdown { color: #b91c1c; }
 
@@ -13566,6 +13602,8 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 @media (max-width: 560px) {
   .lvstats, .lvstats--4 { grid-template-columns: 1fr; }
   .lvfoot  { justify-content: center; }
+  /* The count over the size and the pages, both centred. */
+  .lvfoot__left, .lvfoot__right { width: 100%; justify-content: center; margin-left: 0; }
 }
 
 /* A module's section tabs as a two-column grid on a phone (className
@@ -13653,7 +13691,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
    would otherwise scroll sideways (PhoneTable measures and sets data-cards). */
 .lvph[data-cards] { overflow: visible; }
 .lvph[data-cards] .lvtable { display: block; width: 100%; }
-.lvph[data-cards] .lvtable > thead { display: none; }
+.lvph[data-cards] .lvtable > thead, .lvph[data-cards] .lvtable > tfoot { display: none; }
 /* One card per row on a phone; two or more side by side where there is room
    (a tablet, a narrow window), each row of cards the same height. */
 .lvph[data-cards] .lvtable > tbody {

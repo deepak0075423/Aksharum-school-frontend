@@ -8,6 +8,7 @@ import {
   BalanceFacts, CardHead, DecisionDialog, FilterRow, FilterSelect, Pager, PeriodCell,
   PhoneTable, ReasonCell, RequestDrawer, ShowingCount, StatusBadge, TeacherCell,
   ApprovalStep, dayNum,
+  LayoutToggle, LeaveFoot, useLeaveTable,
 } from '../admin/leaveParts';
 
 // Leave sign-off queue for approvers picked by designation (e.g. a Principal)
@@ -20,15 +21,15 @@ import {
 // needs), the drawer for the whole record, and the shared decision dialog — a
 // rejection needs a reason. Your own requests never appear here.
 
-const PAGE = 10;
-
 export default function TeacherLeaveApprovals() {
   const [status, setStatus] = useState('pending');
   const [year,   setYear]   = useState('');          // '' = the active year
   const [page,   setPage]   = useState(1);
+  const view = useLeaveTable('leave-approvals', { onReset: () => setPage(1) });
+  const PAGE = view.limit;
   const { data, loading, refetch } = useFetch(
     () => api.getLeaveApprovals({ status: status || undefined, academicYear: year || undefined, page, limit: PAGE }),
-    [status, year, page],
+    [status, year, page, PAGE],
   );
 
   const [detail,   setDetail]   = useState(null);
@@ -90,6 +91,7 @@ export default function TeacherLeaveApprovals() {
               { value: 'rejected', label: 'Rejected' }, { value: 'cancelled', label: 'Cancelled' },
             ]}
             onChange={onFilter(setStatus)} />
+          <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         </FilterRow>
 
         {!items.length ? (
@@ -100,7 +102,7 @@ export default function TeacherLeaveApprovals() {
                 : 'Try another status or year.'} />
           </div>
         ) : (
-          <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days', 'Balance']}>
+          <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days', 'Balance']} {...view.table}>
             <table className="lvtable">
               <thead>
                 <tr>
@@ -146,10 +148,8 @@ export default function TeacherLeaveApprovals() {
           </PhoneTable>
         )}
 
-        <div className="lvfoot">
-          <ShowingCount page={data?.page || page} limit={PAGE} count={items.length} total={data?.total ?? items.length} />
-          <Pager page={data?.page || page} pages={items.length ? (data?.pages || 1) : 0} onPage={setPage} />
-        </div>
+        <LeaveFoot view={view} page={data?.page || page} count={items.length} total={data?.total ?? items.length}
+          pages={items.length ? (data?.pages || 1) : 0} onPage={setPage} />
       </section>
 
       {/* Decisions only — reversing or shortening approved leave is the office's. */}

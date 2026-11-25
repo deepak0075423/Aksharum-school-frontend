@@ -4,6 +4,7 @@ import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
 import { Button, Modal, Spinner, Empty } from '../../components/ui/index';
 import Icon, { LeaveScene } from '../../components/ui/icons';
+import SearchSelect from '../../components/ui/SearchSelect';
 import { AdminCompOff } from './CompOff';
 import AdminLeavePolicies from './LeavePolicies';
 import { leaveDateBounds, leaveDateHint } from '../../utils/leaveDates';
@@ -23,7 +24,8 @@ import {
   BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep, FactRow,
   HelpPanel, LeaveDonut, SummaryLine, TypeIcon, OnLeaveTodayModal,
   chipTones, dayNum, docUrl, donutSlices, fmtDate,
-  PhoneTable, TypeDrawer, ClearFilters, TeacherChecklist,
+  PhoneTable, TypeDrawer, ClearFilters, TeacherChecklist, LayoutToggle, LeaveFoot, useLeaveTable,
+  ThSub, STATUS, TeacherOption, teacherOptions, WithdrawalTag, withdrawalOpen,
 } from './leaveParts';
 
 const STATUS_VARIANT = {
@@ -121,9 +123,9 @@ export default function AdminLeave() {
 
   // ── Requests ─────────────────────────────────────────────────────────────────
   const [reqPage,      setReqPage]      = useState(1);
-  // Fixed: this design has no rows-per-page control, so the page size is a
-  // constant rather than state nothing can change.
-  const reqLimit = 10;
+  // List or Card, and how many a page — chosen in the card's head and footer.
+  const reqView = useLeaveTable('requests', { onReset: () => setReqPage(1) });
+  const reqLimit = reqView.limit;
   const [reqSearch,    setReqSearch]    = useState('');
   const [reqTerm,      setReqTerm]      = useState('');
   const [reqStatus,    setReqStatus]    = useState('');
@@ -215,18 +217,26 @@ export default function AdminLeave() {
   const runDecision = async () => {
     if (!decision) return;
     const { kind, request } = decision;
+    const withdrawal = kind === 'withdraw-confirm' || kind === 'withdraw-decline';
     const call = kind === 'approve' ? api.approveLeave
       : kind === 'reject' ? api.rejectLeave
       : kind === 'shorten' ? api.shortenApprovedLeave
+      : withdrawal ? api.decideLeaveWithdrawal
       : api.reverseApprovedLeave;
 
     setActLoad(true);
     try {
-      const res = await call(request._id, { adminComment: comment, ...(kind === 'shorten' ? { toDate: lastDay } : {}) });
+      const res = await call(request._id, {
+        adminComment: comment,
+        ...(kind === 'shorten' ? { toDate: lastDay } : {}),
+        ...(withdrawal ? { action: kind === 'withdraw-confirm' ? 'confirm' : 'decline' } : {}),
+      });
       // The restored figure is the server's: only PAID days go back — loss of
       // pay was never drawn from the balance.
       toast.success(kind === 'approve' ? 'Leave approved'
         : kind === 'reject'  ? 'Leave rejected'
+        : kind === 'withdraw-confirm' ? `Withdrawal confirmed — ${dayNum(res?.restored || 0)} day(s) back in the balance`
+        : kind === 'withdraw-decline' ? 'Withdrawal declined — the leave stands'
         : kind === 'shorten' ? `Leave shortened — ${dayNum(res?.restored || 0)} day(s) back in the balance`
         : `Leave reversed — ${dayNum(res?.restored || 0)} day(s) restored`);
       setDecision(null); setComment(''); setDetail(null);
@@ -360,7 +370,7 @@ export default function AdminLeave() {
     }
     const start = ((reqMeta?.page || reqPage) - 1) * reqLimit;
     return (
-      <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days']} fold={['Applied On', 'Reason']}>
+      <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days']} fold={['Applied On', 'Reason']} {...reqView.table}>
         <table className="lvtable">
           <thead>
             <tr>
@@ -388,6 +398,7 @@ export default function AdminLeave() {
                 <td>
                   <StatusBadge status={r.status} />
                   <ApprovalStep request={r} />
+                  <WithdrawalTag request={r} />
                 </td>
                 <td className="lvt-reason"><ReasonCell request={r} /></td>
                 <td className="lvt-applied">{fmtDate(r.appliedAt) || '—'}</td>
@@ -403,6 +414,16 @@ export default function AdminLeave() {
                           onClick={() => askDecision('approve', r)}>Approve</button>
                         <button type="button" className="lvbtn lvbtn--reject"
                           onClick={() => askDecision('reject', r)}>Reject</button>
+                      </div>
+                    )}
+                    {/* The teacher asked to withdraw approved leave: the office
+                        confirms (days back) or declines (it stands). */}
+                    {withdrawalOpen(r) && r.canReverse !== false && (
+                      <div className="lvacts">
+                        <button type="button" className="lvbtn lvbtn--approve"
+                          onClick={() => askDecision('withdraw-confirm', r)}>Confirm</button>
+                        <button type="button" className="lvbtn lvbtn--reject"
+                          onClick={() => askDecision('withdraw-decline', r)}>Decline</button>
                       </div>
                     )}
                     <RowActions>
@@ -486,7 +507,8 @@ export default function AdminLeave() {
   const [typeStatus, setTypeStatus] = useState('');
   const [typePage,   setTypePage]   = useState(1);
   const [toggling,   setToggling]   = useState(null);   // the type mid-switch
-  const TYPE_PAGE = 10;
+  const typeView = useLeaveTable('types', { onReset: () => setTypePage(1) });
+  const TYPE_PAGE = typeView.limit;
 
   // The types the annual figure adds up: active, and not Comp Off, which is
   // earned rather than allocated. The tile and its filter share this one test.
@@ -969,7 +991,8 @@ export default function AdminLeave() {
   const [repSearch, setRepSearch] = useState('');
   const [repPage,   setRepPage]   = useState(1);
   const [repGrain,  setRepGrain]  = useState('monthly');
-  const REP_PAGE = 5;
+  const repView = useLeaveTable('report', { limit: 5, onReset: () => setRepPage(1) });
+  const REP_PAGE = repView.limit;
   const [exportLoad,      setExportLoad]      = useState(false);
   const [reqExportLoad,   setReqExportLoad]   = useState(false);
   const [allocExportLoad, setAllocExportLoad] = useState(false);
@@ -1056,7 +1079,8 @@ export default function AdminLeave() {
   const [allocDept,   setAllocDept]   = useState('');
   const [allocState,  setAllocState]  = useState('');   // '' | 'allocated' | 'none'
   const [allocPage,   setAllocPage]   = useState(1);
-  const ALLOC_PAGE = 10;
+  const allocView = useLeaveTable('allocations', { onReset: () => setAllocPage(1) });
+  const ALLOC_PAGE = allocView.limit;
 
   // One chip colour per leave type, fixed by the type's position in the
   // school's own list so a type keeps its colour from row to row and page to
@@ -1140,12 +1164,16 @@ export default function AdminLeave() {
   // A balance is "low" at two days or fewer of a type. The tile, the pill and
   // the row status all read that one number, so they can never disagree.
   const LOW_BALANCE = 2;
+  /** Maternity / paternity: left out of a teacher's balance status. By name, or the usual codes (not "ML" — often Medical Leave). */
+  const isParentalLeave = (t) => /matern|patern/i.test(String(t?.name || ''))
+    || ['MAT', 'PAT', 'MTL', 'PTL', 'MATL', 'PATL'].includes(String(t?.code || '').toUpperCase());
   const [balSearch, setBalSearch] = useState('');
   const [balDept,   setBalDept]   = useState('');
   const [balLow,    setBalLow]    = useState(false);
   const [balWith,   setBalWith]   = useState(false);   // only teachers holding a balance
   const [balPage,   setBalPage]   = useState(1);
-  const BAL_PAGE = 8;
+  const balView = useLeaveTable('balance', { onReset: () => setBalPage(1) });
+  const BAL_PAGE = balView.limit;
 
   // The columns of the balance table: the active types, in the school's own
   // order, so every row lines up under the same headings.
@@ -1165,12 +1193,19 @@ export default function AdminLeave() {
       return { type: t, left, has: !!b };
     });
     const held = cells.filter((c) => c.has);
+    // The status is read off the teacher's whole leave — every type added up,
+    // except maternity and paternity, which are a separate entitlement and
+    // would otherwise make anyone holding them look well off (or, at 0, low).
+    const counted = held.filter((c) => !isParentalLeave(c.type));
+    const countedLeft = counted.reduce((n, c) => n + c.left, 0);
     return {
       ...r,
       cells,
       remaining: held.reduce((n, c) => n + c.left, 0),
-      low: held.some((c) => c.left <= LOW_BALANCE),
+      countedLeft,
+      low: counted.length > 0 && countedLeft <= LOW_BALANCE,
       hasAny: held.length > 0,
+      hasCounted: counted.length > 0,
     };
   });
 
@@ -1365,6 +1400,13 @@ export default function AdminLeave() {
       {isQueue && (
         <section className="card lvcard">
           <CardHead title="Leave Requests" subtitle="View and manage all leave requests from teachers.">
+            {/* The year is the queue's scope (as on Allocations and Reports),
+                so it sits with the card's title rather than among the filters. */}
+            <FilterSelect label="Filter by academic year" value={reqYear} wide
+              all={activeYearLabel ? `${activeYearLabel} (current)` : 'Current year'}
+              options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
+              onChange={onFilter(setReqYear)} />
+            <LayoutToggle value={reqView.cards ? 'card' : reqView.layout} onChange={reqView.setLayout} />
             <Button variant="secondary" onClick={handleExportRequests} loading={reqExportLoad}>
               <Icon name="download" size={16} /> Export Excel
             </Button>
@@ -1377,7 +1419,8 @@ export default function AdminLeave() {
             <SearchBox value={reqSearch} onChange={setReqSearch}
               placeholder="Search requests…" label="Search by teacher name, leave type or reason" />
             <FilterSelect label="Filter by status" value={reqStatus} all="All Statuses"
-              options={STATUS_OPTIONS} onChange={onFilter(setReqStatus)} />
+              options={[...STATUS_OPTIONS, { value: 'withdrawal', label: 'Withdrawal requested' }]}
+              onChange={onFilter(setReqStatus)} />
             <FilterSelect label="Filter by teacher" value={reqTeacher} all="All Teachers"
               options={teacherList.map((t) => ({ value: t._id, label: t.name }))}
               onChange={onFilter(setReqTeacher)} />
@@ -1391,13 +1434,21 @@ export default function AdminLeave() {
                 options={!reqDept || departments.includes(reqDept) ? departments : [...departments, reqDept]}
                 onChange={onFilter(setReqDept)} />
             )}
-            <FilterSelect label="Filter by academic year" value={reqYear} wide
-              all={activeYearLabel ? `${activeYearLabel} (current)` : 'Current year'}
-              options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
-              onChange={onFilter(setReqYear)} />
             <DateRange from={reqFromDate} to={reqToDate}
               onFrom={onFilter(setReqFromDate)} onTo={onFilter(setReqToDate)} />
+            <ClearFilters on={anyReqFilter} onClick={() => { releaseFocus(); clearReqFilters(); }} />
           </FilterRow>
+
+          {/* Approved leave a teacher asked to withdraw waits on the office. */}
+          {ov.counts?.withdrawals > 0 && reqStatus !== 'withdrawal' && (
+            <div className="lvnotice lvnotice--warn">
+              <Icon name="repeat" size={15} />
+              {ov.counts.withdrawals === 1
+                ? '1 teacher has asked to withdraw approved leave.'
+                : `${ov.counts.withdrawals} teachers have asked to withdraw approved leave.`}
+              <button type="button" onClick={() => { releaseFocus(); setReqStatus('withdrawal'); setReqPage(1); }}>Review</button>
+            </div>
+          )}
 
           {/* The request the notification was about is not in this filtered set —
               say so, rather than showing a page that does not hold it. */}
@@ -1411,11 +1462,9 @@ export default function AdminLeave() {
 
           {renderRequestRows()}
 
-          <div className="lvfoot">
-            <ShowingCount page={reqMeta?.page || reqPage} limit={reqLimit}
-              count={requests.length} total={reqMeta?.total ?? requests.length} />
-            <Pager page={reqMeta?.page || reqPage} pages={requests.length ? pages : 0} onPage={onReqPage} />
-          </div>
+          <LeaveFoot view={reqView} page={reqMeta?.page || reqPage}
+            count={requests.length} total={reqMeta?.total ?? requests.length}
+            pages={requests.length ? pages : 0} onPage={onReqPage} />
         </section>
       )}
 
@@ -1448,6 +1497,7 @@ export default function AdminLeave() {
 
             <section className="card lvcard">
               <CardHead title="Leave Types" subtitle="Create and manage different types of leave for staff members.">
+                <LayoutToggle value={typeView.cards ? 'card' : typeView.layout} onChange={typeView.setLayout} />
                 <Button onClick={openCreateType}><Icon name="plus" size={16} /> Add Leave Type</Button>
               </CardHead>
 
@@ -1508,7 +1558,7 @@ export default function AdminLeave() {
                   />
                 </div>
               ) : (
-                <PhoneTable title="Leave Type" side="Status" keep={['Code', 'Annual Allocation']}>
+                <PhoneTable title="Leave Type" side="Status" keep={['Code', 'Annual Allocation']} {...typeView.table}>
                   <table className="lvtable">
                     <thead>
                       <tr>
@@ -1576,21 +1626,17 @@ export default function AdminLeave() {
                 </PhoneTable>
               )}
 
-              <div className="lvfoot">
-                <div className="lvfoot__left">
-                  <ShowingCount page={typePageNow} limit={TYPE_PAGE} count={typeRows.length}
-                    total={typesFiltered.length} noun="leave type" />
-                  {/* Opened from "Total Allocation (Annual)": say the figure
-                      these rows add up to, so the tile is answered here. */}
-                  {typeStatus === 'allocated' && typesFiltered.length > 0 && (
-                    <span className="lvfoot__sum">
-                      Adding up to <b>{typeCounts.allocation} day{typeCounts.allocation === 1 ? '' : 's'}</b> a year
-                    </span>
-                  )}
-                </div>
-                {/* Nothing to page through when the filter emptied the table. */}
-                <Pager page={typePageNow} pages={typesFiltered.length ? typePages : 0} onPage={setTypePage} />
-              </div>
+              <LeaveFoot view={typeView} page={typePageNow} count={typeRows.length}
+                total={typesFiltered.length} noun="leave type"
+                pages={typesFiltered.length ? typePages : 0} onPage={setTypePage}>
+                {/* Opened from "Total Allocation (Annual)": say the figure
+                    these rows add up to, so the tile is answered here. */}
+                {typeStatus === 'allocated' && typesFiltered.length > 0 && (
+                  <span className="lvfoot__sum">
+                    Adding up to <b>{typeCounts.allocation} day{typeCounts.allocation === 1 ? '' : 's'}</b> a year
+                  </span>
+                )}
+              </LeaveFoot>
             </section>
           </div>
 
@@ -1647,8 +1693,10 @@ export default function AdminLeave() {
               </HeadField>
               <FilterSelect label="Filter by department" value={allocDept} all="All Departments"
                 options={allocDepts} onChange={(v) => { setAllocDept(v); setAllocPage(1); }} />
+              {/* One Allocate: on the ticked teachers when there are any (it
+                  says how many), otherwise the form picks them. */}
               <SplitButton
-                label="Allocate" icon="plus"
+                label={allocSelection.ids.length ? `Allocate to ${allocSelection.ids.length}` : 'Allocate'} icon="plus"
                 onClick={() => openAllocate(allocSelection.ids)}
                 items={[
                   { icon: 'repeat', label: 'Carry Forward', sub: 'Roll last year’s balances in',
@@ -1669,18 +1717,15 @@ export default function AdminLeave() {
               <SearchBox value={allocSearch}
                 onChange={(v) => { setAllocSearch(v); setAllocPage(1); }}
                 placeholder="Search by teacher name, department or leave type..." />
-              {/* Acts on the ticked rows when there are any, and on everyone
-                  when there are not — the label says which. */}
-              <Button variant="secondary" onClick={() => openAllocate(allocSelection.ids)}>
-                <Icon name="layers" size={16} />
-                {allocSelection.ids.length ? `Allocate to ${allocSelection.ids.length}` : 'Bulk Allocate'}
-              </Button>
               <Button variant="secondary" onClick={() => setAllocImportModal(true)}>
                 <Icon name="upload" size={16} /> Import Excel
               </Button>
               <Button variant="secondary" onClick={handleExportAllocations} loading={allocExportLoad}>
                 <Icon name="download" size={16} /> Export Excel
               </Button>
+              <ClearFilters on={anyAllocFilter}
+                onClick={() => { setAllocSearch(''); setAllocDept(''); setAllocState(''); setAllocPage(1); }} />
+              <LayoutToggle value={allocView.cards ? 'card' : allocView.layout} onChange={allocView.setLayout} />
             </FilterRow>
 
             {allocLoading && !allocData ? (
@@ -1699,7 +1744,7 @@ export default function AdminLeave() {
                 />
               </div>
             ) : (
-              <PhoneTable title="Teacher" side="Status" keep={['Department', 'Total Allocated']}>
+              <PhoneTable title="Teacher" side="Status" keep={['Department', 'Total Allocated']} {...allocView.table}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -1779,11 +1824,9 @@ export default function AdminLeave() {
               </PhoneTable>
             )}
 
-            <div className="lvfoot">
-              <ShowingCount page={allocPageNow} limit={ALLOC_PAGE} count={allocShown.length}
-                total={allocFiltered.length} noun="teacher" />
-              <Pager page={allocPageNow} pages={allocFiltered.length ? allocPages : 0} onPage={setAllocPage} />
-            </div>
+            <LeaveFoot view={allocView} page={allocPageNow} count={allocShown.length}
+              total={allocFiltered.length} noun="teacher"
+              pages={allocFiltered.length ? allocPages : 0} onPage={setAllocPage} />
           </section>
         </>
       )}
@@ -1806,7 +1849,7 @@ export default function AdminLeave() {
               caption={`For ${allocYear || allocMeta?.academicYear || 'this year'}`}
               on={balWith} onClick={() => { setBalWith((v) => !v); setBalLow(false); setBalPage(1); }} />
             <LeaveStat valueFirst icon="clock" tone="red" value={balCounts.low}
-              label="Low Balance" caption={`(≤ ${LOW_BALANCE} days)`}
+              label="Low Balance" caption={`≤ ${LOW_BALANCE} days left in all`}
               on={balLow} onClick={() => { setBalLow((v) => !v); setBalWith(false); setBalPage(1); }} />
           </LeaveStats>
 
@@ -1830,6 +1873,14 @@ export default function AdminLeave() {
                   </Button>
                 </CardHead>
 
+                <FilterRow>
+                  <SearchBox value={balSearch} onChange={(v) => { setBalSearch(v); setBalPage(1); }}
+                    placeholder="Search teacher by name or employee ID…" />
+                  <ClearFilters on={anyBalFilter}
+                    onClick={() => { setBalSearch(''); setBalDept(''); setBalLow(false); setBalWith(false); setBalPage(1); }} />
+                  <LayoutToggle value={balView.cards ? 'card' : balView.layout} onChange={balView.setLayout} />
+                </FilterRow>
+
                 {allocLoading && !allocData ? (
                   <div className="lvtable__state"><Spinner /></div>
                 ) : !balShown.length ? (
@@ -1846,7 +1897,7 @@ export default function AdminLeave() {
                     />
                   </div>
                 ) : (
-                  <PhoneTable title="Teacher" side="Status" keep={['Department', 'Total']}>
+                  <PhoneTable title="Teacher" side="Status" keep={['Department', 'Total']} {...balView.table}>
                     <table className="lvtable lvtable--grouped">
                       {/* Two header rows: the per-type columns are one group, and
                           saying so once beats repeating "balance" four times. */}
@@ -1889,8 +1940,9 @@ export default function AdminLeave() {
                               {r.hasAny ? dayNum(r.remaining) : <span className="lvmuted">—</span>}
                             </td>
                             <td className="lvt-status">
-                              <span className={`lvbadge is-${!r.hasAny ? 'cancelled' : r.low ? 'rejected' : 'approved'}`}>
-                                {!r.hasAny ? 'No balance' : r.low ? 'Low Balance' : 'Healthy'}
+                              <span className={`lvbadge is-${!r.hasCounted ? 'cancelled' : r.low ? 'rejected' : 'approved'}`}
+                                title={r.hasCounted ? `${dayNum(r.countedLeft)} day(s) left in all (maternity / paternity not counted)` : undefined}>
+                                {!r.hasCounted ? 'No balance' : r.low ? 'Low Balance' : 'Healthy'}
                               </span>
                             </td>
                             <td className="lvt-acts">
@@ -1923,11 +1975,9 @@ export default function AdminLeave() {
                   </PhoneTable>
                 )}
 
-                <div className="lvfoot">
-                  <ShowingCount page={balPageNow} limit={BAL_PAGE} count={balShown.length}
-                    total={balFiltered.length} noun="teacher" />
-                  <Pager page={balPageNow} pages={balFiltered.length ? balPages : 0} onPage={setBalPage} />
-                </div>
+                <LeaveFoot view={balView} page={balPageNow} count={balShown.length}
+                  total={balFiltered.length} noun="teacher"
+                  pages={balFiltered.length ? balPages : 0} onPage={setBalPage} />
               </section>
             </div>
 
@@ -2066,6 +2116,7 @@ export default function AdminLeave() {
                 placeholder="Search teacher..." />
               <FilterSelect label="Filter by status" value={repStatus} all="All Statuses"
                 options={STATUS_OPTIONS} onChange={(v) => { setRepStatus(v); setRepPage(1); }} />
+              <LayoutToggle value={repView.cards ? 'card' : repView.layout} onChange={repView.setLayout} />
             </CardHead>
 
             {repLoading && !repData ? (
@@ -2084,7 +2135,7 @@ export default function AdminLeave() {
                 />
               </div>
             ) : (
-              <PhoneTable title="Teacher" keep={['Department', 'Total']}>
+              <PhoneTable title="Teacher" keep={['Department', 'Total', 'Requests']} {...repView.table}>
                 <table className="lvtable">
                   <thead>
                     <tr>
@@ -2098,7 +2149,12 @@ export default function AdminLeave() {
                           {t.name.replace(/\s*leave\s*$/i, '')}
                         </th>
                       ))}
-                      <th className="lvt-total">Total</th>
+                      {/* What the day columns count: leave taken (approved)
+                          — or, with a status chosen, that status's days. */}
+                      <ThSub className="lvt-total"
+                        sub={repStatus ? `${STATUS[repStatus]?.label || repStatus} days` : 'Days taken'}>Total</ThSub>
+                      {!repStatus && <ThSub className="lvt-cell" sub="Days waiting">Pending</ThSub>}
+                      <ThSub className="lvt-cell" sub={repStatus ? (STATUS[repStatus]?.label || repStatus) : 'Every status'}>Requests</ThSub>
                       <th className="lvt-acts">Actions</th>
                     </tr>
                   </thead>
@@ -2117,6 +2173,12 @@ export default function AdminLeave() {
                           );
                         })}
                         <td className="lvt-total">{dayNum(t.days)}</td>
+                        {!repStatus && (
+                          <td className="lvt-cell">
+                            {t.pendingDays ? <span className="lvpending">{dayNum(t.pendingDays)}</span> : <span className="lvmuted">0</span>}
+                          </td>
+                        )}
+                        <td className="lvt-cell">{t.applications || 0}</td>
                         <td className="lvt-acts">
                           <RowActions>
                             <IconAction icon="eye" label={`View ${t.name}'s leave`}
@@ -2130,11 +2192,9 @@ export default function AdminLeave() {
               </PhoneTable>
             )}
 
-            <div className="lvfoot">
-              <ShowingCount page={repPageNow} limit={REP_PAGE} count={repShown.length}
-                total={repRows.length} noun="teacher" />
-              <Pager page={repPageNow} pages={repRows.length ? repPages : 0} onPage={setRepPage} />
-            </div>
+            <LeaveFoot view={repView} page={repPageNow} count={repShown.length}
+              total={repRows.length} noun="teacher"
+              pages={repRows.length ? repPages : 0} onPage={setRepPage} />
           </section>
         </>
       )}
@@ -2236,20 +2296,20 @@ export default function AdminLeave() {
             <FormStep n={1} title="Select Teacher" note="Choose the teacher for whom you want to apply leave.">
               <label className="lvfield">
                 <span className="lvfield__label">Teacher <i>*</i></span>
-                <select className="form-control" required value={applyForm.teacherId}
-                  onChange={(e) => setApplyForm((f) => ({ ...f, teacherId: e.target.value }))}>
-                  <option value="">Select teacher…</option>
-                  {teacherList.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}{t.employeeId ? ` · ${t.employeeId}` : ''}
-                    </option>
-                  ))}
-                </select>
+                {/* Searchable, and each name carries enough of the record to
+                    pick the right person: number, designation, department, email. */}
+                <SearchSelect value={applyForm.teacherId} options={teacherOptions(teacherList)}
+                  placeholder="Select teacher…" searchPlaceholder="Search name, employee no., department or email…"
+                  emptyText="No teacher matches" maxHeight={360}
+                  renderOption={(r) => <TeacherOption teacher={r.teacher} />}
+                  onChange={(v) => setApplyForm((f) => ({ ...f, teacherId: v }))} />
               </label>
               {/* Enough of the record to be sure it is the right person before
                   filing leave in their name. */}
               {who && (
-                <div className="lvwhofacts">
+                <div className="lvwhofacts lvwhofacts--6">
+                  <div><small>Employee No.</small><b>{who.employeeId || '—'}</b></div>
+                  <div><small>Email</small><b title={who.email || ''}>{who.email || '—'}</b></div>
                   <div><small>Department</small><b>{who.department || '—'}</b></div>
                   <div><small>Designation</small><b>{who.designation || '—'}</b></div>
                   <div><small>Join Date</small><b>{who.joiningDate ? fmtDate(who.joiningDate) : '—'}</b></div>
@@ -2468,8 +2528,6 @@ export default function AdminLeave() {
                   <b>Policy Information</b>
                 </header>
                 <div className="lvsumlines">
-                  <SummaryLine label="Minimum days per application"
-                    value={rules.minDaysPerApplication > 0 ? `${dayNum(rules.minDaysPerApplication)} day(s)` : 'None'} />
                   <SummaryLine label="Maximum consecutive days"
                     value={rules.maxConsecutiveDays > 0 ? `${dayNum(rules.maxConsecutiveDays)} days` : 'No limit'} />
                   {/* Waived for an admin filing on someone's behalf — the notice
@@ -2715,8 +2773,9 @@ export default function AdminLeave() {
                   available out of {delImpact.totals?.allocated} allocated.
                   Deleting the type <strong>permanently removes these allocations</strong>.
                 </div>
-                <div className="table-wrap" style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  <table className="table">
+                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  <PhoneTable title="Teacher" side="Available" keep={['Allocated', 'Used', 'Pending']}>
+                  <table className="lvtable">
                     <thead>
                       <tr>
                         <th>Teacher</th><th>Year</th><th>Allocated</th>
@@ -2749,6 +2808,7 @@ export default function AdminLeave() {
                       </tr>
                     </tfoot>
                   </table>
+                  </PhoneTable>
                 </div>
               </>
             ) : (
@@ -3135,8 +3195,9 @@ export default function AdminLeave() {
                     leaves those requests with no balance behind them — approve or reject them first.
                   </div>
                 )}
-                <div className="table-wrap" style={{ maxHeight: 240, overflowY: 'auto' }}>
-                  <table className="table">
+                <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  <PhoneTable title="Teacher" side="After clear" keep={['Allocated', 'Used', 'Pending']}>
+                  <table className="lvtable">
                     <thead>
                       <tr><th>Teacher</th><th>Allocated</th><th>Used</th><th>Pending</th><th>After clear</th></tr>
                     </thead>
@@ -3152,6 +3213,7 @@ export default function AdminLeave() {
                       ))}
                     </tbody>
                   </table>
+                  </PhoneTable>
                 </div>
               </>
             ))}
