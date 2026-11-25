@@ -288,10 +288,10 @@ export default function Header({ onMenuClick, onCollapseClick }) {
           </button>
 
           {bellOpen && (
-            <div className="dropdown-menu" style={{
-              right: 0, left: 'auto', width: 340, maxHeight: 460,
-              overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            }}>
+            // Sized in CSS (.hdr-bell): 340px under the bell on a wide screen;
+            // on a phone it spans the screen — pinned to the bell it ran off the
+            // left edge (a student's header has the bell further left).
+            <div className="dropdown-menu hdr-bell">
               {/* Header row */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
