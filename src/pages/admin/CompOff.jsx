@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/admin.api';
@@ -13,7 +13,7 @@ import {
   LeaveDonut, LeaveStat, LeaveStats, Pager, PolicyHead, RuleCard, RuleCheck, RuleList,
   RuleNum, RulePick, STATUS, SearchBox, SectionHead, ShowingCount, SignOffStep, StatusBadge,
   SubTabs, TYPE_TONES, TeacherCell, WORK_TYPES, WorkDateCell,
-  PhoneTable,
+  PhoneTable, ClearFilters,
 } from './leaveParts';
 
 // Comp Off lives inside Leave Management — these two panels are mounted as
@@ -827,7 +827,7 @@ function CompOffBalances({ onOpenLedger }) {
   const totals = data?.totals || {};
 
   const [search, setSearch] = useState('');
-  const [only, setOnly]     = useState('');   // '' | 'holding' | 'expired'
+  const [only, setOnly]     = useState('');   // '' | 'holding' | 'earned' | 'used' | 'expired'
   const [page, setPage]     = useState(1);
   const PAGE = 10;
 
@@ -836,6 +836,8 @@ function CompOffBalances({ onOpenLedger }) {
 
   const rows = items.filter((r) => {
     if (only === 'holding' && !(r.remaining > 0)) return false;
+    if (only === 'earned'  && !(r.earned   > 0)) return false;
+    if (only === 'used'    && !(r.used     > 0)) return false;
     if (only === 'expired' && !(r.expired  > 0)) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
@@ -846,31 +848,36 @@ function CompOffBalances({ onOpenLedger }) {
   const pageNow = Math.min(page, pages);
   const shown   = rows.slice((pageNow - 1) * PAGE, pageNow * PAGE);
   const anyFilter = !!(search.trim() || only);
+  // Every tile opens what it counts: the employees behind its figure. A second
+  // press turns it off.
+  const pick = (key) => { setOnly((c) => (c === key ? '' : key)); setPage(1); };
+  const ONLY_LABEL = { holding: 'holding days', earned: 'who earned days', used: 'who used days', expired: 'with days that lapsed' };
 
   return (
     <>
       <LeaveStats className="lvstats--4">
         <LeaveStat valueFirst icon="checkCircle" tone="green" value={totals.remaining ?? 0}
           label="Available" caption="Days left to spend"
-          on={only === 'holding'}
-          onClick={() => { setOnly((c) => (c === 'holding' ? '' : 'holding')); setPage(1); }} />
+          on={only === 'holding'} onClick={() => pick('holding')} />
         <LeaveStat valueFirst icon="wallet2" tone="indigo" value={totals.earned ?? 0}
-          label="Earned" caption="Credited all year" />
+          label="Earned" caption="Credited all year"
+          on={only === 'earned'} onClick={() => pick('earned')} />
         <LeaveStat valueFirst icon="clock" tone="amber" value={totals.used ?? 0}
-          label="Used" caption="Already spent as leave" />
-        {/* Expiry is the only figure here anyone can still act on, so it is the
-            one that filters. */}
+          label="Used" caption="Already spent as leave"
+          on={only === 'used'} onClick={() => pick('used')} />
         <LeaveStat valueFirst icon="closeCircle" tone="red" value={totals.expired ?? 0}
           label="Expired" caption="Lapsed before being used"
-          on={only === 'expired'}
-          onClick={() => { setOnly((c) => (c === 'expired' ? '' : 'expired')); setPage(1); }} />
+          on={only === 'expired'} onClick={() => pick('expired')} />
       </LeaveStats>
 
       <section className="card lvcard">
         <CardHead icon="chart" title="Comp Off Balances"
-          subtitle="What each employee has earned, spent and has left.">
+          subtitle={only
+            ? `Showing the employees ${ONLY_LABEL[only]} — press the tile again to see everyone.`
+            : 'What each employee has earned, spent and has left.'}>
           <SearchBox value={search} onChange={(v) => { setSearch(v); setPage(1); }}
             placeholder="Search employee..." />
+          <ClearFilters on={anyFilter} onClick={() => { setSearch(''); setOnly(''); setPage(1); }} />
         </CardHead>
 
         {!shown.length ? (
@@ -1139,6 +1146,10 @@ function CompOffReports({ onOpenRequests }) {
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState(null);   // the row the drawer is open on
+  // What a tile (or a status line) narrowed the table to: '' = every request,
+  // 'credited' = the ones that reached a balance, or a status.
+  const [only, setOnly] = useState('');
+  const tableRef = useRef(null);
   const PAGE = 10;
 
   const { data, loading } = useFetch(
@@ -1150,7 +1161,20 @@ function CompOffReports({ onOpenRequests }) {
   if (data?.enabled === false) return <NotConfigured reason={data.reason} />;
 
   const s = data?.summary || {};
-  const rows    = data?.requests || [];
+  const all     = data?.requests || [];
+  const rows    = all.filter((r) => (
+    !only ? true : only === 'credited' ? r.creditedDays > 0 : r.status === only));
+  // Each tile opens the requests it counts, in the table below the charts —
+  // scrolled to, so the press visibly does something. Pressed again, it lets go.
+  const pick = (key) => {
+    const next = only === key ? '' : key;
+    setOnly(next); setPage(1);
+    if (next) requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+  const ONLY_TITLE = {
+    credited: 'Credited requests', pending: 'Pending requests', rejected: 'Rejected requests',
+    approved: 'Approved requests', cancelled: 'Cancelled requests', expired: 'Expired requests', draft: 'Draft requests',
+  };
   const pages   = Math.max(1, Math.ceil(rows.length / PAGE));
   const pageNow = Math.min(page, pages);
   const shown   = rows.slice((pageNow - 1) * PAGE, pageNow * PAGE);
@@ -1169,13 +1193,17 @@ function CompOffReports({ onOpenRequests }) {
     <>
       <LeaveStats className="lvstats--4">
         <LeaveStat valueFirst icon="fileCheck" tone="blue" value={s.total ?? 0}
-          label="Total Requests" caption={from || to ? 'In this period' : 'All time'} />
+          label="Total Requests" caption={from || to ? 'In this period' : 'All time'}
+          onClick={() => { setOnly(''); setPage(1); tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
         <LeaveStat valueFirst icon="checkCircle" tone="green" value={s.daysEarned ?? 0}
-          label="Days Credited" caption="Reached a balance" />
+          label="Days Credited" caption="Reached a balance"
+          on={only === 'credited'} onClick={() => pick('credited')} />
         <LeaveStat valueFirst icon="clock" tone="amber" value={s.byStatus?.pending ?? 0}
-          label="Pending" caption="Still waiting on a decision" />
+          label="Pending" caption="Still waiting on a decision"
+          on={only === 'pending'} onClick={() => pick('pending')} />
         <LeaveStat valueFirst icon="closeCircle" tone="red" value={s.byStatus?.rejected ?? 0}
-          label="Rejected" caption="Turned down" />
+          label="Rejected" caption="Turned down"
+          on={only === 'rejected'} onClick={() => pick('rejected')} />
       </LeaveStats>
 
       <div className="lvcharts">
@@ -1199,13 +1227,15 @@ function CompOffReports({ onOpenRequests }) {
             {['approved', 'pending', 'rejected', 'cancelled', 'expired', 'draft']
               .filter((k) => (s.byStatus?.[k] || 0) > 0)
               .map((k) => (
-                <div key={k} className="lvstatusrow">
+                <button key={k} type="button" className={`lvstatusrow lvstatusrow--btn${only === k ? ' is-on' : ''}`}
+                  aria-pressed={only === k} onClick={() => pick(k)}
+                  title={only === k ? 'Show every request again' : `Show the ${k} requests`}>
                   <StatusBadge status={k} />
                   <span className="lvstatusrow__bar">
                     <i style={{ width: `${Math.max(3, ((s.byStatus[k] || 0) / Math.max(1, s.total || 1)) * 100)}%` }} />
                   </span>
                   <b>{s.byStatus[k]}</b>
-                </div>
+                </button>
               ))}
             {!Object.values(s.byStatus || {}).some((v) => v > 0) && (
               <p className="lvrail__none">Nothing to count in this period.</p>
@@ -1214,16 +1244,20 @@ function CompOffReports({ onOpenRequests }) {
         </ChartCard>
       </div>
 
-      <section className="card lvcard">
-        <CardHead icon="files" title="Comp Off Requests"
-          subtitle="Every claim in the selected period." />
+      <section className="card lvcard lvscrolltarget" ref={tableRef}>
+        <CardHead icon="files" title={only ? ONLY_TITLE[only] || 'Comp Off Requests' : 'Comp Off Requests'}
+          subtitle={only
+            ? `${rows.length} of ${all.length} claim${all.length === 1 ? '' : 's'} in the selected period — press the tile again to see them all.`
+            : 'Every claim in the selected period.'}>
+          <ClearFilters on={!!(only || from || to)} onClick={() => { setOnly(''); setFrom(''); setTo(''); setPage(1); }} />
+        </CardHead>
 
         {!shown.length ? (
           <div className="lvtable__state">
-            <Empty icon="📈" title="No Comp Off in this period"
-              message="Widen the dates, or clear them to see the whole year."
-              action={(from || to)
-                ? <Button variant="secondary" onClick={() => { setFrom(''); setTo(''); setPage(1); }}>Clear dates</Button>
+            <Empty icon="📈" title={only ? 'Nothing here in this period' : 'No Comp Off in this period'}
+              message={only ? 'No claim in the period matches the tile you pressed.' : 'Widen the dates, or clear them to see the whole year.'}
+              action={(only || from || to)
+                ? <Button variant="secondary" onClick={() => { setOnly(''); setFrom(''); setTo(''); setPage(1); }}>Clear filters</Button>
                 : null} />
           </div>
         ) : (

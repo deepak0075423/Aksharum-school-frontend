@@ -165,25 +165,40 @@ function columnLabels(thead) {
 }
 
 /**
- * A leave table that turns into cards on a phone, so nothing scrolls sideways.
+ * A leave table that never scrolls sideways.
  *
- * Desktop: the table, untouched. Phone (≤640px, CSS): each row is a card — the
- * `title` column as its heading, `side` (usually Status) beside it, the `keep`
- * columns as label/value lines, and the row's own Actions cell (whose eye
- * opens the full record) along the bottom. Every other column is left to that
- * eye. Labels are read from the table's own head, so each table only names
- * the columns it wants on the card.
+ * Where it fits: the table. Where it does not (a laptop with a long name in a
+ * row, a narrow window): the columns named in `fold` are hidden one at a time,
+ * in that order — each is one the row's eye shows in full. Where even that is
+ * not enough, and always on a phone (≤640px): each row is a card — the `title`
+ * column as its heading, `side` (usually Status) beside it, the `keep` columns
+ * as label/value lines, and the row's own Actions cell (whose eye opens the
+ * full record) along the bottom. Labels are read from the table's own head, so
+ * each table only names the columns it wants on the card.
+ *
+ * Measured, not guessed: the box is re-checked whenever it changes width (the
+ * sidebar, the window) or its rows change, before the browser paints.
  */
-export function PhoneTable({ title, side, keep = [], children }) {
+export function PhoneTable({ title, side, keep = [], fold = [], children }) {
   const ref = React.useRef(null);
-  const spec = `${title}|${side}|${keep.join('|')}`;
+  const spec = `${title}|${side}|${keep.join('|')}|${fold.join('|')}`;
   React.useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return undefined;
+    const phone = window.matchMedia('(max-width: 640px)');
     const mark = () => {
       const table = root.querySelector('table');
       if (!table) return;
       const labels = columnLabels(table.tHead);
+      // A one-row head names its own cells, so a folded column hides its head too.
+      if (table.tHead?.rows.length === 1) {
+        let c = 0;
+        for (const th of table.tHead.rows[0].cells) {
+          const label = labels[c] || '';
+          if (fold.includes(label)) th.setAttribute('data-foldable', label); else th.removeAttribute('data-foldable');
+          c += th.colSpan || 1;
+        }
+      }
       for (const body of table.tBodies) {
         for (const tr of body.rows) {
           let c = 0;
@@ -193,16 +208,46 @@ export function PhoneTable({ title, side, keep = [], children }) {
             td.classList.toggle('lvph-title', label === title);
             td.classList.toggle('lvph-side', !!side && label === side);
             td.classList.toggle('lvph-keep', keep.includes(label));
+            if (fold.includes(label)) td.setAttribute('data-foldable', label); else td.removeAttribute('data-foldable');
             c += td.colSpan || 1;
           }
         }
       }
     };
-    mark();
-    // Rows come and go with paging and filters; label the new ones too.
-    const watch = new MutationObserver(mark);
-    watch.observe(root, { childList: true, subtree: true });
-    return () => watch.disconnect();
+    // Data attributes, not classes: React rewrites a cell's className when it
+    // re-renders, but leaves attributes it never set alone.
+    const fit = () => {
+      const table = root.querySelector('table');
+      if (!table) return;
+      root.removeAttribute('data-cards');
+      root.querySelectorAll('[data-fold]').forEach((el) => el.removeAttribute('data-fold'));
+      if (phone.matches) { root.setAttribute('data-cards', ''); return; }
+      const room = root.clientWidth;
+      if (!room) return;                      // hidden: checked again when shown
+      const over = () => table.getBoundingClientRect().width > room + 1;
+      for (let n = 0; n < fold.length && over(); n += 1) {
+        root.querySelectorAll(`[data-foldable="${CSS.escape(fold[n])}"]`).forEach((el) => el.setAttribute('data-fold', ''));
+      }
+      if (over()) {
+        root.querySelectorAll('[data-fold]').forEach((el) => el.removeAttribute('data-fold'));
+        root.setAttribute('data-cards', '');
+      }
+    };
+    const run = () => { mark(); fit(); };
+    run();
+    // Rows come and go with paging and filters; label and measure the new ones too.
+    const watch = new MutationObserver(run);
+    watch.observe(root, { childList: true, subtree: true, characterData: true });
+    let lastWidth = root.clientWidth;
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      if (root.clientWidth === lastWidth) return;
+      lastWidth = root.clientWidth;
+      fit();
+    });
+    ro?.observe(root);
+    phone.addEventListener?.('change', fit);
+    return () => { watch.disconnect(); ro?.disconnect(); phone.removeEventListener?.('change', fit); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec]);
   return <div ref={ref} className="lvtable__wrap lvph">{children}</div>;
 }
@@ -239,11 +284,11 @@ export const HeadField = ({ label, children }) => (
 /** The flat filter row under a card's header. */
 export const FilterRow = ({ children }) => <div className="lvfilters">{children}</div>;
 
-export const SearchBox = ({ value, onChange, placeholder }) => (
+export const SearchBox = ({ value, onChange, placeholder, label }) => (
   <div className="lvsearch">
     <Icon name="search" size={17} />
     <input className="form-control" value={value} placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)} aria-label={placeholder} />
+      onChange={(e) => onChange(e.target.value)} aria-label={label || placeholder} title={label || undefined} />
     {value && (
       <button type="button" className="lvsearch__clear" onClick={() => onChange('')}
         aria-label="Clear search">
@@ -254,14 +299,68 @@ export const SearchBox = ({ value, onChange, placeholder }) => (
 );
 
 /**
+ * The teachers a bulk allocate / clear reaches, ticked one by one.
+ *
+ * `mode` is 'select' (the ticked are included) or 'except' (the ticked are
+ * left out) — the same list either way. "Select all" ticks everyone; Clear
+ * unticks everyone, so a list ticked in full can be started again without
+ * unticking it name by name.
+ */
+export function TeacherChecklist({ teachers, checked, onChange, mode = 'select', maxHeight = 180 }) {
+  const all  = teachers.length > 0 && checked.length === teachers.length;
+  const some = checked.length > 0 && !all;
+  const flip = (id, on) => onChange(on ? [...checked, id] : checked.filter((x) => x !== id));
+  return (
+    <div className="lvpick">
+      <div className="lvpick__head">
+        <label className="lvpick__all">
+          <input type="checkbox" checked={all}
+            ref={(el) => { if (el) el.indeterminate = some; }}
+            onChange={(e) => onChange(e.target.checked ? teachers.map((t) => t._id) : [])} />
+          <b>{mode === 'except' ? `Exclude all (${teachers.length})` : `Select all (${teachers.length})`}</b>
+        </label>
+        {checked.length > 0 && (
+          <span className="lvpick__count">{checked.length} {mode === 'except' ? 'excluded' : 'selected'}</span>
+        )}
+        <button type="button" className="lvpick__clear" disabled={!checked.length} onClick={() => onChange([])}
+          title={checked.length ? 'Untick every teacher' : 'Nobody is ticked'}>
+          <Icon name="close" size={13} /> Clear
+        </button>
+      </div>
+      <div className="lvpick__list" style={{ maxHeight }}>
+        {teachers.map((t) => (
+          <label key={t._id} className="lvpick__row">
+            <input type="checkbox" checked={checked.includes(t._id)} onChange={(e) => flip(t._id, e.target.checked)} />
+            <span>{t.name}</span>
+            {t.employeeId && <small>({t.employeeId})</small>}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Puts a filter row back the way the tab opened — search and every dropdown.
+ * Always on the row, so it can be found; greyed out while nothing is set
+ * (the same rule as the Documents bars' Reset).
+ */
+export const ClearFilters = ({ on, onClick }) => (
+  <button type="button" className="btn btn-secondary lvclear" onClick={onClick} disabled={!on}
+    title={on ? 'Clear the search and filters' : 'No filters are set'}>
+    <Icon name="close" size={15} /> Clear
+  </button>
+);
+
+/**
  * One dropdown in the filter row.
  *
  * `all` is the "everything" option, so an unset filter still reads as a
  * sentence — "All Teachers", not a blank box — and a set one is marked, so the
  * row says at a glance which of its fields are doing something.
  */
-export const FilterSelect = ({ value, onChange, all, options, label }) => (
-  <select className={`form-control lvsel${value ? ' is-set' : ''}`}
+export const FilterSelect = ({ value, onChange, all, options, label, wide = false }) => (
+  <select className={`form-control lvsel${wide ? ' lvsel--wide' : ''}${value ? ' is-set' : ''}`}
     value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
     <option value="">{all}</option>
     {options.map((o) => {
@@ -381,8 +480,16 @@ export const ApprovalStep = ({ request: r }) => {
   );
 };
 
-/** Leave documents are served from the backend root, not from /api. */
-export const docUrl = (name) => (!name ? '' : withFileToken(`/uploads/leave-docs/${name}`));
+/**
+ * Leave documents are served by the API server, from its root (not /api).
+ * The address must name that server: a bare "/uploads/…" asks the web app's
+ * own host, which in production (app. beside api.) answers with the app's 404
+ * page — the dev server only hid this by proxying /uploads.
+ */
+const uploadBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, '');
+export const docUrl = (name) => (!name ? '' : withFileToken(
+  /^https?:/.test(name) ? name : `${uploadBase}/uploads/leave-docs/${String(name).replace(/^.*\//, '')}`,
+));
 
 export const ReasonCell = ({ request: r }) => (
   <div className="lvreason" title={r.reason || ''}>

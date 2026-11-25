@@ -12264,7 +12264,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: .78rem; font-weight: 700;
 }
-.lvwho b     { display: block; font-size: .88rem; font-weight: 600; white-space: nowrap; }
+.lvwho b     { display: block; font-size: .88rem; font-weight: 600; }
 .lvwho small { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 1px; }
 
 /* A leave type: its name, with the code under it as the short form. */
@@ -12299,7 +12299,7 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvstep {
   display: block; width: fit-content; margin-top: 5px; padding: 1px 7px;
   border-radius: 6px; background: #eef2ff; color: var(--primary);
-  font-size: .7rem; font-weight: 600;
+  font-size: .7rem; font-weight: 600; white-space: nowrap;
 }
 .lvtag {
   font-size: .72rem; font-weight: 600; letter-spacing: .02em;
@@ -12643,6 +12643,13 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   font-size: .66rem; font-weight: 500; letter-spacing: .04em;
   color: var(--text-light); text-transform: none;
 }
+/* In such a table every heading and every cell starts on ONE line: centred,
+   the one-line headings ("Status", "Actions") and one-line values ("1 day",
+   the status badge) sat lower than the two-line ones beside them. The buttons
+   stay centred in their row. */
+.lvtable:has(> thead .lvth > small) > thead > tr > th,
+.lvtable:has(> thead .lvth > small) > tbody > tr > td { vertical-align: baseline; }
+.lvtable:has(> thead .lvth > small) > tbody > tr > td.lvt-acts { vertical-align: middle; }
 
 /* The three things worth saying about a feature, under its list. */
 .lvinfo {
@@ -12991,6 +12998,34 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   font-size: .84rem; font-weight: 600;
 }
 .lvselbar > svg { flex-shrink: 0; }
+/* The teacher checklist in the Allocate / Clear Allocation popups. */
+.lvpick__head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: .82rem; }
+.lvpick__all  { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.lvpick__count { color: var(--text-muted); }
+.lvpick__clear {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-card); color: var(--text); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer;
+}
+.lvpick__clear:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.lvpick__clear:disabled { opacity: .45; cursor: not-allowed; }
+.lvpick__list { overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 0; }
+.lvpick__row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; cursor: pointer; }
+.lvpick__row small { font-size: .75rem; color: var(--text-muted); }
+/* A filter row's Clear: always there, greyed while nothing is set. */
+.lvclear { flex-shrink: 0; gap: 6px; height: 44px; padding: 0 14px; font-size: .85rem; white-space: nowrap; }
+.lvclear:disabled { opacity: .5; cursor: not-allowed; }
+/* The types a bulk popup is about, one line each, with what happens to it. */
+.lvbulklist {
+  list-style: none; margin: 12px 0 0; padding: 0; max-height: 300px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.lvbulklist li { padding: 10px 14px; font-size: .86rem; }
+.lvbulklist li + li { border-top: 1px solid var(--border); }
+.lvbulklist li .lvmuted { margin-left: 6px; font-size: .78rem; }
+.lvbulklist li small { display: block; margin-top: 3px; font-size: .78rem; color: var(--text-muted); }
+.lvbulklist li.is-blocked { background: #fff7ed; }
+.lvbulklist li.is-blocked small { color: #b45309; }
 .lvselbar__acts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 .lvselbar .lvmuted { font-weight: 400; font-style: normal; }
 
@@ -13005,12 +13040,23 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 
 /* The status split, for a panel where a ring would be three slices of nothing. */
 .lvstatuslist { display: flex; flex-direction: column; gap: 12px; padding: 6px 20px 20px; }
+.lvstatuslist:has(.lvstatusrow--btn) { gap: 4px; padding: 6px 12px 16px; }
 .lvstatusrow  { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
 .lvstatusrow__bar {
   height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden;
 }
 .lvstatusrow__bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
 .lvstatusrow b { font-size: .88rem; font-variant-numeric: tabular-nums; }
+/* A status line that filters the table under the charts. */
+.lvstatusrow--btn {
+  width: 100%; margin: 0; padding: 6px 8px; border: 1px solid transparent; border-radius: var(--radius);
+  background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.lvstatusrow--btn:hover { background: var(--bg); }
+.lvstatusrow--btn.is-on { background: #eef2ff; border-color: #c7d2fe; }
+/* A card a tile scrolls to: clear of the sticky header. */
+.lvscrolltarget { scroll-margin-top: 84px; }
 
 /* The policy notice, in its warning colour. */
 .lvnotice--warn { background: #fef3c7; color: #92400e; }
@@ -13493,6 +13539,13 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .lvtabacts { padding-left: 16px; padding-right: 16px; }
   .lvsearch { flex-basis: 100%; }
   .lvsel, .lvrange { flex: 1 1 160px; }
+  /* A filter row reads search, dropdowns two to a line, the date range on a
+     line of its own, then its buttons — the date range (the shared
+     DateRangeFilter) used to sit half-width between two dropdowns, and the
+     spacer before Reset left the button stranded at the side. */
+  .lvfilters > .drf { order: 1; flex: 1 1 100%; justify-content: flex-start; }
+  .lvfilters > .btn { order: 2; flex: 1 1 140px; justify-content: center; }
+  .lvfilters__sep { display: none; }
   .lvsection__acts { width: 100%; align-items: stretch; }
   .lvsection__acts .btn, .lvsection__acts .lvheadfield, .lvsection__acts .lvsel { flex: 1 1 160px; }
   .lvcardhead__acts { width: 100%; align-items: stretch; }
@@ -13581,49 +13634,73 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
   .uitabs.lvtabs-main .uitab { justify-content: center; padding: 9px 8px; font-size: .82rem; min-width: 0; }
   .uitabs.lvtabs-main .uitab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .lvph.lvtable__wrap { overflow: visible; }
-  .lvph .lvtable, .lvph .lvtable > tbody { display: block; width: 100%; }
-  .lvph .lvtable > thead { display: none; }
-  .lvph .lvtable > tbody > tr {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
-    margin: 0 12px 12px; padding: 14px;
-    border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  /* A teacher's views (My Applications / Leave Balance / Comp Off, and Comp
+     Off's own My Requests / Ledger) share the width instead of running off the
+     right edge — "Comp Off" was cut to "Comp O". Two lines when there are more
+     than three (an approver's queues). Each tab keeps its own underline. */
+  .lvtabrow { gap: 10px; }
+  .lvtabrow > .uitabs--line {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    width: 100%; overflow: visible; gap: 0; margin-bottom: 0; border-bottom: 0;
   }
-  .lvph .lvtable > tbody > tr:first-child { margin-top: 12px; }
-  .lvph .lvtable > tbody > tr:hover { background: var(--bg-card, #fff); }
-  .lvph .lvtable > tbody > tr > td {
-    display: none; padding: 0; border: 0; max-width: none; width: auto;
-    font-size: .84rem; text-align: left; white-space: normal;
-  }
-  /* Heading: the person or the type, taking the row beside the status. */
-  .lvph .lvtable > tbody > tr > td.lvph-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
-  .lvph .lvtable > tbody > tr > td.lvph-title b { white-space: normal; overflow-wrap: anywhere; }
-  .lvph .lvtable > tbody > tr > td.lvph-side  { display: block; order: 2; flex: 0 0 auto; }
-  .lvph .lvtable > tbody > tr > td.lvt-tick   { display: block; order: 0; flex: 0 0 auto; }
-  /* The label/value lines. */
-  .lvph .lvtable > tbody > tr > td.lvph-keep {
-    display: flex; order: 3; width: 100%; align-items: flex-start; justify-content: space-between; gap: 14px;
-    padding-top: 8px; border-top: 1px dashed var(--border);
-  }
-  .lvph .lvtable > tbody > tr > td.lvph-keep::before {
-    content: attr(data-label); flex-shrink: 0;
-    font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-    color: var(--text-muted); padding-top: 2px;
-  }
-  .lvph .lvtable > tbody > tr > td.lvph-keep > * { min-width: 0; text-align: right; }
-  .lvph .lvtable > tbody > tr > td.lvph-keep .lvperiod span,
-  .lvph .lvtable > tbody > tr > td.lvph-keep .lvtype b { white-space: normal; }
-  /* The row's actions (its eye opens everything the card leaves out). */
-  .lvph .lvtable > tbody > tr > td.lvt-acts {
-    display: block; order: 4; width: 100%;
-    padding-top: 10px; border-top: 1px solid var(--border);
-  }
-  .lvph .lvtable > tbody > tr > td.lvt-acts .lvrowacts,
-  .lvph .lvtable > tbody > tr > td.lvt-acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
-  .lvph .lvtable > tbody > tr > td.lvt-acts .lvacts { flex: 1; }
-  .lvph .lvtable > tbody > tr > td.lvt-acts .lvacts .lvbtn { flex: 1; justify-content: center; }
+  .lvtabrow > .uitabs--line .uitab { justify-content: center; min-width: 0; padding: 10px 6px; }
+  .lvtabrow > .uitabs--line .uitab > svg { display: none; }
+  .lvtabrow > .uitabs--line .uitab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lvtabrow > .btn { flex: 1 1 100%; justify-content: center; margin-bottom: 12px; }
 }
+
+/* A leave table drawn as cards — always on a phone, and wherever the table
+   would otherwise scroll sideways (PhoneTable measures and sets data-cards). */
+.lvph[data-cards] { overflow: visible; }
+.lvph[data-cards] .lvtable { display: block; width: 100%; }
+.lvph[data-cards] .lvtable > thead { display: none; }
+/* One card per row on a phone; two or more side by side where there is room
+   (a tablet, a narrow window), each row of cards the same height. */
+.lvph[data-cards] .lvtable > tbody {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 12px; padding: 12px; width: 100%;
+}
+.lvph[data-cards] .lvtable > tbody > tr {
+  display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 8px 10px;
+  margin: 0; padding: 14px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.lvph[data-cards] .lvtable > tbody > tr:hover { background: var(--bg-card, #fff); }
+.lvph[data-cards] .lvtable > tbody > tr > td {
+  display: none; padding: 0; border: 0; max-width: none; width: auto;
+  font-size: .84rem; text-align: left; white-space: normal;
+}
+/* Heading: the person or the type, taking the row beside the status. */
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-title b { white-space: normal; overflow-wrap: anywhere; }
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-side  { display: block; order: 2; flex: 0 0 auto; }
+.lvph[data-cards] .lvtable > tbody > tr > td.lvt-tick   { display: block; order: 0; flex: 0 0 auto; }
+/* The label/value lines. */
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-keep {
+  display: flex; order: 3; width: 100%; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding-top: 8px; border-top: 1px dashed var(--border);
+}
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-keep::before {
+  content: attr(data-label); flex-shrink: 0;
+  font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-muted); padding-top: 2px;
+}
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-keep > * { min-width: 0; text-align: right; }
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-keep .lvperiod span,
+.lvph[data-cards] .lvtable > tbody > tr > td.lvph-keep .lvtype b { white-space: normal; }
+/* The row's actions (its eye opens everything the card leaves out). */
+.lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts {
+  display: block; order: 4; width: 100%;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvrowacts,
+.lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
+.lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvacts { flex: 1; }
+.lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvacts .lvbtn { flex: 1; justify-content: center; }
+/* A column PhoneTable folded away to keep the table inside its card; the
+   row's eye shows it in full. */
+.lvph [data-fold] { display: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NOTIFICATIONS — the admin mailbox
@@ -22743,10 +22820,16 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .leavepg .lvcardhead > :first-child { flex: 1 1 auto; min-width: 0; }
   .leavepg .lvcardhead__acts { flex: 0 1 auto; flex-wrap: nowrap; }
 
-  /* Filters on one line: the search gives way first. */
-  .leavepg .lvfilters { gap: 10px; padding: 0 20px 16px; }
+  /* Filters on one line: the search gives way first, and no dropdown is
+     wider than 160px — sized to its longest choice, one long teacher name
+     pushed the date range onto a second line (it shows shortened instead).
+     The year keeps its full "2026-27 (current)". */
+  .leavepg .lvfilters { gap: 8px; padding: 0 20px 16px; }
   .leavepg .lvcard > .lvfilters:first-child { padding-top: 16px; }
-  .leavepg .lvsearch { flex: 1 1 200px; min-width: 170px; }
+  .leavepg .lvselbar { margin-left: 20px; margin-right: 20px; }
+  .leavepg .lvsearch { flex: 1 1 140px; min-width: 140px; }
+  .leavepg .lvfilters > .lvsel { flex: 0 1 auto; min-width: 112px; max-width: 160px; text-overflow: ellipsis; }
+  .leavepg .lvfilters > .lvsel--wide { max-width: 200px; }
 
   /* Tables: the same columns with less air between them, and the decision
      buttons a little more compact — the Requests table was 19px wider than
@@ -22763,4 +22846,28 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 @media (min-width: 1101px) and (max-width: 1400px) {
   .leavepg .lvperiod span { white-space: normal; }
   .leavepg .lvtable thead th, .leavepg .lvtable tbody td { padding-left: 8px; padding-right: 8px; }
+}
+
+/* ── Leave tiles on a phone (Nov 26 2026) ─────────────────────────────────────
+   The shared "Summary tiles on a phone" rule (above, Nov 18) for the Leave and
+   Comp Off tiles too — they stacked one to a row: two to a row, an odd one out
+   takes the last row (5 = 2 + 2 + 1), every tile the same height, the icon
+   above the figure so a half-width tile keeps its words on their lines. */
+@media (max-width: 640px) {
+  .lvstats, .lvstats--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 10px;
+  }
+  .lvstats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .lvstat {
+    flex-direction: column; align-items: flex-start; justify-content: flex-start;
+    gap: 10px; padding: 14px; min-width: 0; height: 100%;
+  }
+  .lvstat__icon { width: 38px; height: 38px; border-radius: 11px; }
+  .lvstat__icon svg { width: 19px; height: 19px; }
+  .lvstat__body { width: 100%; min-width: 0; }
+  .lvstat__value { font-size: 1.35rem; line-height: 1.15; }
+  .lvstat__label { font-size: .8rem; line-height: 1.3; }
+  .lvstat__cap { font-size: .7rem; line-height: 1.35; }
 }

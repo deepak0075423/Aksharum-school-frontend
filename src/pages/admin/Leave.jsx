@@ -23,7 +23,7 @@ import {
   BalanceDrawer, BalancePill, ChoiceCards, DialogHead, DialogNote, DropZone, FormStep, FactRow,
   HelpPanel, LeaveDonut, SummaryLine, TypeIcon, OnLeaveTodayModal,
   chipTones, dayNum, docUrl, donutSlices, fmtDate,
-  PhoneTable, TypeDrawer,
+  PhoneTable, TypeDrawer, ClearFilters, TeacherChecklist,
 } from './leaveParts';
 
 const STATUS_VARIANT = {
@@ -360,7 +360,7 @@ export default function AdminLeave() {
     }
     const start = ((reqMeta?.page || reqPage) - 1) * reqLimit;
     return (
-      <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days']}>
+      <PhoneTable title="Teacher" side="Status" keep={['Leave Type', 'Period', 'Days']} fold={['Applied On', 'Reason']}>
         <table className="lvtable">
           <thead>
             <tr>
@@ -516,6 +516,68 @@ export default function AdminLeave() {
   const typePageNow = Math.min(typePage, typePages);
   const typeRows = typesFiltered.slice((typePageNow - 1) * TYPE_PAGE, typePageNow * TYPE_PAGE);
   const anyTypeFilter = !!(typeSearch.trim() || typeStatus);
+  const clearTypeFilters = () => { setTypeSearch(''); setTypeStatus(''); setTypePage(1); };
+
+  // ── Leave types, several at once ──────────────────────────────────────────
+  // The ticks are this page's rows; paging or filtering starts afresh, so a
+  // bulk action never reaches a type the admin can no longer see.
+  const typeSelection = useSelection(typeRows, `${typePageNow}|${typeSearch}|${typeStatus}`);
+  const pickedOn  = typeSelection.rows.filter((t) => t.isActive !== false);
+  const pickedOff = typeSelection.rows.filter((t) => t.isActive === false);
+  const [typeBulk, setTypeBulk] = useState(null);       // { kind: 'off' | 'delete', list, loading }
+  const [typeBulkBusy, setTypeBulkBusy] = useState(false);
+
+  /** Switch the ticked types on or off — one request each, so one refusal stops none of the rest. */
+  const switchTypes = async (targets, next) => {
+    setTypeBulkBusy(true);
+    let done = 0; let firstErr = '';
+    for (const t of targets) {
+      try { await api.updateLeaveType(t._id, { isActive: next }); done += 1; }
+      catch (err) { firstErr = firstErr || err?.data?.message || err?.response?.data?.message || err.message; }
+    }
+    setTypeBulkBusy(false);
+    if (done) toast.success(`${done} leave type${done === 1 ? '' : 's'} ${next ? 'activated' : 'deactivated'}`);
+    if (firstErr) toast.error(`${targets.length - done} not changed — ${firstErr}`);
+    setTypeBulk(null); typeSelection.clear(); refetchTypes();
+  };
+
+  /**
+   * Delete asks first, and says per type what goes with it: the server's own
+   * impact check, as the single delete shows. A type with applications on
+   * record cannot be deleted at all — the popup says so and leaves it out.
+   */
+  const openBulkDeleteTypes = async () => {
+    const picked = typeSelection.rows;
+    setTypeBulk({ kind: 'delete', loading: true, list: picked.map((t) => ({ type: t })) });
+    const list = await Promise.all(picked.map(async (t) => {
+      try {
+        const res = await api.getLeaveTypeImpact(t._id);
+        return { type: t, impact: res?.data ?? res };
+      } catch (err) {
+        return { type: t, error: err?.data?.message || err?.response?.data?.message || err.message };
+      }
+    }));
+    setTypeBulk((b) => (b?.kind === 'delete' ? { ...b, loading: false, list } : b));
+  };
+
+  const deleteTypes = async () => {
+    const doable = (typeBulk?.list || []).filter((x) => x.impact?.canDelete);
+    setTypeBulkBusy(true);
+    let done = 0; let wiped = 0; let firstErr = '';
+    for (const x of doable) {
+      try {
+        const res = await api.deleteLeaveType(x.type._id);
+        done += 1; wiped += res?.deleted?.allocations || 0;
+      } catch (err) { firstErr = firstErr || err?.data?.message || err?.response?.data?.message || err.message; }
+    }
+    setTypeBulkBusy(false);
+    if (done) {
+      toast.success(`${done} leave type${done === 1 ? '' : 's'} deleted`
+        + (wiped ? ` — ${wiped} allocation${wiped === 1 ? '' : 's'} removed` : ''));
+    }
+    if (firstErr) toast.error(`${doable.length - done} not deleted — ${firstErr}`);
+    setTypeBulk(null); typeSelection.clear(); refetchTypes(); refetchAlloc();
+  };
 
   // "Leave Types" on Allocations and Balance counts the types themselves —
   // those tables' columns, not their rows — so it opens this tab, narrowed
@@ -1313,7 +1375,7 @@ export default function AdminLeave() {
 
           <FilterRow>
             <SearchBox value={reqSearch} onChange={setReqSearch}
-              placeholder="Search by teacher name, leave type or reason..." />
+              placeholder="Search requests…" label="Search by teacher name, leave type or reason" />
             <FilterSelect label="Filter by status" value={reqStatus} all="All Statuses"
               options={STATUS_OPTIONS} onChange={onFilter(setReqStatus)} />
             <FilterSelect label="Filter by teacher" value={reqTeacher} all="All Teachers"
@@ -1329,7 +1391,7 @@ export default function AdminLeave() {
                 options={!reqDept || departments.includes(reqDept) ? departments : [...departments, reqDept]}
                 onChange={onFilter(setReqDept)} />
             )}
-            <FilterSelect label="Filter by academic year" value={reqYear}
+            <FilterSelect label="Filter by academic year" value={reqYear} wide
               all={activeYearLabel ? `${activeYearLabel} (current)` : 'Current year'}
               options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
               onChange={onFilter(setReqYear)} />
@@ -1402,7 +1464,33 @@ export default function AdminLeave() {
                     { value: 'allocated', label: 'In the annual total' },
                   ]}
                   onChange={(v) => { setTypeStatus(v); setTypePage(1); }} />
+                <ClearFilters on={anyTypeFilter} onClick={clearTypeFilters} />
               </FilterRow>
+
+              {typeSelection.ids.length > 0 && (
+                <div className="lvselbar">
+                  <Icon name="checkCircle" size={17} />
+                  {typeSelection.ids.length} selected
+                  <div className="lvselbar__acts">
+                    {pickedOff.length > 0 && (
+                      <Button variant="secondary" size="sm" loading={typeBulkBusy && !typeBulk}
+                        onClick={() => switchTypes(pickedOff, true)}>
+                        <Icon name="checkCircle" size={14} /> Activate {pickedOff.length}
+                      </Button>
+                    )}
+                    {pickedOn.length > 0 && (
+                      <Button variant="secondary" size="sm"
+                        onClick={() => setTypeBulk({ kind: 'off', list: pickedOn.map((t) => ({ type: t })) })}>
+                        <Icon name="closeCircle" size={14} /> Deactivate {pickedOn.length}
+                      </Button>
+                    )}
+                    <Button variant="danger" size="sm" onClick={openBulkDeleteTypes}>
+                      <Icon name="trash" size={14} /> Delete {typeSelection.ids.length}
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={typeSelection.clear}>Clear selection</Button>
+                  </div>
+                </div>
+              )}
 
               {typesLoading && !typesData ? (
                 <div className="lvtable__state"><Spinner /></div>
@@ -1415,7 +1503,7 @@ export default function AdminLeave() {
                       ? 'Try another name, code or status.'
                       : 'Add the kinds of leave your staff can apply for — casual, sick, earned, and any the school runs itself.'}
                     action={anyTypeFilter
-                      ? <Button variant="secondary" onClick={() => { setTypeSearch(''); setTypeStatus(''); setTypePage(1); }}>Clear filters</Button>
+                      ? <Button variant="secondary" onClick={clearTypeFilters}>Clear filters</Button>
                       : <Button onClick={openCreateType}>+ Add Leave Type</Button>}
                   />
                 </div>
@@ -1424,6 +1512,11 @@ export default function AdminLeave() {
                   <table className="lvtable">
                     <thead>
                       <tr>
+                        <th className="lvt-tick">
+                          <input type="checkbox" checked={typeSelection.allOn}
+                            ref={(el) => { if (el) el.indeterminate = typeSelection.some; }}
+                            onChange={typeSelection.toggleAll} aria-label="Select every leave type on this page" />
+                        </th>
                         <th className="lvt-num">#</th>
                         <th>Leave Type</th>
                         <th className="lvt-code">Code</th>
@@ -1435,7 +1528,12 @@ export default function AdminLeave() {
                     </thead>
                     <tbody>
                       {typeRows.map((t, i) => (
-                        <tr key={t._id} data-focus-id={t._id}>
+                        <tr key={t._id} data-focus-id={t._id}
+                          className={typeSelection.has(t._id) ? 'is-picked' : undefined}>
+                          <td className="lvt-tick">
+                            <input type="checkbox" checked={typeSelection.has(t._id)}
+                              onChange={() => typeSelection.toggle(t._id)} aria-label={`Select ${t.name}`} />
+                          </td>
                           <td className="lvt-num">{(typePageNow - 1) * TYPE_PAGE + i + 1}</td>
                           <td><TypeNameCell type={t} /></td>
                           <td className="lvt-code">{t.code}</td>
@@ -1893,7 +1991,7 @@ export default function AdminLeave() {
             <FilterSelect label="Filter by leave type" value={repType} all="All Leave Types"
               options={leaveTypes.map((t) => ({ value: t._id, label: t.name }))}
               onChange={(v) => { setRepType(v); setRepPage(1); }} />
-            <Button onClick={handleExport} loading={exportLoad}>
+            <Button variant="secondary" onClick={handleExport} loading={exportLoad}>
               <Icon name="download" size={16} /> Export Excel
             </Button>
           </SectionHead>
@@ -2500,6 +2598,79 @@ export default function AdminLeave() {
       </Modal>
 
       {/* ── Delete Type Confirm — shows exactly what goes with it ── */}
+      {/* Several leave types at once: switching them off, or deleting them —
+          asked first, and per type what it costs. */}
+      <Modal open={!!typeBulk} onClose={() => { if (!typeBulkBusy) setTypeBulk(null); }}
+        title={typeBulk?.kind === 'delete' ? 'Delete leave types' : 'Deactivate leave types'} maxWidth={620}
+        footer={(() => {
+          if (!typeBulk) return null;
+          const n = typeBulk.list.length;
+          if (typeBulk.kind === 'off') {
+            return <>
+              <Button variant="secondary" onClick={() => setTypeBulk(null)} disabled={typeBulkBusy}>Cancel</Button>
+              <Button variant="danger" loading={typeBulkBusy}
+                onClick={() => switchTypes(typeBulk.list.map((x) => x.type), false)}>
+                Deactivate {n}
+              </Button>
+            </>;
+          }
+          const doable = typeBulk.list.filter((x) => x.impact?.canDelete);
+          const allocs = doable.reduce((sum, x) => sum + (x.impact.allocations?.length || 0), 0);
+          return <>
+            <Button variant="secondary" onClick={() => setTypeBulk(null)} disabled={typeBulkBusy}>Cancel</Button>
+            <Button variant="danger" loading={typeBulkBusy} disabled={typeBulk.loading || !doable.length}
+              onClick={deleteTypes}>
+              {typeBulk.loading ? 'Checking…'
+                : !doable.length ? 'Nothing can be deleted'
+                  : `Delete ${doable.length}${allocs ? ` & ${allocs} allocation${allocs === 1 ? '' : 's'}` : ''}`}
+            </Button>
+          </>;
+        })()}>
+        {typeBulk?.kind === 'off' && (
+          <>
+            <p style={{ marginTop: 0 }}>
+              Switch off <strong>{typeBulk.list.length} leave type{typeBulk.list.length === 1 ? '' : 's'}</strong>?
+              Staff can no longer apply for {typeBulk.list.length === 1 ? 'it' : 'them'}. Balances and every
+              request already made stay as they are, and each one can be switched back on at any time.
+            </p>
+            <ul className="lvbulklist">
+              {typeBulk.list.map(({ type: t }) => (
+                <li key={t._id}><b>{t.name}</b> <span className="lvmuted">{t.code}</span></li>
+              ))}
+            </ul>
+          </>
+        )}
+        {typeBulk?.kind === 'delete' && (
+          typeBulk.loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
+          ) : (
+            <>
+              <p style={{ marginTop: 0 }}>
+                Deleting a leave type also removes every teacher&rsquo;s allocation of it. This cannot be undone.
+              </p>
+              <ul className="lvbulklist">
+                {typeBulk.list.map(({ type: t, impact, error }) => (
+                  <li key={t._id} className={impact?.canDelete ? undefined : 'is-blocked'}>
+                    <b>{t.name}</b> <span className="lvmuted">{t.code}</span>
+                    <small>
+                      {error ? `Could not check — ${error}`
+                        : !impact?.canDelete
+                          ? `Kept — it has ${[
+                            impact?.blockers?.applications ? `${impact.blockers.applications} leave application${impact.blockers.applications === 1 ? '' : 's'}` : '',
+                            impact?.blockers?.compOffRequests ? `${impact.blockers.compOffRequests} comp off request${impact.blockers.compOffRequests === 1 ? '' : 's'}` : '',
+                          ].filter(Boolean).join(' and ') || 'history'} on record. Mark it Inactive instead.`
+                          : impact.allocations?.length
+                            ? `${impact.allocations.length} allocation${impact.allocations.length === 1 ? '' : 's'} to ${impact.teacherCount} teacher${impact.teacherCount === 1 ? '' : 's'} removed (${impact.totals?.remaining ?? 0} day${impact.totals?.remaining === 1 ? '' : 's'} still available)`
+                            : 'No allocations — nothing else is removed'}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        )}
+      </Modal>
+
       <Modal open={!!delType} onClose={() => { setDelType(null); setDelImpact(null); }}
         title="Delete Leave Type" maxWidth={720}
         footer={<>
@@ -2804,36 +2975,9 @@ export default function AdminLeave() {
                 {/* Select Specific / Except Specific — same checklist UI, different semantics */}
                 {(allocForm.teacherMode === 'select' || allocForm.teacherMode === 'except') && (
                   <div>
-                    <div style={{ marginBottom: 6 }}>
-                      <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer', fontSize: '.82rem' }}>
-                        <input type="checkbox"
-                          checked={allocForm.checkedTeachers.length === teacherList.length && teacherList.length > 0}
-                          onChange={e => setAllocForm(f => ({ ...f, checkedTeachers: e.target.checked ? teacherList.map(t => t._id) : [] }))} />
-                        <strong>
-                          {allocForm.teacherMode === 'select' ? `Select All (${teacherList.length})` : `Exclude All (${teacherList.length})`}
-                        </strong>
-                        {allocForm.checkedTeachers.length > 0 && (
-                          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
-                            — {allocForm.checkedTeachers.length} selected
-                          </span>
-                        )}
-                      </label>
-                    </div>
-                    <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 0' }}>
-                      {teacherList.map(t => (
-                        <label key={t._id} style={{ display: 'flex', gap: 8, padding: '5px 10px', cursor: 'pointer', alignItems: 'center' }}>
-                          <input type="checkbox" checked={allocForm.checkedTeachers.includes(t._id)}
-                            onChange={e => {
-                              const ids = e.target.checked
-                                ? [...allocForm.checkedTeachers, t._id]
-                                : allocForm.checkedTeachers.filter(id => id !== t._id);
-                              setAllocForm(f => ({ ...f, checkedTeachers: ids }));
-                            }} />
-                          <span>{t.name}</span>
-                          {t.employeeId && <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>({t.employeeId})</span>}
-                        </label>
-                      ))}
-                    </div>
+                    <TeacherChecklist teachers={teacherList} checked={allocForm.checkedTeachers}
+                      mode={allocForm.teacherMode}
+                      onChange={(ids) => setAllocForm((f) => ({ ...f, checkedTeachers: ids }))} />
                     {allocForm.teacherMode === 'except' && allocForm.checkedTeachers.length > 0 && (
                       <div style={{ marginTop: 6, fontSize: '.8rem', color: 'var(--text-muted)' }}>
                         {teacherList.length - allocForm.checkedTeachers.length} teacher(s) will be allocated (excluding {allocForm.checkedTeachers.length}).
@@ -2964,21 +3108,9 @@ export default function AdminLeave() {
                 ))}
               </div>
               {(clearForm.teacherMode === 'select' || clearForm.teacherMode === 'except') && (
-                <div style={{ maxHeight: 170, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 0' }}>
-                  {teacherList.map(t => (
-                    <label key={t._id} style={{ display: 'flex', gap: 8, padding: '5px 10px', cursor: 'pointer', alignItems: 'center' }}>
-                      <input type="checkbox" checked={clearForm.checkedTeachers.includes(t._id)}
-                        onChange={e => setClearForm(f => ({
-                          ...f,
-                          checkedTeachers: e.target.checked
-                            ? [...f.checkedTeachers, t._id]
-                            : f.checkedTeachers.filter(id => id !== t._id),
-                        }))} />
-                      <span>{t.name}</span>
-                      {t.employeeId && <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>({t.employeeId})</span>}
-                    </label>
-                  ))}
-                </div>
+                <TeacherChecklist teachers={teacherList} checked={clearForm.checkedTeachers}
+                  mode={clearForm.teacherMode} maxHeight={170}
+                  onChange={(ids) => setClearForm((f) => ({ ...f, checkedTeachers: ids }))} />
               )}
             </div>
 

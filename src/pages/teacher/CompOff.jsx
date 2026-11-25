@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../hooks/useFetch';
 import * as api from '../../api/teacher.api';
-import { Button, Modal, Spinner, Empty } from '../../components/ui/index';
+import { Button, Modal, Confirm, Spinner, Empty } from '../../components/ui/index';
 import Icon from '../../components/ui/icons';
 import { IconAction, MenuItem, RowActions, RowMenu } from '../admin/listParts';
 import {
@@ -132,12 +132,22 @@ export default function TeacherCompOff() {
     finally { setDraftLoad(false); }
   };
 
-  const cancelRequest = async (r) => {
+  // Withdrawing (or dismissing a suggested draft) asks first — one press on a
+  // menu item used to take the claim out of the queue with no way back.
+  const [withdrawItem, setWithdrawItem] = useState(null);
+  const [withdrawLoad, setWithdrawLoad] = useState(false);
+  const cancelRequest = (r) => setWithdrawItem(r);
+  const confirmWithdraw = async () => {
+    const r = withdrawItem;
+    if (!r) return;
+    setWithdrawLoad(true);
     try {
       await api.cancelCompOff(r._id);
-      toast.success('Comp Off request withdrawn');
+      toast.success(r.isDraft ? 'Suggestion dismissed' : 'Comp Off request withdrawn');
+      setWithdrawItem(null);
       refetch();
     } catch (err) { toast.error(err?.response?.data?.message || err.message); }
+    finally { setWithdrawLoad(false); }
   };
 
   // ── The list ────────────────────────────────────────────────────────────────
@@ -218,7 +228,7 @@ export default function TeacherCompOff() {
                 </p>
                 <div className="lvdraft__acts">
                   <Button onClick={() => { setDraftReason(d.reason || ''); setApplyDraft(d); }}>Apply</Button>
-                  <Button variant="secondary" onClick={() => cancelRequest({ ...d, status: 'pending' })}>Dismiss</Button>
+                  <Button variant="secondary" onClick={() => cancelRequest({ ...d, status: 'pending', isDraft: true })}>Dismiss</Button>
                 </div>
               </div>
             ))}
@@ -526,6 +536,19 @@ export default function TeacherCompOff() {
           </div>
         )}
       </Modal>
+
+      {/* ── Withdraw / dismiss, asked first ── */}
+      <Confirm open={!!withdrawItem} onClose={() => { if (!withdrawLoad) setWithdrawItem(null); }}
+        onConfirm={confirmWithdraw} loading={withdrawLoad}
+        title={withdrawItem?.isDraft ? 'Dismiss this suggestion?' : 'Withdraw Comp Off request?'}
+        confirmLabel={withdrawItem?.isDraft ? 'Dismiss' : 'Withdraw'}
+        message={withdrawItem
+          ? (withdrawItem.isDraft
+            ? `Dismiss the suggested Comp Off for ${fmtDate(withdrawItem.workDate)}? It will not be sent for approval.`
+            : `Withdraw your Comp Off request for ${fmtDate(withdrawItem.workDate)}`
+              + `${withdrawItem.compOffDays ? ` (${withdrawItem.compOffDays} day${Number(withdrawItem.compOffDays) === 1 ? '' : 's'})` : ''}?`
+              + ' It leaves the approval queue and no days are credited for it.')
+          : ''} />
     </>
   );
 }
