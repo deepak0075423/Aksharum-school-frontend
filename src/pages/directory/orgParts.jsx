@@ -134,9 +134,20 @@ export const ReportingTree = ({ tree, base }) => (
 /**
  * School → department → the people in it.
  *
- * Two levels deep and no more, which is the one shape a top-down chart holds
- * without scrolling sideways. The school box is the school, not a person.
+ * Two levels deep and no more. The school box is the school, not a person.
+ * The departments are SIBLINGS under it, and the drawing has to say so at
+ * every width: on a wide screen they sit in one wrapping group that the
+ * school's line drops into (never a row that scrolls sideways); on a phone they
+ * hang off one rail down the left, each on its own branch — never box → line →
+ * box, which reads as each department sitting under the one above it.
  */
+const departmentsLabel = (departments) => {
+  const real = departments.filter((d) => d.department !== UNASSIGNED).length;
+  const gap  = departments.find((d) => d.department === UNASSIGNED);
+  const head = real ? `${real} ${real === 1 ? 'department' : 'departments'}` : 'No departments yet';
+  return gap && real ? `${head} · ${gap.total} without one` : head;
+};
+
 export const DepartmentChart = ({ school, departments, base, limit = 4 }) => (
   <div className="orgchart">
     <div className="orgchart__root">
@@ -149,7 +160,10 @@ export const DepartmentChart = ({ school, departments, base, limit = 4 }) => (
 
     {departments.length > 0 && (
       <div className="orgchart__row">
-        {departments.map((d) => {
+        {/* A span, so the branches' first/last-of-type rules skip it. */}
+        <span className="orgchart__count">{departmentsLabel(departments)}</span>
+        {/* The real departments first; the people without one come last. */}
+        {[...departments].sort((a, b) => (a.department === UNASSIGNED) - (b.department === UNASSIGNED)).map((d) => {
           const gap = d.department === UNASSIGNED;
           const people = d.designations.flatMap((g) => g.members.map((m) => ({ ...m, designation: g.designation })));
           const shown = people.slice(0, limit);
@@ -170,9 +184,11 @@ export const DepartmentChart = ({ school, departments, base, limit = 4 }) => (
                   <li key={m._id}>
                     <Link to={`${base}/employees/${m._id}`}>
                       <Avatar name={m.name} size={26} />
-                      <span className="orgbranch__name">{m.name}</span>
-                      <span className="orgbranch__role">
-                        {m.designation === UNASSIGNED ? 'No designation' : m.designation}
+                      <span className="orgbranch__who">
+                        <span className="orgbranch__name">{m.name}</span>
+                        <span className="orgbranch__role">
+                          {m.designation === UNASSIGNED ? 'No designation' : m.designation}
+                        </span>
                       </span>
                     </Link>
                   </li>

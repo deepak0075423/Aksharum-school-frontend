@@ -6587,7 +6587,7 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
    School on top, departments under it, their people inside. The connectors are
    borders on the boxes themselves rather than an SVG overlay, so the chart
    reflows with the grid instead of needing to be re-measured. */
-.orgchart { display: flex; flex-direction: column; align-items: center; min-width: min-content; }
+.orgchart { display: flex; flex-direction: column; align-items: center; }
 
 .orgchart__root {
   display:       flex;
@@ -6597,6 +6597,7 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
   background:    #eef2ff;
   border:        1px solid #c7d2fe;
   border-radius: var(--radius-xl);
+  max-width:     100%;
 }
 .orgchart__rootmark {
   width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
@@ -6606,43 +6607,52 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
 .orgchart__root b     { display: block; font-size: 1rem; font-weight: 700; }
 .orgchart__root small { font-size: .78rem; color: var(--primary-dark); opacity: .8; }
 
-/* The drop from the school to the row of departments. */
+/* The departments are siblings under the school, so they sit in ONE group the
+   school's line drops into — wrapping onto as many rows as the width needs,
+   never a single row that scrolls sideways (eleven departments made that row
+   2,900px wide and pushed the school box off screen). */
 .orgchart__row {
-  display:     flex;
-  gap:         18px;
-  align-items: flex-start;
-  padding-top: 26px;
-  position:    relative;
+  position:      relative;
+  align-self:    stretch;
+  display:       grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap:           14px;
+  margin-top:    26px;
+  padding:       26px 16px 16px;
+  background:    var(--bg);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-xl);
 }
 .orgchart__row::before {
-  content: ''; position: absolute; top: 0; left: 50%;
-  width: 2px; height: 26px; background: var(--border);
+  content: ''; position: absolute; top: -27px; left: 50%;
+  width: 2px; height: 26px; margin-left: -1px; background: var(--border);
+}
+/* Where the school's line lands: what the group below it is. */
+.orgchart__count {
+  position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%);
+  max-width: calc(100% - 32px); padding: 3px 12px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px;
+  font-size: .74rem; font-weight: 600; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .orgbranch {
   position:      relative;
-  min-width:     236px;
-  max-width:     280px;
-  flex:          1 1 236px;
+  min-width:     0;
   background:    var(--bg-card);
   border:        1px solid var(--border);
   border-radius: var(--radius-xl);
   padding:       14px;
 }
-/* Each department hangs off the same rail, so the chart reads as one drop
-   rather than as a row of unrelated boxes. */
-.orgbranch::before {
-  content: ''; position: absolute; top: -26px; left: 50%;
-  width: 2px; height: 26px; background: var(--border);
-}
 .orgbranch--gap { background: #fffbeb; border-color: #fde68a; }
 
-.orgbranch__head { display: flex; align-items: center; gap: 10px; }
+.orgbranch__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .orgbranch__mark {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.orgbranch__id b     { display: block; font-size: .9rem; font-weight: 700; line-height: 1.3; }
+.orgbranch__id       { min-width: 0; }
+.orgbranch__id b     { display: block; font-size: .9rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .orgbranch__id small { font-size: .74rem; color: var(--text-muted); }
 
 .orgbranch__people { list-style: none; margin: 12px 0 0; padding: 0; }
@@ -6657,11 +6667,40 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
   transition: border-color var(--transition), color var(--transition);
 }
 .orgbranch__people a:hover { border-color: var(--primary); color: var(--primary); }
-.orgbranch__name { flex: 1; min-width: 0; font-size: .82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orgbranch__role { font-size: .7rem; color: var(--text-muted); white-space: nowrap; }
+/* Name over role, so neither is cut down to make room for the other. */
+.orgbranch__who  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.orgbranch__name { font-size: .82rem; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orgbranch__role { font-size: .7rem; line-height: 1.3; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orgbranch__more a {
   justify-content: center; background: none; border-style: dashed;
   font-size: .78rem; font-weight: 600; color: var(--primary);
+}
+
+/* Phones: a tree, not a stack. One rail runs down from the school and every
+   department branches off it — a line from box to box would read as each
+   department reporting to the one above it. */
+@media (max-width: 640px) {
+  .orgchart { align-items: stretch; }
+  .orgchart__root { padding: 12px 14px; }
+  .orgchart__row {
+    display: flex; flex-direction: column; gap: 12px;
+    margin-top: 0; padding: 14px 0 0 40px;
+    background: none; border: 0; border-radius: 0;
+  }
+  .orgchart__row::before, .orgchart__count { display: none; }
+  /* The elbow: down the rail, then across to the department's own icon. */
+  .orgbranch::before {
+    content: ''; position: absolute; left: -19px; top: -13px; width: 18px; height: 49px;
+    box-sizing: border-box;
+    border-left: 2px solid var(--border); border-bottom: 2px solid var(--border);
+    border-bottom-left-radius: 10px;
+  }
+  .orgbranch:first-of-type::before { top: -15px; height: 51px; }
+  /* The rail carries on past every branch but the last, then stops. */
+  .orgbranch:not(:last-of-type)::after {
+    content: ''; position: absolute; left: -19px; top: 20px; bottom: -14px;
+    width: 2px; background: var(--border);
+  }
 }
 
 /* ── The reporting tree ────────────────────────────────────────────────────
@@ -6792,10 +6831,6 @@ a.edl-stat, a.edl-stat:hover { color: inherit; text-decoration: none; }
   .orgbody { padding: 14px; }
   .orgtabs { padding: 10px; }
   .orgtabs__search { margin-left: 0; max-width: none; }
-  .orgchart__row { flex-direction: column; align-items: stretch; gap: 26px; }
-  /* Stacked, the rail between boxes is vertical for every one of them. */
-  .orgbranch::before { top: -26px; left: 50%; }
-  .orgbranch { max-width: none; }
   .orgnode__sub { max-width: 180px; }
 }
 
