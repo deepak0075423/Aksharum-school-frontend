@@ -1441,13 +1441,13 @@ export default function AdminLeave() {
               all={activeYearLabel ? `${activeYearLabel} (current)` : 'Current year'}
               options={[...otherYears.map((y) => y.label), { value: 'all', label: 'All years' }]}
               onChange={onFilter(setReqYear)} />
-            <LayoutToggle value={reqView.cards ? 'card' : reqView.layout} onChange={reqView.setLayout} />
             <Button variant="secondary" onClick={handleExportRequests} loading={reqExportLoad}>
               <Icon name="download" size={16} /> Export Excel
             </Button>
             <Button onClick={openApply}>
               <Icon name="plus" size={16} /> Apply Leave
             </Button>
+            <LayoutToggle value={reqView.cards ? 'card' : reqView.layout} onChange={reqView.setLayout} />
           </CardHead>
 
           <FilterRow>
@@ -1556,8 +1556,8 @@ export default function AdminLeave() {
 
             <section className="card lvcard">
               <CardHead title="Leave Types" subtitle="Create and manage different types of leave for staff members.">
-                <LayoutToggle value={typeView.cards ? 'card' : typeView.layout} onChange={typeView.setLayout} />
                 <Button onClick={openCreateType}><Icon name="plus" size={16} /> Add Leave Type</Button>
+                <LayoutToggle value={typeView.cards ? 'card' : typeView.layout} onChange={typeView.setLayout} />
               </CardHead>
 
               <FilterRow>

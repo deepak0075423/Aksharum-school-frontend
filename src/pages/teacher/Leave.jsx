@@ -14,7 +14,7 @@ import {
   LeaveStats, LeaveTypeCell, MyBalanceDrawer, Pager, PeriodCell, RequestDrawer,
   STATUS_OPTIONS, ShowingCount, StatusBadge, SubTabs, SummaryRow,
   chipTones, dayNum, docUrl, fmtDate, fmtRange, notStarted, canEndEarly,
-  PhoneTable, LayoutToggle, LeaveFoot, useLeaveTable, WithdrawalTag, withdrawalOpen,
+  PhoneTable, LayoutToggle, LeaveFoot, useLeaveTable, WithdrawalTag, withdrawalOpen, ClearFilters,
 } from '../admin/leaveParts';
 import TeacherCompOff, { TeacherCompOffApprovals } from './CompOff';
 import TeacherLeaveApprovals from './LeaveApprovals';
@@ -479,9 +479,7 @@ export default function TeacherLeave() {
                 options={[{ value: 'full_day', label: 'Full days only' }, { value: 'half_day', label: 'Half days only' }]}
                 onChange={onLeaveFilter(setFilterMode)} />
               <span className="lvfilters__sep" />
-              <Button variant="secondary" onClick={clearLeaveFilters} disabled={!anyLeaveFilter}>
-                <Icon name="refresh" size={16} /> Reset
-              </Button>
+              <ClearFilters on={anyLeaveFilter} onClick={clearLeaveFilters} />
               <LayoutToggle value={leaveView.cards ? 'card' : leaveView.layout} onChange={leaveView.setLayout} />
             </FilterRow>
 
@@ -638,10 +636,10 @@ export default function TeacherLeave() {
                 <section className="card lvcard">
                   <CardHead title="Recent Leave Activity"
                     subtitle="Your last few applications, whatever their state.">
-                    <LayoutToggle value={recentView.cards ? 'card' : recentView.layout} onChange={recentView.setLayout} />
                     <Button variant="secondary" onClick={() => { clearLeaveFilters(); setTab('my-leaves'); }}>
                       View All
                     </Button>
+                    <LayoutToggle value={recentView.cards ? 'card' : recentView.layout} onChange={recentView.setLayout} />
                   </CardHead>
 
                   {!recent.length ? (

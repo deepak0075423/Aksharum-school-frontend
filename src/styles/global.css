@@ -13805,8 +13805,9 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvacts { flex: 1; }
 .lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvacts .lvbtn { flex: 1; justify-content: center; }
 /* List / Card as two icons. */
+/* Always the last thing on its row, at its right-hand end. */
 .lvview {
-  display: inline-flex; flex-shrink: 0; height: 44px; padding: 3px; gap: 2px;
+  display: inline-flex; flex-shrink: 0; height: 44px; padding: 3px; gap: 2px; margin-left: auto; order: 99;
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card);
 }
 .lvview button {

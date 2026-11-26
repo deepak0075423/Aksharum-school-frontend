@@ -1013,10 +1013,10 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
         {/* Shown once something is filtered — with nothing to clear it was a
             dead button (Nov 26 2026). */}
         {anyFilter && <ClearFilters on onClick={() => { setTeacherId(''); setEntryType(''); setPage(1); }} />}
-        <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         <Button variant="secondary" onClick={() => setAdjModal(true)}>
           <Icon name="plus" size={16} /> Adjustment
         </Button>
+        <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
       </CardHead>
 
       {loading && !data ? (

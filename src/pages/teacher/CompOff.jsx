@@ -10,7 +10,7 @@ import {
   FilterSelect, FormStep, InfoPanels, LeaveStat, LeaveStats, LedgerDrawer, Pager,
   RulesNote, STATUS, ShowingCount, SignOffStep, StatusBadge, SubTabs, SummaryLine,
   ThSub, WORK_TYPES, fmtDate, fmtHours, hoursBetween, weekdayOf,
-  PhoneTable, WorkDateCell, EarnedCell, LayoutToggle, LeaveFoot, useLeaveTable, DocLink,
+  PhoneTable, WorkDateCell, EarnedCell, LayoutToggle, LeaveFoot, useLeaveTable, DocLink, ClearFilters,
 } from '../admin/leaveParts';
 
 // Mounted as the "Comp Off" tab of pages/teacher/Leave.jsx — Comp Off stays
@@ -290,9 +290,7 @@ export default function TeacherCompOff() {
               options={Object.entries(WORK_TYPES).map(([v, l]) => ({ value: v, label: l }))}
               onChange={onFilter(setFType)} />
             <span className="lvfilters__sep" />
-            <Button variant="secondary" onClick={clearFilters} disabled={!anyFilter}>
-              <Icon name="refresh" size={16} /> Reset
-            </Button>
+            <ClearFilters on={anyFilter} onClick={clearFilters} />
             <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
           </FilterRow>
 

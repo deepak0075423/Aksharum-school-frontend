@@ -498,15 +498,15 @@ export function TeacherChecklist({ teachers, checked, onChange, mode = 'select',
 
 /**
  * Puts a filter row back the way the tab opened — search and every dropdown.
- * Always on the row, so it can be found; greyed out while nothing is set
- * (the same rule as the Documents bars' Reset).
+ * Shown only once a filter is set (Nov 26 2026: "don't show clear button
+ * always, show only when filter added"); there is nothing to clear before.
  */
-export const ClearFilters = ({ on, onClick }) => (
-  <button type="button" className="btn btn-secondary lvclear" onClick={onClick} disabled={!on}
-    title={on ? 'Clear the search and filters' : 'No filters are set'}>
+export const ClearFilters = ({ on, onClick }) => (on ? (
+  <button type="button" className="btn btn-secondary lvclear" onClick={onClick}
+    title="Clear the search and filters">
     <Icon name="close" size={15} /> Clear
   </button>
-);
+) : null);
 
 /**
  * One dropdown in the filter row.
