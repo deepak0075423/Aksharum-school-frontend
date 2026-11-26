@@ -37,8 +37,61 @@ function columnLabels(thead) {
   return grid[grid.length - 1] || [];
 }
 
-export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false, onColumns }) {
+const PHONE = '(max-width: 640px)';
+
+/**
+ * `fit`: never scroll sideways at any width (Nov 27 2026, the library). The
+ * table is measured against its box whenever either changes size or the rows
+ * change: if it does not fit, its cells close up (`data-tight`); if it still
+ * does not fit, it is drawn as cards (`data-fitcards`, the Card view's look).
+ * Attributes rather than classes, because React rewrites `className`. On a
+ * phone the CSS above already draws cards, so nothing is measured there.
+ */
+function useFit(ref, on) {
+  useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root || !on) return undefined;
+    let busy = false;
+    const fits = () => {
+      const table = root.querySelector('table');
+      const wrap = table?.parentElement;
+      if (!table || !wrap) return true;
+      // The box's own overflow — it counts the box's padding round the table
+      // as well as the table itself.
+      return wrap.scrollWidth <= wrap.clientWidth + 1 && table.scrollWidth <= wrap.clientWidth + 1;
+    };
+    const fit = () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const phone = window.matchMedia?.(PHONE).matches;
+        root.removeAttribute('data-tight');
+        root.removeAttribute('data-fitcards');
+        if (phone || fits()) return;
+        root.setAttribute('data-tight', '');
+        if (fits()) return;
+        root.removeAttribute('data-tight');
+        root.setAttribute('data-fitcards', '');
+      } finally { busy = false; }
+    };
+    fit();
+    // Rows arriving (a page, a filter) — not the attributes set above.
+    const watch = new MutationObserver(fit);
+    watch.observe(root, { childList: true, subtree: true });
+    // The box changing width (window, sidebar). Its height changes when the
+    // layout flips, which re-measures to the same answer.
+    let lastWidth = root.clientWidth;
+    const size = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+      if (root.clientWidth !== lastWidth) { lastWidth = root.clientWidth; fit(); }
+    }) : null;
+    size?.observe(root);
+    return () => { watch.disconnect(); size?.disconnect(); };
+  }, [on]);   // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false, onColumns, fit = false }) {
   const ref = useRef(null);
+  useFit(ref, fit && !cards);
   const spec = `${title}|${side}|${keep.join('|')}`;
   // `onColumns(n)`: how many cards a row holds in the Card view, kept current
   // as the page resizes — so the page size can be a whole number of rows
@@ -75,6 +128,9 @@ export default function PhoneCards({ title, side, keep = [], children, className
             td.classList.toggle('phc-title', label === title);
             td.classList.toggle('phc-side', !!side && label === side);
             td.classList.toggle('phc-keep', keep.includes(label));
+            // A plain table's actions cell (no .ltable__acts) still goes at
+            // the bottom of its card.
+            td.classList.toggle('phc-acts', /^actions?$/i.test(label));
             c += td.colSpan || 1;
           }
         }

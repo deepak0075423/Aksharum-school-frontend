@@ -151,17 +151,36 @@ export const AmountCell = ({ row }) => {
  * `paymentMode` defaults to 'cash' on every row including ones nobody has paid,
  * so it is only ever shown when money actually moved.
  */
-export const PaymentCell = ({ row }) => {
+export const PaymentCell = ({ row, paidOn = false }) => {
   const s = STATUS[row.status] || { label: row.status || '—', tone: 'mute' };
   const paid = (row.paidAmount || 0) > 0;
   return (
-    <span className="libf-pay">
+    <span className="libf-paycell">
       <span className={`libr-status is-${s.tone}`}>{s.label}</span>
       {paid ? <small>{row.paymentMode === 'online' ? 'Online' : 'Cash'}{row.receiptNumber ? ` · ${row.receiptNumber}` : ''}</small> : null}
+      {paidOn && row.paidAt ? <small>Paid {fmtDate(row.paidAt)}</small> : null}
       {row.status === 'waived' && row.waiverReason ? <small title={row.waiverReason}>{row.waiverReason}</small> : null}
     </span>
   );
 };
+
+/** The loan a fine hangs off: when it went out, and when it was due back. */
+export const LoanCell = ({ row }) => (
+  row.issuance?.issueDate || row.issuance?.dueDate ? (
+    <span className="libf-loan">
+      <b>{fmtDate(row.issuance?.issueDate) || '—'}</b>
+      <small>Due {fmtDate(row.issuance?.dueDate) || '—'}</small>
+    </span>
+  ) : <span className="lnone">—</span>
+);
+
+/** Why — and, for a late return, by how many days. */
+export const ReasonCell = ({ row }) => (
+  <span className="libf-loan">
+    <b>{REASONS[row.fineType] || row.fineType || '—'}</b>
+    {row.daysOverdue > 0 ? <small>{row.daysOverdue} day{row.daysOverdue === 1 ? '' : 's'} late</small> : null}
+  </span>
+);
 
 /** Days late is a late-return measure; a lost or damaged book has none. */
 export const DaysLateCell = ({ row }) => (

@@ -21,6 +21,7 @@ import { saveFile } from '../../../utils/downloadFile';
 import { RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import { Fig, Panel, rupees, shortDate } from './dashboardParts';
 import { Cover } from './searchParts';
+import PhoneCards from '../../../components/ui/PhoneCards';
 
 const PER_PAGE = 10;
 const DAY = 86400000;
@@ -234,6 +235,7 @@ export default function LibraryMyBooks() {
             </div>
           </div>
         ) : (
+          <PhoneCards fit title="Book details" side="Status" keep={['Accession no.', 'Issued date', 'Due date']}>
           <div className="libsr-tablewrap">
             <table className="libsr-table libmb-table">
               <thead>
@@ -311,6 +313,7 @@ export default function LibraryMyBooks() {
               </tbody>
             </table>
           </div>
+          </PhoneCards>
         )}
       </Panel>
 

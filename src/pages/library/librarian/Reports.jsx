@@ -357,7 +357,7 @@ export default function LibraryReports() {
               <>
                 {/* Cards on a phone: the first key column as the heading, the next
                     three as lines, the eye for everything else. */}
-                <PhoneCards title={keyCols[0]?.label} side={keyCols.find((c) => c.type === 'status')?.label}
+                <PhoneCards fit title={keyCols[0]?.label} side={keyCols.find((c) => c.type === 'status')?.label}
                   keep={keyCols.slice(1).filter((c) => c.type !== 'status').slice(0, 3).map((c) => c.label)}>
                   <ListTable
                     columns={tableColumns}

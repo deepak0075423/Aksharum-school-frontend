@@ -26,6 +26,7 @@ import {
 import { Alert, Button, Confirm, Modal, Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import MemberPicker from '../../../components/library/MemberPicker';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import { ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import BookDialog from './bookDialog';
 import { copyErrors, noSignKeys, todayIso } from './bookRules';
@@ -400,6 +401,8 @@ export default function LibraryBookDetail() {
                   <Button size="sm" onClick={openAdd}><Icon name="plus" size={15} /> Add</Button>
                 </div>
               )}>
+              {/* Never sideways: tighter, then cards, and always cards on a phone. */}
+              <PhoneCards fit title="Copy code" side="Status" keep={['Condition', 'Rack', 'Acquired']}>
               <ListTable
                 columns={copyColumns}
                 rows={copies}
@@ -414,6 +417,7 @@ export default function LibraryBookDetail() {
                   ? <Button variant="secondary" onClick={() => { setStatus(''); setCode(''); }}>Clear filters</Button>
                   : <Button onClick={openAdd}>+ Add Copies</Button>}
               />
+              </PhoneCards>
               <ListFooter
                 page={Math.min(page, meta?.pages || 1)} pages={meta?.pages || 1} total={copyTotal}
                 limit={limit} count={copies.length} noun="copy" plural="copies"
@@ -435,6 +439,7 @@ export default function LibraryBookDetail() {
               {loadingActivity ? <div className="libbd-loading"><Spinner /></div> : !loans.length ? (
                 <p className="libbd-none">No copy of this book has been issued yet.</p>
               ) : (
+                <PhoneCards fit title="Member" side="Status" keep={['Copy', 'Issued', 'Due', 'Returned']}>
                 <div className="table-wrap">
                   <table className="table ltable">
                     <thead>
@@ -456,6 +461,7 @@ export default function LibraryBookDetail() {
                     </tbody>
                   </table>
                 </div>
+                </PhoneCards>
               )}
             </Panel>
           )}
@@ -475,6 +481,7 @@ export default function LibraryBookDetail() {
                   {(book.availableCopies ?? 0) > 0 ? ' A copy is on the shelf, so there is nothing to wait for.' : ''}
                 </p>
               ) : (
+                <PhoneCards fit title="Member" side="Status" keep={['#', 'Queued', 'Hold expires']}>
                 <div className="table-wrap">
                   <table className="table ltable">
                     <thead>
@@ -493,6 +500,7 @@ export default function LibraryBookDetail() {
                     </tbody>
                   </table>
                 </div>
+                </PhoneCards>
               )}
             </Panel>
           )}

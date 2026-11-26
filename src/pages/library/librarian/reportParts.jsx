@@ -311,7 +311,8 @@ export const FilterBar = ({ filters, options, values, onChange, search, onSearch
 
       {since && (
         <label className="librep-filters__date">
-          <span>{since.label}</span>
+          {/* Blank is all time — the titles nobody has ever borrowed. */}
+          <span>{since.label}{values[since.key] ? '' : ' · all time'}</span>
           <input type="date" className="form-control" max={today()}
             value={values[since.key] || ''}
             onChange={(e) => onChange(since.key, e.target.value)} />

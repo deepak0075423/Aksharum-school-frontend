@@ -304,7 +304,7 @@ export default function LibraryBooks() {
         </SelectionBar>
 
         {/* Cards on a phone, so nothing scrolls sideways (components/ui/PhoneCards). */}
-        <PhoneCards title="Title" side="Status" keep={['Author(s)', 'Category', 'Copies']}>
+        <PhoneCards fit title="Title" side="Status" keep={['Author(s)', 'Category', 'Copies']}>
           <ListTable
             columns={columns}
             rows={books}

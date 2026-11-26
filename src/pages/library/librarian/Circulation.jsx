@@ -22,6 +22,7 @@ import {
   SelectionBar, useSelection,
 } from '../../admin/listParts';
 import { IssueDialog, ReturnDialog } from './counterDialogs';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import { Hero, Tile, delta, note, quoteOfTheDay } from './dashParts';
 import {
   BookCell, CopyCell, DateRange, DueCell, FineCell, MemberCell, ROLE_FILTERS,
@@ -386,6 +387,8 @@ export default function LibraryCirculation() {
           </Button>
         </SelectionBar>
 
+        {/* Never sideways: tighter, then cards, and always cards on a phone. */}
+        <PhoneCards fit title="Book" side="Status" keep={['Member', 'Copy', 'Issued on', 'Due date', 'Fine']}>
         <ListTable
           columns={columns}
           rows={issuances}
@@ -401,6 +404,7 @@ export default function LibraryCirculation() {
             ? <Button variant="secondary" onClick={resetAll}>Clear filters</Button>
             : <Button onClick={openIssue}>Issue a book</Button>}
         />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}

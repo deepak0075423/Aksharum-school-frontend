@@ -16,6 +16,7 @@ import { Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import { Fig, Panel, rupees, shortDate } from '../student/dashboardParts';
 import { Cover } from '../student/searchParts';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import { useChild, ChildSwitch, NoChildren, whereOf } from './parts';
 
 const OPEN = ['issued', 'overdue'];
@@ -125,6 +126,7 @@ export default function ParentLibraryOverview() {
                 </div>
               </div>
             ) : (
+              <PhoneCards fit title="Book details" side="Status" keep={['Accession no.', 'Issued date', 'Due date']}>
               <div className="libsr-tablewrap">
                 <table className="libsr-table libmb-table">
                   <thead>
@@ -174,6 +176,7 @@ export default function ParentLibraryOverview() {
                   </tbody>
                 </table>
               </div>
+              </PhoneCards>
             )}
           </Panel>
 

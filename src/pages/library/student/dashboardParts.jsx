@@ -10,6 +10,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../../components/ui/icons';
+import PhoneCards from '../../../components/ui/PhoneCards';
 
 export const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
@@ -163,6 +164,7 @@ export function LoanTable({ rows, showBorrower, empty }) {
     );
   }
   return (
+    <PhoneCards fit title="Book title" side="Status" keep={['Issued to', 'Issue date', 'Due date']}>
     <div className="liblg-tablewrap">
       <table className="liblg-table">
         <thead>
@@ -194,6 +196,7 @@ export function LoanTable({ rows, showBorrower, empty }) {
         </tbody>
       </table>
     </div>
+    </PhoneCards>
   );
 }
 

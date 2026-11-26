@@ -288,7 +288,7 @@ export default function LibraryReservations() {
         </div>
 
         {/* Cards on a phone, so nothing scrolls sideways (components/ui/PhoneCards). */}
-        <PhoneCards title="Book" side="Status" keep={['Reserved by', 'Expires on', 'Queue #']}>
+        <PhoneCards fit title="Book" side="Status" keep={['Reserved by', 'Reserved on', 'Expires on', 'Queue #']}>
           <ListTable
             columns={columns}
             rows={rows}

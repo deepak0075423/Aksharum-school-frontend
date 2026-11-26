@@ -27,8 +27,9 @@ import {
   SelectionBar, useSelection,
 } from '../../admin/listParts';
 import { Hero, Tile, delta, note, quoteOfTheDay } from './dashParts';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import {
-  AmountCell, BookCell, DateRange, DaysLateCell, MemberCell, PaymentCell,
+  AmountCell, BookCell, DateRange, LoanCell, MemberCell, PaymentCell, ReasonCell,
   PAYMENT_FILTERS, REASONS, REASON_FILTERS, SearchBox, StatusTabs,
   fmtDate, money, owedOn,
 } from './finesParts';
@@ -221,15 +222,15 @@ export default function LibraryFines() {
 
   // ── Columns ───────────────────────────────────────────────────────────────
   const columns = [
-    { key: 'member', className: 'libf-col-member', label: 'Member',    render: (r) => <MemberCell row={r} /> },
-    { key: 'book',   className: 'libf-col-book',   label: 'Book',      render: (r) => <BookCell row={r} /> },
-    { key: 'issued', className: 'libf-col-date',   label: 'Issued on', render: (r) => fmtDate(r.issuance?.issueDate) || '—' },
-    { key: 'due',    className: 'libf-col-date',   label: 'Was due',   render: (r) => fmtDate(r.issuance?.dueDate) || '—' },
-    { key: 'reason', className: 'libf-col-reason', label: 'Reason',    render: (r) => REASONS[r.fineType] || r.fineType || '—' },
-    { key: 'late',   className: 'libf-col-late',   label: 'Days late', render: (r) => <DaysLateCell row={r} /> },
-    { key: 'amount', className: 'libf-col-amount', label: 'Fine',      render: (r) => <AmountCell row={r} /> },
-    { key: 'status', className: 'libf-col-status', label: 'Payment',   render: (r) => <PaymentCell row={r} /> },
-    { key: 'paidOn', className: 'libf-col-date',   label: 'Paid on',   render: (r) => fmtDate(r.paidAt) || <span className="lnone">—</span> },
+    // Eleven columns did not fit a laptop, so the dates of the loan share one
+    // cell, days late sits under the reason and the paid-on date under the
+    // payment — nothing dropped, nothing scrolling sideways.
+    { key: 'member', className: 'libf-col-member', label: 'Member',  render: (r) => <MemberCell row={r} /> },
+    { key: 'book',   className: 'libf-col-book',   label: 'Book',    render: (r) => <BookCell row={r} /> },
+    { key: 'loan',   className: 'libf-col-date',   label: 'Loan',    render: (r) => <LoanCell row={r} /> },
+    { key: 'reason', className: 'libf-col-reason', label: 'Reason',  render: (r) => <ReasonCell row={r} /> },
+    { key: 'amount', className: 'libf-col-amount', label: 'Fine',    render: (r) => <AmountCell row={r} /> },
+    { key: 'status', className: 'libf-col-status', label: 'Payment', render: (r) => <PaymentCell row={r} paidOn /> },
     {
       key: 'actions',
       className: 'ltable__acts',
@@ -347,6 +348,8 @@ export default function LibraryFines() {
           </Button>
         </SelectionBar>
 
+        {/* Never sideways: tighter, then cards, and always cards on a phone. */}
+        <PhoneCards fit title="Member" side="Payment" keep={['Book', 'Loan', 'Reason', 'Fine']}>
         <ListTable
           columns={columns}
           rows={fines}
@@ -362,6 +365,7 @@ export default function LibraryFines() {
             ? <Button variant="secondary" onClick={resetAll}>Clear filters</Button>
             : <Button onClick={openAdd}>+ Add fine</Button>}
         />
+        </PhoneCards>
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}

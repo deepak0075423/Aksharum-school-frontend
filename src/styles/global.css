@@ -9372,10 +9372,13 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 /* The remainder is the number somebody has to do something about. */
 .libf-amount em    { display: block; font-size: .7rem; font-style: normal; font-weight: 600; color: #dc2626; margin-top: 1px; }
 
-.libf-pay small {
+.libf-paycell small {
   display: block; font-size: .68rem; color: var(--text-muted); margin-top: 3px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;
 }
+/* Two lines in one cell: the loan's dates, or the reason and days late. */
+.libf-loan b     { display: block; font-size: .86rem; font-weight: 600; white-space: nowrap; }
+.libf-loan small { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; }
 
 .libf-late {
   display: inline-block; min-width: 28px; text-align: center;
@@ -22635,19 +22638,19 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
    The same card as on a phone — heading + status, a few label/value lines,
    the row's actions — laid out several across. A page's List / Card switch
    (listParts LayoutToggle) turns it on; a phone always shows cards anyway. */
-.phc--cards .table-wrap, .phc--cards .lvtable__wrap { overflow: visible; }
-.phc--cards table { display: block; width: 100%; }
-.phc--cards table > thead { display: none; }
+:is(.phc--cards, .phc:where([data-fitcards])) .table-wrap, :is(.phc--cards, .phc:where([data-fitcards])) .lvtable__wrap { overflow: visible; }
+:is(.phc--cards, .phc:where([data-fitcards])) table { display: block; width: 100%; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > thead { display: none; }
 /* Every card in a row is the height of the tallest (Nov 2026 — a card with
    less in it, e.g. the active academic year with no "Set Active" button, used
    to come out shorter than its neighbours). Inside a card the extra height
    goes between its lines, so the first line stays at the top and the action
    buttons at the bottom of every card. */
-.phc--cards table > tbody {
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
   gap: 14px; padding: 16px; align-items: stretch;
 }
-.phc--cards table > tbody > tr {
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr {
   display: flex; flex-wrap: wrap; align-items: center; align-content: space-between; gap: 8px 10px;
   margin: 0; padding: 14px; min-width: 0;
   border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, #fff);
@@ -22658,41 +22661,41 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
    card tapped keeps :hover, which used to make it look different from the
    other selected cards. */
 @media (hover: hover) {
-  .phc--cards table > tbody > tr:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
+  :is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
 }
-.phc--cards table > tbody > tr > td {
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td {
   display: none; padding: 0; border: 0; max-width: none; width: auto; min-width: 0;
   font-size: .84rem; text-align: left; white-space: normal; background: none;
 }
-.phc--cards table > tbody > tr > td.phc-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
-.phc--cards table > tbody > tr > td.phc-title b { white-space: normal; overflow-wrap: anywhere; }
-.phc--cards table > tbody > tr > td.phc-side  { display: block; order: 2; flex: 0 0 auto; }
-.phc--cards table > tbody > tr > td.ltable__tick { display: block; order: 0; flex: 0 0 auto; }
-.phc--cards table > tbody > tr > td.phc-keep {
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-title { display: block; order: 1; flex: 1 1 0; min-width: 0; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-title b { white-space: normal; overflow-wrap: anywhere; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-side  { display: block; order: 2; flex: 0 0 auto; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.ltable__tick { display: block; order: 0; flex: 0 0 auto; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-keep {
   display: flex; order: 3; width: 100%; align-items: flex-start; justify-content: space-between; gap: 4px 14px;
   flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--border);
 }
-.phc--cards table > tbody > tr > td.phc-keep::before {
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-keep::before {
   content: attr(data-label); flex-shrink: 0;
   font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   color: var(--text-muted); padding-top: 2px;
 }
-.phc--cards table > tbody > tr > td.phc-keep > * { min-width: 0; text-align: right; }
-.phc--cards table > tbody > tr > td.phc-keep > .lstack__main { margin-left: auto; }
-.phc--cards table > tbody > tr > td.phc-keep > .lstack__sub { flex: 1 0 100%; text-align: right; }
-.phc--cards table > tbody > tr > td.ltable__acts, .phc--cards table > tbody > tr > td.lvt-acts {
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-keep > * { min-width: 0; text-align: right; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-keep > .lstack__main { margin-left: auto; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-keep > .lstack__sub { flex: 1 0 100%; text-align: right; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.ltable__acts, :is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.lvt-acts {
   display: block; order: 4; width: 100%; padding-top: 10px; border-top: 1px solid var(--border);
 }
-.phc--cards table > tbody > tr > td.ltable__acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
-.phc--cards table > tbody > tr > td.ancol-act { text-align: right; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.ltable__acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.ancol-act { text-align: right; }
 /* An opened row's detail spans the grid under its card. */
-.phc--cards table > tbody > tr.ltable__exp { grid-column: 1 / -1; display: block; }
-.phc--cards table > tbody > tr.ltable__exp > td { display: block; width: 100%; padding: 0; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr.ltable__exp { grid-column: 1 / -1; display: block; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr.ltable__exp > td { display: block; width: 100%; padding: 0; }
 /* A phone keeps its single column with the phone spacing. */
 @media (max-width: 640px) {
-  .phc--cards table > tbody { display: block; padding: 0; }
-  .phc--cards table > tbody > tr { margin: 0 12px 12px; }
-  .phc--cards table > tbody > tr:first-child { margin-top: 12px; }
+  :is(.phc--cards, .phc:where([data-fitcards])) table > tbody { display: block; padding: 0; }
+  :is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr { margin: 0 12px 12px; }
+  :is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr:first-child { margin-top: 12px; }
 }
 
 /* The List / Card switch sits beside a heading on Student Analytics; the
@@ -22760,11 +22763,11 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
    patchy shaded blocks — and the card last tapped kept :hover, whose rule
    cleared them, so it alone stayed white. Cells in a card never carry a
    background of their own (selected, hovered or otherwise). */
-.phc.phc--cards table > tbody > tr > td,
-.phc.phc--cards table > tbody > tr:hover > td,
-.phc.phc--cards table > tbody > tr.is-picked > td { background: transparent; }
-.phc.phc--cards table > tbody > tr.is-picked,
-.phc.phc--cards table > tbody > tr.is-picked:hover {
+.phc:is(.phc--cards, [data-fitcards]) table > tbody > tr > td,
+.phc:is(.phc--cards, [data-fitcards]) table > tbody > tr:hover > td,
+.phc:is(.phc--cards, [data-fitcards]) table > tbody > tr.is-picked > td { background: transparent; }
+.phc:is(.phc--cards, [data-fitcards]) table > tbody > tr.is-picked,
+.phc:is(.phc--cards, [data-fitcards]) table > tbody > tr.is-picked:hover {
   border-color: var(--primary); background: #f8f7ff; box-shadow: 0 0 0 3px rgba(79, 70, 229, .10);
 }
 @media (max-width: 640px) {
@@ -23068,4 +23071,53 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .liblg-figs .liblg-fig__label { font-size: .8rem; line-height: 1.3; }
   .liblg-figs .liblg-fig__value { font-size: 1.3rem; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
   .liblg-figs .liblg-fig__cap { font-size: .72rem; line-height: 1.35; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY TABLES NEVER SCROLL SIDEWAYS (Nov 27 2026)
+   ───────────────────────────────────────────────────────────────────────────
+   Every library table sits in <PhoneCards fit>: measured against its box, it
+   first closes up its cells (`data-tight`), and if it still does not fit it is
+   drawn as cards (`data-fitcards`, the Card view's look). On a phone it is
+   always cards — no list. These rules add what the shared card styles do not
+   know about: the member pages' plain tables and their action cells.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.phc[data-tight] .ltable th, .phc[data-tight] .ltable td,
+.phc[data-tight] .libsr-table th, .phc[data-tight] .libsr-table td,
+.phc[data-tight] .liblg-table th, .phc[data-tight] .liblg-table td,
+.phc[data-tight] .libd-table th, .phc[data-tight] .libd-table td { padding-left: 9px; padding-right: 9px; }
+.phc[data-tight] .libc-col-book { min-width: 190px; }
+.phc[data-tight] .libc-col-member, .phc[data-tight] .libf-col-member { width: auto; }
+
+/* The member tables' own scroll boxes stand down once the rows are cards. */
+:is(.phc--cards, .phc:where([data-fitcards])) :is(.libsr-tablewrap, .liblg-tablewrap) { overflow: visible; }
+:is(.phc--cards, .phc:where([data-fitcards])) table > tbody > tr > td.phc-acts {
+  display: block; order: 4; width: 100%; padding-top: 10px; border-top: 1px solid var(--border);
+}
+:is(.phc--cards, .phc:where([data-fitcards])) td.phc-acts :is(.libsr-actions, .lacts) { justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .phc :is(.libsr-tablewrap, .liblg-tablewrap) { overflow: visible; }
+  .phc table > tbody > tr > td.phc-acts {
+    display: block; order: 4; width: 100%; padding-top: 10px; border-top: 1px solid var(--border);
+  }
+  .phc td.phc-acts :is(.libsr-actions, .lacts) { justify-content: flex-end; flex-wrap: wrap; }
+}
+/* A card's heading cell keeps a book's cover and its lines together. In a
+   table the book column keeps its width — squeezing it to make the table "fit"
+   wrapped titles mid-word, which is the cards' job to avoid. */
+:is(.phc--cards, .phc:where([data-fitcards])) td.phc-title .libsr-book { min-width: 0; }
+@media (max-width: 640px) { .phc td.phc-title .libsr-book { min-width: 0; } }
+/* My Books: the heading keeps its name; the search and filters take the next
+   row from the left edge when they do not fit beside it. */
+.libmb-panel .liblg-card__head h2 { flex-shrink: 0; }
+@media (max-width: 1200px) {
+  .libmb-tools { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .libmb-search { flex: 1 1 240px; }
+}
+@media (max-width: 640px) {
+  /* Library tab strips wrap instead of scrolling. */
+  .libbdpg .uitabs, .librpg .uitabs { flex-wrap: wrap; overflow: visible; }
+}
+@media (min-width: 641px) and (max-width: 900px) {
+  .librpg .uitabs { flex-wrap: wrap; overflow: visible; }
 }

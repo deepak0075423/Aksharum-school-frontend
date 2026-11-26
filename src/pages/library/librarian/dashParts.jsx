@@ -15,6 +15,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../../components/ui/icons';
 import { Badge } from '../../../components/ui/index';
+import PhoneCards from '../../../components/ui/PhoneCards';
 import { VIZ } from '../../analytics/palette';
 
 // ── Formatting ───────────────────────────────────────────────────────────────
@@ -311,6 +312,7 @@ export const RecentTable = ({ rows }) => {
       hint="The last ten trips across the counter show up here." />;
   }
   return (
+    <PhoneCards fit title="Book" side="Status" keep={['Borrower', 'Issued', 'Due']}>
     <div className="table-wrap">
       <table className="table libd-table">
         <thead>
@@ -337,6 +339,7 @@ export const RecentTable = ({ rows }) => {
         </tbody>
       </table>
     </div>
+    </PhoneCards>
   );
 };
 

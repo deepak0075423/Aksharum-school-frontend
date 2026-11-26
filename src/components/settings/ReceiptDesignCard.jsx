@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useId } from 'react';
 import toast from 'react-hot-toast';
 import { getReceiptTemplates, updateReceiptTemplate, fetchReceiptPreview } from '../../api/admin.api';
 import { Button, Spinner } from '../ui/index';
@@ -28,6 +28,7 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
   // once the module list resolves, and a value captured in useState would stay
   // pinned to a module this school does not run — which is how a library-only
   // school ended up asking the server for fee templates.
+  const showOnId = useId();
   const [module, setModule] = useState('');
   const [mode,   setMode]   = useState('online');
   const [sameForBoth, setSame] = useState(true);
@@ -220,8 +221,11 @@ export default function ReceiptDesignCard({ availableModules = {} }) {
                   placeholder="e.g. Accounts Officer" />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Show on the receipt</label>
+              {/* A heading over several ticks, not the label of one field — a
+                  <label> with no field of its own is what Chrome's Issues panel
+                  reported ("A <label> isn't associated with a form field"). */}
+              <div className="form-group" role="group" aria-labelledby={showOnId}>
+                <div className="form-label" id={showOnId}>Show on the receipt</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
                   {TOGGLES.map(([key, label]) => (
                     <label key={key} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>

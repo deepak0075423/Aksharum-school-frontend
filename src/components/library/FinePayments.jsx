@@ -26,6 +26,7 @@ import { saveFile } from '../../utils/downloadFile';
 import { RowMenu, MenuItem } from '../../pages/admin/listParts';
 import { Fig, Panel } from '../../pages/library/student/dashboardParts';
 import { Cover } from '../../pages/library/student/searchParts';
+import PhoneCards from '../ui/PhoneCards';
 
 const fmtDate = (d) => (d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -135,6 +136,7 @@ export function FinesView({
                 </div>
               </div>
             ) : (
+              <PhoneCards fit title="Description" side="Status" keep={['Book details', 'Raised on', 'Amount']}>
               <div className="libsr-tablewrap">
                 <table className="libsr-table libfn-table">
                   <thead>
@@ -196,6 +198,7 @@ export function FinesView({
                   </tbody>
                 </table>
               </div>
+              </PhoneCards>
             )}
             {data?.outstanding > 0 && !canPayOnline && (
               <p className="libfn-note">
@@ -226,6 +229,7 @@ export function FinesView({
                 </div>
               </div>
             ) : (
+              <PhoneCards fit title="Description" side="Status" keep={['Book details', 'Paid on', 'Amount', 'Receipt']}>
               <div className="libsr-tablewrap">
                 <table className="libsr-table libfn-table">
                   <thead>
@@ -279,6 +283,7 @@ export function FinesView({
                   </tbody>
                 </table>
               </div>
+              </PhoneCards>
             )}
           </Panel>
           )}

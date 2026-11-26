@@ -12,6 +12,7 @@
 import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
+import usePhone from '../../../hooks/usePhone';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   studentSearch, studentReserve, cancelMyReservation,
@@ -22,6 +23,7 @@ import Icon from '../../../components/ui/icons';
 import { RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import { Fig, Panel } from './dashboardParts';
 import { SearchArt, Field, FacetSelect, Cover, AvailPill, HoldPill, BookDetails } from './searchParts';
+import PhoneCards from '../../../components/ui/PhoneCards';
 
 const SORTS = [
   ['title_asc',  'Title (A–Z)'],
@@ -55,6 +57,10 @@ export default function LibrarySearch() {
   const [sort,    setSort]    = useState('title_asc');
   const [page,    setPage]    = useState(1);
   const [view,    setView]    = useState('list');
+  // A phone shows the books as cards and offers no list (Nov 27 2026); the
+  // choice made on a wider screen is kept, just not applied while this narrow.
+  const phone = usePhone();
+  const layout = phone ? 'grid' : view;
   const [details, setDetails] = useState(null);
   const [busy,    setBusy]    = useState('');
 
@@ -269,6 +275,7 @@ export default function LibrarySearch() {
                     {SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </label>
+                {!phone && (
                 <div className="libsr-view" role="group" aria-label="Layout">
                   <button type="button" className={view === 'list' ? 'is-on' : ''}
                     aria-pressed={view === 'list'} title="List view" onClick={() => setView('list')}>
@@ -279,6 +286,7 @@ export default function LibrarySearch() {
                     <Icon name="grid" size={16} />
                   </button>
                 </div>
+                )}
               </div>
             )}>
 
@@ -300,7 +308,7 @@ export default function LibrarySearch() {
                     </p>
                   </div>
                 </div>
-              ) : view === 'grid' ? (
+              ) : layout === 'grid' ? (
                 <div className="libsr-grid">
                   {books.map((b) => (
                     <article key={b._id} className="libsr-card">
@@ -319,6 +327,7 @@ export default function LibrarySearch() {
                   ))}
                 </div>
               ) : (
+                <PhoneCards fit title="Book details" side="Availability" keep={['Category', 'Language']}>
                 <div className="libsr-tablewrap">
                   <table className="libsr-table">
                     <thead>
@@ -363,6 +372,7 @@ export default function LibrarySearch() {
                     </tbody>
                   </table>
                 </div>
+                </PhoneCards>
               )}
           </Panel>
 
