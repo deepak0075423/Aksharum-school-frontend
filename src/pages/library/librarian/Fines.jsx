@@ -114,12 +114,20 @@ export default function LibraryFines() {
   );
 
   // ── Collecting ────────────────────────────────────────────────────────────
+  // Taking money writes a receipt and tells the member, so the row's Collect
+  // button and the menu's Take payment both ask first — one click used to
+  // record the payment outright.
   const [collecting, setCollecting] = useState(null);
-  const handleCollect = async (f) => {
+  const [payFine,    setPayFine]    = useState(null);
+  const handleCollect = (f) => setPayFine(f);
+  const confirmCollect = async () => {
+    const f = payFine;
+    if (!f) return;
     setCollecting(f._id);
     try {
       const res = await collectFine(f._id);
       toast.success(`${money(res?.data?.collected ?? owedOn(f))} collected — receipt ${res?.data?.receiptNumber || 'issued'}`);
+      setPayFine(null);
       refetch();
     } catch (err) { toast.error(err?.message || 'Could not record the payment'); }
     finally { setCollecting(null); }
@@ -229,7 +237,8 @@ export default function LibraryFines() {
       render: (r) => (
         <RowActions>
           {owedOn(r) > 0 && (
-            <Button size="sm" loading={collecting === r._id} onClick={() => handleCollect(r)}>
+            <Button size="sm" loading={collecting === r._id} onClick={() => handleCollect(r)}
+              title="Take payment for this fine">
               Collect
             </Button>
           )}
@@ -362,6 +371,37 @@ export default function LibraryFines() {
       </section>
 
       {/* ── Overlays ────────────────────────────────────────────────────────── */}
+      <Modal open={!!payFine} onClose={() => { if (!collecting) setPayFine(null); }} maxWidth={480}
+        title="Take payment"
+        footer={<>
+          <Button variant="secondary" onClick={() => setPayFine(null)} disabled={!!collecting}>Cancel</Button>
+          <Button onClick={confirmCollect} loading={!!collecting}>
+            <Icon name="banknote" size={15} /> Collect {money(owedOn(payFine))}
+          </Button>
+        </>}>
+        {payFine && (
+          <>
+            <p className="libf-pay__lead">
+              Record a payment of <b>{money(owedOn(payFine))}</b> from <b>{payFine.user?.name || 'this member'}</b> at
+              the counter?
+            </p>
+            <dl className="libf-pay">
+              <div><dt>Member</dt><dd>{payFine.user?.name || '—'}
+                {payFine.borrowerClass ? <small>{payFine.borrowerClass}</small> : null}</dd></div>
+              <div><dt>Book</dt><dd>{payFine.book?.title || 'Book no longer catalogued'}</dd></div>
+              <div><dt>Reason</dt><dd>{REASONS[payFine.fineType] || payFine.fineType || '—'}</dd></div>
+              <div><dt>Charged</dt><dd>{money(payFine.amount)}</dd></div>
+              {payFine.waivedAmount > 0 && <div><dt>Written off</dt><dd>− {money(payFine.waivedAmount)}</dd></div>}
+              {payFine.paidAmount > 0 && <div><dt>Already paid</dt><dd>− {money(payFine.paidAmount)}</dd></div>}
+              <div className="is-total"><dt>To collect now</dt><dd>{money(owedOn(payFine))}</dd></div>
+            </dl>
+            <p className="libf-pay__note">
+              <Icon name="files" size={14} /> A receipt is issued straight away and the member is told it was paid.
+            </p>
+          </>
+        )}
+      </Modal>
+
       <Modal open={bulkOpen} onClose={() => setBulkOpen(false)} maxWidth={460} title="Take payment"
         footer={<>
           <Button variant="secondary" onClick={() => setBulkOpen(false)}>Cancel</Button>

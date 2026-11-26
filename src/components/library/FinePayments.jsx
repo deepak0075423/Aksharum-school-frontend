@@ -6,9 +6,9 @@
  * Receipts appear here whether the fine was paid at the counter or online, so a
  * parent who handed over cash has the same document as one who tapped a card.
  *
- * The gateway settles everything outstanding in one order — there is no
- * per-fine checkout — so a row's Pay button says what it is really about to do
- * when more than one charge is standing.
+ * A row's Pay Now settles that one charge and nothing else; Pay Outstanding
+ * settles everything still owed. Both say what they are about to charge before
+ * the checkout opens.
  *
  * `FinePayments` is the shell that loads and pays; `FinesView` is the screen it
  * draws, kept pure so it can be rendered and checked without a browser.
@@ -20,7 +20,7 @@ import {
 } from '../../api/library.api';
 import { openCheckout } from '../../utils/razorpay';
 import api from '../../api/axios';
-import { Button, Spinner, Modal, Confirm } from '../ui/index';
+import { Button, Spinner, Modal } from '../ui/index';
 import Icon from '../ui/icons';
 import { saveFile } from '../../utils/downloadFile';
 import { RowMenu, MenuItem } from '../../pages/admin/listParts';
@@ -74,18 +74,30 @@ const BookCell = ({ book }) => (
 // ── The screen ───────────────────────────────────────────────────────────────
 export function FinesView({
   data, receipts = [], title = 'Outstanding Fines', paying,
-  onPay, onExport, onDetail, onReceipt = openReceipt,
+  onPay, onPayAll, onExport, onDetail, onReceipt = openReceipt,
 }) {
   const pending = data?.pending || [];
   const settled = data?.settled || [];
   const p       = data?.policy  || {};
   const canPayOnline = !!data?.gateway?.enabled && data?.outstanding > 0;
+  const payAll  = onPayAll || onPay;
 
-  const paidThisYear = useMemo(() => {
-    const start = data?.academicYear?.startDate ? new Date(data.academicYear.startDate).getTime() : 0;
-    return settled.filter((f) => f.status === 'paid'
-      && (!start || new Date(f.paidAt || f.createdAt).getTime() >= start)).length;
-  }, [settled, data]);
+  // The figures narrow the page: Outstanding (and Pending Payments) show what
+  // is still to pay, Paid Fines the year's payments, Total Fines everything.
+  // Clicking the lit one again goes back to everything.
+  const [fig, setFig] = useState('all');
+  const pick = (key) => setFig((cur) => (cur === key ? 'all' : key));
+  const showPending = ['all', 'outstanding', 'pending'].includes(fig);
+  const showSettled = ['all', 'paid'].includes(fig);
+
+  const yearStart = data?.academicYear?.startDate ? new Date(data.academicYear.startDate).getTime() : 0;
+  const paidInYear = (f) => f.status === 'paid'
+    && (!yearStart || new Date(f.paidAt || f.createdAt).getTime() >= yearStart);
+  const paidThisYear = useMemo(() => settled.filter(paidInYear).length, [settled, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const settledRows  = fig === 'paid' ? settled.filter(paidInYear) : settled;
+  const showAll = fig !== 'all'
+    ? <button type="button" className="liblg-more libfn-showall" onClick={() => setFig('all')}>Show all fines</button>
+    : null;
 
   return (
     <>
@@ -93,23 +105,27 @@ export function FinesView({
         <Fig icon="alert" tone="red" label="Total Outstanding" value={money(data?.outstanding)}
           caption={pending.length
             ? `${pending.length} item${pending.length === 1 ? '' : 's'}`
-            : 'Nothing to pay'} />
+            : 'Nothing to pay'}
+          active={fig === 'outstanding'} onClick={() => pick('outstanding')} />
         <Fig icon="files" tone="blue" label="Total Fines" value={pending.length + settled.length}
-          caption="All time" />
+          caption="All time" active={fig === 'all'} onClick={() => setFig('all')} />
         <Fig icon="checkCircle" tone="green" label="Paid Fines" value={paidThisYear}
-          caption={data?.academicYear?.yearName ? `In ${data.academicYear.yearName}` : 'All time'} />
+          caption={data?.academicYear?.yearName ? `In ${data.academicYear.yearName}` : 'All time'}
+          active={fig === 'paid'} onClick={() => pick('paid')} />
         {/* Fines still to be paid — the same rows the list marks Unpaid. It
             used to count only online payments started and not confirmed, so a
             damage fine waiting at the counter showed "0 pending". */}
         <Fig icon="clock" tone="violet" label="Pending Payments" value={pending.length}
           caption={data?.pendingPayments
             ? `${data.pendingPayments} started online, not confirmed`
-            : pending.length ? `${money(data?.outstanding)} to pay` : 'No pending actions'} />
+            : pending.length ? `${money(data?.outstanding)} to pay` : 'No pending actions'}
+          active={fig === 'pending'} onClick={() => pick('pending')} />
       </div>
 
       <div className="libfn-body">
         <div className="libfn-main">
-          <Panel icon="alert" tone="red" title={`${title} (${pending.length})`}>
+          {showPending && (
+          <Panel icon="alert" tone="red" title={`${title} (${pending.length})`} action={showAll}>
             {!pending.length ? (
               <div className="liblg-empty">
                 <span className="liblg-empty__icon"><Icon name="checkCircle" size={26} /></span>
@@ -155,13 +171,22 @@ export function FinesView({
                         <td><span className="libsr-pill libsr-t--red">Unpaid</span></td>
                         <td className="libsr-right">
                           <div className="libsr-actions">
+                            {/* This charge only — the rest stay as they are. */}
                             {canPayOnline && (
-                              <Button size="sm" loading={paying} onClick={onPay}>Pay Now</Button>
+                              <Button size="sm" loading={paying === f._id} disabled={!!paying && paying !== f._id}
+                                onClick={() => onPay(f)} title="Pay this fine only">Pay Now</Button>
                             )}
                             <RowMenu>
                               <MenuItem icon="eye" onClick={() => onDetail(f)}>Why this charge?</MenuItem>
                               {canPayOnline && (
-                                <MenuItem icon="creditCard" onClick={onPay}>Pay outstanding</MenuItem>
+                                <MenuItem icon="creditCard" onClick={() => onPay(f)}>
+                                  Pay this fine — {money(f.outstanding ?? f.amount)}
+                                </MenuItem>
+                              )}
+                              {canPayOnline && pending.length > 1 && (
+                                <MenuItem icon="creditCard" onClick={payAll}>
+                                  Pay all outstanding — {money(data.outstanding)}
+                                </MenuItem>
                               )}
                             </RowMenu>
                           </div>
@@ -180,14 +205,24 @@ export function FinesView({
               </p>
             )}
           </Panel>
+          )}
 
-          <Panel icon="checkCircle" tone="green" title="Payment History">
-            {!settled.length ? (
+          {showSettled && (
+          <Panel icon="checkCircle" tone="green"
+            title={fig === 'paid' && data?.academicYear?.yearName
+              ? `Paid in ${data.academicYear.yearName} (${settledRows.length})`
+              : 'Payment History'}
+            action={showAll}>
+            {!settledRows.length ? (
               <div className="liblg-empty">
                 <span className="liblg-empty__icon"><Icon name="files" size={26} /></span>
                 <div>
-                  <strong>No payments yet</strong>
-                  <p>Your fine payment history will appear here once you make a payment.</p>
+                  <strong>{fig === 'paid' && settled.length ? 'Nothing paid this year' : 'No payments yet'}</strong>
+                  <p>
+                    {fig === 'paid' && settled.length
+                      ? 'Fines paid in earlier years are under Total Fines.'
+                      : 'Your fine payment history will appear here once you make a payment.'}
+                  </p>
                 </div>
               </div>
             ) : (
@@ -205,7 +240,7 @@ export function FinesView({
                     </tr>
                   </thead>
                   <tbody>
-                    {settled.map((f, i) => (
+                    {settledRows.map((f, i) => (
                       <tr key={f._id} data-focus-id={f._id}>
                         <td className="libfn-num">{i + 1}</td>
                         <td>
@@ -246,6 +281,7 @@ export function FinesView({
               </div>
             )}
           </Panel>
+          )}
         </div>
 
         {/* ── Rail ────────────────────────────────────────────────────── */}
@@ -253,7 +289,7 @@ export function FinesView({
           <Panel icon="creditCard" tone="indigo" title="Quick Actions">
             <div className="libfn-acts">
               {canPayOnline && (
-                <button type="button" className="libfn-act libfn-act--pay" onClick={onPay} disabled={paying}>
+                <button type="button" className="libfn-act libfn-act--pay" onClick={payAll} disabled={!!paying}>
                   <Icon name="creditCard" size={18} />
                   <span>Pay Outstanding<em>{money(data.outstanding)}</em></span>
                   <Icon name="chevronRight" size={16} />
@@ -309,9 +345,11 @@ export default function FinePayments({ forUserId, payerName, title = 'Outstandin
   const [data,     setData]     = useState(null);
   const [receipts, setReceipts] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const [paying,   setPaying]   = useState(false);
+  // The fine being paid (its id), 'all', or nothing.
+  const [paying,   setPaying]   = useState('');
   const [detail,   setDetail]   = useState(null);
-  const [confirm,  setConfirm]  = useState(false);
+  // What the confirmation is about to charge: { fines, all }.
+  const [confirm,  setConfirm]  = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -332,21 +370,30 @@ export default function FinePayments({ forUserId, payerName, title = 'Outstandin
 
   const pending = data?.pending || [];
 
+  /**
+   * Opens the checkout for exactly the fines named — one row's Pay Now sends
+   * that fine alone, Pay Outstanding sends every one. The server prices the
+   * order from these ids, never from an amount in the request.
+   */
   const pay = async () => {
-    setConfirm(false);
-    setPaying(true);
+    const chosen = confirm;
+    setConfirm(null);
+    if (!chosen?.fines?.length) return;
+    setPaying(chosen.all ? 'all' : chosen.fines[0]._id);
     try {
-      const orderRes = await createFineOrder({ userId: forUserId });
+      const orderRes = await createFineOrder({ userId: forUserId, fineIds: chosen.fines.map((f) => f._id) });
       const order = orderRes?.data;
 
       await openCheckout({
         order,
         amount: order.payable,
         name: 'Library fine',
-        description: `${order.fineIds.length} fine(s)`,
+        description: order.fineIds.length === 1
+          ? `${TYPE_LABEL[chosen.fines[0].fineType] || 'Fine'}${chosen.fines[0].book?.title ? ` — ${chosen.fines[0].book.title}` : ''}`
+          : `${order.fineIds.length} fines`,
         prefillName: payerName,
-        onDismiss: () => setPaying(false),
-        onError: (err) => { toast.error(err.message); setPaying(false); },
+        onDismiss: () => setPaying(''),
+        onError: (err) => { toast.error(err.message); setPaying(''); },
         onVerify: async (response) => {
           try {
             const v = await confirmFinePayment({
@@ -358,17 +405,20 @@ export default function FinePayments({ forUserId, payerName, title = 'Outstandin
           } catch (err) {
             // The money may well have left; never imply otherwise.
             toast.error(err?.message || 'We could not confirm the payment — please contact the school office.');
-          } finally { setPaying(false); }
+          } finally { setPaying(''); }
         },
       });
     } catch (err) {
       toast.error(err?.message || 'Could not start the payment');
-      setPaying(false);
+      setPaying('');
     }
   };
 
-  /** One order settles everything, so say so before starting it. */
-  const startPayment = () => (pending.length > 1 ? setConfirm(true) : pay());
+  /** Money is about to move, so every payment says what it covers first. */
+  const payOne = (fine) => setConfirm({ fines: [fine], all: false });
+  const payAll = () => setConfirm({ fines: pending, all: true });
+  const confirmTotal = (confirm?.fines || []).reduce((n, f) => n + Number(f.outstanding ?? f.amount ?? 0), 0);
+  const one = confirm && !confirm.all ? confirm.fines[0] : null;
 
   const exportReceipts = () => {
     if (!receipts.length) return toast.error('There are no receipts to export');
@@ -389,14 +439,49 @@ export default function FinePayments({ forUserId, payerName, title = 'Outstandin
   return (
     <>
       <FinesView data={data} receipts={receipts} title={title} paying={paying}
-        onPay={startPayment} onExport={exportReceipts} onDetail={setDetail} />
+        onPay={payOne} onPayAll={payAll} onExport={exportReceipts} onDetail={setDetail} />
 
       {detail && <FineDetail fine={detail} policy={data.policy || {}} onClose={() => setDetail(null)} />}
 
-      <Confirm open={confirm} onClose={() => setConfirm(false)} onConfirm={pay}
-        title="Pay all outstanding fines"
-        confirmLabel={`Pay ${money(data.outstanding)}`}
-        message={`The library settles every outstanding charge in one payment. This will pay all ${pending.length} fines — ${money(data.outstanding)} in total.`} />
+      <Modal open={!!confirm} onClose={() => setConfirm(null)} maxWidth={460}
+        title={one ? 'Pay this fine' : 'Pay all outstanding fines'}
+        footer={<>
+          <Button variant="secondary" onClick={() => setConfirm(null)}>Cancel</Button>
+          <Button onClick={pay}><Icon name="creditCard" size={15} /> Pay {money(confirmTotal)}</Button>
+        </>}>
+        {one ? (
+          <>
+            <p className="libfn-confirm__lead">
+              Pay <b>{money(confirmTotal)}</b> for this fine only. Your other fines stay as they are.
+            </p>
+            <dl className="libf-pay">
+              <div><dt>Charge</dt><dd>{TYPE_LABEL[one.fineType] || one.fineType}</dd></div>
+              {one.book?.title && <div><dt>Book</dt><dd>{one.book.title}</dd></div>}
+              <div><dt>Raised on</dt><dd>{fmtDate(one.createdAt)}</dd></div>
+              <div className="is-total"><dt>To pay now</dt><dd>{money(confirmTotal)}</dd></div>
+            </dl>
+          </>
+        ) : (
+          <>
+            <p className="libfn-confirm__lead">
+              Pay every outstanding fine in one payment — <b>{confirm?.fines?.length || 0}</b> fine
+              {confirm?.fines?.length === 1 ? '' : 's'}, <b>{money(confirmTotal)}</b> in total.
+            </p>
+            <dl className="libf-pay">
+              {(confirm?.fines || []).map((f) => (
+                <div key={f._id}>
+                  <dt>{TYPE_LABEL[f.fineType] || f.fineType}{f.book?.title ? ` — ${f.book.title}` : ''}</dt>
+                  <dd>{money(f.outstanding ?? f.amount)}</dd>
+                </div>
+              ))}
+              <div className="is-total"><dt>To pay now</dt><dd>{money(confirmTotal)}</dd></div>
+            </dl>
+          </>
+        )}
+        <p className="libf-pay__note">
+          <Icon name="files" size={14} /> You get a receipt as soon as the payment goes through.
+        </p>
+      </Modal>
     </>
   );
 }

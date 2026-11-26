@@ -353,13 +353,13 @@ export function ReturnDialog({ open, preset, onClose, onDone, base }) {
   const [condition, setCondition] = useState('good');
   const [price,     setPrice]     = useState('');
   const [notes,     setNotes]     = useState('');
-  const [collect,   setCollect]   = useState(true);
+  const [collect,   setCollect]   = useState(false);
   const [saving,    setSaving]    = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setMember(null); setList([]); setLoan(null); setSearched(false);
-    setCondition('good'); setPrice(''); setNotes(''); setCollect(true);
+    setCondition('good'); setPrice(''); setNotes(''); setCollect(false);
     // A row in the register can send its own copy here. The code still goes
     // through the search rather than the row being trusted: between the page
     // loading and this dialog opening somebody else may have taken the return.

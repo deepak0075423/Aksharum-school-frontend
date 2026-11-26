@@ -9398,6 +9398,32 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 
 .libf-add2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* "Take payment" — what is being collected, from whom, before it is recorded. */
+.libf-pay__lead { margin: 0 0 12px; color: var(--text-muted); line-height: 1.5; }
+.libf-pay__lead b { color: var(--text); }
+.libf-pay {
+  margin: 0; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); padding: 4px 14px;
+}
+.libf-pay > div {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  padding: 8px 0; border-bottom: 1px dashed var(--border);
+}
+.libf-pay > div:last-child, .libf-pay > div:has(+ .is-total) { border-bottom: 0; }
+.libf-pay dt { font-size: .82rem; color: var(--text-muted); flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.libf-pay dd {
+  margin: 0; font-size: .88rem; font-weight: 600; text-align: right;
+  flex: 0 1 auto; min-width: 0; max-width: 72%; overflow-wrap: anywhere;
+}
+.libf-pay dd small { display: block; font-size: .74rem; font-weight: 500; color: var(--text-muted); }
+.libf-pay > .is-total { border-top: 1px solid var(--border); border-bottom: 0; margin-top: 2px; }
+.libf-pay > .is-total dt { color: var(--text); font-weight: 700; }
+.libf-pay > .is-total dd { font-size: 1.05rem; font-weight: 800; color: var(--success, #059669); }
+.libf-pay__note {
+  display: flex; align-items: center; gap: 7px; margin: 12px 0 0;
+  font-size: .8rem; color: var(--text-muted);
+}
+
 @media (max-width: 768px) {
   .libf-add2 { grid-template-columns: minmax(0, 1fr); }
 }
@@ -11561,8 +11587,16 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
   background: color-mix(in srgb, var(--tone) 6%, #fff);
   border: 1px solid color-mix(in srgb, var(--tone) 18%, var(--border));
 }
-.liblg-fig--go { transition: border-color var(--transition), box-shadow var(--transition); }
+.liblg-fig--go { transition: border-color var(--transition), box-shadow var(--transition); cursor: pointer; }
 .liblg-fig--go:hover { border-color: var(--tone); box-shadow: var(--shadow); }
+/* A figure that is a button: the button's own look taken off, so it reads as
+   the same tile as its neighbours. */
+button.liblg-fig { font: inherit; text-align: left; width: 100%; }
+.liblg-fig.is-active {
+  border-color: var(--tone);
+  box-shadow: 0 0 0 1px var(--tone) inset, var(--shadow-sm);
+  background: color-mix(in srgb, var(--tone) 11%, #fff);
+}
 .liblg-fig__body  { min-width: 0; flex: 1; display: flex; flex-direction: column; }
 .liblg-fig__label { font-size: .84rem; font-weight: 600; color: var(--text-muted); }
 .liblg-fig__value {
@@ -11942,6 +11976,10 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 /* The component is a fragment, so the page's flex gap does not reach inside
    it — its own blocks carry the rhythm. */
 .libfnpg .liblg-figs { margin-bottom: 0; }
+/* "Show all fines" — the way back after a figure narrowed the page. */
+.libfn-showall { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+.libfn-confirm__lead { margin: 0 0 12px; color: var(--text-muted); line-height: 1.5; }
+.libfn-confirm__lead b { color: var(--text); }
 .libfn-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 320px); gap: 16px; align-items: start; margin-top: 16px; }
 .libfn-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .libfn-rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -23007,4 +23045,27 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .lvstat__value { font-size: 1.35rem; line-height: 1.15; }
   .lvstat__label { font-size: .8rem; line-height: 1.3; }
   .lvstat__cap { font-size: .7rem; line-height: 1.35; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY MEMBER FIGURES ON A PHONE (Nov 27 2026)
+   ───────────────────────────────────────────────────────────────────────────
+   The shared "Summary tiles on a phone" rule for the member library pages
+   (Library, Search Books, My Books, My Fines, the parent's view): two to a
+   row, an odd one out across the last row, every row as tall as its tallest
+   tile, and the icon above the figure so a half-width tile keeps its words.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .liblg-figs, .libsr-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
+  .liblg-figs > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .liblg-figs .liblg-fig {
+    flex-direction: column; align-items: flex-start; justify-content: flex-start;
+    gap: 10px; padding: 14px; min-width: 0; height: 100%;
+  }
+  .liblg-figs .liblg-ico--lg { width: 38px; height: 38px; border-radius: 11px; }
+  .liblg-figs .liblg-ico--lg svg { width: 19px; height: 19px; }
+  .liblg-figs .liblg-fig__body { width: 100%; }
+  .liblg-figs .liblg-fig__label { font-size: .8rem; line-height: 1.3; }
+  .liblg-figs .liblg-fig__value { font-size: 1.3rem; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
+  .liblg-figs .liblg-fig__cap { font-size: .72rem; line-height: 1.35; }
 }

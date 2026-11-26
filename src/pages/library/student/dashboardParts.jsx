@@ -92,7 +92,12 @@ export function LibHero({ title, blurb, quote }) {
 }
 
 // ── Figures ──────────────────────────────────────────────────────────────────
-export function Fig({ icon, tone = 'indigo', label, value, caption, to }) {
+/**
+ * One figure. `to` makes it a link to another page; `onClick` makes it a
+ * button that narrows the page it sits on, and `active` marks the one whose
+ * filter is on (clicking it again is the page's way back).
+ */
+export function Fig({ icon, tone = 'indigo', label, value, caption, to, onClick, active }) {
   const inner = (
     <>
       <span className="liblg-ico liblg-ico--lg"><Icon name={icon} size={24} /></span>
@@ -103,9 +108,14 @@ export function Fig({ icon, tone = 'indigo', label, value, caption, to }) {
       </span>
     </>
   );
-  return to
-    ? <Link to={to} className={`liblg-fig liblg-fig--go liblg-t--${tone}`}>{inner}</Link>
-    : <div className={`liblg-fig liblg-t--${tone}`}>{inner}</div>;
+  const cls = `liblg-fig liblg-fig--go liblg-t--${tone}${active ? ' is-active' : ''}`;
+  if (to) return <Link to={to} className={cls}>{inner}</Link>;
+  if (onClick) {
+    return (
+      <button type="button" className={cls} onClick={onClick} aria-pressed={!!active}>{inner}</button>
+    );
+  }
+  return <div className={`liblg-fig liblg-t--${tone}`}>{inner}</div>;
 }
 
 // ── Card ─────────────────────────────────────────────────────────────────────

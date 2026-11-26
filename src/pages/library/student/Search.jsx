@@ -33,13 +33,15 @@ const SORTS = [
 const AVAILABILITY = [
   ['',          'All books'],
   ['available', 'Available now'],
+  ['issued',    'Currently issued'],
   ['out',       'All copies out'],
 ];
 // A borrower (student or teacher) is choosing what to borrow — "every copy is
 // out" is a librarian's question, not theirs, so it is not offered to them.
 const MEMBER_ROLES = ['student', 'teacher'];
 
-const BLANK = { q: '', category: '', language: '', subject: '', availability: '' };
+// `reserved: 'mine'` is the Reserved figure's filter — the member's own holds.
+const BLANK = { q: '', category: '', language: '', subject: '', availability: '', reserved: '' };
 
 export default function LibrarySearch() {
   const { user }  = useAuth();
@@ -67,6 +69,7 @@ export default function LibrarySearch() {
       language:     applied.language || undefined,
       subject:      applied.subject || undefined,
       availability: applied.availability || undefined,
+      reserved:     applied.reserved || undefined,
       sort, page, limit: 10,
     }),
     [applied, sort, page, isTeacher],
@@ -79,6 +82,23 @@ export default function LibrarySearch() {
   const pages   = meta?.pages   || 1;
 
   const setFilter = (key) => (value) => { setApplied((f) => ({ ...f, [key]: value })); setPage(1); };
+  // The figures above the results are filters as well: each shows the books it
+  // counts, and clicking the lit one again goes back to every book.
+  // One figure at a time — picking one replaces the last.
+  const pickFig = (which) => {
+    setApplied((f) => {
+      if (!which) return { ...f, availability: '', reserved: '' };
+      if (which === 'reserved') return { ...f, availability: '', reserved: f.reserved === 'mine' ? '' : 'mine' };
+      return { ...f, reserved: '', availability: f.availability === which ? '' : which };
+    });
+    setPage(1);
+  };
+  const figOn = {
+    all:       !applied.availability && !applied.reserved,
+    available: applied.availability === 'available',
+    issued:    applied.availability === 'issued',
+    reserved:  applied.reserved === 'mine',
+  };
   const runSearch = () => { setApplied((f) => ({ ...f, q: draft.trim() })); setPage(1); };
   // Reset is the one way back to the page as it opened: no search, no
   // filters, the default order, page 1.
@@ -174,6 +194,25 @@ export default function LibrarySearch() {
         </div>
       </header>
 
+      {/* The figures first, the filters under them, then the books. */}
+      <div className="liblg-figs libsr-figs">
+        <Fig icon="bookOpen" tone="blue"   label="Total Books"
+          value={Number(summary.totalBooks || 0).toLocaleString('en-IN')} caption="In library"
+          active={figOn.all} onClick={() => pickFig('')} />
+        <Fig icon="checkCircle" tone="green" label="Available"
+          value={Number(summary.availableCopies || 0).toLocaleString('en-IN')} caption="Copies ready to issue"
+          active={figOn.available} onClick={() => pickFig('available')} />
+        <Fig icon="clock" tone="amber"     label="Currently Issued"
+          value={Number(summary.issuedCopies || 0).toLocaleString('en-IN')} caption="Copies out with readers"
+          active={figOn.issued} onClick={() => pickFig('issued')} />
+        <Fig icon="star" tone="pink"       label="My Reservations"
+          value={Number(summary.reserved || 0).toLocaleString('en-IN')}
+          caption={summary.reservedReady
+            ? `${summary.reservedReady} ready to collect`
+            : summary.reserved ? 'Waiting in the queue' : 'Nothing reserved'}
+          active={figOn.reserved} onClick={() => pickFig('reserved')} />
+      </div>
+
       <div className="libsr-body">
         {/* ── Filters ──────────────────────────────────────────────────── */}
         <aside className="libsr-rail">
@@ -220,17 +259,6 @@ export default function LibrarySearch() {
 
         {/* ── Results ──────────────────────────────────────────────────── */}
         <div className="libsr-main">
-          <div className="liblg-figs libsr-figs">
-            <Fig icon="bookOpen" tone="blue"   label="Total Books"
-              value={Number(summary.totalBooks || 0).toLocaleString('en-IN')} caption="In library" />
-            <Fig icon="checkCircle" tone="green" label="Available"
-              value={Number(summary.availableCopies || 0).toLocaleString('en-IN')} caption="Ready to issue" />
-            <Fig icon="clock" tone="amber"     label="Currently Issued"
-              value={Number(summary.issuedCopies || 0).toLocaleString('en-IN')} caption="By students & staff" />
-            <Fig icon="star" tone="pink"       label="Reserved"
-              value={Number(summary.reserved || 0).toLocaleString('en-IN')} caption="By students & staff" />
-          </div>
-
           <Panel icon="bookOpen" tone="indigo" title={`Books (${total.toLocaleString('en-IN')})`}
             action={(
               <div className="libsr-tools">
@@ -259,11 +287,16 @@ export default function LibrarySearch() {
                 <div className="liblg-empty">
                   <span className="liblg-empty__icon"><Icon name="search" size={26} /></span>
                   <div>
-                    <strong>{filtersOn || applied.q ? 'No books match those filters' : 'The catalogue is empty'}</strong>
+                    <strong>
+                      {figOn.reserved && filtersOn === 1 && !applied.q ? 'You have not reserved any books'
+                        : filtersOn || applied.q ? 'No books match those filters' : 'The catalogue is empty'}
+                    </strong>
                     <p>
-                      {filtersOn || applied.q
-                        ? 'Try a broader search, or clear the filters to see everything.'
-                        : 'Books appear here as soon as the library adds them.'}
+                      {figOn.reserved && filtersOn === 1 && !applied.q
+                        ? 'Reserve a book and it appears here until you collect it.'
+                        : filtersOn || applied.q
+                          ? 'Try a broader search, or clear the filters to see everything.'
+                          : 'Books appear here as soon as the library adds them.'}
                     </p>
                   </div>
                 </div>

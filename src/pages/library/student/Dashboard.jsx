@@ -152,9 +152,12 @@ export default function LibraryMemberDashboard() {
         )}
 
         {runsLibrary ? (
+          // Readers per month live in the usage report — the only tile here
+          // that went nowhere.
           <Fig icon="users" tone="violet" label="Active Readers"
             value={wide?.activeReaders ?? 0}
-            caption={`of ${wide?.members ?? 0} students & staff`} />
+            caption={`of ${wide?.members ?? 0} students & staff`}
+            to="/teacher/manage-library/reports?report=usage" />
         ) : (
           <Fig icon="star" tone="violet" label="Reservations"
             value={holds.length}

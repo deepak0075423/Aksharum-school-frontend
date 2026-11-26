@@ -36,12 +36,16 @@ const STATUS = {
 };
 const OPEN = ['issued', 'overdue'];
 
+// `open` and `returned_year` are what the Currently Borrowed and Returned
+// figures count, so clicking one shows exactly the loans behind its number.
 const STATUS_FILTERS = [
-  ['',         'All Status'],
-  ['issued',   'Borrowed'],
-  ['overdue',  'Overdue'],
-  ['returned', 'Returned'],
-  ['lost',     'Lost'],
+  ['',              'All Status'],
+  ['open',          'Not returned yet'],
+  ['issued',        'Borrowed'],
+  ['overdue',       'Overdue'],
+  ['returned',      'Returned'],
+  ['returned_year', 'Returned this year'],
+  ['lost',          'Lost'],
 ];
 
 const RANGES = [
@@ -56,6 +60,7 @@ const PAYMENT = { pending: 'Unpaid', paid: 'Paid', waived: 'Waived' };
 export default function LibraryMyBooks() {
   const { user }  = useAuth();
   const isTeacher = user?.role === 'teacher';
+  const base      = isTeacher ? '/teacher/library' : '/student/library';
 
   const { data, meta, loading, refetch } = useFetch(
     isTeacher ? getTeacherMyBooks : getMyBooks, [isTeacher],
@@ -77,13 +82,24 @@ export default function LibraryMyBooks() {
   const stateOf = (r) => (r.status === 'issued' && (r.isOverdue || now > new Date(r.dueDate).getTime())
     ? 'overdue' : r.status);
 
+  const yearStart = year?.startDate ? new Date(year.startDate).getTime() : 0;
+  /** Came back within this academic year — the Returned figure's own rule. */
+  const returnedThisYear = (r) => r.status === 'returned'
+    && (!yearStart || new Date(r.returnDate || r.issueDate).getTime() >= yearStart);
+  const statusMatch = (r) => {
+    if (!status) return true;
+    if (status === 'open') return OPEN.includes(r.status);
+    if (status === 'returned_year') return returnedThisYear(r);
+    return stateOf(r) === status;
+  };
+
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const since  = range === 'year'
-      ? (year?.startDate ? new Date(year.startDate).getTime() : 0)
+      ? yearStart
       : range ? now - Number(range) * DAY : 0;
     return rows.filter((r) => {
-      if (status && stateOf(r) !== status) return false;
+      if (!statusMatch(r)) return false;
       if (since && new Date(r.issueDate).getTime() < since) return false;
       if (!needle) return true;
       return [
@@ -92,15 +108,11 @@ export default function LibraryMyBooks() {
     });
   }, [rows, q, status, range, year]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const figures = useMemo(() => {
-    const start = year?.startDate ? new Date(year.startDate).getTime() : 0;
-    return {
-      total:    rows.length,
-      open:     rows.filter((r) => OPEN.includes(r.status)).length,
-      returned: rows.filter((r) => r.status === 'returned'
-        && (!start || new Date(r.returnDate || r.issueDate).getTime() >= start)).length,
-    };
-  }, [rows, year]);
+  const figures = useMemo(() => ({
+    total:    rows.length,
+    open:     rows.filter((r) => OPEN.includes(r.status)).length,
+    returned: rows.filter(returnedThisYear).length,
+  }), [rows, year]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   const safe  = Math.min(page, pages);
@@ -108,6 +120,13 @@ export default function LibraryMyBooks() {
   const from  = shown.length ? (safe - 1) * PER_PAGE + 1 : 0;
   const to    = Math.min(safe * PER_PAGE, shown.length);
   const reset = (fn) => (v) => { fn(v); setPage(1); };
+  // A figure is a filter on the table below it: it shows the loans it counts,
+  // with the period and search cleared so nothing hides them, and the lit one
+  // clicked again goes back to every loan.
+  const pickFig = (value) => {
+    setStatus((cur) => (cur === value ? '' : value));
+    setRange(''); setQ(''); setPage(1);
+  };
 
   /** Extending a loan with nobody queued behind it never needed a trip to the desk. */
   const renew = async (id) => {
@@ -163,12 +182,17 @@ export default function LibraryMyBooks() {
       </header>
 
       <div className="liblg-figs">
-        <Fig icon="bookOpen" tone="violet" label="Total Books" value={figures.total} caption="All time" />
-        <Fig icon="book" tone="blue" label="Currently Borrowed" value={figures.open} caption="Not yet returned" />
+        <Fig icon="bookOpen" tone="violet" label="Total Books" value={figures.total} caption="All time"
+          active={!status} onClick={() => { setStatus(''); setRange(''); setQ(''); setPage(1); }} />
+        <Fig icon="book" tone="blue" label="Currently Borrowed" value={figures.open} caption="Not yet returned"
+          active={status === 'open'} onClick={() => pickFig('open')} />
         <Fig icon="repeat" tone="green" label="Returned" value={figures.returned}
-          caption={year?.yearName ? `In ${year.yearName}` : 'All time'} />
+          caption={year?.yearName ? `In ${year.yearName}` : 'All time'}
+          active={status === 'returned_year'} onClick={() => pickFig('returned_year')} />
+        {/* Money owed is answered on My Fines, where it can be paid. */}
         <Fig icon="alert" tone="red" label="Fines"
-          value={rupees(meta?.finesOutstanding || 0)} caption="Outstanding" />
+          value={rupees(meta?.finesOutstanding || 0)} caption="Outstanding · view and pay"
+          to={`${base}/my-fines`} />
       </div>
 
       <Panel icon="bookOpen" tone="indigo" title="My Books" className="libmb-panel"
@@ -181,7 +205,11 @@ export default function LibraryMyBooks() {
             </span>
             <select className="form-control libmb-select" value={status}
               onChange={(e) => reset(setStatus)(e.target.value)}>
-              {STATUS_FILTERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {STATUS_FILTERS.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {v === 'returned_year' && year?.yearName ? `Returned in ${year.yearName}` : l}
+                </option>
+              ))}
             </select>
             <select className="form-control libmb-select" value={range}
               onChange={(e) => reset(setRange)(e.target.value)}>
