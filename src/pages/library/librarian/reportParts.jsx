@@ -214,6 +214,14 @@ export const Rail = ({ reports, active, onPick }) => (
       <span className="librep-rail__mark tint-indigo"><Icon name="chart" size={16} /></span>
       <h2>Report categories</h2>
     </header>
+    {/* On a phone the eight-line list pushed the report itself a screen and a
+        half down; there the choice is one dropdown (CSS swaps the two). */}
+    <div className="librep-rail__pick">
+      <select className="form-control" value={active || ''} aria-label="Choose a report"
+        onChange={(e) => onPick(e.target.value)}>
+        {reports.map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}
+      </select>
+    </div>
     <ul>
       {reports.map((r) => (
         <li key={r.key}>

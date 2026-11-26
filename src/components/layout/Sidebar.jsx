@@ -17,14 +17,6 @@ const NavIcon = ({ name }) => (
   <span className="sidebar__link-icon"><Icon name={name} size={19} /></span>
 );
 
-// Where the footer's Settings row goes. Only an admin has school settings to
-// reach; everyone else lands on their own profile, which is where their
-// settings actually live.
-// (A school admin gets no footer row — "School Settings" is in their rail.)
-const SETTINGS_TO = {
-  super_admin:  '/profile',
-};
-
 // Where "Need Help?" goes when a school has no email of its own on file.
 const SUPPORT_EMAIL = 'admin@aksharum.com';
 
@@ -97,7 +89,11 @@ export default function Sidebar({ onLinkClick, collapsed }) {
   }
   // Some submenus belong only to some people — a plain teacher has one
   // directory screen, so it must not sprout the administrator's sections.
-  const navResolved = nav.filter(item => !item.moduleAdmin).map(item => (
+  // No "Profile" link in the rail (Nov 27 2026): the card at the foot of the
+  // rail and the header's avatar menu both open the profile — a third entry
+  // was one too many. Its "Account" heading goes with it (navShown below).
+  // The tree keeps the entry, because the breadcrumb reads it.
+  const navResolved = nav.filter(item => !item.moduleAdmin && item.to !== '/profile').map(item => (
     item.children && item.childrenIf && !item.childrenIf(modules)
       ? { ...item, children: undefined }
       : item));
@@ -117,7 +113,6 @@ export default function Sidebar({ onLinkClick, collapsed }) {
   const navShown = navWithManage.filter((item, i) => !item.section
     || (i + 1 < navWithManage.length && !navWithManage[i + 1].section));
 
-  const settingsTo = SETTINGS_TO[user?.role] || '/profile';
 
   /**
    * The help affordance students and parents get: the school's own address when
@@ -234,18 +229,10 @@ export default function Sidebar({ onLinkClick, collapsed }) {
               <div className="sidebar__me-name">{user?.name}</div>
               <div className="sidebar__me-role">{roleTitle(user)}</div>
             </div>
-            <Icon name="chevronDown" size={15} />
           </Link>
-
-          {/* A school admin already has "School Settings" in the rail, and this
-              row opened the very same page — two entries for one screen. */}
-          {user?.role !== 'school_admin' && (
-            <NavLink to={settingsTo} onClick={onLinkClick}
-              className={({ isActive }) => `sidebar__link sidebar__settings${isActive ? ' active' : ''}`}>
-              <NavIcon name="settings" />
-              <span className="sidebar__link-text">Settings</span>
-            </NavLink>
-          )}
+          {/* No "Settings" row under the card and no arrow on it (Nov 27
+              2026): the card IS the way to the profile, and the header's
+              avatar menu is the other. */}
         </div>
       )}
     </nav>

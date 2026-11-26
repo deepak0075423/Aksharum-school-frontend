@@ -202,7 +202,20 @@ input, select, textarea {
   flex:       1;
   overflow-y: auto;
   padding:    10px 0 14px;
+  /* A scroll bar you can see on the dark rail (Nov 27 2026): the app-wide one
+     is a pale grey on a pale track, which vanished against it. A soft lilac
+     thumb matches the rail; the track stays the rail's own colour. Chrome and
+     Firefox read the two standard properties, Safari the ::-webkit ones. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(199, 210, 254, .45) transparent;
 }
+.sidebar__nav::-webkit-scrollbar       { width: 8px; }
+.sidebar__nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar__nav::-webkit-scrollbar-thumb {
+  background: rgba(199, 210, 254, .45); border-radius: 8px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+.sidebar__nav::-webkit-scrollbar-thumb:hover { background: rgba(199, 210, 254, .7); background-clip: padding-box; }
 
 .sidebar__section-title {
   font-size:      .66rem;
@@ -9004,6 +9017,10 @@ button.holcal__day.is-holiday:hover { background: #e0e7ff; }
 .libb-search > button:hover { background: var(--bg); color: var(--text); }
 
 .libb-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+/* The List / Card icons sit at the right edge of the row, always (Nov 27
+   2026): the button group fills the line it is on, so the icons' auto margin
+   carries them to the edge instead of stopping after "Add Book". */
+.libb-acts:has(> .libview) { flex: 1 1 auto; }
 
 .libb-filters {
   display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
@@ -23186,4 +23203,58 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   .libsr-card__go {
     grid-column: 1 / -1; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIBRARY ON A PHONE — the data arranged (Nov 27 2026)
+   ───────────────────────────────────────────────────────────────────────────
+   The section tabs end on a full row; the page header is the icon beside the
+   title (no quote card); every panel heading keeps its icon beside its name;
+   filters run two to a row under a full-width search; status tabs are an even
+   grid; and Reports picks its report from one dropdown instead of an
+   eight-line list above the report.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.librep-rail__pick { display: none; }
+@media (max-width: 640px) {
+  .modnav--grid .uitabs > .uitab:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  .libd-hero { flex-wrap: nowrap; align-items: flex-start; gap: 14px; }
+  .libd-hero__mark { width: 48px; height: 48px; border-radius: 14px; }
+  .libd-hero__mark svg { width: 24px; height: 24px; }
+  .libd-hero__text { flex: 1 1 0; }
+  .libd-hero__text h1 { font-size: 1.5rem; }
+  .libd-hero__quote { display: none; }
+
+  /* Books' panel heading: icon and name on one line, then the search, then
+     the buttons. */
+  .libb-head > div:nth-child(2) { flex: 1 1 0; min-width: 0; }
+  .libb-search { flex: 1 1 100%; }
+
+  /* Filters: the search across the top, the rest two to a row (a lone last
+     one takes the row). */
+  .libc-filters { gap: 8px; }
+  .libc-filters > .libc-search { flex: 1 1 100%; order: -1; min-width: 0; }
+  .libc-filters > :is(.libc-sel, .drf, .libc-range, .btn) { flex: 1 1 calc(50% - 4px); min-width: 0; }
+  .libc-filters > .drf { width: auto; }
+
+  /* Status tabs (Reservations, Fines): an even grid, two to a row. */
+  .librpg .libr-bar > .uitabs--pill, .libfpg .libr-bar > .uitabs--pill {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%;
+  }
+  .librpg .libr-bar > .uitabs--pill > .uitab, .libfpg .libr-bar > .uitabs--pill > .uitab { justify-content: center; min-width: 0; }
+  .librpg .libr-bar > .uitabs--pill > .uitab:last-child:nth-child(odd),
+  .libfpg .libr-bar > .uitabs--pill > .uitab:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .libr-bar__acts { width: 100%; margin-left: 0; flex-wrap: wrap; }
+  .libr-bar__acts > :is(.btn, .drf) { flex: 1 1 calc(50% - 4px); justify-content: center; min-width: 0; }
+  /* Fines: the date window takes its own row, the two buttons share the next. */
+  .libr-bar__acts > .drf { flex-basis: 100%; }
+
+  /* A report's figures, two to a row: an odd one out spans the last row
+     instead of leaving an empty grey cell beside it. */
+  .librep-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .librep-sum > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* Reports: one dropdown instead of the list. */
+  .librep-rail__pick { display: block; padding: 0 14px 14px; }
+  .librep-rail > ul { display: none; }
 }
