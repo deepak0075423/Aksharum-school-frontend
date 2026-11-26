@@ -47,11 +47,17 @@ const PHONE = '(max-width: 640px)';
  * Attributes rather than classes, because React rewrites `className`. On a
  * phone the CSS above already draws cards, so nothing is measured there.
  */
-function useFit(ref, on) {
+function useFit(ref, on, onFit) {
+  // `onFit(cards)`: told whenever the measured answer flips, so the page can
+  // offer card page sizes while the table is being drawn as cards.
+  const tell = useRef(onFit);
+  tell.current = onFit;
   useLayoutEffect(() => {
     const root = ref.current;
     if (!root || !on) return undefined;
     let busy = false;
+    let last = null;
+    const report = (cards) => { if (cards !== last) { last = cards; tell.current?.(cards); } };
     const fits = () => {
       const table = root.querySelector('table');
       const wrap = table?.parentElement;
@@ -67,11 +73,12 @@ function useFit(ref, on) {
         const phone = window.matchMedia?.(PHONE).matches;
         root.removeAttribute('data-tight');
         root.removeAttribute('data-fitcards');
-        if (phone || fits()) return;
+        if (phone || fits()) { report(false); return; }
         root.setAttribute('data-tight', '');
-        if (fits()) return;
+        if (fits()) { report(false); return; }
         root.removeAttribute('data-tight');
         root.setAttribute('data-fitcards', '');
+        report(true);
       } finally { busy = false; }
     };
     fit();
@@ -85,13 +92,19 @@ function useFit(ref, on) {
       if (root.clientWidth !== lastWidth) { lastWidth = root.clientWidth; fit(); }
     }) : null;
     size?.observe(root);
-    return () => { watch.disconnect(); size?.disconnect(); };
+    return () => {
+      watch.disconnect(); size?.disconnect();
+      // Switched off (the Card view chosen): leave nothing measured behind.
+      root.removeAttribute('data-tight');
+      root.removeAttribute('data-fitcards');
+      tell.current?.(false);
+    };
   }, [on]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false, onColumns, fit = false }) {
+export default function PhoneCards({ title, side, keep = [], children, className = '', cards = false, onColumns, fit = false, onFit }) {
   const ref = useRef(null);
-  useFit(ref, fit && !cards);
+  useFit(ref, fit && !cards, onFit);
   const spec = `${title}|${side}|${keep.join('|')}`;
   // `onColumns(n)`: how many cards a row holds in the Card view, kept current
   // as the page resizes — so the page size can be a whole number of rows
@@ -100,7 +113,9 @@ export default function PhoneCards({ title, side, keep = [], children, className
   report.current = onColumns;
   useLayoutEffect(() => {
     const root = ref.current;
-    if (!root || !cards) return undefined;
+    // Measured in the Card view, and wherever `fit` may turn the rows into
+    // cards (a table reports 1, which no card size is built from).
+    if (!root || !(cards || fit)) return undefined;
     const measure = () => {
       const body = root.querySelector('table > tbody');
       if (body && body.rows.length) report.current?.(gridColumns(body));
@@ -111,7 +126,7 @@ export default function PhoneCards({ title, side, keep = [], children, className
     const size = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     size?.observe(root);
     return () => { watch.disconnect(); size?.disconnect(); };
-  }, [cards]);
+  }, [cards, fit]);
   useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return undefined;
@@ -131,6 +146,8 @@ export default function PhoneCards({ title, side, keep = [], children, className
             // A plain table's actions cell (no .ltable__acts) still goes at
             // the bottom of its card.
             td.classList.toggle('phc-acts', /^actions?$/i.test(label));
+            // A line with nothing to say ("—") is left off the card.
+            td.classList.toggle('phc-empty', /^[\s—–-]*$/.test(td.textContent || '') && !td.querySelector('input, button, img, svg'));
             c += td.colSpan || 1;
           }
         }
@@ -138,7 +155,10 @@ export default function PhoneCards({ title, side, keep = [], children, className
     };
     mark();
     const watch = new MutationObserver(mark);
-    watch.observe(root, { childList: true, subtree: true });
+    // characterData too: a cell whose text changes in place (a dash becoming
+    // an amount) is re-judged for `phc-empty`. mark() only touches classes and
+    // data attributes, so it never wakes itself.
+    watch.observe(root, { childList: true, subtree: true, characterData: true });
     return () => watch.disconnect();
   }, [spec]);   // eslint-disable-line react-hooks/exhaustive-deps
   // `cards`: the card layout at every width (a page's Card view), laid out

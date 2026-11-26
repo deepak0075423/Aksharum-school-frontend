@@ -29,11 +29,15 @@ import PhoneCards from '../../../components/ui/PhoneCards';
 import {
   AuthorsCell, Chip, CopiesCell, FiltersPanel, SortHead, StatusChip, TitleCell,
 } from './booksParts';
+import { useLibView, ViewToggle } from '../libView';
 
 /** A share of the catalogue, said as a share — and never divided by zero. */
 const share = (n, total) => (total ? `${Math.round((n / total) * 100)}% of the catalogue` : 'Nothing catalogued yet');
 
 export default function LibraryBooks() {
+  // List or Card (laptop, List each visit) — cards only on a phone (../libView).
+  const view = useLibView();
+
   const { pathname } = useLocation();   // /admin/library/books or /teacher/manage-library/books
   const navigate = useNavigate();
   // ?category= comes from the dashboard's collection panel and ?status= from
@@ -276,6 +280,7 @@ export default function LibraryBooks() {
             <Button variant="secondary" onClick={openImport}><Icon name="upload" size={16} /> Import</Button>
             <Button variant="secondary" onClick={exportCatalogue}><Icon name="download" size={16} /> Export</Button>
             <Button onClick={openCreate}><Icon name="plus" size={16} /> Add Book</Button>
+            <ViewToggle view={view} />
           </div>
         </header>
 
@@ -304,7 +309,7 @@ export default function LibraryBooks() {
         </SelectionBar>
 
         {/* Cards on a phone, so nothing scrolls sideways (components/ui/PhoneCards). */}
-        <PhoneCards fit title="Title" side="Status" keep={['Author(s)', 'Category', 'Copies']}>
+        <PhoneCards {...view.phc} title="Title" side="Status" keep={['Author(s)', 'Category', 'Copies']}>
           <ListTable
             columns={columns}
             rows={books}
@@ -324,7 +329,7 @@ export default function LibraryBooks() {
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}
-          limit={limit} count={books.length} noun="book"
+          limit={limit} count={books.length} noun="book" sizes={view.sizes}
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
         />
       </section>

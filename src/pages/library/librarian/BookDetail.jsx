@@ -27,6 +27,7 @@ import { Alert, Button, Confirm, Modal, Spinner } from '../../../components/ui/i
 import Icon from '../../../components/ui/icons';
 import MemberPicker from '../../../components/library/MemberPicker';
 import PhoneCards from '../../../components/ui/PhoneCards';
+import { useLibView, ViewToggle } from '../libView';
 import { ListTable, ListFooter, RowActions, IconAction, RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import BookDialog from './bookDialog';
 import { copyErrors, noSignKeys, todayIso } from './bookRules';
@@ -42,6 +43,11 @@ const MANUAL_STATUSES = ['available', 'processing', 'reserved', 'damaged', 'lost
 const EMPTY_ADD = { count: 1, condition: 'new', rackLocation: '', acquisitionDate: '', vendor: '', billNumber: '', cost: '' };
 
 export default function LibraryBookDetail() {
+  // List or Card for each of the three tables (laptop, List each visit) —
+  // cards only on a phone (../libView).
+  const copiesView = useLibView();
+  const loansView  = useLibView();
+  const queueView  = useLibView();
   const { id }       = useParams();
   const navigate     = useNavigate();
   const { pathname } = useLocation();
@@ -399,10 +405,11 @@ export default function LibraryBookDetail() {
                     <Icon name="files" size={15} /> Labels
                   </Button>
                   <Button size="sm" onClick={openAdd}><Icon name="plus" size={15} /> Add</Button>
+                  <ViewToggle view={copiesView} />
                 </div>
               )}>
               {/* Never sideways: tighter, then cards, and always cards on a phone. */}
-              <PhoneCards fit title="Copy code" side="Status" keep={['Condition', 'Rack', 'Acquired']}>
+              <PhoneCards {...copiesView.phc} title="Copy code" side="Status" keep={['Condition', 'Rack', 'Acquired']}>
               <ListTable
                 columns={copyColumns}
                 rows={copies}
@@ -420,7 +427,7 @@ export default function LibraryBookDetail() {
               </PhoneCards>
               <ListFooter
                 page={Math.min(page, meta?.pages || 1)} pages={meta?.pages || 1} total={copyTotal}
-                limit={limit} count={copies.length} noun="copy" plural="copies"
+                limit={limit} count={copies.length} noun="copy" plural="copies" sizes={copiesView.sizes}
                 onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} />
             </Panel>
           )}
@@ -432,14 +439,17 @@ export default function LibraryBookDetail() {
                 : 'Nothing has been borrowed yet'}
               className="libbd-panel--flush"
               action={(
-                <Link className="libbd-link" to={`${base}/circulation?q=${encodeURIComponent(book.title)}`}>
-                  Full register <Icon name="chevronRight" size={13} />
-                </Link>
+                <div className="libbd-acts">
+                  <Link className="libbd-link" to={`${base}/circulation?q=${encodeURIComponent(book.title)}`}>
+                    Full register <Icon name="chevronRight" size={13} />
+                  </Link>
+                  {loans.length > 0 && <ViewToggle view={loansView} />}
+                </div>
               )}>
               {loadingActivity ? <div className="libbd-loading"><Spinner /></div> : !loans.length ? (
                 <p className="libbd-none">No copy of this book has been issued yet.</p>
               ) : (
-                <PhoneCards fit title="Member" side="Status" keep={['Copy', 'Issued', 'Due', 'Returned']}>
+                <PhoneCards {...loansView.phc} title="Member" side="Status" keep={['Copy', 'Issued', 'Due', 'Returned']}>
                 <div className="table-wrap">
                   <table className="table ltable">
                     <thead>
@@ -471,9 +481,12 @@ export default function LibraryBookDetail() {
               subtitle={queue.length ? 'In the order they will be served' : 'Nobody is waiting'}
               className="libbd-panel--flush"
               action={(
-                <Link className="libbd-link" to={`${base}/reservations`}>
-                  All reservations <Icon name="chevronRight" size={13} />
-                </Link>
+                <div className="libbd-acts">
+                  <Link className="libbd-link" to={`${base}/reservations`}>
+                    All reservations <Icon name="chevronRight" size={13} />
+                  </Link>
+                  {queue.length > 0 && <ViewToggle view={queueView} />}
+                </div>
               )}>
               {loadingActivity ? <div className="libbd-loading"><Spinner /></div> : !queue.length ? (
                 <p className="libbd-none">
@@ -481,7 +494,7 @@ export default function LibraryBookDetail() {
                   {(book.availableCopies ?? 0) > 0 ? ' A copy is on the shelf, so there is nothing to wait for.' : ''}
                 </p>
               ) : (
-                <PhoneCards fit title="Member" side="Status" keep={['#', 'Queued', 'Hold expires']}>
+                <PhoneCards {...queueView.phc} title="Member" side="Status" keep={['#', 'Queued', 'Hold expires']}>
                 <div className="table-wrap">
                   <table className="table ltable">
                     <thead>

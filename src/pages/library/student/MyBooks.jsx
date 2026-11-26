@@ -21,6 +21,7 @@ import { saveFile } from '../../../utils/downloadFile';
 import { RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import { Fig, Panel, rupees, shortDate } from './dashboardParts';
 import { Cover } from './searchParts';
+import { useLibView, ViewToggle } from '../libView';
 import PhoneCards from '../../../components/ui/PhoneCards';
 
 const PER_PAGE = 10;
@@ -61,6 +62,10 @@ const PAYMENT = { pending: 'Unpaid', paid: 'Paid', waived: 'Waived' };
 export default function LibraryMyBooks() {
   const { user }  = useAuth();
   const isTeacher = user?.role === 'teacher';
+  // List or Card (laptop, List each visit) — cards only on a phone (../libView).
+  // A page of cards is whole rows, so the ten a page is rounded to them.
+  const shelf = useLibView();
+  const perPage = shelf.pageOf(PER_PAGE);
   const base      = isTeacher ? '/teacher/library' : '/student/library';
 
   const { data, meta, loading, refetch } = useFetch(
@@ -115,11 +120,11 @@ export default function LibraryMyBooks() {
     returned: rows.filter(returnedThisYear).length,
   }), [rows, year]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
+  const pages = Math.max(1, Math.ceil(shown.length / perPage));
   const safe  = Math.min(page, pages);
-  const slice = shown.slice((safe - 1) * PER_PAGE, safe * PER_PAGE);
-  const from  = shown.length ? (safe - 1) * PER_PAGE + 1 : 0;
-  const to    = Math.min(safe * PER_PAGE, shown.length);
+  const slice = shown.slice((safe - 1) * perPage, safe * perPage);
+  const from  = shown.length ? (safe - 1) * perPage + 1 : 0;
+  const to    = Math.min(safe * perPage, shown.length);
   const reset = (fn) => (v) => { fn(v); setPage(1); };
   // A figure is a filter on the table below it: it shows the loans it counts,
   // with the period and search cleared so nothing hides them, and the lit one
@@ -219,6 +224,7 @@ export default function LibraryMyBooks() {
             <Button variant="secondary" onClick={exportCsv}>
               <Icon name="download" size={16} />Export
             </Button>
+            <ViewToggle view={shelf} />
           </div>
         )}>
 
@@ -235,7 +241,7 @@ export default function LibraryMyBooks() {
             </div>
           </div>
         ) : (
-          <PhoneCards fit title="Book details" side="Status" keep={['Accession no.', 'Issued date', 'Due date']}>
+          <PhoneCards {...shelf.phc} title="Book details" side="Status" keep={['Accession no.', 'Issued date', 'Due date']}>
           <div className="libsr-tablewrap">
             <table className="libsr-table libmb-table">
               <thead>

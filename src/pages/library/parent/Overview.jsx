@@ -17,6 +17,7 @@ import Icon from '../../../components/ui/icons';
 import { Fig, Panel, rupees, shortDate } from '../student/dashboardParts';
 import { Cover } from '../student/searchParts';
 import PhoneCards from '../../../components/ui/PhoneCards';
+import { useLibView, ViewToggle } from '../libView';
 import { useChild, ChildSwitch, NoChildren, whereOf } from './parts';
 
 const OPEN = ['issued', 'overdue'];
@@ -51,6 +52,8 @@ const FamilyArt = () => (
 );
 
 export default function ParentLibraryOverview() {
+  // List or Card for the loans table (laptop, List each visit; ../libView).
+  const view = useLibView();
   const { data, loading } = useFetch(getParentOverview);
   const children = useMemo(() => data?.children || [], [data]);
   const { child, pick } = useChild(children);
@@ -116,7 +119,8 @@ export default function ParentLibraryOverview() {
             </Link>
           )}
 
-          <Panel icon="bookOpen" tone="indigo" title={`Books — ${child.name}`}>
+          <Panel icon="bookOpen" tone="indigo" title={`Books — ${child.name}`}
+            action={loans.length ? <ViewToggle view={view} /> : null}>
             {!loans.length ? (
               <div className="liblg-empty">
                 <span className="liblg-empty__icon"><Icon name="bookOpen" size={26} /></span>
@@ -126,7 +130,7 @@ export default function ParentLibraryOverview() {
                 </div>
               </div>
             ) : (
-              <PhoneCards fit title="Book details" side="Status" keep={['Accession no.', 'Issued date', 'Due date']}>
+              <PhoneCards {...view.phc} title="Book details" side="Status" keep={['Accession no.', 'Issued date', 'Due date']}>
               <div className="libsr-tablewrap">
                 <table className="libsr-table libmb-table">
                   <thead>

@@ -33,8 +33,12 @@ import {
   PAYMENT_FILTERS, REASONS, REASON_FILTERS, SearchBox, StatusTabs,
   fmtDate, money, owedOn,
 } from './finesParts';
+import { useLibView, ViewToggle } from '../libView';
 
 export default function LibraryFines() {
+  // List or Card (laptop, List each visit) — cards only on a phone (../libView).
+  const view = useLibView();
+
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const base = pathname.replace(/\/fines$/, '');
@@ -312,6 +316,7 @@ export default function LibraryFines() {
               <Icon name="download" size={16} /> Export
             </Button>
             <Button onClick={openAdd}><Icon name="plus" size={16} /> Add fine</Button>
+            <ViewToggle view={view} />
           </div>
         </div>
 
@@ -349,7 +354,7 @@ export default function LibraryFines() {
         </SelectionBar>
 
         {/* Never sideways: tighter, then cards, and always cards on a phone. */}
-        <PhoneCards fit title="Member" side="Payment" keep={['Book', 'Loan', 'Reason', 'Fine']}>
+        <PhoneCards {...view.phc} title="Member" side="Payment" keep={['Book', 'Loan', 'Reason', 'Fine']}>
         <ListTable
           columns={columns}
           rows={fines}
@@ -369,7 +374,7 @@ export default function LibraryFines() {
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}
-          limit={limit} count={fines.length} noun="fine"
+          limit={limit} count={fines.length} noun="fine" sizes={view.sizes}
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
         />
       </section>

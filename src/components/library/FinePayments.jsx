@@ -27,6 +27,7 @@ import { RowMenu, MenuItem } from '../../pages/admin/listParts';
 import { Fig, Panel } from '../../pages/library/student/dashboardParts';
 import { Cover } from '../../pages/library/student/searchParts';
 import PhoneCards from '../ui/PhoneCards';
+import { useLibView, ViewToggle } from '../../pages/library/libView';
 
 const fmtDate = (d) => (d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -82,6 +83,9 @@ export function FinesView({
   const p       = data?.policy  || {};
   const canPayOnline = !!data?.gateway?.enabled && data?.outstanding > 0;
   const payAll  = onPayAll || onPay;
+  // List or Card for each table (laptop, List each visit; pages/library/libView).
+  const owedView = useLibView();
+  const paidView = useLibView();
 
   // The figures narrow the page: Outstanding (and Pending Payments) show what
   // is still to pay, Paid Fines the year's payments, Total Fines everything.
@@ -126,7 +130,10 @@ export function FinesView({
       <div className="libfn-body">
         <div className="libfn-main">
           {showPending && (
-          <Panel icon="alert" tone="red" title={`${title} (${pending.length})`} action={showAll}>
+          <Panel icon="alert" tone="red" title={`${title} (${pending.length})`}
+            action={(showAll || pending.length > 0) ? (
+              <div className="liblg-acts">{showAll}{pending.length > 0 && <ViewToggle view={owedView} />}</div>
+            ) : null}>
             {!pending.length ? (
               <div className="liblg-empty">
                 <span className="liblg-empty__icon"><Icon name="checkCircle" size={26} /></span>
@@ -136,7 +143,7 @@ export function FinesView({
                 </div>
               </div>
             ) : (
-              <PhoneCards fit title="Description" side="Status" keep={['Book details', 'Raised on', 'Amount']}>
+              <PhoneCards {...owedView.phc} title="Description" side="Status" keep={['Book details', 'Raised on', 'Amount']}>
               <div className="libsr-tablewrap">
                 <table className="libsr-table libfn-table">
                   <thead>
@@ -215,7 +222,9 @@ export function FinesView({
             title={fig === 'paid' && data?.academicYear?.yearName
               ? `Paid in ${data.academicYear.yearName} (${settledRows.length})`
               : 'Payment History'}
-            action={showAll}>
+            action={(showAll || settledRows.length > 0) ? (
+              <div className="liblg-acts">{showAll}{settledRows.length > 0 && <ViewToggle view={paidView} />}</div>
+            ) : null}>
             {!settledRows.length ? (
               <div className="liblg-empty">
                 <span className="liblg-empty__icon"><Icon name="files" size={26} /></span>
@@ -229,7 +238,7 @@ export function FinesView({
                 </div>
               </div>
             ) : (
-              <PhoneCards fit title="Description" side="Status" keep={['Book details', 'Paid on', 'Amount', 'Receipt']}>
+              <PhoneCards {...paidView.phc} title="Description" side="Status" keep={['Book details', 'Paid on', 'Amount', 'Receipt']}>
               <div className="libsr-tablewrap">
                 <table className="libsr-table libfn-table">
                   <thead>

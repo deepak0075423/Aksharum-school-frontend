@@ -18,6 +18,7 @@ import { useModules } from '../../../contexts/ModulesContext';
 import useFetch from '../../../hooks/useFetch';
 import { teacherLibDashboard, studentDashboard, getDashboard } from '../../../api/library.api';
 import { Spinner } from '../../../components/ui/index';
+import { useLibView, ViewToggle } from '../libView';
 import {
   LibHero, Fig, Panel, ViewAll, LoanTable, Activity, Categories, rupees,
 } from './dashboardParts';
@@ -27,6 +28,8 @@ import {
 const OUT_ON_LOAN = ['issued', 'overdue'];
 
 export default function LibraryMemberDashboard() {
+  // List or Card for the loans table (laptop, List each visit; ../libView).
+  const loanView = useLibView();
   const { user }      = useAuth();
   const { modules }   = useModules();
   const isTeacher     = user?.role === 'teacher';
@@ -172,8 +175,13 @@ export default function LibraryMemberDashboard() {
               Books, My Books, My Fines), and Manage Library is in the sidebar. */}
           <Panel icon="bookOpen" tone="indigo"
             title={runsLibrary ? 'Currently Issued Books' : 'My Issued Books'}
-            action={<ViewAll to={runsLibrary ? '/teacher/manage-library/circulation' : `${base}/my-books`} />}>
-            <LoanTable rows={loans} showBorrower={runsLibrary}
+            action={(
+              <div className="liblg-acts">
+                <ViewAll to={runsLibrary ? '/teacher/manage-library/circulation' : `${base}/my-books`} />
+                {loans.length > 0 && <ViewToggle view={loanView} />}
+              </div>
+            )}>
+            <LoanTable rows={loans} showBorrower={runsLibrary} view={loanView}
               empty={runsLibrary
                 ? { title: 'No books are out right now', body: 'Issued books appear here as soon as the counter lends one.' }
                 : { title: 'You have no books out', body: 'Search the catalogue and reserve a book to get started.' }} />

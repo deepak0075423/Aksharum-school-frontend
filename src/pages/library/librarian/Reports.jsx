@@ -37,8 +37,12 @@ import {
   Cell, Chip, FilterBar, PrintHead, Rail, RangePicker, SummaryStrip, ReportRowDrawer, keyColumnsOf,
   fmtDate, money, rangeFor, today, words,
 } from './reportParts';
+import { useLibView, ViewToggle } from '../libView';
 
 export default function LibraryReports() {
+  // List or Card (laptop, List each visit) — cards only on a phone (../libView).
+  const view = useLibView();
+
   const { pathname } = useLocation();
   const base = pathname.replace(/\/reports\/?$/, '');
   const { user } = useAuth();
@@ -328,6 +332,7 @@ export default function LibraryReports() {
               <Button variant="secondary" size="sm" onClick={exportSheet} disabled={!ready}>
                 <Icon name="download" size={15} /> Export
               </Button>
+              <ViewToggle view={view} />
             </FilterBar>
 
             {chips.length > 0 && (
@@ -357,7 +362,7 @@ export default function LibraryReports() {
               <>
                 {/* Cards on a phone: the first key column as the heading, the next
                     three as lines, the eye for everything else. */}
-                <PhoneCards fit title={keyCols[0]?.label} side={keyCols.find((c) => c.type === 'status')?.label}
+                <PhoneCards {...view.phc} title={keyCols[0]?.label} side={keyCols.find((c) => c.type === 'status')?.label}
                   keep={keyCols.slice(1).filter((c) => c.type !== 'status').slice(0, 3).map((c) => c.label)}>
                   <ListTable
                     columns={tableColumns}
@@ -378,7 +383,7 @@ export default function LibraryReports() {
 
                 <ListFooter
                   page={Math.min(page, pages)} pages={pages} total={total}
-                  limit={limit} count={rows.length} noun="record"
+                  limit={limit} count={rows.length} noun="record" sizes={view.sizes}
                   onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
                 />
               </>

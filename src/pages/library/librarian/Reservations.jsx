@@ -33,11 +33,15 @@ import {
   BookCell, DateRange, ExpiryCell, MemberCell, QueueCell, ReservationDrawer,
   SearchBox, StatusChip, StatusTabs, fmtDate,
 } from './reservationParts';
+import { useLibView, ViewToggle } from '../libView';
 
 /** The states a reservation is still live in — the only ones that can be acted on. */
 const LIVE = ['pending', 'ready'];
 
 export default function LibraryReservations() {
+  // List or Card (laptop, List each visit) — cards only on a phone (../libView).
+  const view = useLibView();
+
   const { pathname } = useLocation();
   const base = pathname.replace(/\/reservations$/, '');
 
@@ -284,11 +288,12 @@ export default function LibraryReservations() {
               <Icon name="download" size={16} /> Export
             </Button>
             <Button onClick={openNew}><Icon name="plus" size={16} /> New reservation</Button>
+            <ViewToggle view={view} />
           </div>
         </div>
 
         {/* Cards on a phone, so nothing scrolls sideways (components/ui/PhoneCards). */}
-        <PhoneCards fit title="Book" side="Status" keep={['Reserved by', 'Reserved on', 'Expires on', 'Queue #']}>
+        <PhoneCards {...view.phc} title="Book" side="Status" keep={['Reserved by', 'Reserved on', 'Expires on', 'Queue #']}>
           <ListTable
             columns={columns}
             rows={rows}
@@ -307,7 +312,7 @@ export default function LibraryReservations() {
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}
-          limit={limit} count={rows.length} noun="reservation"
+          limit={limit} count={rows.length} noun="reservation" sizes={view.sizes}
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
         />
       </section>

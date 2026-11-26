@@ -28,11 +28,15 @@ import {
   BookCell, CopyCell, DateRange, DueCell, FineCell, MemberCell, ROLE_FILTERS,
   SearchBox, STATUS_FILTERS, StatusChip, fmtDate, money,
 } from './circulationParts';
+import { useLibView, ViewToggle } from '../libView';
 
 /** The states a loan is still open in — the only ones that can be acted on. */
 const ACTIVE = ['issued', 'overdue'];
 
 export default function LibraryCirculation() {
+  // List or Card (laptop, List each visit) — cards only on a phone (../libView).
+  const view = useLibView();
+
   // Everything, unfiltered, is the honest default — a librarian opening this
   // page is as likely to be chasing a return as looking at what is out. The
   // exception is arriving from the dashboard's Overdue tile, which asks for a
@@ -328,6 +332,7 @@ export default function LibraryCirculation() {
             <Button variant="secondary" onClick={openScan}><Icon name="search" size={16} /> Scan</Button>
             <Button variant="secondary" onClick={() => openReturn()}><Icon name="checkCircle" size={16} /> Return book</Button>
             <Button onClick={openIssue}><Icon name="plus" size={16} /> Issue book</Button>
+            <ViewToggle view={view} />
           </div>
         </header>
 
@@ -388,7 +393,7 @@ export default function LibraryCirculation() {
         </SelectionBar>
 
         {/* Never sideways: tighter, then cards, and always cards on a phone. */}
-        <PhoneCards fit title="Book" side="Status" keep={['Member', 'Copy', 'Issued on', 'Due date', 'Fine']}>
+        <PhoneCards {...view.phc} title="Book" side="Status" keep={['Member', 'Copy', 'Issued on', 'Due date', 'Fine']}>
         <ListTable
           columns={columns}
           rows={issuances}
@@ -408,7 +413,7 @@ export default function LibraryCirculation() {
 
         <ListFooter
           page={Math.min(page, pages)} pages={pages} total={total}
-          limit={limit} count={issuances.length} noun="loan"
+          limit={limit} count={issuances.length} noun="loan" sizes={view.sizes}
           onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }}
         />
       </section>

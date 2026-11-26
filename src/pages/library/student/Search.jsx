@@ -9,10 +9,11 @@
  * Students and teachers reach the same catalogue and the same queue through
  * their own endpoints; only the role decides which pair is used.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import useFetch from '../../../hooks/useFetch';
 import usePhone from '../../../hooks/usePhone';
+import useCardPaging, { cardPageSizes, nearestSize } from '../../../hooks/useCardPaging';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   studentSearch, studentReserve, cancelMyReservation,
@@ -24,6 +25,7 @@ import { RowMenu, MenuItem, MenuSep } from '../../admin/listParts';
 import { Fig, Panel } from './dashboardParts';
 import { SearchArt, Field, FacetSelect, Cover, AvailPill, HoldPill, BookDetails } from './searchParts';
 import PhoneCards from '../../../components/ui/PhoneCards';
+import { useLibView } from '../libView';
 
 const SORTS = [
   ['title_asc',  'Title (A–Z)'],
@@ -61,6 +63,15 @@ export default function LibrarySearch() {
   // choice made on a wider screen is kept, just not applied while this narrow.
   const phone = usePhone();
   const layout = phone ? 'grid' : view;
+  // A page of book cards ends on a full row (hooks/useCardPaging): the grid is
+  // measured, and the ten a page is rounded to it. The list's own table also
+  // turns into cards by itself if it is ever too wide for its box.
+  const listView = useLibView();
+  const gridPaging = useCardPaging({ cards: layout === 'grid' });
+  const perPage = layout === 'grid' && gridPaging.perRow
+    ? nearestSize(cardPageSizes(gridPaging.perRow), 10) : 10;
+  // A new page size starts the list again rather than landing mid-way.
+  useEffect(() => { setPage(1); }, [perPage]);
   const [details, setDetails] = useState(null);
   const [busy,    setBusy]    = useState('');
 
@@ -76,9 +87,9 @@ export default function LibrarySearch() {
       subject:      applied.subject || undefined,
       availability: applied.availability || undefined,
       reserved:     applied.reserved || undefined,
-      sort, page, limit: 10,
+      sort, page, limit: perPage,
     }),
-    [applied, sort, page, isTeacher],
+    [applied, sort, page, isTeacher, perPage],
   );
 
   const books   = Array.isArray(data) ? data : [];
@@ -111,8 +122,8 @@ export default function LibrarySearch() {
   const clearAll  = () => { setDraft(''); setApplied(BLANK); setSort('title_asc'); setPage(1); };
   const dirty     = draft.trim() !== applied.q || Object.values(applied).some(Boolean) || sort !== 'title_asc';
 
-  const from = total ? (page - 1) * 10 + 1 : 0;
-  const to   = Math.min(page * 10, total);
+  const from = total ? (page - 1) * perPage + 1 : 0;
+  const to   = Math.min(page * perPage, total);
 
   const handleReserve = async (book) => {
     setBusy(book._id);
@@ -309,7 +320,7 @@ export default function LibrarySearch() {
                   </div>
                 </div>
               ) : layout === 'grid' ? (
-                <div className="libsr-grid">
+                <div className="libsr-grid" ref={gridPaging.gridRef}>
                   {books.map((b) => (
                     <article key={b._id} className="libsr-card">
                       <Cover book={b} size="lg" />
@@ -327,7 +338,7 @@ export default function LibrarySearch() {
                   ))}
                 </div>
               ) : (
-                <PhoneCards fit title="Book details" side="Availability" keep={['Category', 'Language']}>
+                <PhoneCards {...listView.phc} title="Book details" side="Availability" keep={['Category', 'Language']}>
                 <div className="libsr-tablewrap">
                   <table className="libsr-table">
                     <thead>

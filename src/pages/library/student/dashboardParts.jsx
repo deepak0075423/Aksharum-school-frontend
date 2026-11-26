@@ -154,7 +154,7 @@ export const Action = ({ to, icon, tone, label, sub }) => (
  * The borrower column only appears when there is somebody other than the reader
  * to name — on a member's own page every row would say "me".
  */
-export function LoanTable({ rows, showBorrower, empty }) {
+export function LoanTable({ rows, showBorrower, empty, view }) {
   if (!rows.length) {
     return (
       <div className="liblg-empty">
@@ -164,7 +164,7 @@ export function LoanTable({ rows, showBorrower, empty }) {
     );
   }
   return (
-    <PhoneCards fit title="Book title" side="Status" keep={['Issued to', 'Issue date', 'Due date']}>
+    <PhoneCards {...(view?.phc || { fit: true })} title="Book title" side="Status" keep={['Issued to', 'Issue date', 'Due date']}>
     <div className="liblg-tablewrap">
       <table className="liblg-table">
         <thead>
