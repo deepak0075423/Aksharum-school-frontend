@@ -13050,6 +13050,11 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvrules > header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #3730a3; }
 .lvrules b { font-size: .86rem; font-weight: 700; }
 .lvrules ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+/* Raise Comp Off, step 3: the field, then its guidelines in two columns. */
+.lvcodays { display: flex; flex-direction: column; gap: 14px; }
+.lvcodays > .lvfield { max-width: 420px; }
+.lvcodays .lvrules ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; }
+@media (max-width: 640px) { .lvcodays .lvrules ul { grid-template-columns: minmax(0, 1fr); } .lvcodays > .lvfield { max-width: none; } }
 .lvrules li {
   position: relative; padding-left: 15px;
   font-size: .78rem; line-height: 1.5; color: #4338ca;
@@ -13799,6 +13804,32 @@ button.lvstat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm);
 .lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lacts { justify-content: flex-end; flex-wrap: wrap; }
 .lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvacts { flex: 1; }
 .lvph[data-cards] .lvtable > tbody > tr > td.lvt-acts .lvacts .lvbtn { flex: 1; justify-content: center; }
+/* List / Card as two icons. */
+.lvview {
+  display: inline-flex; flex-shrink: 0; height: 44px; padding: 3px; gap: 2px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card);
+}
+.lvview button {
+  display: grid; place-items: center; width: 38px; border: 0; border-radius: calc(var(--radius-lg) - 3px);
+  background: none; color: var(--text-muted); cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.lvview button:hover { color: var(--primary); background: var(--bg); }
+.lvview button.is-on { background: var(--primary); color: #fff; }
+.lvview button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* A list short of room (PhoneTable data-tight): less air between cells, and
+   names, dates and headings may take a second line — before any column goes. */
+.lvph[data-tight] .lvtable thead th,
+.lvph[data-tight] .lvtable tbody td { padding-left: 8px; padding-right: 8px; white-space: normal; }
+.lvph[data-tight] .lvtable thead th:first-child, .lvph[data-tight] .lvtable tbody td:first-child { padding-left: 16px; }
+.lvph[data-tight] .lvtable thead th:last-child,  .lvph[data-tight] .lvtable tbody td:last-child  { padding-right: 16px; }
+.lvph[data-tight] .lvtable .lvperiod span,
+.lvph[data-tight] .lvtable .lvt-type,
+.lvph[data-tight] .lvtable .lvwho b,
+.lvph[data-tight] .lvtable .lvtype b { white-space: normal; }
+.lvph[data-tight] .lvrowacts { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+
 /* A column PhoneTable folded away to keep the table inside its card; the
    row's eye shows it in full. */
 .lvph [data-fold] { display: none !important; }
@@ -22907,6 +22938,10 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
 
   /* Rail beside a table: a little narrower, so the table keeps its last column. */
   .leavepg .lvgrid { grid-template-columns: minmax(0, 1fr) 256px; gap: 16px; }
+  /* …but at 1280 and under the rail goes under the table, as the base rule
+     says — this one used to override it and keep Leave Types and Balance
+     Summary squeezed beside it (their lists turned into cards). */
+  @media (max-width: 1280px) { .leavepg .lvgrid { grid-template-columns: minmax(0, 1fr); } }
   .leavepg .lvrail { padding: 16px; }
 
   /* Policies: the type list keeps its width (narrower cut the type names

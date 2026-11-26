@@ -167,6 +167,11 @@ export default function AdminLeave() {
      reqFromDate, reqToDate, reqYear, focusId],
   );
   const requests = reqData || [];
+  // Several requests at once (Nov 26 2026): ticks on this page; paging or a
+  // filter starts afresh, so a bulk decision never reaches an unseen row.
+  const reqSelection = useSelection(requests,
+    `${reqPage}|${reqLimit}|${reqTerm}|${reqStatus}|${reqTeacher}|${reqLeaveType}|${reqDept}|${reqFromDate}|${reqToDate}|${reqYear}`);
+  const pickedPending = reqSelection.rows.filter((r) => r.status === 'pending' && r.canDecide !== false);
 
   const anyReqFilter = !!(reqTerm || reqStatus || reqTeacher || reqLeaveType || reqDept || reqFromDate || reqToDate || reqYear);
 
@@ -216,7 +221,26 @@ export default function AdminLeave() {
   /** Approve, reject or reverse one request. */
   const runDecision = async () => {
     if (!decision) return;
-    const { kind, request } = decision;
+    const { kind, request, bulk } = decision;
+    // A batch: one request each — every decision is its own transaction
+    // (balance, ledger, notification), so one the rules refuse stops none
+    // of the others. Counted, and the first refusal named.
+    if (bulk?.length) {
+      setActLoad(true);
+      let done = 0; let firstErr = '';
+      for (const r of bulk) {
+        try {
+          await (kind === 'approve' ? api.approveLeave : api.rejectLeave)(r._id, { adminComment: comment });
+          done += 1;
+        } catch (err) { firstErr = firstErr || err?.data?.message || err?.response?.data?.message || err.message; }
+      }
+      setActLoad(false);
+      if (done) toast.success(`${done} request${done === 1 ? '' : 's'} ${kind === 'approve' ? 'approved' : 'rejected'}`);
+      if (firstErr) toast.error(`${bulk.length - done} not ${kind === 'approve' ? 'approved' : 'rejected'} — ${firstErr}`);
+      setDecision(null); setComment(''); reqSelection.clear();
+      refetchReq(); refetchOverview();
+      return;
+    }
     const withdrawal = kind === 'withdraw-confirm' || kind === 'withdraw-decline';
     const call = kind === 'approve' ? api.approveLeave
       : kind === 'reject' ? api.rejectLeave
@@ -374,6 +398,11 @@ export default function AdminLeave() {
         <table className="lvtable">
           <thead>
             <tr>
+              <th className="lvt-tick">
+                <input type="checkbox" checked={reqSelection.allOn}
+                  ref={(el) => { if (el) el.indeterminate = reqSelection.some; }}
+                  onChange={reqSelection.toggleAll} aria-label="Select every request on this page" />
+              </th>
               <th className="lvt-num">#</th>
               <th>Teacher</th>
               <th>Leave Type</th>
@@ -389,7 +418,13 @@ export default function AdminLeave() {
             {requests.map((r, i) => (
               // The row id goes on data-focus-id so a notification or the
               // header's global search can flag the row it was about.
-              <tr key={r._id} data-focus-id={r._id}>
+              <tr key={r._id} data-focus-id={r._id}
+                className={reqSelection.has(r._id) ? 'is-picked' : undefined}>
+                <td className="lvt-tick">
+                  <input type="checkbox" checked={reqSelection.has(r._id)}
+                    onChange={() => reqSelection.toggle(r._id)}
+                    aria-label={`Select ${r.teacher?.name || 'this'} request`} />
+                </td>
                 <td className="lvt-num">{start + i + 1}</td>
                 <td><TeacherCell request={r} /></td>
                 <td className="lvt-type">{r.leaveType?.name || '—'}</td>
@@ -1439,6 +1474,30 @@ export default function AdminLeave() {
             <ClearFilters on={anyReqFilter} onClick={() => { releaseFocus(); clearReqFilters(); }} />
           </FilterRow>
 
+          {reqSelection.ids.length > 0 && (
+            <div className="lvselbar">
+              <Icon name="checkCircle" size={17} />
+              {reqSelection.ids.length} selected
+              <div className="lvselbar__acts">
+                {pickedPending.length > 0 ? (
+                  <>
+                    <Button variant="success" size="sm"
+                      onClick={() => { setComment(''); setDecision({ kind: 'approve', bulk: pickedPending }); }}>
+                      Approve {pickedPending.length}
+                    </Button>
+                    <Button variant="danger" size="sm"
+                      onClick={() => { setComment(''); setDecision({ kind: 'reject', bulk: pickedPending }); }}>
+                      Reject {pickedPending.length}
+                    </Button>
+                  </>
+                ) : (
+                  <span className="lvmuted">None of these is pending for you to decide</span>
+                )}
+                <Button variant="secondary" size="sm" onClick={reqSelection.clear}>Clear selection</Button>
+              </div>
+            </div>
+          )}
+
           {/* Approved leave a teacher asked to withdraw waits on the office. */}
           {ov.counts?.withdrawals > 0 && reqStatus !== 'withdrawal' && (
             <div className="lvnotice lvnotice--warn">
@@ -2254,6 +2313,7 @@ export default function AdminLeave() {
         open={!!decision}
         kind={decision?.kind}
         request={decision?.request}
+        bulk={decision?.bulk}
         comment={comment}
         onComment={setComment}
         loading={actLoad}

@@ -596,18 +596,18 @@ export function AdminCompOff() {
             <FormStep n={1} title="Select Employee" note="Choose the employee who worked extra hours.">
               <label className="lvfield">
                 <span className="lvfield__label">Employee <i>*</i></span>
-                <select className="form-control" required value={applyForm.teacherId}
-                  onChange={(e) => setApplyForm((f) => ({ ...f, teacherId: e.target.value }))}>
-                  <option value="">Select employee</option>
-                  {employeeList.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}{t.employeeId ? ` · ${t.employeeId}` : ''}
-                    </option>
-                  ))}
-                </select>
+                {/* The same picker as Apply Leave for a teacher: searchable, and
+                    each name carries its number, designation, department, email. */}
+                <SearchSelect value={applyForm.teacherId} options={teacherOptions(employeeList)}
+                  placeholder="Select employee…" searchPlaceholder="Search name, employee no., department or email…"
+                  emptyText="No employee matches" maxHeight={360}
+                  renderOption={(r) => <TeacherOption teacher={r.teacher} />}
+                  onChange={(v) => setApplyForm((f) => ({ ...f, teacherId: v }))} />
               </label>
               {who && (
-                <div className="lvwhofacts">
+                <div className="lvwhofacts lvwhofacts--6">
+                  <div><small>Employee No.</small><b>{who.employeeId || '—'}</b></div>
+                  <div><small>Email</small><b title={who.email || ''}>{who.email || '—'}</b></div>
                   <div><small>Department</small><b>{who.department || '—'}</b></div>
                   <div><small>Designation</small><b>{who.designation || '—'}</b></div>
                   <div><small>Employment</small><b>{who.employmentType
@@ -663,7 +663,10 @@ export function AdminCompOff() {
             </FormStep>
 
             <FormStep n={3} title="Comp Off Days" note="Specify how many comp off days to credit.">
-              <div className="lvpolrow lvpolrow--2">
+              {/* The choice, then the rules it is judged by — stacked: side by
+                  side, the tall guidelines stretched the field and left its
+                  box floating at the bottom of an empty column. */}
+              <div className="lvcodays">
                 <label className="lvfield">
                   <span className="lvfield__label">Comp Off Days <i>*</i></span>
                   {/* One work date earns a half day or a full day — never more. */}
@@ -1007,7 +1010,9 @@ function CompOffLedger({ employees = [], onChanged, teacherId: initialTeacher = 
         <FilterSelect label="Filter by entry type" value={entryType} all="All entry types"
           options={Object.keys(ENTRY_LABEL).map((v) => ({ value: v, label: ENTRY_LABEL[v] || v }))}
           onChange={(v) => { setEntryType(v); setPage(1); }} />
-        <ClearFilters on={anyFilter} onClick={() => { setTeacherId(''); setEntryType(''); setPage(1); }} />
+        {/* Shown once something is filtered — with nothing to clear it was a
+            dead button (Nov 26 2026). */}
+        {anyFilter && <ClearFilters on onClick={() => { setTeacherId(''); setEntryType(''); setPage(1); }} />}
         <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         <Button variant="secondary" onClick={() => setAdjModal(true)}>
           <Icon name="plus" size={16} /> Adjustment
@@ -1248,7 +1253,12 @@ function CompOffReports({ onOpenRequests }) {
           subtitle={only
             ? `${rows.length} of ${all.length} claim${all.length === 1 ? '' : 's'} in the selected period — press the tile again to see them all.`
             : 'Every claim in the selected period.'}>
-          <ClearFilters on={!!(only || from || to)} onClick={() => { setOnly(''); setFrom(''); setTo(''); setPage(1); }} />
+          {/* The table has no filter of its own (the dates are on the chart, a
+              tile lets go when pressed again) — Clear appears only once a tile
+              or the dates have narrowed it, and undoes both. */}
+          {(only || from || to) && (
+            <ClearFilters on onClick={() => { setOnly(''); setFrom(''); setTo(''); setPage(1); }} />
+          )}
           <LayoutToggle value={view.cards ? 'card' : view.layout} onChange={view.setLayout} />
         </CardHead>
 

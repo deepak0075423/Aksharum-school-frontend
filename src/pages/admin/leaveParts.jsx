@@ -13,7 +13,8 @@ import React from 'react';
 import Icon from '../../components/ui/icons';
 import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import { Button, Modal, PageSize, Spinner } from '../../components/ui/index';
-import { Breakdown, Drawer, DrawerFoot, DrawerHead, DrawerSection, LayoutToggle, useListLayout } from './listParts';
+import { Breakdown, Drawer, DrawerFoot, DrawerHead, DrawerSection } from './listParts';
+import usePhone from '../../hooks/usePhone';
 import { LIST_SIZES, cardPageSizes, gridColumns, useSnapLimit } from '../../hooks/useCardPaging';
 import Tabs from '../../components/ui/Tabs';
 import { withFileToken } from '../../utils/fileAccess';
@@ -193,12 +194,24 @@ export function PhoneTable({ title, side, keep = [], fold = [], layout = 'list',
       const table = root.querySelector('table');
       if (!table) return;
       const labels = columnLabels(table.tHead);
+      // A two-row head (a group over some columns): the cells that span both
+      // rows are whole columns, and can be folded like any other.
+      const headRows = table.tHead?.rows || [];
+      if (headRows.length > 1) {
+        let c = 0;
+        for (const th of headRows[0].cells) {
+          const label = labels[c] || '';
+          if ((th.rowSpan || 1) >= headRows.length) { if (th.dataset.col !== label) th.dataset.col = label; } else th.removeAttribute('data-col');
+          c += th.colSpan || 1;
+        }
+      }
       // A one-row head names its own cells, so a folded column hides its head too.
       if (table.tHead?.rows.length === 1) {
         let c = 0;
         for (const th of table.tHead.rows[0].cells) {
           const label = labels[c] || '';
           if (fold.includes(label)) th.setAttribute('data-foldable', label); else th.removeAttribute('data-foldable');
+          if (th.dataset.col !== label) th.dataset.col = label;
           c += th.colSpan || 1;
         }
       }
@@ -233,16 +246,40 @@ export function PhoneTable({ title, side, keep = [], fold = [], layout = 'list',
       const table = root.querySelector('table');
       if (!table) return;
       root.removeAttribute('data-cards');
+      root.removeAttribute('data-tight');
       root.querySelectorAll('[data-fold]').forEach((el) => el.removeAttribute('data-fold'));
       // Cards when asked for, and always on a phone.
       if (phone.matches || layout === 'card') { root.setAttribute('data-cards', ''); tell(true); return; }
       const room = root.clientWidth;
       if (!room) return;                      // hidden: checked again when shown
       const over = () => table.getBoundingClientRect().width > room + 1;
+      const foldCol = (label) => root.querySelectorAll(
+        `td[data-label="${CSS.escape(label)}"], th[data-col="${CSS.escape(label)}"]`,
+      ).forEach((el) => el.setAttribute('data-fold', ''));
+      // List was asked for, so a list it stays (Nov 26 2026 — it used to
+      // turn into cards whenever it ran out of room, and "List" then did
+      // nothing). It gives up room instead, in this order:
+      //   1. the columns this table names as first to go;
       for (let n = 0; n < fold.length && over(); n += 1) {
         root.querySelectorAll(`[data-foldable="${CSS.escape(fold[n])}"]`).forEach((el) => el.setAttribute('data-fold', ''));
       }
+      //   2. air — tighter cells, and text that may wrap;
+      if (over()) root.setAttribute('data-tight', '');
+      //   3. the other columns, from the right — first those a card leaves
+      //      out, then a card's own lines; never the name, the status or the
+      //      actions (the row's eye shows everything folded). A column is
+      //      foldable when its heading is its own (not one of a group).
       if (over()) {
+        const never = new Set([title, side, 'Actions', '#', '']);
+        const cols = [...new Set(columnLabels(table.tHead))]
+          .filter((l) => !never.has(l) && !fold.includes(l)
+            && root.querySelector(`th[data-col="${CSS.escape(l)}"]`));
+        const order = [...cols.filter((l) => !keep.includes(l)).reverse(), ...cols.filter((l) => keep.includes(l)).reverse()];
+        for (let n = 0; n < order.length && over(); n += 1) foldCol(order[n]);
+      }
+      //   4. only a screen too narrow for any table gets the cards.
+      if (over()) {
+        root.removeAttribute('data-tight');
         root.querySelectorAll('[data-fold]').forEach((el) => el.removeAttribute('data-fold'));
         root.setAttribute('data-cards', '');
         tell(true);
@@ -269,13 +306,32 @@ export function PhoneTable({ title, side, keep = [], fold = [], layout = 'list',
   return <div ref={ref} className="lvtable__wrap lvph">{children}</div>;
 }
 
-export { LayoutToggle };
+/**
+ * List or Card — two icons (Nov 26 2026: "only show the list and card icon").
+ * Not offered on a phone, where a table is always cards.
+ */
+export function LayoutToggle({ value, onChange }) {
+  const phone = usePhone();
+  if (phone) return null;
+  return (
+    <div className="lvview" role="group" aria-label="View as">
+      <button type="button" className={value !== 'card' ? 'is-on' : ''} aria-pressed={value !== 'card'}
+        onClick={() => onChange('list')} aria-label="List view" title="List view">
+        <Icon name="menu" size={17} />
+      </button>
+      <button type="button" className={value === 'card' ? 'is-on' : ''} aria-pressed={value === 'card'}
+        onClick={() => onChange('card')} aria-label="Card view" title="Card view">
+        <Icon name="grid" size={17} />
+      </button>
+    </div>
+  );
+}
 
 /**
  * One leave table's view and page size (Nov 26 2026).
  *
- *   layout / setLayout  List or Card, chosen by the user and remembered per
- *                       table in this browser — a phone is always Card
+ *   layout / setLayout  List or Card — every table opens on List; a phone is
+ *                       always Card
  *   limit / setLimit    rows a page; sizes = 5…25 for a list, and whole rows
  *                       of cards for a card view (3 across → 9 / 15 / 21 / 24)
  *   table               spread onto <PhoneTable> so it draws the chosen view
@@ -285,7 +341,11 @@ export { LayoutToggle };
  * a size the view offers), so the table goes back to its first page.
  */
 export function useLeaveTable(key, { limit: initial = 10, onReset } = {}) {
-  const [layout, setLayout, shown] = useListLayout(`lv.view.${key}`);
+  // Every table opens on List (Nov 26 2026: "default view should be list");
+  // Card is a choice for this visit. A phone always draws cards.
+  const phone = usePhone();
+  const [layout, setLayout] = React.useState('list');
+  const shown = phone ? 'card' : layout;
   const [limit, setLimit] = React.useState(initial);
   const [fit, setFit] = React.useState({ cards: false, perRow: 1 });
   const cards = shown === 'card' || fit.cards;
@@ -853,8 +913,9 @@ const DECISION = {
 };
 
 /** Approve, reject, reverse or shorten — one dialog behind all four. */
-export function DecisionDialog({ open, kind, request, comment, onComment, onClose, onConfirm, loading, lastDay, onLastDay }) {
+export function DecisionDialog({ open, kind, request, bulk, comment, onComment, onClose, onConfirm, loading, lastDay, onLastDay }) {
   const d = DECISION[kind] || DECISION.approve;
+  const many = Array.isArray(bulk) && bulk.length > 0;
   // A refusal the employee cannot act on is no answer, so rejecting needs one.
   const needsComment = kind === 'reject' || kind === 'withdraw-decline';
   const blocked = (needsComment && !String(comment || '').trim())
@@ -863,15 +924,29 @@ export function DecisionDialog({ open, kind, request, comment, onComment, onClos
     <Modal
       open={open}
       onClose={onClose}
-      title={d.title}
+      title={many ? `${d.title} (${bulk.length})` : d.title}
       maxWidth={520}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant={d.variant} onClick={onConfirm} loading={loading} disabled={blocked}>{d.verb}</Button>
+          <Button variant={d.variant} onClick={onConfirm} loading={loading} disabled={blocked}>
+            {many ? `${d.verb} ${bulk.length}` : d.verb}
+          </Button>
         </>
       }
     >
+      {/* A batch: who and what, one line each. */}
+      {many && (
+        <ul className="lvbulklist">
+          {bulk.map((r) => (
+            <li key={r._id}>
+              <b>{r.teacher?.name || 'Teacher'}</b>
+              <span className="lvmuted">{r.leaveType?.name}</span>
+              <small>{fmtRange(r.fromDate, r.toDate)} · {dayNum(r.totalDays)} day(s)</small>
+            </li>
+          ))}
+        </ul>
+      )}
       {request && (
         <div className="lvdec__card">
           <b>{request.teacher?.name}</b>
