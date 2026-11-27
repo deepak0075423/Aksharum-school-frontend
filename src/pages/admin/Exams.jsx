@@ -24,6 +24,7 @@ import {
   publishAptitudeExam, unpublishAptitudeExam, cancelAptitudeExam, decideAptitudeResults,
 } from '../../api/admin.api';
 import { Alert, Button, Confirm, Modal } from '../../components/ui/index';
+import { useAuth } from '../../contexts/AuthContext';
 import Icon from '../../components/ui/icons';
 import { SearchField, Picker, MenuItem, MenuSep } from './documentParts';
 import {
@@ -55,6 +56,12 @@ export default function AdminExams() {
 
 function ExamsHome() {
   const navigate = useNavigate();
+  // Results already out can be withheld again by a school admin only — not a
+  // teacher holding the module — and only after saying yes to a warning.
+  const { user } = useAuth();
+  const isSchoolAdmin = user?.role === 'school_admin';
+  const isOut = (e) => e?.results?.state === 'released';
+  const canWithhold = (e) => e?.stage === 'completed' && e?.results?.state !== 'withheld' && (!isOut(e) || isSchoolAdmin);
   // The table only where it fits; a phone, a tablet or a narrow window gets
   // the cards and no List/Card switch.
   const [listBox, roomy] = useRoomy(EXAM_TABLE_MIN);
@@ -93,7 +100,7 @@ function ExamsHome() {
   const [confirm, setConfirm]   = useState(null);   // { kind, exam }
   const [busy, setBusy]         = useState(false);
   const [results, setResults]   = useState(null);   // exam being released / withheld
-  const [resForm, setResForm]   = useState({ action: 'release', publishDate: '', reason: '' });
+  const [resForm, setResForm]   = useState({ action: 'release', publishDate: '', reason: '', out: false });
 
   // ── Load ───────────────────────────────────────────────────────────────────
   const loadOverview = useCallback(async () => {
@@ -267,7 +274,7 @@ function ExamsHome() {
   };
 
   const openResults = (exam, action) => {
-    setResForm({ action, publishDate: '', reason: '' });
+    setResForm({ action, publishDate: '', reason: '', out: action === 'withhold' && isOut(exam) });
     setResults(exam);
   };
 
@@ -278,6 +285,8 @@ function ExamsHome() {
         action: resForm.action,
         publishDate: resForm.action === 'release' && resForm.publishDate ? resForm.publishDate : undefined,
         reason: resForm.action === 'withhold' ? resForm.reason : undefined,
+        // Results students can already see: this dialog IS the "are you sure".
+        confirm: resForm.out ? true : undefined,
       });
       toast.success(resForm.action === 'release' ? 'Results released' : 'Results withheld');
       setResults(null);
@@ -306,8 +315,10 @@ function ExamsHome() {
       {e.stage === 'completed' && e.results?.state !== 'released' && e.results?.state !== 'scheduled' && (
         <MenuItem icon="checkCircle" onClick={() => openResults(e, 'release')}>Release results</MenuItem>
       )}
-      {e.stage === 'completed' && e.results?.state !== 'withheld' && (
-        <MenuItem icon="closeCircle" onClick={() => openResults(e, 'withhold')}>Withhold results</MenuItem>
+      {canWithhold(e) && (
+        <MenuItem icon="closeCircle" danger={isOut(e)} onClick={() => openResults(e, 'withhold')}>
+          {isOut(e) ? 'Withhold released results' : 'Withhold results'}
+        </MenuItem>
       )}
       <MenuItem icon="copy" onClick={() => duplicate(e)}>Duplicate</MenuItem>
       {['scheduled', 'live'].includes(e.stage) && (
@@ -349,7 +360,11 @@ function ExamsHome() {
           <>
             {q}
             {analyticsBtn}
-            {x.results?.state !== 'withheld' && <Button variant="secondary" onClick={() => openResults(x, 'withhold')}>Withhold results</Button>}
+            {canWithhold(x) && (
+              <Button variant={isOut(x) ? 'danger' : 'secondary'} onClick={() => openResults(x, 'withhold')}>
+                {isOut(x) ? 'Withhold released results' : 'Withhold results'}
+              </Button>
+            )}
             {!['released', 'scheduled'].includes(x.results?.state) && <Button onClick={() => openResults(x, 'release')}>Release results</Button>}
           </>
         );
@@ -477,12 +492,12 @@ function ExamsHome() {
         title={c?.title} confirmLabel={c?.label} message={confirm ? c.message(confirm.exam) : ''} />
 
       <Modal open={!!results} onClose={() => setResults(null)} maxWidth={480}
-        title={resForm.action === 'release' ? 'Release results' : 'Withhold results'}
+        title={resForm.action === 'release' ? 'Release results' : resForm.out ? 'Withhold released results?' : 'Withhold results'}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setResults(null)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => setResults(null)}>{resForm.out ? 'Keep them out' : 'Cancel'}</Button>
             <Button variant={resForm.action === 'release' ? 'primary' : 'danger'} onClick={submitResults} loading={busy}>
-              {resForm.action === 'release' ? 'Release' : 'Withhold'}
+              {resForm.action === 'release' ? 'Release' : resForm.out ? 'Yes, withhold results' : 'Withhold'}
             </Button>
           </>
         }>
@@ -504,7 +519,17 @@ function ExamsHome() {
           )
           : (
             <div className="apxform">
-              <p className="apxform__lead">Results for “{results.title}” stay hidden from students and parents.</p>
+              {resForm.out ? (
+                <p className="apxwarn apxwarn--danger">
+                  <Icon name="alert" size={15} />
+                  <span>
+                    Results for “{results.title}” are already out — {results.submitted ? `${results.submitted} student${results.submitted === 1 ? '' : 's'}` : 'students'} and
+                    their parents can see the scores now. Withholding hides them again until you release them.
+                  </span>
+                </p>
+              ) : (
+                <p className="apxform__lead">Results for “{results.title}” stay hidden from students and parents.</p>
+              )}
               <div className="form-group">
                 <label className="form-label" htmlFor="apx-why">Reason</label>
                 <textarea id="apx-why" className="form-control" rows={3} value={resForm.reason}

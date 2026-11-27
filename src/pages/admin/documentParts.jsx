@@ -705,7 +705,9 @@ export const DocFoot = ({ page, pages, total, limit, count, onPage, onLimit, siz
 export function Drawer({ open, onClose, children }) {
   useEffect(() => {
     if (!open) return undefined;
-    const esc = (e) => { if (e.key === 'Escape') onClose(); };
+    // A dialog opened from the drawer (a confirm) takes Escape first — the
+    // drawer behind it must not close with it.
+    const esc = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal-overlay')) onClose(); };
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', esc);

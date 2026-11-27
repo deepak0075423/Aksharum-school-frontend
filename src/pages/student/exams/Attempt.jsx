@@ -26,6 +26,8 @@ import { Spinner, Button, Modal } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import { ExamMark, QUESTION_TYPE_LABEL } from '../../admin/examParts';
 import { BackLink, plural } from '../../exams/examShared';
+import { ExamPicture } from '../../exams/examMedia';
+import { tabSwitchLimit } from '../../admin/examParts';
 
 function fmtTimer(ms) {
   if (ms < 0) ms = 0;
@@ -123,7 +125,7 @@ export default function StudentExamAttempt() {
           toast.error('Too many violations — exam auto-submitted');
           navigate('/student/exams', { replace: true });
         } else {
-          toast.error(`Tab switch detected — violation ${res.violationCount} of ${data.exam.maxViolations}`, { duration: 5000 });
+          toast.error(`Tab switch detected — violation ${res.violationCount} of ${tabSwitchLimit(data.exam.maxViolations)}`, { duration: 5000 });
         }
       } catch { /* attempt may already be closed */ }
     };
@@ -257,7 +259,8 @@ export default function StudentExamAttempt() {
             </button>
           </div>
 
-          <p className="apxsit__text">{q.questionText}</p>
+          {q.questionText ? <p className="apxsit__text">{q.questionText}</p> : null}
+          {q.questionImage ? <div className="apxsit__pic"><ExamPicture src={q.questionImage} alt={`Question ${current + 1} picture`} /></div> : null}
           {q.questionType === 'mcq_multiple' && <p className="apxsit__hint">Select all that apply — it scores only if every correct option is chosen.</p>}
 
           <div className="apxsit__opts" role={q.questionType === 'mcq_multiple' ? 'group' : 'radiogroup'}>
@@ -269,7 +272,10 @@ export default function StudentExamAttempt() {
                   className={`apxsit__opt${sel ? ' is-on' : ''}${q.questionType === 'mcq_multiple' ? ' is-multi' : ''}`}
                   onClick={() => select(q, o.optionId)}>
                   <span className="apxsit__letter">{q.questionType === 'true_false' ? (o.optionId === 'true' ? 'T' : 'F') : letter(i)}</span>
-                  <span className="apxsit__optText">{o.text}</span>
+                  <span className="apxsit__optText">
+                    {o.text}
+                    {o.image ? <ExamPicture src={o.image} size="option" zoom={false} alt={`Option ${letter(i)} picture`} /> : null}
+                  </span>
                   <span className="apxsit__tick">{sel && <Icon name="checkCircle" size={20} />}</span>
                 </button>
               );
@@ -314,10 +320,12 @@ export default function StudentExamAttempt() {
 
           <section className={`card apxsit__rules${violations ? ' has-violations' : ''}`}>
             <strong><Icon name="alert" size={16} /> Stay on this page</strong>
-            <p>Switching tabs or windows is recorded. At {exam.maxViolations} your exam is submitted automatically.</p>
+            <p>{Number(exam.maxViolations) === 0
+              ? 'No tab switching is allowed — switching tabs or windows submits your exam straight away.'
+              : `Switching tabs or windows is recorded. At ${tabSwitchLimit(exam.maxViolations)} your exam is submitted automatically.`}</p>
             <div className="apxsit__viol">
-              {Array.from({ length: exam.maxViolations }, (_, i) => <span key={i} className={i < violations ? 'is-used' : ''} />)}
-              <small>{violations} of {exam.maxViolations} used</small>
+              {Array.from({ length: tabSwitchLimit(exam.maxViolations) }, (_, i) => <span key={i} className={i < violations ? 'is-used' : ''} />)}
+              <small>{violations} of {tabSwitchLimit(exam.maxViolations)} used</small>
             </div>
           </section>
         </aside>

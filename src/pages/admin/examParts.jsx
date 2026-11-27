@@ -130,6 +130,19 @@ export const fmtLongDate = (d) => {
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * Allowed tab switches. 0 is a setting of its own — no switching at all, the
+ * first switch submits — and `n || 3` used to show (and save) it as 3. A
+ * missing value is the old default, 3.
+ */
+export const tabSwitchCount = (n) => (n === null || n === undefined || n === '' ? 3 : Number(n));
+/** The switch that submits the paper: never less than the first. */
+export const tabSwitchLimit = (n) => Math.max(1, tabSwitchCount(n));
+/** The rule in words, for the detail views. */
+export const tabSwitchRule = (n) => (tabSwitchCount(n) === 0
+  ? 'No tab switching — the first switch submits the paper'
+  : `Auto-submits after ${plural(tabSwitchCount(n), 'tab switch', 'tab switches')}`);
+
 // ── Small marks ──────────────────────────────────────────────────────────────
 
 export const ExamMark = ({ exam, size = 40 }) => {
@@ -865,7 +878,7 @@ export function ExamDrawer({ exam, detail, onClose, footer }) {
             <Field label="Date">{fmtExamDay(x)}</Field>
             <Field label="Time">{fmtClock(x.startTime)} – {fmtEndClock(x)}</Field>
             <Field label="Duration">{x.duration} minutes</Field>
-            <Field label="Anti-cheat">Auto-submits after {plural(x.maxViolations || 3, 'tab switch', 'tab switches')}</Field>
+            <Field label="Anti-cheat">{tabSwitchRule(x.maxViolations)}</Field>
           </dl>
         </section>
 

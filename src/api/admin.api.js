@@ -355,6 +355,8 @@ export const aptitudeQuestionApi = {
   addQuestion:    (id, data)     => api.post(`/admin/exams/${id}/questions`, data),
   updateQuestion: (id, qid, data) => api.put(`/admin/exams/${id}/questions/${qid}`, data),
   deleteQuestion: (id, qid)      => api.delete(`/admin/exams/${id}/questions/${qid}`),
+  // A screenshot or diagram for a question or an option → { url }.
+  uploadQuestionImage: (id, file) => { const fd = new FormData(); fd.append('image', file, file.name || 'picture.png'); return api.post(`/admin/exams/${id}/questions/image`, fd); },
 };
 
 // Results

@@ -971,7 +971,11 @@ select.form-control {
   display:         flex;
   align-items:     flex-start;
   justify-content: center;
-  z-index:         1000;
+  /* Above every side drawer (.docdrawer / .ldrawer / .dvdrawer sit at
+     1000–1001), so a confirm opened FROM a drawer covers and dims it — at
+     1000 the drawer stayed bright on top of the dialog's own overlay. Below
+     the row menus and pickers (1100+) that open from inside a dialog. */
+  z-index:         1050;
   padding:         24px 16px;
   overflow-y:      auto;
   overscroll-behavior: contain;
@@ -23257,4 +23261,120 @@ button.tt-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm)
   /* Reports: one dropdown instead of the list. */
   .librep-rail__pick { display: block; padding: 0 14px 14px; }
   .librep-rail > ul { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   APTITUDE EXAMS — pictures, maths and a phone-first paper (Nov 2026)
+   ───────────────────────────────────────────────────────────────────────────
+   Questions and options carry pictures (a screenshot, a diagram) and are
+   typed in any language with x² / x₂ and a row of symbols. On a phone and a
+   tablet the question palette comes FIRST — it used to stack under the
+   question, below the fold.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* A picture on a question or an option. */
+.apxpic {
+  display: inline-flex; position: relative; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 10px; background: #fff;
+  padding: 4px; line-height: 0; overflow: hidden;
+}
+.apxpic img { display: block; max-width: 100%; height: auto; object-fit: contain; border-radius: 7px; }
+.apxpic--question img { max-height: 320px; }
+.apxpic--edit img     { max-height: 200px; }
+.apxpic--option       { margin-top: 6px; }
+.apxpic--option img   { max-height: 140px; max-width: min(260px, 100%); }
+.apxpic.is-zoom { cursor: zoom-in; }
+.apxpic.is-zoom:hover { border-color: #a5b4fc; }
+.apxpic.is-zoom:focus-visible { outline: 3px solid rgba(79,70,229,.35); outline-offset: 2px; }
+.apxpic__zoom {
+  position: absolute; right: 8px; bottom: 8px; width: 24px; height: 24px; border-radius: 99px;
+  display: grid; place-items: center; background: rgba(15,23,42,.62); color: #fff; line-height: 1;
+}
+.apxpic.is-broken {
+  align-items: center; gap: 6px; padding: 8px 10px; line-height: 1.3;
+  font-size: .78rem; color: var(--text-muted); background: var(--bg);
+}
+.apxqr__pic, .apxsit__pic { margin: 10px 0 4px; }
+.apxqr__opt, .apxsit__optText, .apxopts__label { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.apxsit__opt .apxpic { pointer-events: none; }      /* a click on the tile picks the answer */
+
+/* Full-size view. */
+.apxlight {
+  position: fixed; inset: 0; z-index: 1300; display: flex; align-items: center; justify-content: center;
+  padding: 28px; background: rgba(15,23,42,.82); cursor: zoom-out; animation: apxfade .14s ease-out;
+}
+.apxlight img { max-width: 100%; max-height: 100%; border-radius: 10px; background: #fff; cursor: default; box-shadow: var(--shadow-lg); }
+.apxlight__close {
+  position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 99px; border: none;
+  display: grid; place-items: center; background: rgba(255,255,255,.16); color: #fff; cursor: pointer;
+}
+.apxlight__close:hover { background: rgba(255,255,255,.28); }
+@keyframes apxfade { from { opacity: 0; } to { opacity: 1; } }
+
+/* "Add a picture" under the question box. */
+.apxpicfield { margin-top: 10px; }
+.apxpicfield__add {
+  width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
+  padding: 11px 14px; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--bg);
+  color: var(--primary); font-weight: 600; font-size: .86rem; cursor: pointer; text-align: left;
+}
+.apxpicfield__add:hover:not(:disabled) { border-color: #a5b4fc; background: #f5f7ff; }
+.apxpicfield__add small { flex-basis: 100%; font-weight: 500; font-size: .76rem; color: var(--text-muted); }
+@media (min-width: 560px) { .apxpicfield__add small { flex-basis: auto; margin-left: auto; } }
+.apxpicfield__have { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.apxpicfield__acts { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.apxinline--danger { color: #b91c1c; }
+.apxspin {
+  width: 14px; height: 14px; border-radius: 99px; border: 2px solid currentColor; border-right-color: transparent;
+  display: inline-block; animation: apxspin .7s linear infinite;
+}
+@keyframes apxspin { to { transform: rotate(360deg); } }
+
+/* Options with a picture: the picture takes its own line under the row. */
+.apxoptedit li { flex-wrap: wrap; }
+/* .form-control is width:100%, which in a wrapping row takes a line of its
+   own — the input shares the row and gives way instead. */
+.apxoptedit li > input.form-control { flex: 1 1 0; width: auto; min-width: 0; }
+.apxoptedit__pic { flex-basis: 100%; display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding-left: 74px; }
+.apxoptedit__pic .apxpic--option { margin-top: 0; }
+.apxoptedit__pic .apxinline, .apxpicfield__acts .apxinline { font-size: .8rem; display: inline-flex; align-items: center; gap: 5px; }
+.apxact.is-on { color: var(--primary); border-color: #c7d2fe; background: #eef2ff; }
+
+/* The x² / symbols toolbar over the question box. */
+.apxmath {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
+  padding: 5px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.apxmath__btn {
+  min-width: 29px; height: 30px; padding: 0 6px; border-radius: 7px; border: 1px solid transparent;
+  background: transparent; color: var(--text); font-size: .92rem; line-height: 1; cursor: pointer;
+}
+.apxmath__btn:hover { background: #fff; border-color: var(--border); }
+.apxmath__btn--script { font-weight: 700; font-size: .88rem; }
+.apxmath__btn sup, .apxmath__btn sub { font-size: .62em; line-height: 0; }
+.apxmath__btn.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.apxmath__sep { width: 1px; height: 20px; background: var(--border); margin: 0 3px; }
+.apxmath__note { flex-basis: 100%; font-size: .74rem; font-weight: 600; color: var(--primary); padding: 2px 4px 0; }
+.apxform__qtext { font-size: 1rem; line-height: 1.55; }
+
+/* Withholding results that are already out. */
+.apxwarn--danger { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+
+/* The sitting screen on a tablet or phone: the palette first, the "stay on
+   this page" card after the question. The rail's two cards become the grid's
+   own items so each can take its place. */
+@media (max-width: 1180px) {
+  .apxsit__rail { display: contents; }
+  .apxsit__palette { order: -1; padding: 12px 14px; }
+  .apxsit__q { order: 0; }
+  .apxsit__rules { order: 1; }
+  .apxsit__grid { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 6px; margin-top: 10px; }
+  .apxsit__legend { flex-direction: row; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; padding-top: 10px; }
+  .apxsit__legend li b { margin-left: 2px; }
+}
+@media (max-width: 720px) {
+  .apxsit__layout { gap: 12px; }
+  .apxsit__q { padding: 16px; }
+  .apxoptedit__pic { padding-left: 0; }
+  .apxpic--question img { max-height: 240px; }
 }

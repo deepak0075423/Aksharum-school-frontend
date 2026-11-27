@@ -13,6 +13,7 @@ import { Avatar } from '../admin/documentParts';
 import { QUESTION_TYPE_LABEL } from '../admin/examParts';
 import { VIZ, toneForPercent, toneColor } from '../analytics/palette';
 import UiTabs from '../../components/ui/Tabs';
+import { ExamPicture } from './examMedia';
 
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -220,7 +221,8 @@ export function QuestionReview({ q, index, viewer = 'student', actions, showKeyO
         </span>
         {actions && <span className="apxqr__acts">{actions}</span>}
       </header>
-      <p className="apxqr__text">{q.questionText}</p>
+      {q.questionText ? <p className="apxqr__text">{q.questionText}</p> : null}
+      {q.questionImage ? <div className="apxqr__pic"><ExamPicture src={q.questionImage} alt={`Question ${index + 1} picture`} /></div> : null}
       <ul className="apxqr__opts">
         {(q.options || []).map((o, i) => {
           const isKey = key.includes(o.optionId);
@@ -229,7 +231,10 @@ export function QuestionReview({ q, index, viewer = 'student', actions, showKeyO
           return (
             <li key={o.optionId} className={cls}>
               <span className="apxqr__letter">{q.questionType === 'true_false' ? (o.optionId === 'true' ? 'T' : 'F') : letter(i)}</span>
-              <span className="apxqr__opt">{o.text}</span>
+              <span className="apxqr__opt">
+                {o.text}
+                {o.image ? <ExamPicture src={o.image} size="option" alt={`Option ${letter(i)} picture`} /> : null}
+              </span>
               <span className="apxqr__tags">
                 {!showKeyOnly && isSel && <em className={isKey ? 'is-ok' : 'is-bad'}>{who}</em>}
                 {isKey && <em className="is-key">{showKeyOnly ? 'Correct' : 'Correct answer'}</em>}

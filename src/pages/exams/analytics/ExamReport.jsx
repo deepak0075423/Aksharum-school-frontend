@@ -22,6 +22,7 @@ import {
   Panel, ExamStats, ExamStat, ColumnChart, countScale, QUESTION_TYPE_LABEL, TableOrCards, StatCard, CardGrid,
 } from '../../admin/examParts';
 import { AttemptPill, Person, PctBar, Pills, fmtSpent, plural } from '../examShared';
+import { ExamPicture } from '../examMedia';
 
 const unwrap = (res) => res?.data ?? res;
 const errText = (err) => err?.data?.message || err?.message || 'Something went wrong';
@@ -197,14 +198,19 @@ function Choices({ q }) {
   const sat = q.answered + q.unanswered;
   return (
     <>
-      <p className="apxopts__text">{q.questionText}</p>
+      {q.questionText ? <p className="apxopts__text">{q.questionText}</p> : null}
+      {q.questionImage ? <div className="apxqr__pic"><ExamPicture src={q.questionImage} alt={`Question ${q.number} picture`} /></div> : null}
       <ul className="apxopts">
         {q.options.map((o) => {
           const share = sat ? Math.round((o.chosen / sat) * 100) : 0;
           return (
             <li key={o.optionId} className={o.isKey ? 'is-key' : ''}>
               <span className="apxqr__letter">{o.letter}</span>
-              <span className="apxopts__label">{o.text}{o.isKey && <em>Correct</em>}</span>
+              <span className="apxopts__label">
+                {o.text}
+                {o.image ? <ExamPicture src={o.image} size="option" alt={`Option ${o.letter} picture`} /> : null}
+                {o.isKey && <em>Correct</em>}
+              </span>
               <span className="apxopts__bar"><span style={{ width: `${share}%` }} /></span>
               <span className="apxopts__n">{o.chosen} · {share}%</span>
             </li>
@@ -275,7 +281,7 @@ function QuestionAnalysis({ questions }) {
                       <tr className={isOpen ? 'is-open' : ''}>
                         <td><span className="apxqr__num">Q{q.number}</span></td>
                         <td className="apxqcell">
-                          <strong title={q.questionText}>{q.questionText}</strong>
+                          <strong title={q.questionText}>{q.questionText || (q.questionImage ? '🖼 Picture question' : '—')}</strong>
                           <small>{QUESTION_TYPE_LABEL[q.questionType]} · {plural(q.marks, 'mark')}</small>
                         </td>
                         <td><PctBar value={q.successRate} /></td>
@@ -308,7 +314,7 @@ function QuestionAnalysis({ questions }) {
               <StatCard key={q._id} className="apxsc--q"
                 lead={<span className="apxqr__num">Q{q.number}</span>}
                 badge={<DiscPill q={q} />}
-                title={q.questionText}
+                title={q.questionText || (q.questionImage ? '🖼 Picture question' : '—')}
                 sub={`${QUESTION_TYPE_LABEL[q.questionType]} · ${plural(q.marks, 'mark')}`}
                 facts={[
                   { label: 'Got it right', value: <PctBar value={q.successRate} />, wide: true },

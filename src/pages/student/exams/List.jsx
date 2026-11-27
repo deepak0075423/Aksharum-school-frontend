@@ -14,7 +14,7 @@ import { getExams } from '../../../api/student.api';
 import { Button, Empty, Modal, Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
 import {
-  ExamHero, ExamStats, ExamStat, Panel, ExamMark, fmtExamDay, fmtClock, fmtEndClock, fmtShortDate,
+  ExamHero, ExamStats, ExamStat, Panel, ExamMark, fmtExamDay, fmtClock, fmtEndClock, fmtShortDate, tabSwitchCount,
 } from '../../admin/examParts';
 import {
   Tabs, DateBlock, AttemptPill, PctBar, Outcome, useNow, fmtGap, plural,
@@ -22,14 +22,19 @@ import {
 
 const FINISHED = ['submitted', 'auto_submitted'];
 
-/** Where one exam stands for this student. */
+/**
+ * Where one exam stands for this student. A missed exam waits with the rest
+ * until its results come out, then moves to Results as "Did not sit" — the
+ * parent's page already did this, the student's kept it under "Awaiting
+ * results" for good.
+ */
 function standing(e, now) {
   const done = FINISHED.includes(e.attempt?.status);
   if (done && e.resultsReleased) return 'result';
   if (done) return 'awaiting';
   if (e.canAttempt) return 'live';
   if (now < new Date(e.opensAt).getTime()) return 'upcoming';
-  return 'missed';
+  return e.resultsReleased ? 'missedOut' : 'missed';
 }
 
 export default function StudentExamsList() {
@@ -41,7 +46,7 @@ export default function StudentExamsList() {
   const [agreed, setAgreed] = useState(false);
 
   const groups = useMemo(() => {
-    const g = { live: [], upcoming: [], awaiting: [], missed: [], result: [] };
+    const g = { live: [], upcoming: [], awaiting: [], missed: [], missedOut: [], result: [] };
     (Array.isArray(data) ? data : []).forEach((e) => g[standing(e, now)].push(e));
     g.upcoming.sort((a, b) => new Date(a.opensAt) - new Date(b.opensAt));
     g.live.sort((a, b) => new Date(a.closesAt) - new Date(b.closesAt));
@@ -51,9 +56,13 @@ export default function StudentExamsList() {
   if (loading) return <div className="loading-page"><Spinner /></div>;
 
   const results = groups.result;
+  // The Results tab: scored papers, and released exams this student missed, newest first.
+  const resultRows = [...results, ...groups.missedOut]
+    .sort((a, b) => new Date(b.opensAt) - new Date(a.opensAt));
   const avg = results.length
     ? Math.round(results.reduce((n, e) => n + (e.result?.percentage || 0), 0) / results.length) : null;
   const active = tab || (groups.upcoming.length ? 'upcoming' : groups.awaiting.length || groups.missed.length ? 'done' : 'results');
+  const missedOut = groups.missedOut.length;
 
   const start = (e) => { setAgreed(false); setStarting(e); };
 
@@ -91,8 +100,11 @@ export default function StudentExamsList() {
         <ExamStat icon="clock" tone="amber" label="Awaiting Results" value={groups.awaiting.length}
           chip={{ text: `${groups.awaiting.length + results.length} sat in all`, tone: 'flat' }}
           on={active === 'done'} onClick={() => setTab('done')} />
-        <ExamStat icon="checkCircle" tone="green" label="Results Out" value={results.length}
-          chip={{ text: `${results.filter((e) => e.result?.passed).length} passed`, tone: results.length ? 'up' : 'flat' }}
+        <ExamStat icon="checkCircle" tone="green" label="Results Out" value={resultRows.length}
+          chip={{
+            text: `${results.filter((e) => e.result?.passed).length} passed${missedOut ? ` · ${missedOut} not sat` : ''}`,
+            tone: results.length ? 'up' : 'flat',
+          }}
           on={active === 'results'} onClick={() => setTab('results')} />
         <ExamStat icon="trophy" tone="violet" label="Average Score" value={avg == null ? '—' : `${avg}%`}
           chip={{ text: results.length ? `across ${plural(results.length, 'result')}` : 'no results yet', tone: 'flat' }} />
@@ -103,7 +115,7 @@ export default function StudentExamsList() {
           <Tabs value={active} onChange={setTab} tabs={[
             { value: 'upcoming', label: 'Upcoming', icon: 'calendar', badge: groups.upcoming.length || null },
             { value: 'done', label: 'Awaiting results', icon: 'clock', badge: groups.awaiting.length || null },
-            { value: 'results', label: 'Results', icon: 'trophy', badge: results.length || null },
+            { value: 'results', label: 'Results', icon: 'trophy', badge: resultRows.length || null },
           ]} />
         </div>
 
@@ -160,11 +172,23 @@ export default function StudentExamsList() {
             </ul>
           ))}
 
-        {active === 'results' && (results.length === 0
+        {active === 'results' && (resultRows.length === 0
           ? <Empty icon="🏆" title="No results yet" message="Your score and a question-by-question review appear here once your teacher publishes results." />
           : (
             <ul className="apxcards">
-              {results.map((e) => (
+              {resultRows.map((e) => (!e.result ? (
+                <li key={e._id} className="apxcardrow">
+                  <ExamMark exam={e} size={46} />
+                  <div className="apxcardrow__main">
+                    <strong>{e.title}</strong>
+                    <small>{e.subject?.subjectName || 'General Aptitude'} · {fmtExamDay(e)}</small>
+                  </div>
+                  <span className="apxcardrow__side apxcardrow__side--row">
+                    <AttemptPill status="missed" />
+                    <span className="apxmuted">You did not sit this exam</span>
+                  </span>
+                </li>
+              ) : (
                 <li key={e._id} className="apxcardrow apxcardrow--result">
                   <ExamMark exam={e} size={46} />
                   <div className="apxcardrow__main">
@@ -180,7 +204,7 @@ export default function StudentExamsList() {
                     View result <Icon name="arrowRight" size={15} />
                   </Button>
                 </li>
-              ))}
+              )))}
             </ul>
           ))}
       </section>
@@ -210,7 +234,9 @@ export default function StudentExamsList() {
             <ul>
               <li><Icon name="clock" size={16} />The timer starts as soon as the paper opens and does not pause. The exam also ends at {fmtEndClock(starting)}, whichever comes first.</li>
               <li><Icon name="checkCircle" size={16} />Answers save the moment you pick them. You can move between questions and change answers until you submit.</li>
-              <li><Icon name="alert" size={16} />Leaving this window or switching tabs is recorded. After {plural(starting.maxViolations || 3, 'switch', 'switches')} your paper is submitted automatically.</li>
+              <li><Icon name="alert" size={16} />{tabSwitchCount(starting.maxViolations) === 0
+                ? 'Do not leave this window or switch tabs — the first switch submits your paper automatically.'
+                : `Leaving this window or switching tabs is recorded. After ${plural(tabSwitchCount(starting.maxViolations), 'switch', 'switches')} your paper is submitted automatically.`}</li>
               <li><Icon name="trophy" size={16} />Multiple-choice questions score only when every correct option is chosen.</li>
             </ul>
             <label className="apxrules__agree">

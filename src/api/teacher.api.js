@@ -40,6 +40,8 @@ export const getQuestions   = (id) => api.get(`/teacher/exams/${id}/questions`);
 export const addQuestion    = (id, data) => api.post(`/teacher/exams/${id}/questions`, data);
 export const updateQuestion = (id, qid, data) => api.put(`/teacher/exams/${id}/questions/${qid}`, data);
 export const deleteQuestion = (id, qid) => api.delete(`/teacher/exams/${id}/questions/${qid}`);
+// A screenshot or diagram for a question or an option → { url }.
+export const uploadQuestionImage = (id, file) => { const fd = new FormData(); fd.append('image', file, file.name || 'picture.png'); return api.post(`/teacher/exams/${id}/questions/image`, fd); };
 export const getSubmissions = (id) => api.get(`/teacher/exams/${id}/submissions`);
 export const getAnalytics   = (id) => api.get(`/teacher/exams/${id}/analytics`);
 export const getExamMeta          = ()   => api.get('/teacher/exams/meta');

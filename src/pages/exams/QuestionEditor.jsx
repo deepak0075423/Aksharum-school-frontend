@@ -16,16 +16,24 @@ import Icon from '../../components/ui/icons';
 import { QUESTION_TYPE_LABEL } from '../admin/examParts';
 import { readinessFor } from './readiness';
 import { QuestionReview, ReadinessPanel, PublishButton, plural } from './examShared';
+import { useMathFields, MathBar, PictureField, ExamPicture, imageFrom, pictureProblem } from './examMedia';
 
 const errText = (err) => err?.data?.message || err?.message || 'Something went wrong';
 const unwrap = (res) => res?.data ?? res;
 
 const LETTERS = ['a', 'b', 'c', 'd', 'e', 'f'];
 const TF = [{ optionId: 'true', text: 'True' }, { optionId: 'false', text: 'False' }];
+const blankOptions = () => LETTERS.slice(0, 4).map((l) => ({ optionId: l, text: '', image: '' }));
 const blank = (marks = 1) => ({
-  questionText: '', questionType: 'mcq_single', correctAnswers: [], marks,
-  options: LETTERS.slice(0, 4).map((l) => ({ optionId: l, text: '' })),
+  questionText: '', questionImage: '', questionType: 'mcq_single', correctAnswers: [], marks,
+  options: blankOptions(),
 });
+/** How a question is named in a sentence — its words, or that it is a picture. */
+const shortText = (q, n = 80) => {
+  const t = String(q?.questionText || '').trim();
+  if (!t) return q?.questionImage ? 'the picture question' : 'this question';
+  return `“${t.slice(0, n)}${t.length > n ? '…' : ''}”`;
+};
 
 /** A count against its target: how far along, and what is left or over. */
 const Meter = ({ icon, label, have, want, unit }) => {
@@ -186,6 +194,7 @@ export default function QuestionEditor({ exam, api, canManage, onChanged, onPubl
 
       {/* Keyed so "Save & add another" starts the next question from a clean form. */}
       <QuestionDialog key={dialog?.n || 'question'} open={!!dialog} editing={dialog?.editing} exam={exam}
+        upload={api.uploadQuestionImage ? (file) => api.uploadQuestionImage(id, file) : null}
         otherMarks={marks - (Number(dialog?.editing?.marks) || 0)}
         room={exam.totalQuestions - questions.length}
         onClose={() => setDialog(null)}
@@ -203,7 +212,7 @@ export default function QuestionEditor({ exam, api, canManage, onChanged, onPubl
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={remove} loading={busy}
         title="Delete question" confirmLabel="Delete"
-        message={del ? `Delete “${del.questionText.slice(0, 80)}${del.questionText.length > 80 ? '…' : ''}”? Its ${plural(del.marks, 'mark')} go back to be allocated.` : ''} />
+        message={del ? `Delete ${shortText(del)}? Its ${plural(del.marks, 'mark')} go back to be allocated.` : ''} />
     </div>
   );
 }
@@ -216,9 +225,12 @@ const TYPES = [
   { value: 'true_false',   icon: 'repeat',      hint: 'A statement to judge' },
 ];
 
-function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave }) {
+function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave, upload }) {
   const [f, setF] = useState(blank());
   const [tried, setTried] = useState(false);
+  const m = useMathFields();
+  // Which picture is on its way up: 'q' for the question, else an optionId.
+  const [sending, setSending] = useState(null);
   // Which button is saving — 'again' (Save & add another) or 'once' (Add
   // question / Save changes). Only that one spins; the other just waits.
   // One shared flag made both spin, as if both had been pressed.
@@ -231,8 +243,8 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
     setTried(false);
     if (editing) {
       setF({
-        questionText: editing.questionText, questionType: editing.questionType,
-        options: editing.questionType === 'true_false' ? TF : (editing.options || []).map((o) => ({ ...o })),
+        questionText: editing.questionText || '', questionImage: editing.questionImage || '', questionType: editing.questionType,
+        options: editing.questionType === 'true_false' ? TF : (editing.options || []).map((o) => ({ ...o, text: o.text || '', image: o.image || '' })),
         correctAnswers: [...(editing.correctAnswers || [])], marks: editing.marks,
       });
     } else {
@@ -244,7 +256,7 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
 
   const setType = (t) => setF((x) => ({
     ...x, questionType: t, correctAnswers: [],
-    options: t === 'true_false' ? TF : (x.questionType === 'true_false' ? LETTERS.slice(0, 4).map((l) => ({ optionId: l, text: '' })) : x.options),
+    options: t === 'true_false' ? TF : (x.questionType === 'true_false' ? blankOptions() : x.options),
   }));
 
   const toggleKey = (oid) => setF((x) => ({
@@ -255,6 +267,28 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
   }));
 
   const setOpt = (i, text) => setF((x) => ({ ...x, options: x.options.map((o, j) => (j === i ? { ...o, text } : o)) }));
+  const setOptImage = (oid, image) => setF((x) => ({ ...x, options: x.options.map((o) => (o.optionId === oid ? { ...o, image } : o)) }));
+
+  /** Up to the server; resolves to its address, or null (the toast says why). */
+  const send = async (who, file) => {
+    if (!upload) { toast.error('Pictures can’t be added here'); return null; }
+    const why = pictureProblem(file);
+    if (why) { toast.error(why); return null; }
+    setSending(who);
+    try {
+      const res = await upload(file);
+      return (res?.data ?? res)?.url || null;
+    } catch (err) { toast.error(errText(err)); return null; }
+    finally { setSending(null); }
+  };
+  /** A screenshot pasted into a box becomes that box's picture; text pastes as text. */
+  const pasteInto = (who, place) => async (e) => {
+    const file = imageFrom(e.clipboardData);
+    if (!file) return;
+    e.preventDefault();
+    const url = await send(who, file);
+    if (url) place(url);
+  };
 
   // Options stay lettered a, b, c… in order; removing one re-letters the rest and carries the key with them.
   const removeOpt = (i) => setF((x) => {
@@ -262,17 +296,19 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
     const remap = Object.fromEntries(kept.map((o, j) => [o.optionId, LETTERS[j]]));
     return {
       ...x,
-      options: kept.map((o, j) => ({ optionId: LETTERS[j], text: o.text })),
+      options: kept.map((o, j) => ({ optionId: LETTERS[j], text: o.text, image: o.image || '' })),
       correctAnswers: x.correctAnswers.filter((c) => remap[c]).map((c) => remap[c]),
     };
   });
-  const addOpt = () => setF((x) => (x.options.length >= 6 ? x : { ...x, options: [...x.options, { optionId: LETTERS[x.options.length], text: '' }] }));
+  const addOpt = () => setF((x) => (x.options.length >= 6 ? x : { ...x, options: [...x.options, { optionId: LETTERS[x.options.length], text: '', image: '' }] }));
 
   // The rules the server applies (checkQuestion), checked before sending.
+  const filled = (o) => !!(o.text || '').trim() || !!o.image;
   const problems = [];
-  if (!f.questionText.trim()) problems.push('Write the question');
-  if (f.questionType !== 'true_false' && f.options.filter((o) => o.text.trim()).length < 2) problems.push('Give at least two options');
-  if (f.questionType !== 'true_false' && f.options.some((o) => !o.text.trim())) problems.push('Fill in or remove the empty option');
+  if (sending) problems.push('Wait for the picture to finish uploading');
+  if (!f.questionText.trim() && !f.questionImage) problems.push('Write the question, or add a picture of it');
+  if (f.questionType !== 'true_false' && f.options.filter(filled).length < 2) problems.push('Give at least two options');
+  if (f.questionType !== 'true_false' && f.options.some((o) => !filled(o))) problems.push('Fill in or remove the empty option');
   if (!f.correctAnswers.length) problems.push('Mark the correct answer');
   if (!(Number(f.marks) >= 0.5)) problems.push('Marks must be 0.5 or more');
 
@@ -284,8 +320,8 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
     if (problems.length || saving) return;
     setSaving(again ? 'again' : 'once');
     const ok = await onSave({
-      questionText: f.questionText.trim(), questionType: f.questionType,
-      options: f.questionType === 'true_false' ? TF : f.options.map((o) => ({ optionId: o.optionId, text: o.text.trim() })),
+      questionText: f.questionText.trim(), questionImage: f.questionImage || '', questionType: f.questionType,
+      options: f.questionType === 'true_false' ? TF : f.options.map((o) => ({ optionId: o.optionId, text: (o.text || '').trim(), image: o.image || '' })),
       correctAnswers: f.correctAnswers, marks: Number(f.marks),
     }, again);
     setSaving(null);
@@ -333,11 +369,20 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
         </section>
 
         <section className="apxform__step">
-          <h4><span>2</span> Question</h4>
-          <textarea className={`form-control${tried && !f.questionText.trim() ? ' is-invalid' : ''}`} rows={3} maxLength={2000}
-            value={f.questionText} onChange={(e) => setF((x) => ({ ...x, questionText: e.target.value }))}
-            placeholder={f.questionType === 'true_false' ? 'e.g. Every square is a rectangle.' : 'e.g. If 3x + 5 = 20, what is x?'} autoFocus />
+          <h4>
+            <span>2</span> Question
+            <small className="apxform__reach">Any language · x² for exponents · paste a screenshot</small>
+          </h4>
+          <MathBar m={m} />
+          <textarea className={`form-control apxform__qtext${tried && !f.questionText.trim() && !f.questionImage ? ' is-invalid' : ''}`} rows={3} maxLength={2000}
+            {...m.field('q', f.questionText, (v) => setF((x) => ({ ...x, questionText: v })))}
+            onPaste={pasteInto('q', (url) => setF((x) => ({ ...x, questionImage: url })))}
+            placeholder={f.questionType === 'true_false' ? 'e.g. Every square is a rectangle.' : 'e.g. If x² + 5 = 21, what is x?  ·  यदि x² + 5 = 21, तो x का मान क्या है?'} autoFocus />
           <small className="apxcount">{f.questionText.length} / 2000</small>
+          <PictureField value={f.questionImage} busy={sending === 'q'} alt="Question picture"
+            label="Add a picture to the question"
+            upload={(file) => send('q', file)}
+            onChange={(url) => setF((x) => ({ ...x, questionImage: url }))} />
         </section>
 
         <section className="apxform__step">
@@ -351,7 +396,7 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
             {f.options.map((o, i) => {
               const on = f.correctAnswers.includes(o.optionId);
               return (
-                <li key={o.optionId} className={on ? 'is-key' : ''}>
+                <li key={o.optionId} className={`${on ? 'is-key' : ''}${o.image ? ' has-pic' : ''}`}>
                   <button type="button" className={`apxoptedit__key${f.questionType === 'mcq_multiple' ? ' is-multi' : ''}`}
                     aria-pressed={on} aria-label={`Mark ${f.questionType === 'true_false' ? o.text : `option ${o.optionId.toUpperCase()}`} correct`}
                     onClick={() => toggleKey(o.optionId)}>
@@ -362,14 +407,26 @@ function QuestionDialog({ open, editing, exam, otherMarks, room, onClose, onSave
                     : (
                       <>
                         <span className="apxqr__letter">{o.optionId.toUpperCase()}</span>
-                        <input className="form-control" value={o.text} maxLength={500}
-                          placeholder={`Option ${o.optionId.toUpperCase()}`} onChange={(e) => setOpt(i, e.target.value)} />
+                        <input className={`form-control${tried && !filled(o) ? ' is-invalid' : ''}`} maxLength={500}
+                          {...m.field(`o-${o.optionId}`, o.text, (v) => setOpt(i, v))}
+                          onPaste={pasteInto(o.optionId, (url) => setOptImage(o.optionId, url))}
+                          placeholder={o.image ? `Option ${o.optionId.toUpperCase()} — words are optional with a picture` : `Option ${o.optionId.toUpperCase()}`} />
                         {on && <em className="apxoptedit__tag">Correct</em>}
+                        <PictureField compact value={o.image} busy={sending === o.optionId}
+                          upload={(file) => send(o.optionId, file)} onChange={(url) => setOptImage(o.optionId, url)} />
                         <button type="button" className="apxact apxact--danger" disabled={f.options.length <= 2}
                           title={f.options.length <= 2 ? 'A question needs at least two options' : 'Remove option'}
                           aria-label={`Remove option ${o.optionId.toUpperCase()}`} onClick={() => removeOpt(i)}>
                           <Icon name="close" size={15} />
                         </button>
+                        {o.image && (
+                          <span className="apxoptedit__pic">
+                            <ExamPicture src={o.image} size="option" alt={`Option ${o.optionId.toUpperCase()} picture`} />
+                            <button type="button" className="apxinline apxinline--danger" onClick={() => setOptImage(o.optionId, '')}>
+                              <Icon name="trash" size={13} /> Remove picture
+                            </button>
+                          </span>
+                        )}
                       </>
                     )}
                   {on && f.questionType === 'true_false' && <em className="apxoptedit__tag">Correct</em>}

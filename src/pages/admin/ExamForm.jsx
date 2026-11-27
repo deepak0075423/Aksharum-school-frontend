@@ -121,6 +121,8 @@ export default function ExamForm({ open, editing, meta, metaLoading, saving, onC
   const past = form.examDate && form.startTime
     && new Date(`${form.examDate}T${form.startTime}:00`).getTime() + Number(form.duration || 0) * 60000 <= Date.now();
   if (past) problems.push('That date and time have already passed');
+  const mv = form.maxViolations === '' ? 3 : Number(form.maxViolations);
+  if (!Number.isInteger(mv) || mv < 0 || mv > 20) problems.push('Allowed tab switches must be a whole number from 0 to 20');
 
   const submit = (e) => {
     e.preventDefault();
@@ -135,7 +137,8 @@ export default function ExamForm({ open, editing, meta, metaLoading, saving, onC
       duration: Number(form.duration),
       totalQuestions: Number(form.totalQuestions),
       totalMarks: Number(form.totalMarks),
-      maxViolations: Number(form.maxViolations) || 3,
+      // 0 is a setting (no switching at all) — `Number(x) || 3` saved it as 3.
+      maxViolations: form.maxViolations === '' ? 3 : Number(form.maxViolations),
     });
   };
 
@@ -278,13 +281,15 @@ export default function ExamForm({ open, editing, meta, metaLoading, saving, onC
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="apx-v">Allowed tab switches</label>
-              <input id="apx-v" type="number" min="1" max="20" step="1" className="form-control" value={form.maxViolations} onChange={set('maxViolations')} />
+              <input id="apx-v" type="number" min="0" max="20" step="1" className="form-control" value={form.maxViolations} onChange={set('maxViolations')}
+                aria-describedby="apx-v-hint" />
             </div>
           </div>
           <p className="apxform__hint">
             To publish, the exam needs exactly {Number(form.totalQuestions) || 0} questions whose marks add up
-            to {Number(form.totalMarks) || 0}. A student is auto-submitted once they leave the exam window that
-            many times.
+            to {Number(form.totalMarks) || 0}. <span id="apx-v-hint">{Number(form.maxViolations) === 0 && form.maxViolations !== ''
+              ? 'Allowed tab switches is 0: the first time a student leaves the exam window, their paper is submitted.'
+              : 'A student is auto-submitted once they leave the exam window that many times — 0 submits at the first switch.'}</span>
           </p>
         </section>
       </form>

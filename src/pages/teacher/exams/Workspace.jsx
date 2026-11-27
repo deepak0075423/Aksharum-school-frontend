@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 import * as api from '../../../api/teacher.api';
 import { Button, Confirm, Spinner } from '../../../components/ui/index';
 import Icon from '../../../components/ui/icons';
-import { ExamMark, StagePill, Audience, fmtExamDay, fmtClock, fmtEndClock, fmtClockRange, ExamStats, ExamStat, Panel } from '../../admin/examParts';
+import { ExamMark, StagePill, Audience, fmtExamDay, fmtClock, fmtEndClock, fmtClockRange, ExamStats, ExamStat, Panel, tabSwitchRule } from '../../admin/examParts';
 import ExamForm from '../../admin/ExamForm';
 import ImportQuestions from '../../admin/ImportQuestions';
 import { BackLink, Facts, Tabs, PublishButton, ReadinessPanel, plural, fmtStamp } from '../../exams/examShared';
@@ -35,6 +35,7 @@ const QUESTION_API = {
   addQuestion: api.addQuestion,
   updateQuestion: api.updateQuestion,
   deleteQuestion: api.deleteQuestion,
+  uploadQuestionImage: api.uploadQuestionImage,
   publishExam: api.publishExam,
 };
 
@@ -177,7 +178,7 @@ function OverviewTab({ exam, go, onPublish, publishing }) {
         <div className="docfield"><dt>Sections</dt><dd>{exam.audience?.items?.join(', ') || '—'}</dd></div>
         <div className="docfield"><dt>Students</dt><dd>{plural(exam.eligible, 'student')}</dd></div>
         <div className="docfield"><dt>Paper</dt><dd>{plural(exam.totalQuestions, 'question')} · {exam.totalMarks} marks · pass mark {exam.passMark}</dd></div>
-        <div className="docfield"><dt>Anti-cheat</dt><dd>Auto-submits after {plural(exam.maxViolations || 3, 'tab switch', 'tab switches')}</dd></div>
+        <div className="docfield"><dt>Anti-cheat</dt><dd>{tabSwitchRule(exam.maxViolations)}</dd></div>
         <div className="docfield"><dt>Written by</dt><dd>{exam.createdBy?.name || '—'}</dd></div>
       </dl>
     </Panel>
